@@ -7,6 +7,7 @@ import { LUMA_CONFIG } from "../config/lumaConfig.js";
 import { DatabaseService } from "../services/Database.js";
 import { PersonalityManager } from "../managers/PersonalityManager.js";
 import { ToolDispatcher } from "./ToolDispatcher.js";
+import { AudioTranscriber } from "../services/AudioTranscriber.js";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -19,9 +20,19 @@ dotenv.config();
 export class MessageHandler {
   static lumaHandler = new LumaHandler();
 
+  // Instância única do transcritor — inicializada de forma lazy
+  static _audioTranscriber = null;
+
+  static get audioTranscriber() {
+    if (!this._audioTranscriber && process.env.GEMINI_API_KEY) {
+      this._audioTranscriber = new AudioTranscriber(process.env.GEMINI_API_KEY);
+    }
+    return this._audioTranscriber;
+  }
+
   /**
    * Ponto de entrada principal para cada mensagem recebida.
-   * Fluxo: validações → easter eggs → comandos → Luma IA.
+   * Fluxo: validações → easter eggs → comandos → transcrição de áudio → Luma IA.
    */
   static async process(bot) {
     const text = bot.body;
@@ -45,8 +56,142 @@ export class MessageHandler {
     const isTriggered = text && LumaHandler.isTriggered(text);
     const isPrivateChat = !bot.isGroup;
 
+    // --- Fluxo de Transcrição de Áudio ---
+    // Condição: usuário cita/responde a um áudio E aciona a Luma (ou está no privado)
+    if (bot.quotedHasAudio && (isPrivateChat || isReplyToBot || isTriggered)) {
+      return await this.handleAudioTranscription(bot);
+    }
+
     if (isPrivateChat || isReplyToBot || isTriggered) {
       return await this.handleLumaCommand(bot, isReplyToBot);
+    }
+  }
+
+  /**
+   * Fluxo de transcrição: baixa o áudio citado, transcreve via Gemini
+   * e injeta o texto no pipeline normal da Luma.
+   */
+  static async handleAudioTranscription(bot) {
+    try {
+      const transcriber = this.audioTranscriber;
+
+      if (!transcriber) {
+        Logger.warn("⚠️ AudioTranscriber não disponível (API Key ausente).");
+        return await this.handleLumaCommand(bot, bot.isRepliedToMe);
+      }
+
+      await bot.sendPresence("composing");
+      await bot.react("🎙️");
+
+      // Monta um adapter fake apontando para o áudio citado
+      const quotedAdapter = bot.getQuotedAdapter();
+      if (!quotedAdapter) {
+        return await this.handleLumaCommand(bot, bot.isRepliedToMe);
+      }
+
+      Logger.info("🎙️ Baixando áudio para transcrição...");
+      const audioBuffer = await MediaProcessor.downloadMedia(
+        quotedAdapter.raw,
+        bot.socket
+      );
+
+      if (!audioBuffer || audioBuffer.length === 0) {
+        Logger.warn("⚠️ Áudio vazio ou falha no download.");
+        await bot.reply("⚠️ Não consegui baixar o áudio para transcrever.");
+        return;
+      }
+
+      Logger.info(`📊 Áudio baixado: ${(audioBuffer.length / 1024).toFixed(1)}KB`);
+
+      const mimeType = bot.quotedAudioMimeType;
+      const transcription = await transcriber.transcribe(audioBuffer, mimeType);
+
+      if (!transcription) {
+        await bot.reply("⚠️ Não consegui transcrever esse áudio.");
+        return;
+      }
+
+      // Áudio ininteligível ou vazio — responde com contexto
+      if (
+        transcription === "[áudio ininteligível]" ||
+        transcription === "[áudio sem conteúdo]"
+      ) {
+        await bot.reply(
+          `🎙️ _Tentei ouvir o áudio, mas ${transcription === "[áudio ininteligível]"
+            ? "não consegui entender o que foi dito"
+            : "ele estava vazio ou silencioso"
+          }._`
+        );
+        return;
+      }
+
+      Logger.info(`✅ Transcrição: "${transcription.substring(0, 80)}..."`);
+
+      // Exibe a transcrição para o usuário antes de responder
+      await bot.sendText(
+        `🎙️ _"${transcription}"_`,
+        { quoted: bot.raw }
+      );
+
+      // Constrói a mensagem da Luma: contexto do áudio + mensagem original do usuário
+      const userText = bot.body
+        ? this.lumaHandler.extractUserMessage(bot.body)
+        : "";
+
+      const enrichedMessage = userText
+        ? `[O usuário respondeu a um áudio com a transcrição: "${transcription}"] ${userText}`
+        : `[O usuário pediu pra você ouvir/responder o seguinte áudio que foi transcrito: "${transcription}"]`;
+
+      // Passa o texto enriquecido diretamente para o pipeline da Luma
+      await this._callLumaWithMessage(bot, enrichedMessage);
+    } catch (error) {
+      Logger.error("❌ Erro no fluxo de transcrição:", error);
+      // Fallback: tenta responder normalmente sem o áudio
+      await this.handleLumaCommand(bot, bot.isRepliedToMe);
+    }
+  }
+
+  /**
+   * Chama a Luma com uma mensagem já processada (sem extrair novamente do body).
+   * Usado pelo fluxo de transcrição para injetar o texto transcrito.
+   * @private
+   */
+  static async _callLumaWithMessage(bot, message) {
+    try {
+      const senderName = bot.senderName;
+
+      await bot.sendPresence("composing");
+      await this.randomDelay();
+
+      const quotedBot = bot.getQuotedAdapter();
+
+      const response = await this.lumaHandler.generateResponse(
+        message,
+        bot.jid,
+        bot.raw,
+        bot.socket,
+        senderName
+      );
+
+      const responseText = response.text;
+
+      if (responseText) {
+        const sentMessage = await bot.reply(responseText);
+        if (sentMessage?.key?.id) {
+          this.lumaHandler.saveLastBotMessage(bot.jid, sentMessage.key.id);
+        }
+      }
+
+      if (response.toolCalls && response.toolCalls.length > 0) {
+        await ToolDispatcher.handleToolCalls(
+          bot,
+          response.toolCalls,
+          this.lumaHandler,
+          quotedBot
+        );
+      }
+    } catch (error) {
+      Logger.error("❌ Erro ao chamar Luma com mensagem injetada:", error);
     }
   }
 

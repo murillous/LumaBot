@@ -138,7 +138,8 @@ export class BaileysAdapter {
       msg?.extendedTextMessage?.contextInfo ||
       msg?.imageMessage?.contextInfo ||
       msg?.videoMessage?.contextInfo ||
-      msg?.stickerMessage?.contextInfo;
+      msg?.stickerMessage?.contextInfo ||
+      msg?.audioMessage?.contextInfo;
 
     return context?.quotedMessage;
   }
@@ -154,6 +155,50 @@ export class BaileysAdapter {
       q.videoMessage?.caption ||
       null
     );
+  }
+
+  // --- Detecção de Áudio ---
+
+  /**
+   * Verifica se a mensagem atual contém um áudio (PTT ou arquivo de áudio).
+   */
+  get hasAudio() {
+    const msg = this.innerMessage;
+    return !!(msg?.audioMessage);
+  }
+
+  /**
+   * Verifica se a mensagem citada (quoted) contém um áudio.
+   * Essa é a condição principal do fluxo de transcrição:
+   * usuário responde a um áudio mencionando a Luma.
+   */
+  get quotedHasAudio() {
+    const q = this.quotedMessage;
+    if (!q) return false;
+    const unwrapped = BaileysAdapter.unwrapMessage(q);
+    return !!(unwrapped?.audioMessage || q?.audioMessage);
+  }
+
+  /**
+   * Retorna o mimeType do áudio citado, necessário para a transcrição.
+   */
+  get quotedAudioMimeType() {
+    const q = this.quotedMessage;
+    if (!q) return "audio/ogg; codecs=opus";
+    const unwrapped = BaileysAdapter.unwrapMessage(q);
+    return (
+      unwrapped?.audioMessage?.mimetype ||
+      q?.audioMessage?.mimetype ||
+      "audio/ogg; codecs=opus"
+    );
+  }
+
+  /**
+   * Retorna o mimeType do áudio da mensagem atual.
+   */
+  get audioMimeType() {
+    const msg = this.innerMessage;
+    return msg?.audioMessage?.mimetype || "audio/ogg; codecs=opus";
   }
 
   // --- Métodos de Envio ---
@@ -264,7 +309,8 @@ export class BaileysAdapter {
       msg?.extendedTextMessage?.contextInfo ||
       msg?.imageMessage?.contextInfo ||
       msg?.videoMessage?.contextInfo ||
-      msg?.stickerMessage?.contextInfo;
+      msg?.stickerMessage?.contextInfo ||
+      msg?.audioMessage?.contextInfo;
 
     const fakeMsg = {
       key: {
