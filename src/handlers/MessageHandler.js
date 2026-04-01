@@ -272,7 +272,7 @@ export class MessageHandler {
         await this.handleGifCommand(bot);
         return true;
       case COMMANDS.DOWNLOAD: {
-        const url = this.extractUrl(text);
+        const url = this.extractUrl(text) || this.extractUrl(bot.quotedText);
         if (url) {
           await this.handleVideoDownload(bot, url);
         } else {
@@ -543,7 +543,7 @@ export class MessageHandler {
       return COMMANDS.HELP;
     if (lower.startsWith(COMMANDS.PERSONA)) return COMMANDS.PERSONA;
     if (lower.startsWith(COMMANDS.DOWNLOAD)) return COMMANDS.DOWNLOAD;
-    if (lower.startsWith(COMMANDS.DOWNLOAD_SHORT) && lower.length > 2) return COMMANDS.DOWNLOAD;
+    if (lower.startsWith(COMMANDS.DOWNLOAD_SHORT)) return COMMANDS.DOWNLOAD;
     return null;
   }
 
