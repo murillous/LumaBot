@@ -87,9 +87,9 @@ export class VideoDownloader {
     const cmd = [
       `"${ytdlp}"`,
       `-o "${outputTemplate}"`,
-      `--format "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best"`,
+      `--format "${CONFIG.VIDEO_DOWNLOAD_FORMAT}"`,
       "--merge-output-format mp4",
-      "--max-filesize 50M",
+      `--max-filesize ${CONFIG.VIDEO_DOWNLOAD_MAX_SIZE_MB}M`,
       "--no-playlist",
       "--no-warnings",
       `"${url}"`,
@@ -98,7 +98,7 @@ export class VideoDownloader {
     Logger.info(`📥 VideoDownloader: Iniciando download de ${url}`);
 
     try {
-      await execAsync(cmd, { timeout: 120000 });
+      await execAsync(cmd, { timeout: CONFIG.VIDEO_DOWNLOAD_TIMEOUT_MS });
     } catch (error) {
       Logger.warn(`⚠️ VideoDownloader: yt-dlp saiu com erro: ${error.message}`);
     }
