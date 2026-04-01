@@ -52,13 +52,6 @@ export class MessageHandler {
         if (handled) return;
       }
 
-      // Detecta links de Twitter/X ou Instagram e baixa o vídeo automaticamente
-      if (!command) {
-        const videoUrl = VideoDownloader.detectVideoUrl(text);
-        if (videoUrl) {
-          return await this.handleVideoDownload(bot, videoUrl);
-        }
-      }
     }
 
     const isReplyToBot = bot.isRepliedToMe;
@@ -66,7 +59,11 @@ export class MessageHandler {
     const isPrivateChat = !bot.isGroup;
 
     // --- Fluxo de Transcrição de Áudio ---
-    // Condição: usuário cita/responde a um áudio E aciona a Luma (ou está no privado)
+    // Áudio direto no PV ou em resposta à Luma — não precisa de trigger
+    if (bot.hasAudio && (isPrivateChat || isReplyToBot)) {
+      return await this.handleAudioTranscription(bot);
+    }
+    // Áudio citado/respondido com trigger (ou privado)
     if (bot.quotedHasAudio && (isPrivateChat || isReplyToBot || isTriggered)) {
       return await this.handleAudioTranscription(bot);
     }
@@ -92,15 +89,23 @@ export class MessageHandler {
       await bot.sendPresence("composing");
       await bot.react("🎙️");
 
-      // Monta um adapter fake apontando para o áudio citado
-      const quotedAdapter = bot.getQuotedAdapter();
-      if (!quotedAdapter) {
-        return await this.handleLumaCommand(bot, bot.isRepliedToMe);
+      // Resolve a fonte do áudio: direto na mensagem ou no quoted
+      let audioRaw, mimeType;
+      if (bot.hasAudio) {
+        audioRaw = bot.raw;
+        mimeType = bot.audioMimeType;
+      } else {
+        const quotedAdapter = bot.getQuotedAdapter();
+        if (!quotedAdapter) {
+          return await this.handleLumaCommand(bot, bot.isRepliedToMe);
+        }
+        audioRaw = quotedAdapter.raw;
+        mimeType = bot.quotedAudioMimeType;
       }
 
       Logger.info("🎙️ Baixando áudio para transcrição...");
       const audioBuffer = await MediaProcessor.downloadMedia(
-        quotedAdapter.raw,
+        audioRaw,
         bot.socket
       );
 
@@ -111,8 +116,6 @@ export class MessageHandler {
       }
 
       Logger.info(`📊 Áudio baixado: ${(audioBuffer.length / 1024).toFixed(1)}KB`);
-
-      const mimeType = bot.quotedAudioMimeType;
       const transcription = await transcriber.transcribe(audioBuffer, mimeType);
 
       if (!transcription) {
