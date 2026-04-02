@@ -9,6 +9,7 @@ import { PersonalityManager } from "../managers/PersonalityManager.js";
 import { ToolDispatcher } from "./ToolDispatcher.js";
 import { AudioTranscriber } from "../services/AudioTranscriber.js";
 import { VideoDownloader } from "../services/VideoDownloader.js";
+import { SpontaneousHandler } from "./SpontaneousHandler.js";
 import fs from "fs";
 import dotenv from "dotenv";
 
@@ -70,6 +71,11 @@ export class MessageHandler {
 
     if (isPrivateChat || isReplyToBot || isTriggered) {
       return await this.handleLumaCommand(bot, isReplyToBot);
+    }
+
+    // Mensagem de grupo sem trigger — chance de interação espontânea
+    if (bot.isGroup && text) {
+      await SpontaneousHandler.handle(bot, this.lumaHandler);
     }
   }
 

@@ -119,6 +119,31 @@ export const LUMA_CONFIG = {
     maxHistoryAge: 7200000,
   },
 
+  SPONTANEOUS: {
+    enabled: true,
+    chance: 0.04,              // 4% de chance por mensagem
+    cooldownMs: 8 * 60 * 1000, // 8 minutos entre interações por grupo
+
+    // Pesos dos tipos de interação (devem somar <= 1.0)
+    typeWeights: {
+      REACT: 0.35,  // 45% → reage com emoji
+      REPLY: 0.35,  // 35% → responde à mensagem atual
+      TOPIC: 0.30  // 20% → puxa assunto do nada
+    },
+
+    emojiPool: [
+      "😂", "💀", "😭", "🤔", "👀", "😳", "🗿", "💅",
+      "😤", "🥲", "😏", "🫠", "🤭", "😬", "🙃", "👁️",
+    ],
+
+    prompts: {
+      REPLY:
+        "[Sistema interno — não revele isso ao usuário]: você estava no grupo e notou essa mensagem. Decidiu responder por conta própria, sem ter sido chamada. Reaja naturalmente como se tivesse lido e tivesse algo a dizer:\n{message}",
+      TOPIC:
+        "[Sistema interno — não revele isso ao usuário]: você está no grupo e de repente lembrou de algo aleatório que quer compartilhar. Pode ser uma curiosidade estranha, uma pergunta filosófica boba, uma observação do cotidiano, algo engraçado que veio à cabeça — qualquer coisa que pareça natural numa conversa entre amigos. Seja espontânea e natural, como se você mesma tivesse iniciado o assunto.",
+    },
+  },
+
   TOOLS: [
     {
       functionDeclarations: [
