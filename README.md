@@ -33,11 +33,13 @@ A Luma agora pode pesquisar na internet quando precisar de informações atualiz
 
 ### 🎲 Interações Espontâneas (SpontaneousHandler)
 A Luma agora "ganha vida" em grupos sem precisar ser chamada:
-- **4% de chance** de interagir em cada mensagem recebida (cooldown de 8 min por grupo)
+- **Chance dinâmica** por atividade: 4% (grupo quieto) → 10% (grupo ativo) → 15% (imagem/sticker)
+- Cooldown de 8 min por grupo garante que ela não apareça demais
 - Três tipos de interação sorteados por peso:
-  - **Reagir** (35%) — reage com emoji à mensagem
+  - **Reagir** (35%) — reage com emoji à mensagem (só em texto)
   - **Responder** (35%) — comenta a mensagem atual sem ter sido chamada
-  - **Puxar assunto** (30%) — inicia um assunto aleatório do nada
+  - **Puxar assunto** (30%) — inicia um assunto aleatório do nada (só em texto)
+- **Imagens e stickers** sempre disparam uma resposta comentando o visual (nunca react/topic)
 
 ---
 
@@ -112,8 +114,8 @@ A Luma pode executar ações reais no WhatsApp quando você pede naturalmente:
 
 ### 🧠 Memória de Contexto
 
-- Mantém **até 20 mensagens** por conversa
-- Lembra do que foi dito anteriormente
+- Mantém **até 80 mensagens** por conversa com a Luma
+- **Buffer de grupo**: captura as últimas 15 mensagens do grupo (de qualquer pessoa) e injeta no prompt quando a Luma é chamada — ela entende o que estava sendo discutido antes de ser acionada
 - **Auto-limpeza** após 2 horas de inatividade
 - Histórico pode ser limpo com `!luma clear`
 

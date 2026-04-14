@@ -50,6 +50,7 @@ export class LumaHandler {
     message = null,
     sock = null,
     senderName = "Usuário",
+    groupContext = "",
   ) {
     if (!this.isConfigured) return this._getErrorResponse("API_KEY_MISSING");
 
@@ -64,6 +65,7 @@ export class LumaHandler {
         imageData,
         personaConfig,
         senderName,
+        groupContext,
       );
 
       const response = await this.aiService.generateContent(promptParts);
@@ -85,7 +87,7 @@ export class LumaHandler {
     }
   }
 
-  _buildPromptRequest(userMessage, userJid, imageData, personaConfig, senderName) {
+  _buildPromptRequest(userMessage, userJid, imageData, personaConfig, senderName, groupContext = "") {
     const history = this._getHistoryText(userJid);
     const hasHistory = history !== "Nenhuma conversa anterior.";
 
@@ -95,6 +97,10 @@ export class LumaHandler {
 
     const traitsStr = personaConfig.traits.map((t) => `- ${t}`).join("\n");
 
+    const groupContextStr = groupContext
+      ? `[CONVERSA RECENTE NO GRUPO]\n(o que estava sendo discutido antes de você ser chamada)\n${groupContext}\n\n`
+      : "";
+
     const promptText = template
       .replace("{{PERSONALITY_CONTEXT}}", personaConfig.context)
       .replace("{{PERSONALITY_STYLE}}", personaConfig.style)
@@ -103,6 +109,7 @@ export class LumaHandler {
         "{{HISTORY_PLACEHOLDER}}",
         hasHistory ? `CONVERSA ANTERIOR:\n${history}\n` : "",
       )
+      .replace("{{GROUP_CONTEXT_PLACEHOLDER}}", groupContextStr)
       .replace("{{USER_MESSAGE}}", `${senderName}: ${userMessage}`);
 
     const parts = [{ text: promptText }];

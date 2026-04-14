@@ -10,16 +10,51 @@ export class SpontaneousHandler {
   /** @type {Map<string, number>} jid → timestamp da última interação */
   static #cooldowns = new Map();
 
+  /** @type {Map<string, number[]>} jid → timestamps de mensagens recentes */
+  static #activityTracker = new Map();
+
+  /**
+   * Registra uma mensagem recebida para cálculo de atividade do grupo.
+   * Deve ser chamado para toda mensagem de grupo, independente de trigger.
+   * @param {string} jid
+   */
+  static trackActivity(jid) {
+    const now = Date.now();
+    const { windowMs } = LUMA_CONFIG.SPONTANEOUS.activityBoost;
+    const timestamps = this.#activityTracker.get(jid) ?? [];
+    // Remove timestamps fora da janela e adiciona o atual
+    const recent = timestamps.filter(t => now - t < windowMs);
+    recent.push(now);
+    this.#activityTracker.set(jid, recent);
+  }
+
+  /**
+   * Retorna a chance efetiva de disparo para o grupo,
+   * aplicando boost se o grupo está em alta atividade.
+   */
+  static #getEffectiveChance(jid) {
+    const { chance, activityBoost } = LUMA_CONFIG.SPONTANEOUS;
+    const timestamps = this.#activityTracker.get(jid) ?? [];
+    const windowStart = Date.now() - activityBoost.windowMs;
+    const recentCount = timestamps.filter(t => t > windowStart).length;
+    return recentCount >= activityBoost.threshold
+      ? activityBoost.boostedChance
+      : chance;
+  }
+
   /**
    * Decide se deve disparar uma interação espontânea para esse grupo.
-   * Respeita cooldown e probabilidade configurados.
+   * Imagens usam chance própria (imageChance); texto usa chance dinâmica por atividade.
    */
-  static #shouldTrigger(jid) {
+  static #shouldTrigger(jid, hasVisual = false) {
     if (!LUMA_CONFIG.SPONTANEOUS.enabled) return false;
     const now = Date.now();
     const last = this.#cooldowns.get(jid) ?? 0;
     if (now - last < LUMA_CONFIG.SPONTANEOUS.cooldownMs) return false;
-    return Math.random() < LUMA_CONFIG.SPONTANEOUS.chance;
+    const chance = hasVisual
+      ? LUMA_CONFIG.SPONTANEOUS.imageChance
+      : this.#getEffectiveChance(jid);
+    return Math.random() < chance;
   }
 
   /** Escolhe o tipo de interação com base nos pesos configurados. */
@@ -45,25 +80,33 @@ export class SpontaneousHandler {
    */
   static async handle(bot, lumaHandler) {
     if (!bot.isGroup) return;
-    if (!this.#shouldTrigger(bot.jid)) return;
 
-    const type = this.#pickType();
+    // Imagem/sticker sem áudio — contexto visual disponível para a IA
+    const hasVisual = bot.hasVisualContent && !bot.hasAudio;
+    if (!this.#shouldTrigger(bot.jid, hasVisual)) return;
+
+    const type = hasVisual ? "reply" : this.#pickType();
     this.#cooldowns.set(bot.jid, Date.now());
 
-    Logger.info(`🎲 Interação espontânea [${type}] no grupo ${bot.jid}`);
+    Logger.info(`🎲 Interação espontânea [${hasVisual ? "visual" : type}] no grupo ${bot.jid}`);
 
     try {
-      if (type === "react") {
+      // React só ocorre para mensagens de texto (sem visual)
+      if (!hasVisual && type === "react") {
         await bot.react(this.#randomEmoji());
         return;
       }
 
       await bot.sendPresence("composing");
 
-      const prompt =
-        type === "reply" && bot.body
-          ? LUMA_CONFIG.SPONTANEOUS.prompts.REPLY.replace("{message}", bot.body)
-          : LUMA_CONFIG.SPONTANEOUS.prompts.TOPIC;
+      let prompt;
+      if (hasVisual) {
+        prompt = LUMA_CONFIG.SPONTANEOUS.prompts.IMAGE;
+      } else if (type === "reply" && bot.body) {
+        prompt = LUMA_CONFIG.SPONTANEOUS.prompts.REPLY.replace("{message}", bot.body);
+      } else {
+        prompt = LUMA_CONFIG.SPONTANEOUS.prompts.TOPIC;
+      }
 
       const response = await lumaHandler.generateResponse(
         prompt,
@@ -75,7 +118,7 @@ export class SpontaneousHandler {
 
       if (!response.parts?.length) return;
 
-      if (type === "reply") {
+      if (hasVisual || type === "reply") {
         await this.#sendPartsQuoted(bot, response.parts, lumaHandler);
       } else {
         await this.#sendPartsStandalone(bot, response.parts, lumaHandler);

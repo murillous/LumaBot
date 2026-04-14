@@ -27,11 +27,37 @@ export class MessageHandler {
   // Instância única do transcritor — inicializada de forma lazy
   static _audioTranscriber = null;
 
+  // Buffer de mensagens recentes por grupo (jid → [{name, text}])
+  static _groupBuffer = new Map();
+
   static get audioTranscriber() {
     if (!this._audioTranscriber && process.env.GEMINI_API_KEY) {
       this._audioTranscriber = new AudioTranscriber(process.env.GEMINI_API_KEY);
     }
     return this._audioTranscriber;
+  }
+
+  /**
+   * Adiciona uma mensagem ao buffer de contexto do grupo.
+   * Mantém apenas as últimas N mensagens (TECHNICAL.groupContextSize).
+   * @private
+   */
+  static _addToGroupBuffer(jid, text, senderName) {
+    const { groupContextSize } = LUMA_CONFIG.TECHNICAL;
+    const buf = this._groupBuffer.get(jid) ?? [];
+    buf.push({ name: senderName, text });
+    if (buf.length > groupContextSize) buf.shift();
+    this._groupBuffer.set(jid, buf);
+  }
+
+  /**
+   * Retorna o contexto do grupo formatado para o prompt da IA.
+   * @private
+   */
+  static _getGroupContext(jid) {
+    const buf = this._groupBuffer.get(jid);
+    if (!buf?.length) return "";
+    return buf.map(m => `${m.name}: ${m.text}`).join("\n");
   }
 
   /**
@@ -42,6 +68,12 @@ export class MessageHandler {
     const text = bot.body;
 
     if (CONFIG.IGNORE_SELF && bot.isFromMe) return;
+
+    // Rastreia atividade e bufferiza contexto para mensagens de grupo de outros usuários
+    if (bot.isGroup && !bot.isFromMe) {
+      SpontaneousHandler.trackActivity(bot.jid);
+      if (text) this._addToGroupBuffer(bot.jid, text, bot.senderName);
+    }
 
     await this._handleEasterEggs(bot);
 
@@ -71,11 +103,12 @@ export class MessageHandler {
     }
 
     if (isPrivateChat || isReplyToBot || isTriggered) {
-      return await this.handleLumaCommand(bot, isReplyToBot);
+      const groupContext = bot.isGroup ? this._getGroupContext(bot.jid) : "";
+      return await this.handleLumaCommand(bot, isReplyToBot, groupContext);
     }
 
-    // Mensagem de grupo sem trigger — chance de interação espontânea
-    if (bot.isGroup && text) {
+    // Mensagem de grupo sem trigger — chance de interação espontânea (texto ou imagem)
+    if (bot.isGroup && (text || bot.hasVisualContent)) {
       await SpontaneousHandler.handle(bot, this.lumaHandler);
     }
   }
@@ -162,7 +195,8 @@ export class MessageHandler {
         : `[O usuário pediu pra você ouvir/responder o seguinte áudio que foi transcrito: "${transcription}"]`;
 
       // Passa o texto enriquecido diretamente para o pipeline da Luma
-      await this._callLumaWithMessage(bot, enrichedMessage);
+      const groupContext = bot.isGroup ? this._getGroupContext(bot.jid) : "";
+      await this._callLumaWithMessage(bot, enrichedMessage, groupContext);
     } catch (error) {
       Logger.error("❌ Erro no fluxo de transcrição:", error);
       // Fallback: tenta responder normalmente sem o áudio
@@ -175,7 +209,7 @@ export class MessageHandler {
    * Usado pelo fluxo de transcrição para injetar o texto transcrito.
    * @private
    */
-  static async _callLumaWithMessage(bot, message) {
+  static async _callLumaWithMessage(bot, message, groupContext = "") {
     try {
       const senderName = bot.senderName;
 
@@ -189,7 +223,8 @@ export class MessageHandler {
         bot.jid,
         bot.raw,
         bot.socket,
-        senderName
+        senderName,
+        groupContext,
       );
 
       if (response.parts?.length > 0) {
@@ -303,7 +338,7 @@ export class MessageHandler {
    * Envia a mensagem do usuário para a Luma (IA) e despacha ferramentas se necessário.
    * Salva o quotedBot ANTES de chamar a IA, pois o download de mídia muta o protobuf.
    */
-  static async handleLumaCommand(bot, isReply = false) {
+  static async handleLumaCommand(bot, isReply = false, groupContext = "") {
     try {
       const senderName = bot.senderName;
       let userMessage = isReply
@@ -340,6 +375,7 @@ export class MessageHandler {
         bot.raw,
         bot.socket,
         senderName,
+        groupContext,
       );
 
       if (response.parts?.length > 0) {

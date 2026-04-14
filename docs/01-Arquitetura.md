@@ -223,27 +223,28 @@ class DatabaseService {
    └────────┘ └─────────┘ └──────────┘ └────────────────┘ └─────────────────────┘
 ```
 
-O `SpontaneousHandler` é um módulo paralelo ao `MessageHandler`: ele processa mensagens de grupo que não foram capturadas pelo fluxo normal e decide, de forma probabilística, se a Luma deve interagir.
+O `SpontaneousHandler` é um módulo paralelo ao `MessageHandler`: ele processa mensagens de grupo que não foram capturadas pelo fluxo normal e decide, de forma probabilística, se a Luma deve interagir. O `MessageHandler` também o aciona para mensagens visuais (imagens/stickers), não apenas texto.
 
 ## 🔀 Fluxo de Dados Detalhado
 
-### Cenário 1: Usuário envia texto "Oi Luma"
+### Cenário 1: Usuário envia texto "Oi Luma" em grupo
 
 ```
 1. WhatsApp → Baileys emite evento "messages.upsert"
 2. index.js captura e chama MessageHandler.process()
-3. MessageHandler valida e normaliza
-4. MessageHandler detecta: "não é comando, é mensagem normal"
-5. MessageHandler chama LumaHandler.generateResponse()
-6. LumaHandler:
-   a. Busca histórico da conversa (DatabaseService)
+3. MessageHandler registra a mensagem no _groupBuffer e no activityTracker
+4. MessageHandler detecta: "não é comando, é mensagem com trigger da Luma"
+5. MessageHandler extrai groupContext (últimas 15 msgs do grupo) do _groupBuffer
+6. MessageHandler chama LumaHandler.generateResponse(..., groupContext)
+7. LumaHandler:
+   a. Busca histórico da conversa com a Luma (RAM)
    b. Busca personalidade configurada (DatabaseService)
-   c. Monta prompt completo
+   c. Monta prompt: histórico + contexto do grupo + mensagem atual
    d. Chama API Gemini
    e. Salva resposta no histórico
-7. LumaHandler retorna texto
-8. MessageHandler envia via sock.sendMessage()
-9. DatabaseService.incrementMetric('messages_sent')
+8. LumaHandler retorna texto
+9. MessageHandler envia via sock.sendMessage()
+10. DatabaseService.incrementMetric('messages_sent')
 ```
 
 ### Cenário 2: Usuário envia imagem com legenda "!sticker"
@@ -284,18 +285,23 @@ O `SpontaneousHandler` é um módulo paralelo ao `MessageHandler`: ele processa 
 ### Cenário 4: SpontaneousHandler — Luma reage sem ser chamada
 
 ```
-1. Mensagem normal chega em grupo
-2. MessageHandler não detecta comando nem gatilho da Luma
-3. SpontaneousHandler.handle(bot, lumaHandler) é chamado
-4. SpontaneousHandler:
-   a. Verifica se está habilitado (LUMA_CONFIG.SPONTANEOUS.enabled)
-   b. Checa cooldown: última interação neste grupo < 8 minutos? → ignora
-   c. Sorteia: Math.random() < 0.04 (4%)? → continua ou ignora
-   d. Sorteia tipo: react (35%) | reply (35%) | topic (30%)
-5. Se "react": bot.react(emoji aleatório) — fim
-6. Se "reply": LumaHandler gera resposta para a mensagem atual (quoted)
-7. Se "topic": LumaHandler gera assunto aleatório e envia standalone
-8. Cooldown atualizado para este grupo
+1. Mensagem de grupo chega (texto ou imagem/sticker)
+2. MessageHandler registra no _groupBuffer e chama SpontaneousHandler.trackActivity(jid)
+3. MessageHandler não detecta comando nem gatilho → chama SpontaneousHandler.handle()
+4. SpontaneousHandler — filtros em sequência:
+   a. enabled? → não → ignora
+   b. cooldown OK (≥ 8 min)? → não → ignora
+   c. sorteio de chance:
+      - mensagem tem visual → usa imageChance (15%)
+      - grupo ativo (≥ 8 msgs/2min) → usa boostedChance (10%)
+      - grupo quieto → usa chance base (4%)
+5. Passa no sorteio → escolhe tipo:
+   - visual: força "reply" com prompt IMAGE + passa imagem para o Gemini
+   - texto: sorteia react (35%) | reply (35%) | topic (30%)
+6. Se "react": bot.react(emoji aleatório) — fim
+7. Se "reply": LumaHandler gera resposta quoted para a mensagem/imagem atual
+8. Se "topic": LumaHandler gera assunto aleatório e envia standalone
+9. Cooldown atualizado para este grupo
 ```
 
 ### Cenário 5: Usuário usa `!download https://x.com/...`

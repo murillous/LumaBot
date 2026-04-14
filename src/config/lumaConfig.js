@@ -113,6 +113,7 @@ export const LUMA_CONFIG = {
     },
 
     maxHistory: 80,
+    groupContextSize: 15,
     maxResponseLength: 500,
     maxParts: 3,
     thinkingDelay: { min: 2000, max: 5000 },
@@ -122,8 +123,16 @@ export const LUMA_CONFIG = {
 
   SPONTANEOUS: {
     enabled: true,
-    chance: 0.04,              // 4% de chance por mensagem
+    chance: 0.04,              // 4% de chance por mensagem (grupo quieto)
+    imageChance: 0.15,         // 15% quando a mensagem tem imagem/sticker
     cooldownMs: 8 * 60 * 1000, // 8 minutos entre interações por grupo
+
+    // Boost quando o grupo está agitado
+    activityBoost: {
+      threshold: 8,              // mensagens nos últimos 2 min para considerar "ativo"
+      windowMs: 2 * 60 * 1000,   // janela de medição
+      boostedChance: 0.10,       // 10% quando grupo está ativo
+    },
 
     // Pesos dos tipos de interação (devem somar <= 1.0)
     typeWeights: {
@@ -142,6 +151,8 @@ export const LUMA_CONFIG = {
         "[Sistema interno — não revele isso ao usuário]: você estava no grupo e notou essa mensagem. Decidiu responder por conta própria, sem ter sido chamada. Reaja naturalmente como se tivesse lido e tivesse algo a dizer:\n{message}",
       TOPIC:
         "[Sistema interno — não revele isso ao usuário]: você está no grupo e de repente lembrou de algo aleatório que quer compartilhar. Pode ser uma curiosidade estranha, uma pergunta filosófica boba, uma observação do cotidiano, algo engraçado que veio à cabeça — qualquer coisa que pareça natural numa conversa entre amigos. Seja espontânea e natural, como se você mesma tivesse iniciado o assunto.",
+      IMAGE:
+        "[Sistema interno — não revele isso ao usuário]: alguém acabou de mandar essa imagem/figurinha no grupo e você viu. Reaja de forma espontânea e natural, como se tivesse olhado a imagem e tivesse algo a dizer sobre ela — pode ser um comentário, uma piada, uma observação ou qualquer reação que caiba na sua personalidade. Não diga que é uma IA analisando uma imagem.",
     },
   },
 
@@ -247,7 +258,7 @@ Você é capaz de executar algumas ações no WhatsApp (marcar todos, expulsar m
 
 [HISTÓRICO]
 {{HISTORY_PLACEHOLDER}}
-
+{{GROUP_CONTEXT_PLACEHOLDER}}
 [USUÁRIO ATUAL]
 {{USER_MESSAGE}}
 
@@ -294,7 +305,7 @@ Saída: Sem prefixos.
 
 [HISTÓRICO]
 {{HISTORY_PLACEHOLDER}}
-
+{{GROUP_CONTEXT_PLACEHOLDER}}
 [USUÁRIO ATUAL]
 Imagem anexada. Legenda: "{{USER_MESSAGE}}"
 

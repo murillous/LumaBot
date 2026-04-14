@@ -515,37 +515,153 @@ await geminiClient.models.generateContent({
 
 A troca é silenciosa — o usuário não percebe a diferença.
 
+## 🧩 Buffer de Contexto do Grupo
+
+Quando a Luma é chamada em meio a uma conversa de grupo, ela precisava de contexto sobre o que estava sendo discutido — mesmo nos tópicos onde não foi mencionada. O **buffer de contexto** resolve isso.
+
+### Como funciona
+
+```
+Toda mensagem de grupo de outro usuário
+    │
+    ├── SpontaneousHandler.trackActivity(jid)  ← conta para o cooldown inteligente
+    └── MessageHandler._addToGroupBuffer(jid, text, senderName)  ← entra no buffer
+```
+
+O buffer mantém as **últimas 15 mensagens por grupo** (FIFO) em memória. Quando a Luma é acionada, o `MessageHandler` extrai esse buffer e o repassa por toda a cadeia até o prompt:
+
+```
+MessageHandler.process()
+    └── _getGroupContext(jid)  →  "João: falando de futebol\nMaria: o Neymar foi mal..."
+            └── handleLumaCommand(bot, isReply, groupContext)
+                    └── lumaHandler.generateResponse(..., groupContext)
+                            └── _buildPromptRequest(..., groupContext)
+```
+
+### Injeção no Prompt
+
+O contexto é injetado como uma seção própria, separada do histórico Luma/usuário:
+
+```
+[HISTÓRICO]
+CONVERSA ANTERIOR:
+João: luma o que tu acha de futebol
+Luma: ah mano, depende do time...
+
+[CONVERSA RECENTE NO GRUPO]
+(o que estava sendo discutido antes de você ser chamada)
+João: o Neymar foi muito mal ontem
+Maria: pior que eu concordo
+Pedro: ele tá velho mesmo
+
+[USUÁRIO ATUAL]
+João: luma, e aí, o que você acha?
+```
+
+A IA distingue claramente o que é diálogo direto com ela e o que é o contexto ambiente do grupo.
+
+### Configuração
+
+```javascript
+// lumaConfig.js → TECHNICAL
+groupContextSize: 15,  // máximo de mensagens no buffer por grupo
+```
+
+### Onde o buffer NÃO é usado
+
+- Chat privado: `groupContext` é sempre `""` — o placeholder some do prompt
+- Interações espontâneas: o `SpontaneousHandler` chama `generateResponse` sem contexto de grupo (a mensagem já é o gatilho)
+- Transcrição de áudio: o contexto é passado normalmente via `_callLumaWithMessage`
+
+---
+
 ## 🎲 Interações Espontâneas (SpontaneousHandler)
 
 A Luma pode interagir em grupos sem ser chamada, simulando presença ativa na conversa.
 
 ### Lógica de Disparo
 
-```javascript
-// Para cada mensagem de grupo que não acionou nenhum comando:
-SpontaneousHandler.handle(bot, lumaHandler)
+O disparo passa por três filtros em sequência:
 
-// Condições para disparar (todas devem ser verdadeiras):
-1. LUMA_CONFIG.SPONTANEOUS.enabled === true
-2. Date.now() - ultimaInteração[grupo] >= 8 minutos  (cooldown)
-3. Math.random() < 0.04                               (4% de chance)
+```
+SpontaneousHandler.handle(bot, lumaHandler)
+    │
+    ├─ 1. enabled?  →  não → ignora
+    ├─ 2. cooldown OK? (≥ 8 min desde última interação neste grupo) → não → ignora
+    └─ 3. sorteio de chance → não → ignora
+              │
+              ├─ mensagem tem visual (imagem/sticker)?  →  chance = 15%  (imageChance)
+              └─ mensagem é texto?
+                      ├─ grupo ativo (≥ 8 msg nos últimos 2 min)?  →  chance = 10%  (boostedChance)
+                      └─ grupo quieto?                             →  chance =  4%  (chance base)
 ```
 
 ### Tipos de Interação
 
-| Tipo | Peso | O que faz |
-|------|------|-----------|
-| **react** | 35% | Reage à mensagem com emoji aleatório do pool |
-| **reply** | 35% | Gera resposta com IA e envia como quoted reply |
-| **topic** | 30% | Gera assunto aleatório e envia standalone |
+| Tipo | Peso | Quando ocorre | O que faz |
+|------|------|---------------|-----------|
+| **react** | 35% | Apenas em texto | Reage à mensagem com emoji aleatório do pool |
+| **reply** | 35% | Texto; sempre em visual | Gera resposta com IA e envia como quoted reply |
+| **topic** | 30% | Apenas em texto | Gera assunto aleatório e envia standalone |
 
-### Configuração em `lumaConfig.js`
+> Mensagens com imagem/sticker **nunca** disparam "react" ou "topic" — a Luma sempre comenta o visual diretamente.
+
+### Cooldown Inteligente por Atividade
+
+O `SpontaneousHandler` rastreia a frequência de mensagens por grupo via `trackActivity(jid)`, chamado pelo `MessageHandler` para toda mensagem recebida:
+
+```javascript
+// SpontaneousHandler
+static trackActivity(jid) {
+    const now = Date.now();
+    const { windowMs } = LUMA_CONFIG.SPONTANEOUS.activityBoost;
+    const timestamps = this.#activityTracker.get(jid) ?? [];
+    // Descarta timestamps fora da janela de 2 min e adiciona o atual
+    const recent = timestamps.filter(t => now - t < windowMs);
+    recent.push(now);
+    this.#activityTracker.set(jid, recent);
+}
+
+static #getEffectiveChance(jid) {
+    const { chance, activityBoost } = LUMA_CONFIG.SPONTANEOUS;
+    const recentCount = /* mensagens nos últimos windowMs */;
+    return recentCount >= activityBoost.threshold
+        ? activityBoost.boostedChance  // grupo ativo: 10%
+        : chance;                       // grupo quieto: 4%
+}
+```
+
+### Reação a Imagens e Stickers
+
+O `MessageHandler` agora aciona o `SpontaneousHandler` também para mensagens visuais:
+
+```javascript
+// MessageHandler.process()
+if (bot.isGroup && (text || bot.hasVisualContent)) {
+    await SpontaneousHandler.handle(bot, this.lumaHandler);
+}
+```
+
+Dentro do `SpontaneousHandler`, quando `hasVisual` é verdadeiro:
+1. Usa o `imageChance` (15%) em vez da chance base
+2. Força o tipo `"reply"` (comentar uma imagem é sempre mais natural que puxar assunto)
+3. Usa o prompt `IMAGE` — que instrui a Luma a reagir à imagem sem quebrar a imersão
+4. Passa `bot.raw` para `generateResponse`, que extrai a imagem via `_extractImage` e a envia ao Gemini (pipeline multimodal já existente)
+
+### Configuração Completa em `lumaConfig.js`
 
 ```javascript
 SPONTANEOUS: {
   enabled: true,
-  chance: 0.04,               // 4% por mensagem
-  cooldownMs: 8 * 60 * 1000,  // 8 min entre interações por grupo
+  chance: 0.04,              // 4% por mensagem (grupo quieto)
+  imageChance: 0.15,         // 15% quando a mensagem tem imagem/sticker
+  cooldownMs: 8 * 60 * 1000, // 8 min entre interações por grupo
+
+  activityBoost: {
+    threshold: 8,              // mensagens nos últimos 2 min para "grupo ativo"
+    windowMs: 2 * 60 * 1000,   // janela de medição
+    boostedChance: 0.10,       // chance quando grupo está ativo
+  },
 
   typeWeights: {
     REACT: 0.35,
@@ -558,6 +674,7 @@ SPONTANEOUS: {
   prompts: {
     REPLY: "...[sistema]: você notou essa mensagem. Reaja naturalmente: {message}",
     TOPIC: "...[sistema]: você quer compartilhar algo aleatório. Seja espontânea.",
+    IMAGE: "...[sistema]: você viu essa imagem no grupo e achou interessante. Reaja naturalmente.",
   },
 }
 ```
