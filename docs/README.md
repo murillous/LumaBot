@@ -2,7 +2,7 @@
 
 Bem-vindo à base de conhecimento do LumaBot. Esta documentação foi escrita para transformar desenvolvedores iniciantes em contribuidores ativos do projeto.
 
-O LumaBot não é apenas um script; é uma aplicação estruturada seguindo princípios de **Clean Code**, **Separação de Responsabilidades** e **Arquitetura Orientada a Eventos**.
+O LumaBot v6.0 implementa **Arquitetura Hexagonal (Ports & Adapters)** com **Plugin System** e **Injeção de Dependências**, resultado de 6 fases de refatoração concluídas.
 
 ## 🚀 Começando por aqui
 
@@ -27,11 +27,11 @@ O LumaBot está passando por uma migração de monolito acoplado para **Monolito
 | # | Fase | Doc | Status |
 |---|------|-----|--------|
 | 0 | Fundação de Testes + Config | [07-fase-0-testes.md](./07-fase-0-testes.md) | ✅ Concluída |
-| 1 | Ports & Adapters | [08-fase-1-ports-adapters.md](./08-fase-1-ports-adapters.md) | 🔜 Próxima |
-| 2 | Container de DI + Bootstrap | [09-fase-2-container-di.md](./09-fase-2-container-di.md) | ⏳ Planejada |
-| 3 | Decomposição dos Handlers | [10-fase-3-decomposicao.md](./10-fase-3-decomposicao.md) | ⏳ Planejada |
-| 4 | Plugin Manager | [11-fase-4-plugin-manager.md](./11-fase-4-plugin-manager.md) | ⏳ Planejada |
-| 5 | Multi-Provider de IA | [12-fase-5-multi-ia.md](./12-fase-5-multi-ia.md) | ⏳ Planejada |
+| 1 | Ports & Adapters | [08-fase-1-ports-adapters.md](./08-fase-1-ports-adapters.md) | ✅ Concluída |
+| 2 | Container de DI + Bootstrap | [09-fase-2-container-di.md](./09-fase-2-container-di.md) | ✅ Concluída |
+| 3 | Decomposição dos Handlers | [10-fase-3-decomposicao.md](./10-fase-3-decomposicao.md) | ✅ Concluída |
+| 4 | Plugin Manager | [11-fase-4-plugin-manager.md](./11-fase-4-plugin-manager.md) | ✅ Concluída |
+| 5 | Multi-Provider de IA | [12-fase-5-multi-ia.md](./12-fase-5-multi-ia.md) | ✅ Concluída |
 
 ## 🛠️ Stack Tecnológica Detalhada
 

@@ -1,7 +1,7 @@
 {
   "name": "luma-bot",
-  "version": "5.0.0",
-  "description": "Assistente de IA com personalidades dinâmicas para WhatsApp, incluindo conversão de mídias, figurinhas e ferramentas acionadas por linguagem natural.",
+  "version": "6.0.0",
+  "description": "Assistente de IA multi-provider para WhatsApp com arquitetura hexagonal, plugin system e personalidades dinâmicas.",
   "type": "module",
   "main": "index.js",
   "scripts": {
