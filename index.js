@@ -2,8 +2,9 @@ import { FileSystem } from "./src/utils/FileSystem.js";
 import { Logger } from "./src/utils/Logger.js";
 import { CONFIG, MESSAGES } from "./src/config/constants.js";
 import { ConnectionManager } from "./src/managers/ConnectionManager.js";
-import dotenv from "dotenv";
-dotenv.config();
+// Importa env para executar a validação de variáveis obrigatórias no boot.
+// Se GEMINI_API_KEY estiver ausente, o processo encerra aqui com mensagem clara.
+import "./src/config/env.js";
 
 class BotInitializer {
   static async start() {

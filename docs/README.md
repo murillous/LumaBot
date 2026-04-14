@@ -8,11 +8,30 @@ O LumaBot não é apenas um script; é uma aplicação estruturada seguindo prin
 
 Se você quer entender como o projeto funciona "por baixo do capô", siga esta trilha:
 
-1. [**Arquitetura & Fluxos**](./01-arquitetura.md): Entenda o caminho que uma mensagem percorre desde o celular do usuário até a resposta do servidor. Contém diagramas visuais.
+1. [**Arquitetura & Fluxos**](./01-Arquitetura.md): Entenda o caminho que uma mensagem percorre desde o celular do usuário até a resposta do servidor. Contém diagramas visuais.
 2. [**O Cérebro (IA)**](./02-nucleo-ia.md): Descubra como gerenciamos memória, personalidades e a API do Google Gemini.
 3. [**Engenharia de Mídia**](./03-motor-midia.md): Uma aula sobre manipulação de imagens, stickers e vídeos com FFmpeg.
 4. [**Persistência de Dados**](./04-banco-dados.md): Entenda nossa estratégia híbrida de bancos de dados para privacidade e métricas.
 5. [**Núcleo WhatsApp**](./05-conexao-wa.md): Detalhes sobre a biblioteca Baileys e gestão de sockets.
+
+---
+
+## 🏗️ Refatoração Arquitetural
+
+O LumaBot está passando por uma migração de monolito acoplado para **Monolito Modular com Arquitetura Hexagonal**. Acompanhe o progresso:
+
+6. [**Visão Geral da Refatoração**](./06-refatoracao-visao-geral.md): Diagnóstico dos problemas atuais, arquitetura alvo e roadmap de fases.
+
+### Fases
+
+| # | Fase | Doc | Status |
+|---|------|-----|--------|
+| 0 | Fundação de Testes + Config | [07-fase-0-testes.md](./07-fase-0-testes.md) | ✅ Concluída |
+| 1 | Ports & Adapters | [08-fase-1-ports-adapters.md](./08-fase-1-ports-adapters.md) | 🔜 Próxima |
+| 2 | Container de DI + Bootstrap | [09-fase-2-container-di.md](./09-fase-2-container-di.md) | ⏳ Planejada |
+| 3 | Decomposição dos Handlers | [10-fase-3-decomposicao.md](./10-fase-3-decomposicao.md) | ⏳ Planejada |
+| 4 | Plugin Manager | [11-fase-4-plugin-manager.md](./11-fase-4-plugin-manager.md) | ⏳ Planejada |
+| 5 | Multi-Provider de IA | [12-fase-5-multi-ia.md](./12-fase-5-multi-ia.md) | ⏳ Planejada |
 
 ## 🛠️ Stack Tecnológica Detalhada
 

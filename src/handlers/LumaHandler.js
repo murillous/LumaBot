@@ -4,9 +4,7 @@ import { LUMA_CONFIG } from "../config/lumaConfig.js";
 import { MediaProcessor } from "./MediaProcessor.js";
 import { PersonalityManager } from "../managers/PersonalityManager.js";
 import { DatabaseService } from "../services/Database.js";
-import dotenv from "dotenv";
-
-dotenv.config();
+import { env } from "../config/env.js";
 
 /**
  * Gerenciador de inteligência artificial da Luma.
@@ -18,7 +16,7 @@ export class LumaHandler {
     this.lastBotMessages = new Map();
     this.aiService = null;
 
-    this._initializeService(process.env.GEMINI_API_KEY);
+    this._initializeService(env.GEMINI_API_KEY);
     this._startCleanupInterval();
   }
 

@@ -11,10 +11,8 @@ import { AudioTranscriber } from "../services/AudioTranscriber.js";
 import { VideoDownloader } from "../services/VideoDownloader.js";
 import { VideoConverter } from "../processors/VideoConverter.js";
 import { SpontaneousHandler } from "./SpontaneousHandler.js";
+import { env } from "../config/env.js";
 import fs from "fs";
-import dotenv from "dotenv";
-
-dotenv.config();
 
 /**
  * Controlador central de mensagens do bot.
@@ -31,8 +29,8 @@ export class MessageHandler {
   static _groupBuffer = new Map();
 
   static get audioTranscriber() {
-    if (!this._audioTranscriber && process.env.GEMINI_API_KEY) {
-      this._audioTranscriber = new AudioTranscriber(process.env.GEMINI_API_KEY);
+    if (!this._audioTranscriber && env.GEMINI_API_KEY) {
+      this._audioTranscriber = new AudioTranscriber(env.GEMINI_API_KEY);
     }
     return this._audioTranscriber;
   }
@@ -575,6 +573,9 @@ export class MessageHandler {
     const lower = text.toLowerCase();
     if (lower === COMMANDS.MY_NUMBER) return COMMANDS.MY_NUMBER;
     if (lower.includes(COMMANDS.LUMA_CLEAR)) return COMMANDS.LUMA_CLEAR;
+    // Aliases de luma clear: !lc e !clear — verificados ANTES de !clear para
+    // evitar que "!lc" seja parcialmente absorvido por outra checagem.
+    if (lower === COMMANDS.LUMA_CLEAR_SHORT) return COMMANDS.LUMA_CLEAR;
     if (lower.includes("!clear")) return COMMANDS.LUMA_CLEAR_ALT;
     if (lower.includes(COMMANDS.LUMA_STATS)) return COMMANDS.LUMA_STATS;
     if (lower.includes(COMMANDS.LUMA_STATS_SHORT)) return COMMANDS.LUMA_STATS;
