@@ -149,7 +149,7 @@ export class LumaHandler {
         toolCalls: response.functionCalls || []
       };
     } catch (error) {
-      Logger.error("❌ Erro no fluxo Luma:", error.message);
+      Logger.error("❌ Erro no fluxo Luma:", error);
       return this._getErrorResponse("GENERAL", error);
     }
   }

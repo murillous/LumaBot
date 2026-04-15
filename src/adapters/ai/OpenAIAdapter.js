@@ -34,7 +34,7 @@ export class OpenAIAdapter extends AIPort {
    */
   async generateContent(history, systemPrompt, tools = []) {
     const messages = [
-      { role: "system", content: systemPrompt },
+      ...(systemPrompt ? [{ role: "system", content: systemPrompt }] : []),
       ...history.map(({ role, parts }) => ({
         role: role === "model" ? "assistant" : "user",
         content: parts.map((p) => p.text ?? "").join(""),
