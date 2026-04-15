@@ -9,114 +9,142 @@
   <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
 </head>
-<body class="login-page">
+<body class="login-page" data-barba="wrapper">
 
-  <div class="login-wrap">
+  <div data-barba="container" data-barba-namespace="login">
+    <div class="login-wrap">
 
-    <div class="login-box">
+      <div class="login-box">
 
-      <!-- Cabeçalho -->
-      <header class="login-header">
-        <div class="login-logo">
-          LUMABOT<span class="login-logo-sys">.SYS</span><span class="login-cursor" aria-hidden="true">_</span>
-        </div>
-        <div class="login-badge">v6.0</div>
-      </header>
+        <!-- Cabeçalho -->
+        <header class="login-header">
+          <div class="login-logo">
+            LUMABOT<span class="login-logo-sys">.SYS</span><span class="login-cursor" aria-hidden="true">_</span>
+          </div>
+          <div class="login-badge">v6.0</div>
+        </header>
 
-      <div class="login-divider" aria-hidden="true"></div>
+        <div class="login-divider" aria-hidden="true"></div>
 
-      <!-- Subtítulo -->
-      <p class="login-subtitle" aria-label="Autenticação requerida">
-        <span class="login-prompt">&gt;</span> AUTENTICAÇÃO REQUERIDA
-      </p>
-      <p class="login-hint">DASHBOARD — ACESSO RESTRITO</p>
+        <!-- Subtítulo -->
+        <p class="login-subtitle" aria-label="Autenticação requerida">
+          <span class="login-prompt">&gt;</span> AUTENTICAÇÃO REQUERIDA
+        </p>
+        <p class="login-hint">DASHBOARD — ACESSO RESTRITO</p>
 
-      <!-- Formulário -->
-      <form id="loginForm" autocomplete="off" novalidate>
+        <!-- Formulário -->
+        <form id="loginForm" autocomplete="off" novalidate>
 
-        <label for="passwordInput" class="visually-hidden">Senha de acesso</label>
-        <div class="login-field" id="loginField">
-          <span class="login-prefix" aria-hidden="true">&gt;_</span>
-          <input
-            type="password"
-            id="passwordInput"
-            class="login-input"
-            placeholder="senha de acesso"
-            autocomplete="current-password"
-            autofocus
-          />
-        </div>
+          <label for="passwordInput" class="visually-hidden">Senha de acesso</label>
+          <div class="login-field" id="loginField">
+            <span class="login-prefix" aria-hidden="true">&gt;_</span>
+            <input
+              type="password"
+              id="passwordInput"
+              class="login-input"
+              placeholder="senha de acesso"
+              autocomplete="current-password"
+              autofocus
+            />
+          </div>
 
-        <p class="login-error" id="loginError" role="alert" aria-live="polite"></p>
+          <p class="login-error" id="loginError" role="alert" aria-live="polite"></p>
 
-        <button type="submit" class="login-btn" id="loginBtn" aria-label="Entrar no dashboard">
-          <span class="login-btn-text">[ ENTRAR ]</span>
-          <span class="login-btn-loading" hidden aria-hidden="true">[ VERIFICANDO<span class="typing-dots"></span> ]</span>
-        </button>
+          <button type="submit" class="login-btn" id="loginBtn" aria-label="Entrar no dashboard">
+            <span class="login-btn-text">[ ENTRAR ]</span>
+            <span class="login-btn-loading" hidden aria-hidden="true">[ VERIFICANDO<span class="typing-dots"></span> ]</span>
+          </button>
 
-      </form>
+        </form>
 
-      <!-- Rodapé decorativo -->
-      <footer class="login-footer" aria-hidden="true">
-        SYS:LUMA &nbsp;|&nbsp; CONN:SECURE &nbsp;|&nbsp; AES-256
-      </footer>
+        <!-- Rodapé decorativo -->
+        <footer class="login-footer" aria-hidden="true">
+          SYS:LUMA &nbsp;|&nbsp; CONN:SECURE &nbsp;|&nbsp; AES-256
+        </footer>
+
+      </div>
 
     </div>
+  </div><!-- /barba container -->
 
-  </div>
+  <!-- barba.js — CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@barba/core/dist/barba.umd.js"></script>
+  <!-- Inicialização compartilhada: transições + views -->
+  <script src="barba-init.js"></script>
 
   <script>
-    const form    = document.getElementById('loginForm');
-    const input   = document.getElementById('passwordInput');
-    const errEl   = document.getElementById('loginError');
-    const btn     = document.getElementById('loginBtn');
-    const btnText = btn.querySelector('.login-btn-text');
-    const btnLoad = btn.querySelector('.login-btn-loading');
-    const field   = document.getElementById('loginField');
+    // ── bindLoginForm — exposto globalmente para barba.js afterEnter ─────────────
+    window.bindLoginForm = function bindLoginForm() {
+      const form    = document.getElementById('loginForm');
+      if (!form || form._ready) return;
+      form._ready = true;
 
-    function setLoading(on) {
-      btn.disabled   = on;
-      btnText.hidden = on;
-      btnLoad.hidden = !on;
-    }
+      const input   = document.getElementById('passwordInput');
+      const errEl   = document.getElementById('loginError');
+      const btn     = document.getElementById('loginBtn');
+      const btnText = btn.querySelector('.login-btn-text');
+      const btnLoad = btn.querySelector('.login-btn-loading');
+      const field   = document.getElementById('loginField');
 
-    function setError(msg) {
-      errEl.textContent = msg;
-      field.classList.toggle('login-field--error', !!msg);
-      if (msg) field.classList.add('login-field--shake');
-      field.addEventListener('animationend', () => {
-        field.classList.remove('login-field--shake');
-      }, { once: true });
-    }
-
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const password = input.value;
-      setError('');
-      setLoading(true);
-
-      try {
-        const res  = await fetch('/api/login', {
-          method:  'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({ password }),
-        });
-        const data = await res.json();
-
-        if (data.ok) {
-          localStorage.setItem('dash_token', data.token ?? '');
-          location.href = `/?token=${encodeURIComponent(data.token ?? '')}`;
-        } else {
-          setError('» CREDENCIAL INVÁLIDA');
-          setLoading(false);
-          input.value = '';
-          input.focus();
-        }
-      } catch {
-        setError('» ERRO DE CONEXÃO');
-        setLoading(false);
+      function setLoading(on) {
+        btn.disabled   = on;
+        btnText.hidden = on;
+        btnLoad.hidden = !on;
       }
-    });
+
+      function setError(msg) {
+        errEl.textContent = msg;
+        field.classList.toggle('login-field--error', !!msg);
+        if (msg) field.classList.add('login-field--shake');
+        field.addEventListener('animationend', () => {
+          field.classList.remove('login-field--shake');
+        }, { once: true });
+      }
+
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const password = input.value;
+        setError('');
+        setLoading(true);
+
+        try {
+          const res  = await fetch('/api/login', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ password }),
+          });
+          const data = await res.json();
+
+          if (data.ok) {
+            const token = data.token ?? '';
+            localStorage.setItem('dash_token', token);
+            document.cookie = `dash_token=${encodeURIComponent(token)}; path=/; SameSite=Strict`;
+            // Navega via barba.js para transição animada; fallback para redirect
+            if (window.barba) {
+              barba.go('/');
+            } else {
+              location.href = `/?token=${encodeURIComponent(token)}`;
+            }
+          } else {
+            setError('» CREDENCIAL INVÁLIDA');
+            setLoading(false);
+            input.value = '';
+            input.focus();
+          }
+        } catch {
+          setError('» ERRO DE CONEXÃO');
+          setLoading(false);
+        }
+      });
+    };
+
+    // Primeira carga (não via barba)
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', window.bindLoginForm);
+    } else {
+      window.bindLoginForm();
+    }
   </script>
+
 </body>
 </html>

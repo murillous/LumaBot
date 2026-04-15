@@ -19,7 +19,11 @@ const api = {
         method:  'POST',
         headers: { 'Content-Type': 'application/json', ...authHeader() },
       });
-      if (res.status === 401) return location.href = '/login';
+      if (res.status === 401) {
+        if (window.barba) barba.go('/login');
+        else location.href = '/login';
+        return;
+      }
       return res.json();
     } catch (e) {
       dashboard.pushLog(`Erro de rede: ${e.message}`, 'error');
@@ -44,13 +48,26 @@ class Dashboard {
     this.reconnects  = 0;
     this.pid         = null;
 
-    this._wsRetries = 0;
+    this._wsRetries   = 0;
+    this._intervals   = [];           // todos os intervalos para limpeza
     this._bindFilterButtons();
     this._startClock();
     this._startUptimeTicker();
     this._connectWS();
     this._fetchStats();
-    setInterval(() => this._fetchStats(), 30000);
+    this._intervals.push(setInterval(() => this._fetchStats(), 30000));
+  }
+
+  // ── Limpeza (chamado antes de re-inicializar via barba.js) ──────────────────
+
+  destroy() {
+    if (this._ws) {
+      this._ws.onclose = null; // impede reconexão automática
+      this._ws.close();
+      this._ws = null;
+    }
+    this._intervals.forEach(id => clearInterval(id));
+    this._intervals = [];
   }
 
   // ── WebSocket ─────────────────────────────────────────────────────────────
@@ -150,7 +167,7 @@ class Dashboard {
     const running = status === 'running' || status === 'connecting' || status === 'starting';
     document.getElementById('btnStart').disabled   = running;
     document.getElementById('btnStop').disabled    = !running;
-    document.getElementById('btnRestart').disabled = !botProcess && status === 'stopped';
+    document.getElementById('btnRestart').disabled = status === 'stopped';
 
     // Fecha QR se conectou
     if (status === 'running') this._hideQR();
@@ -303,19 +320,20 @@ class Dashboard {
         new Date().toLocaleTimeString('pt-BR', { hour12: false });
     };
     tick();
-    setInterval(tick, 1000);
+    this._intervals.push(setInterval(tick, 1000));
   }
 
   _startUptimeTicker() {
-    setInterval(() => {
+    this._intervals.push(setInterval(() => {
       const el = document.getElementById('metricUptime');
+      if (!el) return;
       if (!this.uptimeStart) { el.textContent = '00:00:00'; return; }
       const s  = Math.floor((Date.now() - this.uptimeStart) / 1000);
       const h  = String(Math.floor(s / 3600)).padStart(2, '0');
       const m  = String(Math.floor((s % 3600) / 60)).padStart(2, '0');
       const ss = String(s % 60).padStart(2, '0');
       el.textContent = `${h}:${m}:${ss}`;
-    }, 1000);
+    }, 1000));
   }
 
   // ── Estatísticas ──────────────────────────────────────────────────────────
@@ -368,10 +386,5 @@ class Dashboard {
   }
 }
 
-// Variável usada nos botões do HTML
-let botProcess = false; // placeholder para lógica de disable
-
-document.addEventListener('DOMContentLoaded', () => {
-  window.dashboard = new Dashboard();
-  window.api       = api;
-});
+// api é exposto globalmente para os onclick inline do HTML
+window.api = api;

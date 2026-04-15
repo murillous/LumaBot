@@ -4,147 +4,256 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>LumaBot Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
+  <!-- dashboard.js carregado no head para barba.js recarregar em navegação SPA -->
+  <script src="dashboard.js" defer></script>
 </head>
-<body>
+<body data-barba="wrapper">
 
-  <!-- ── QR Modal ─────────────────────────────────────────────────────────── -->
-  <div class="qr-overlay" id="qrOverlay">
-    <div class="qr-modal">
-      <div class="qr-title">📱 ESCANEIE O QR CODE</div>
-      <div class="qr-subtitle">Abra o WhatsApp → Aparelhos conectados → Conectar aparelho</div>
-      <div class="qr-img-wrap">
-        <img id="qrImage" src="" alt="QR Code" />
-      </div>
-      <div class="qr-waiting">
-        <span class="qr-dot"></span>
-        Aguardando escaneamento<span class="typing-dots"></span>
-      </div>
-    </div>
-  </div>
+  <div data-barba="container" data-barba-namespace="dashboard">
 
-  <!-- ── Layout principal ──────────────────────────────────────────────────── -->
-  <div class="container">
-
-    <!-- Header -->
-    <div class="header">
-      <div class="header-left">
-        <div class="status-indicator" id="statusDot"></div>
-        <span class="header-title">LUMABOT<span class="header-sys">.SYS</span></span>
-        <span class="status-badge" id="statusBadge">● OFFLINE</span>
-      </div>
-      <div class="header-right">
-        <span class="header-pid" id="headerPid"></span>
-        <span class="header-time" id="headerTime">00:00:00</span>
+    <!-- ── QR Modal ────────────────────────────────────────────────────────────── -->
+    <div class="qr-overlay" id="qrOverlay">
+      <div class="qr-modal">
+        <div class="qr-title">ESCANEIE O QR CODE</div>
+        <div class="qr-subtitle">WhatsApp → Aparelhos conectados → Conectar aparelho</div>
+        <div class="qr-img-wrap">
+          <img id="qrImage" src="" alt="QR Code WhatsApp" />
+        </div>
+        <div class="qr-waiting">
+          <span class="qr-dot"></span>
+          Aguardando escaneamento<span class="typing-dots"></span>
+        </div>
       </div>
     </div>
 
-    <!-- Main -->
-    <div class="main-content">
+    <!-- ── App Layout ──────────────────────────────────────────────────────────── -->
+    <div class="app">
 
-      <!-- Painel esquerdo — controles + métricas -->
-      <div class="panel panel-left">
-
-        <!-- Controle do bot -->
-        <div class="panel-section">
-          <div class="panel-title">CONTROLE</div>
-          <div class="control-buttons">
-            <button class="btn btn-success" id="btnStart"   onclick="api.start()">▶ START</button>
-            <button class="btn btn-danger"  id="btnStop"    onclick="api.stop()">⏹ STOP</button>
-            <button class="btn btn-warn"    id="btnRestart" onclick="api.restart()">↺ RESTART</button>
-          </div>
+      <!-- Header -->
+      <header class="header">
+        <div class="header-left">
+          <div class="status-indicator inactive" id="statusDot"></div>
+          <span class="header-title">LUMABOT<span class="header-sys">.SYS</span></span>
+          <span class="status-badge status-red" id="statusBadge">● OFFLINE</span>
         </div>
+        <div class="header-right">
+          <span class="header-pid" id="headerPid"></span>
+          <span class="header-time" id="headerTime">00:00:00</span>
+        </div>
+      </header>
 
-        <!-- Status -->
-        <div class="panel-section">
-          <div class="panel-title">STATUS</div>
-          <div class="metrics-grid">
-            <div class="metric-card">
-              <div class="metric-label">ESTADO</div>
-              <div class="metric-value" id="metricStatus">OFFLINE</div>
+      <!-- Main: sidebar + console (desktop grid / mobile tabs) -->
+      <div class="main" role="main">
+
+        <!-- ── Painel Esquerdo: Controles / Status / Stats ─────────────────────── -->
+        <aside class="panel-left tab-active" id="panelControls" role="region" aria-label="Controles">
+
+          <!-- Controle do bot -->
+          <div class="panel-section">
+            <div class="panel-title">CONTROLE</div>
+            <div class="control-buttons">
+              <button class="btn btn-success btn-start" id="btnStart" onclick="api.start()">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                START
+              </button>
+              <button class="btn btn-danger" id="btnStop" onclick="api.stop()">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+                STOP
+              </button>
+              <button class="btn btn-warn" id="btnRestart" onclick="api.restart()">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                RESTART
+              </button>
             </div>
-            <div class="metric-card">
-              <div class="metric-label">UPTIME</div>
-              <div class="metric-value" id="metricUptime">00:00:00</div>
+          </div>
+
+          <!-- Status / Métricas -->
+          <div class="panel-section">
+            <div class="panel-title">STATUS</div>
+            <div class="metrics-grid">
+              <div class="metric-card">
+                <div class="metric-label">ESTADO</div>
+                <div class="metric-value status-red" id="metricStatus">OFFLINE</div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-label">UPTIME</div>
+                <div class="metric-value" id="metricUptime">00:00:00</div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-label">PID</div>
+                <div class="metric-value" id="metricPid">—</div>
+              </div>
+              <div class="metric-card">
+                <div class="metric-label">RECONEXÕES</div>
+                <div class="metric-value" id="metricReconnects">0</div>
+              </div>
             </div>
-            <div class="metric-card">
-              <div class="metric-label">PID</div>
-              <div class="metric-value" id="metricPid">—</div>
+          </div>
+
+          <!-- Estatísticas do bot (SQLite) -->
+          <div class="panel-section">
+            <div class="panel-title">ESTATÍSTICAS</div>
+            <div class="stats-list" id="statsList">
+              <div class="stat-row"><span class="stat-k">Respostas IA</span><span class="stat-v" id="sAI">—</span></div>
+              <div class="stat-row"><span class="stat-k">Stickers</span><span class="stat-v" id="sStickers">—</span></div>
+              <div class="stat-row"><span class="stat-k">Imagens</span><span class="stat-v" id="sImages">—</span></div>
+              <div class="stat-row"><span class="stat-k">GIFs</span><span class="stat-v" id="sGifs">—</span></div>
+              <div class="stat-row"><span class="stat-k">Vídeos</span><span class="stat-v" id="sVideos">—</span></div>
+              <div class="stat-row"><span class="stat-k">Total msgs</span><span class="stat-v" id="sTotal">—</span></div>
             </div>
-            <div class="metric-card">
-              <div class="metric-label">RECONEXÕES</div>
-              <div class="metric-value" id="metricReconnects">0</div>
+          </div>
+
+          <!-- Cloudflare Tunnel URL -->
+          <div class="panel-section" id="tunnelSection" style="display:none">
+            <div class="panel-title">ACESSO EXTERNO</div>
+            <div class="tunnel-url-wrap">
+              <a class="tunnel-url" id="tunnelUrl" href="#" target="_blank" rel="noopener noreferrer"></a>
+              <button class="btn btn-sm btn-success" onclick="dashboard.copyTunnelUrl()">COPIAR</button>
             </div>
+            <div class="tunnel-note">URL temporária — muda ao reiniciar</div>
           </div>
-        </div>
 
-        <!-- Estatísticas do bot (SQLite) -->
-        <div class="panel-section">
-          <div class="panel-title">ESTATÍSTICAS</div>
-          <div class="stats-list" id="statsList">
-            <div class="stat-row"><span class="stat-k">Respostas IA</span><span class="stat-v" id="sAI">—</span></div>
-            <div class="stat-row"><span class="stat-k">Stickers</span><span class="stat-v" id="sStickers">—</span></div>
-            <div class="stat-row"><span class="stat-k">Imagens</span><span class="stat-v" id="sImages">—</span></div>
-            <div class="stat-row"><span class="stat-k">GIFs</span><span class="stat-v" id="sGifs">—</span></div>
-            <div class="stat-row"><span class="stat-k">Vídeos</span><span class="stat-v" id="sVideos">—</span></div>
-            <div class="stat-row"><span class="stat-k">Total msgs</span><span class="stat-v" id="sTotal">—</span></div>
+          <div class="panel-footer">&gt; Dashboard v3.0 — LumaBot</div>
+
+        </aside><!-- /panel-left -->
+
+        <!-- ── Painel Direito: Console ─────────────────────────────────────────── -->
+        <section class="panel-right" id="panelConsole" role="region" aria-label="Console de logs">
+
+          <div class="console-title panel-title">
+            <span>CONSOLE OUTPUT</span>
+            <span class="live-badge" id="liveBadge">◉ LIVE</span>
           </div>
-        </div>
 
-        <!-- URL pública (Cloudflare Tunnel) -->
-        <div class="panel-section" id="tunnelSection" style="display:none">
-          <div class="panel-title">ACESSO EXTERNO</div>
-          <div class="tunnel-url-wrap">
-            <a class="tunnel-url" id="tunnelUrl" href="#" target="_blank" rel="noopener"></a>
-            <button class="btn btn-sm btn-success" onclick="dashboard.copyTunnelUrl()">COPIAR</button>
+          <!-- Filtros e busca -->
+          <div class="log-toolbar" role="toolbar" aria-label="Filtros de log">
+            <div class="log-filters" id="logFilters" role="group" aria-label="Nível de log">
+              <button class="filter-btn active" data-level="all">ALL</button>
+              <button class="filter-btn info"    data-level="info">INFO</button>
+              <button class="filter-btn warn"    data-level="warn">WARN</button>
+              <button class="filter-btn error"   data-level="error">ERR</button>
+              <button class="filter-btn success" data-level="success">OK</button>
+            </div>
+            <div class="log-search-wrap">
+              <span class="log-search-icon" aria-hidden="true">/</span>
+              <input
+                type="search"
+                id="logSearch"
+                class="log-search"
+                placeholder="filtrar logs..."
+                aria-label="Filtrar logs"
+                oninput="dashboard.onSearch(this.value)"
+              />
+            </div>
+            <button class="btn btn-sm btn-danger" onclick="dashboard.clearLogs()" aria-label="Limpar logs">CLR</button>
           </div>
-          <div class="tunnel-note">URL temporária — muda ao reiniciar</div>
-        </div>
 
-        <!-- Rodapé do painel -->
-        <div class="panel-footer">
-          &gt; Dashboard v2.0 — LumaBot
-        </div>
-      </div>
-
-      <!-- Painel direito — console de logs -->
-      <div class="panel panel-right">
-        <div class="panel-title console-title">
-          <span>CONSOLE OUTPUT</span>
-          <span class="live-badge" id="liveBadge">◉ LIVE</span>
-        </div>
-
-        <!-- Barra de filtros -->
-        <div class="log-toolbar">
-          <div class="log-filters" id="logFilters">
-            <button class="filter-btn active" data-level="all">ALL</button>
-            <button class="filter-btn info"    data-level="info">INFO</button>
-            <button class="filter-btn warn"    data-level="warn">WARN</button>
-            <button class="filter-btn error"   data-level="error">ERROR</button>
-            <button class="filter-btn success" data-level="success">OK</button>
+          <!-- Entradas de log -->
+          <div class="log-container" id="logContainer" role="log" aria-live="polite" aria-label="Saída do bot">
+            <div class="log-empty">» Aguardando conexão com o bot...</div>
           </div>
-          <div class="log-search-wrap">
-            <span class="log-search-icon">/</span>
-            <input
-              type="text"
-              id="logSearch"
-              class="log-search"
-              placeholder="filtrar logs..."
-              oninput="dashboard.onSearch(this.value)"
-            />
-          </div>
-          <button class="btn btn-sm btn-danger" onclick="dashboard.clearLogs()">CLEAR</button>
-        </div>
 
-        <!-- Log container -->
-        <div class="log-container" id="logContainer">
-          <div class="log-empty">» Aguardando conexão com o bot...</div>
-        </div>
-      </div>
+        </section><!-- /panel-right -->
 
-    </div><!-- /main-content -->
-  </div><!-- /container -->
+      </div><!-- /main -->
 
-  <script src="dashboard.js"></script>
+      <!-- ── Tab Bar (mobile only) ───────────────────────────────────────────── -->
+      <nav class="tab-bar" id="tabBar" role="tablist" aria-label="Navegação">
+
+        <button
+          class="tab-btn active"
+          id="tabBtnControls"
+          data-target="panelControls"
+          role="tab"
+          aria-selected="true"
+          aria-controls="panelControls"
+        >
+          <!-- Sliders icon -->
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <line x1="4" y1="6"  x2="20" y2="6"/>
+            <circle cx="9"  cy="6"  r="2" fill="currentColor" stroke="none"/>
+            <line x1="4" y1="12" x2="20" y2="12"/>
+            <circle cx="15" cy="12" r="2" fill="currentColor" stroke="none"/>
+            <line x1="4" y1="18" x2="20" y2="18"/>
+            <circle cx="9"  cy="18" r="2" fill="currentColor" stroke="none"/>
+          </svg>
+          <span>CONTROLE</span>
+        </button>
+
+        <button
+          class="tab-btn"
+          id="tabBtnConsole"
+          data-target="panelConsole"
+          role="tab"
+          aria-selected="false"
+          aria-controls="panelConsole"
+        >
+          <!-- Terminal / command icon -->
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <polyline points="4 17 10 11 4 5"/>
+            <line x1="12" y1="19" x2="20" y2="19"/>
+          </svg>
+          <span>CONSOLE</span>
+        </button>
+
+      </nav>
+
+    </div><!-- /app -->
+
+  </div><!-- /barba container -->
+
+  <!-- barba.js — CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@barba/core/dist/barba.umd.js"></script>
+  <!-- Inicialização compartilhada: transições + views -->
+  <script src="barba-init.js"></script>
+
+  <script>
+    // ── Inicialização do Dashboard ─────────────────────────────────────────────
+    window.initDashboard = function () {
+      // Destrói instância anterior (websocket, intervalos) se existir
+      if (window.dashboard?.destroy) window.dashboard.destroy();
+
+      window.dashboard = new Dashboard();
+
+      // Ativa lógica de tabs no mobile
+      const bar = document.getElementById('tabBar');
+      if (bar && !bar._tabsReady) {
+        bar._tabsReady = true;
+        bar.addEventListener('click', (e) => {
+          const btn = e.target.closest('[data-target]');
+          if (!btn) return;
+          const targetId = btn.dataset.target;
+
+          // Atualiza botões
+          bar.querySelectorAll('.tab-btn').forEach(b => {
+            b.classList.toggle('active', b === btn);
+            b.setAttribute('aria-selected', String(b === btn));
+          });
+
+          // Atualiza painéis
+          document.getElementById('panelControls')?.classList.toggle('tab-active', targetId === 'panelControls');
+          document.getElementById('panelConsole')?.classList.toggle('tab-active',  targetId === 'panelConsole');
+
+          // Auto-scroll para o fim do console ao abrir a aba
+          if (targetId === 'panelConsole' && window.dashboard?.autoScroll) {
+            const c = document.getElementById('logContainer');
+            if (c) c.scrollTop = c.scrollHeight;
+          }
+        });
+      }
+    };
+
+    // Primeira carga (não via barba)
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', window.initDashboard);
+    } else {
+      window.initDashboard();
+    }
+  </script>
+
 </body>
 </html>
