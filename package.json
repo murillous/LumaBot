@@ -1,14 +1,17 @@
 {
   "name": "luma-bot",
-  "version": "5.0.0",
-  "description": "Assistente de IA com personalidades dinâmicas para WhatsApp, incluindo conversão de mídias, figurinhas e ferramentas acionadas por linguagem natural.",
+  "version": "6.0.0",
+  "description": "Assistente de IA multi-provider para WhatsApp com arquitetura hexagonal, plugin system e personalidades dinâmicas.",
   "type": "module",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js",
     "dashboard": "node dashboard/server.js",
-    "dashboard:dev": "nodemon dashboard/server.js"
+    "dashboard:dev": "nodemon dashboard/server.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "keywords": [
     "whatsapp",
@@ -25,6 +28,7 @@
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
     "node-webpmux": "^3.2.1",
+    "openai": "^6.34.0",
     "pino": "^10.0.0",
     "qrcode": "^1.5.4",
     "qrcode-terminal": "^0.12.0",
@@ -32,7 +36,9 @@
     "ws": "^8.20.0"
   },
   "devDependencies": {
-    "nodemon": "^3.1.10"
+    "@vitest/coverage-v8": "^4.1.4",
+    "nodemon": "^3.1.10",
+    "vitest": "^4.1.4"
   },
   "engines": {
     "node": ">=18.0.0"

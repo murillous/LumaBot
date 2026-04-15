@@ -1,12 +1,12 @@
 import { AIService } from "../services/AIService.js";
+import { OpenAIAdapter } from "../adapters/ai/OpenAIAdapter.js";
 import { Logger } from "../utils/Logger.js";
 import { LUMA_CONFIG } from "../config/lumaConfig.js";
 import { MediaProcessor } from "./MediaProcessor.js";
 import { PersonalityManager } from "../managers/PersonalityManager.js";
 import { DatabaseService } from "../services/Database.js";
-import dotenv from "dotenv";
-
-dotenv.config();
+import { ToolDispatcher } from "./ToolDispatcher.js";
+import { env } from "../config/env.js";
 
 /**
  * Gerenciador de inteligência artificial da Luma.
@@ -18,22 +18,100 @@ export class LumaHandler {
     this.lastBotMessages = new Map();
     this.aiService = null;
 
-    this._initializeService(process.env.GEMINI_API_KEY);
+    this._initializeService();
     this._startCleanupInterval();
   }
 
-  _initializeService(apiKey) {
-    if (!apiKey || apiKey === "Sua Chave Aqui") {
-      Logger.error("❌ Luma não configurada: GEMINI_API_KEY ausente no .env");
-      return;
-    }
+  /**
+   * Inicializa o serviço de IA com base no provider configurado em AI_PROVIDER.
+   *
+   * - gemini  → AIService legado (acesso direto ao Gemini com multi-turn de busca)
+   * - openai  → OpenAIAdapter via wrapper de compatibilidade
+   * - deepseek → OpenAIAdapter apontando para api.deepseek.com
+   *
+   * O LumaHandler ainda usa o formato de contents Gemini internamente; o wrapper
+   * adapta essa chamada para o formato (history, systemPrompt, tools) do OpenAIAdapter.
+   */
+  _initializeService() {
+    const provider = env.AI_PROVIDER || 'gemini';
     try {
-      this.aiService = new AIService(apiKey);
-      Logger.info("✅ Luma Service inicializado e pronto.");
+      if (provider === 'gemini') {
+        const apiKey = env.GEMINI_API_KEY;
+        if (!apiKey || apiKey === 'Sua Chave Aqui') {
+          Logger.error("❌ Luma não configurada: GEMINI_API_KEY ausente no .env");
+          return;
+        }
+        this.aiService = new AIService(apiKey);
+
+      } else if (provider === 'openai') {
+        if (!env.OPENAI_API_KEY) {
+          Logger.error("❌ Luma não configurada: OPENAI_API_KEY ausente no .env");
+          return;
+        }
+        this.aiService = this._wrapOpenAIAdapter(new OpenAIAdapter({
+          apiKey: env.OPENAI_API_KEY,
+          model:  env.AI_MODEL,
+        }));
+
+      } else if (provider === 'deepseek') {
+        if (!env.DEEPSEEK_API_KEY) {
+          Logger.error("❌ Luma não configurada: DEEPSEEK_API_KEY ausente no .env");
+          return;
+        }
+        this.aiService = this._wrapOpenAIAdapter(new OpenAIAdapter({
+          apiKey:  env.DEEPSEEK_API_KEY,
+          model:   env.AI_MODEL ?? 'deepseek-chat',
+          baseURL: 'https://api.deepseek.com',
+        }));
+
+      } else {
+        Logger.error(`❌ Luma não configurada: AI_PROVIDER="${provider}" não reconhecido. Use gemini, openai ou deepseek.`);
+        return;
+      }
+
+      Logger.info(`✅ Luma Service inicializado com provider: ${provider}`);
     } catch (error) {
       Logger.error("❌ Falha crítica ao iniciar AIService:", error.message);
       this.aiService = null;
     }
+  }
+
+  /**
+   * Cria um wrapper fino que adapta OpenAIAdapter para a interface que
+   * LumaHandler usa internamente: generateContent(contents) onde contents
+   * é um array Gemini-style [{ role, parts: [{ text }] }].
+   *
+   * O prompt do LumaHandler tem o marcador [USUÁRIO ATUAL] separando o contexto
+   * de sistema (personalidade, histórico, instruções) da mensagem real do usuário.
+   * Dividimos no marcador: tudo antes vai como systemPrompt (maior prioridade no
+   * modelo), e o resto vai como mensagem do usuário.
+   */
+  _wrapOpenAIAdapter(adapter) {
+    return {
+      async generateContent(contents) {
+        const fullText = contents
+          .flatMap(c => c.parts ?? [])
+          .map(p => p.text ?? '')
+          .join('\n');
+
+        const SPLIT_MARKER = '[USUÁRIO ATUAL]';
+        const splitIdx = fullText.indexOf(SPLIT_MARKER);
+
+        const systemPrompt = splitIdx !== -1
+          ? fullText.substring(0, splitIdx).trim()
+          : '';
+        const userContent = splitIdx !== -1
+          ? fullText.substring(splitIdx).trim()
+          : fullText;
+
+        return adapter.generateContent(
+          [{ role: 'user', parts: [{ text: userContent }] }],
+          systemPrompt,
+          [],
+        );
+      },
+      getStats() { return adapter.getStats(); },
+    };
   }
 
   get isConfigured() {
@@ -82,7 +160,7 @@ export class LumaHandler {
         toolCalls: response.functionCalls || []
       };
     } catch (error) {
-      Logger.error("❌ Erro no fluxo Luma:", error.message);
+      Logger.error("❌ Erro no fluxo Luma:", error);
       return this._getErrorResponse("GENERAL", error);
     }
   }
@@ -309,6 +387,178 @@ export class LumaHandler {
   getRandomBoredResponse() {
     const responses = LUMA_CONFIG.BORED_RESPONSES;
     return responses[Math.floor(Math.random() * responses.length)];
+  }
+
+  // ---------------------------------------------------------------------------
+  // Métodos de alto nível — chamados pelo MessageHandler
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Processa uma mensagem do usuário direcionada à Luma e envia a resposta.
+   * Substitui MessageHandler.handleLumaCommand().
+   *
+   * @param {object} bot - BaileysAdapter
+   * @param {boolean} isReply - Se é uma resposta direta a uma mensagem da Luma
+   * @param {string} groupContext - Contexto recente do grupo (para grupos)
+   */
+  async handle(bot, isReply = false, groupContext = "") {
+    try {
+      let userMessage = isReply
+        ? bot.body
+        : this.extractUserMessage(bot.body);
+
+      if (!userMessage && bot.hasVisualContent) {
+        userMessage = bot.hasSticker
+          ? "[O usuário respondeu com uma figurinha/sticker. Analise a imagem visualmente, entenda a emoção dela e reaja ao contexto]"
+          : "[O usuário enviou uma imagem. Analise o conteúdo]";
+      }
+
+      if (!userMessage) {
+        const bored  = this.getRandomBoredResponse();
+        const sent   = await bot.reply(bored);
+        if (sent?.key?.id) this.saveLastBotMessage(bot.jid, sent.key.id);
+        return;
+      }
+
+      await bot.sendPresence("composing");
+      await this._delay();
+
+      const quotedBot = bot.getQuotedAdapter();
+
+      const response = await this.generateResponse(
+        userMessage, bot.jid, bot.raw, bot.socket, bot.senderName, groupContext,
+      );
+
+      await this._dispatchResponse(bot, response, quotedBot);
+    } catch (error) {
+      Logger.error("❌ Erro no handle da Luma:", error);
+      if (error.message?.includes("API_KEY")) {
+        await bot.reply("Tô sem cérebro (API Key inválida).");
+      }
+    }
+  }
+
+  /**
+   * Processa um áudio (transcrevendo-o) e responde via Luma.
+   * Substitui MessageHandler.handleAudioTranscription().
+   *
+   * @param {object} bot - BaileysAdapter
+   * @param {object} audioTranscriber - Instância de AudioTranscriber
+   * @param {string} groupContext
+   */
+  async handleAudio(bot, audioTranscriber, groupContext = "") {
+    try {
+      if (!audioTranscriber) {
+        return await this.handle(bot, bot.isRepliedToMe, groupContext);
+      }
+
+      await bot.sendPresence("composing");
+      await bot.react("🎙️");
+
+      // Resolve a fonte do áudio: mensagem direta ou quoted
+      let audioRaw, mimeType;
+      if (bot.hasAudio) {
+        audioRaw = bot.raw;
+        mimeType = bot.audioMimeType;
+      } else {
+        const quotedAdapter = bot.getQuotedAdapter();
+        if (!quotedAdapter) return await this.handle(bot, bot.isRepliedToMe, groupContext);
+        audioRaw = quotedAdapter.raw;
+        mimeType = bot.quotedAudioMimeType;
+      }
+
+      Logger.info("🎙️ Baixando áudio para transcrição...");
+      const audioBuffer = await MediaProcessor.downloadMedia(audioRaw, bot.socket);
+
+      if (!audioBuffer || audioBuffer.length === 0) {
+        Logger.warn("⚠️ Áudio vazio ou falha no download.");
+        await bot.reply("⚠️ Não consegui baixar o áudio para transcrever.");
+        return;
+      }
+
+      Logger.info(`📊 Áudio baixado: ${(audioBuffer.length / 1024).toFixed(1)}KB`);
+      const transcription = await audioTranscriber.transcribe(audioBuffer, mimeType);
+
+      if (!transcription) {
+        await bot.reply("⚠️ Não consegui transcrever esse áudio.");
+        return;
+      }
+
+      if (transcription === "[áudio ininteligível]" || transcription === "[áudio sem conteúdo]") {
+        const desc = transcription === "[áudio ininteligível]"
+          ? "não consegui entender o que foi dito"
+          : "ele estava vazio ou silencioso";
+        await bot.reply(`🎙️ _Tentei ouvir o áudio, mas ${desc}._`);
+        return;
+      }
+
+      Logger.info(`✅ Transcrição: "${transcription.substring(0, 80)}..."`);
+      await bot.sendText(`🎙️ _"${transcription}"_`, { quoted: bot.raw });
+
+      const userText = bot.body ? this.extractUserMessage(bot.body) : "";
+      const enrichedMessage = userText
+        ? `[O usuário respondeu a um áudio com a transcrição: "${transcription}"] ${userText}`
+        : `[O usuário pediu pra você ouvir/responder o seguinte áudio que foi transcrito: "${transcription}"]`;
+
+      await this._respondWithMessage(bot, enrichedMessage, groupContext);
+    } catch (error) {
+      Logger.error("❌ Erro no fluxo de transcrição:", error);
+      await this.handle(bot, bot.isRepliedToMe, groupContext);
+    }
+  }
+
+  /**
+   * Responde com uma mensagem já construída (usada internamente e pelo handleAudio).
+   * @private
+   */
+  async _respondWithMessage(bot, message, groupContext = "") {
+    await bot.sendPresence("composing");
+    await this._delay();
+
+    const quotedBot = bot.getQuotedAdapter();
+
+    const response = await this.generateResponse(
+      message, bot.jid, bot.raw, bot.socket, bot.senderName, groupContext,
+    );
+
+    await this._dispatchResponse(bot, response, quotedBot);
+  }
+
+  /**
+   * Envia as partes da resposta e despacha tool calls.
+   * @private
+   */
+  async _dispatchResponse(bot, response, quotedBot) {
+    if (response.parts?.length > 0) {
+      const lastSent = await this._sendParts(bot, response.parts);
+      if (lastSent?.key?.id) this.saveLastBotMessage(bot.jid, lastSent.key.id);
+    }
+
+    if (response.toolCalls?.length > 0) {
+      await ToolDispatcher.handleToolCalls(bot, response.toolCalls, this, quotedBot);
+    }
+  }
+
+  /**
+   * Envia partes de texto em cadeia, cada parte citando a anterior.
+   * @private
+   */
+  async _sendParts(bot, parts) {
+    let lastSent = null;
+    for (const part of parts) {
+      if (!lastSent) {
+        lastSent = await bot.reply(part);
+      } else {
+        lastSent = await bot.socket.sendMessage(bot.jid, { text: part, quoted: lastSent });
+      }
+    }
+    return lastSent;
+  }
+
+  /** @private */
+  async _delay() {
+    const { min, max } = LUMA_CONFIG.TECHNICAL.thinkingDelay;
+    await new Promise((r) => setTimeout(r, min + Math.random() * (max - min)));
   }
 
   _getErrorResponse(type, error = null) {

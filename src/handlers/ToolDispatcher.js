@@ -1,9 +1,10 @@
 import { Logger } from "../utils/Logger.js";
 import { GroupManager } from "../managers/GroupManager.js";
 import { MediaProcessor } from "./MediaProcessor.js";
-import { MessageHandler } from "./MessageHandler.js";
+import { DatabaseService } from "../services/Database.js";
 import { PersonalityManager } from "../managers/PersonalityManager.js";
 import { MENUS } from "../config/constants.js";
+import { LUMA_CONFIG } from "../config/lumaConfig.js";
 
 /**
  * Despachante de ferramentas acionadas pela IA.
@@ -161,12 +162,12 @@ export class ToolDispatcher {
 
         if (bot.innerMessage?.imageMessage || bot.innerMessage?.videoMessage || bot.innerMessage?.stickerMessage) {
             await MediaProcessor.processToSticker(bot.raw, bot.socket);
-            MessageHandler.incrementMediaStats("stickers_created");
+            DatabaseService.incrementMetric("stickers_created");
             return;
         }
         if (quoted?.hasVisualContent) {
             await MediaProcessor.processToSticker(quoted.raw, bot.socket, bot.jid);
-            MessageHandler.incrementMediaStats("stickers_created");
+            DatabaseService.incrementMetric("stickers_created");
             return;
         }
         await bot.reply("⚠️ Você precisa responder a uma imagem, vídeo ou GIF para eu fazer a figurinha!");
@@ -177,12 +178,12 @@ export class ToolDispatcher {
 
         if (bot.innerMessage?.stickerMessage) {
             await MediaProcessor.processStickerToImage(bot.raw, bot.socket);
-            MessageHandler.incrementMediaStats("images_created");
+            DatabaseService.incrementMetric("images_created");
             return;
         }
         if (quoted?.hasSticker) {
             await MediaProcessor.processStickerToImage(quoted.raw, bot.socket, bot.jid);
-            MessageHandler.incrementMediaStats("images_created");
+            DatabaseService.incrementMetric("images_created");
             return;
         }
         await bot.reply("⚠️ Você precisa responder a uma figurinha (sticker) para eu transformar em imagem!");
@@ -193,12 +194,12 @@ export class ToolDispatcher {
 
         if (bot.innerMessage?.stickerMessage) {
             await MediaProcessor.processStickerToGif(bot.raw, bot.socket);
-            MessageHandler.incrementMediaStats("gifs_created");
+            DatabaseService.incrementMetric("gifs_created");
             return;
         }
         if (quoted?.hasSticker) {
             await MediaProcessor.processStickerToGif(quoted.raw, bot.socket, bot.jid);
-            MessageHandler.incrementMediaStats("gifs_created");
+            DatabaseService.incrementMetric("gifs_created");
             return;
         }
         await bot.reply("⚠️ Você precisa responder a uma figurinha animada para eu transformar em GIF!");
@@ -231,6 +232,18 @@ export class ToolDispatcher {
     }
 
     static async handleShowPersonalityMenu(bot) {
-        await MessageHandler.sendPersonalityMenu(bot);
+        const list        = PersonalityManager.getList();
+        const currentName = PersonalityManager.getActiveName(bot.jid);
+
+        let text = `${MENUS.PERSONALITY.HEADER}\n`;
+        text += `🔹 Atual neste chat: ${currentName}\n\n`;
+
+        list.forEach((p, i) => {
+            const isDefault = p.key === LUMA_CONFIG.DEFAULT_PERSONALITY ? " ⭐ (Padrão)" : "";
+            text += `p${i + 1} - ${p.name}${isDefault}\n${p.desc}\n\n`;
+        });
+
+        text += MENUS.PERSONALITY.FOOTER;
+        await bot.sendText(text);
     }
 }

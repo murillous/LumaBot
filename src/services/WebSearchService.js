@@ -1,4 +1,5 @@
 import { Logger } from "../utils/Logger.js";
+import { env } from "../config/env.js";
 
 /**
  * Serviço de busca na internet para a Luma.
@@ -16,7 +17,7 @@ export class WebSearchService {
    * @returns {Promise<string>} Resultados formatados como texto
    */
   static async search(query, geminiClient, model) {
-    const tavilyKey = process.env.TAVILY_API_KEY;
+    const tavilyKey = env.TAVILY_API_KEY;
 
     if (!this.tavilyQuotaExceeded && tavilyKey) {
       try {

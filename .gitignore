@@ -5,3 +5,5 @@ blacklist.json
 data/*
 !data/luma_metrics.sqlite
 bin/
+coverage/
+.claude

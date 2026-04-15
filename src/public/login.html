@@ -3,37 +3,97 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>LumaBot — Login</title>
+  <title>LumaBot — Acesso</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
 </head>
-<body>
+<body class="login-page">
+
   <div class="login-wrap">
+
     <div class="login-box">
-      <div class="login-logo">LUMABOT<span class="login-logo-sys">.SYS</span></div>
-      <div class="login-sub">DASHBOARD v2.0 — ACESSO RESTRITO</div>
-      <form id="loginForm" autocomplete="off">
-        <div class="login-field">
-          <span class="login-prefix">&gt; </span>
+
+      <!-- Cabeçalho -->
+      <header class="login-header">
+        <div class="login-logo">
+          LUMABOT<span class="login-logo-sys">.SYS</span><span class="login-cursor" aria-hidden="true">_</span>
+        </div>
+        <div class="login-badge">v6.0</div>
+      </header>
+
+      <div class="login-divider" aria-hidden="true"></div>
+
+      <!-- Subtítulo -->
+      <p class="login-subtitle" aria-label="Autenticação requerida">
+        <span class="login-prompt">&gt;</span> AUTENTICAÇÃO REQUERIDA
+      </p>
+      <p class="login-hint">DASHBOARD — ACESSO RESTRITO</p>
+
+      <!-- Formulário -->
+      <form id="loginForm" autocomplete="off" novalidate>
+
+        <label for="passwordInput" class="visually-hidden">Senha de acesso</label>
+        <div class="login-field" id="loginField">
+          <span class="login-prefix" aria-hidden="true">&gt;_</span>
           <input
             type="password"
             id="passwordInput"
             class="login-input"
-            placeholder="senha de acesso_"
+            placeholder="senha de acesso"
+            autocomplete="current-password"
             autofocus
           />
         </div>
-        <div class="login-error" id="loginError"></div>
-        <button type="submit" class="login-btn">ENTRAR ↩</button>
+
+        <p class="login-error" id="loginError" role="alert" aria-live="polite"></p>
+
+        <button type="submit" class="login-btn" id="loginBtn" aria-label="Entrar no dashboard">
+          <span class="login-btn-text">[ ENTRAR ]</span>
+          <span class="login-btn-loading" hidden aria-hidden="true">[ VERIFICANDO<span class="typing-dots"></span> ]</span>
+        </button>
+
       </form>
+
+      <!-- Rodapé decorativo -->
+      <footer class="login-footer" aria-hidden="true">
+        SYS:LUMA &nbsp;|&nbsp; CONN:SECURE &nbsp;|&nbsp; AES-256
+      </footer>
+
     </div>
+
   </div>
 
   <script>
-    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+    const form    = document.getElementById('loginForm');
+    const input   = document.getElementById('passwordInput');
+    const errEl   = document.getElementById('loginError');
+    const btn     = document.getElementById('loginBtn');
+    const btnText = btn.querySelector('.login-btn-text');
+    const btnLoad = btn.querySelector('.login-btn-loading');
+    const field   = document.getElementById('loginField');
+
+    function setLoading(on) {
+      btn.disabled   = on;
+      btnText.hidden = on;
+      btnLoad.hidden = !on;
+    }
+
+    function setError(msg) {
+      errEl.textContent = msg;
+      field.classList.toggle('login-field--error', !!msg);
+      if (msg) field.classList.add('login-field--shake');
+      field.addEventListener('animationend', () => {
+        field.classList.remove('login-field--shake');
+      }, { once: true });
+    }
+
+    form.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const password = document.getElementById('passwordInput').value;
-      const errEl    = document.getElementById('loginError');
-      errEl.textContent = '';
+      const password = input.value;
+      setError('');
+      setLoading(true);
 
       try {
         const res  = await fetch('/api/login', {
@@ -45,13 +105,16 @@
 
         if (data.ok) {
           localStorage.setItem('dash_token', data.token ?? '');
-          document.cookie = `dash_token=${data.token ?? ''}; path=/`;
-          location.href = '/';
+          location.href = `/?token=${encodeURIComponent(data.token ?? '')}`;
         } else {
-          errEl.textContent = '» SENHA INCORRETA';
+          setError('» CREDENCIAL INVÁLIDA');
+          setLoading(false);
+          input.value = '';
+          input.focus();
         }
       } catch {
-        errEl.textContent = '» ERRO DE CONEXÃO';
+        setError('» ERRO DE CONEXÃO');
+        setLoading(false);
       }
     });
   </script>

@@ -8,6 +8,7 @@ import fs from "fs";
 import pino from "pino";
 import { CONFIG, MESSAGES } from "../config/constants.js";
 import { Logger } from "../utils/Logger.js";
+import { env } from "../config/env.js";
 import { FileSystem } from "../utils/FileSystem.js";
 import { MessageHandler } from "../handlers/MessageHandler.js";
 import { BaileysAdapter } from "../adapters/BaileysAdapter.js";
@@ -46,7 +47,7 @@ export class ConnectionManager {
       Logger.info(`📦 Usando WA v${version.join(".")}, isLatest: ${isLatest}`);
 
       const { state, saveCreds } = await useMultiFileAuthState(CONFIG.AUTH_DIR);
-      const logger = pino({ level: process.env.LOG_LEVEL || "silent" });
+      const logger = pino({ level: env.LOG_LEVEL });
 
       this.sock = makeWASocket({
         version,

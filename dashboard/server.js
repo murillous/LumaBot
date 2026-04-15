@@ -4,8 +4,10 @@ import { WebSocketServer } from 'ws';
 import { spawn }     from 'child_process';
 import { fileURLToPath } from 'url';
 import path          from 'path';
+import fs           from 'fs';
 import QRCode        from 'qrcode';
 import dotenv        from 'dotenv';
+import Database      from 'better-sqlite3';
 
 dotenv.config();
 
@@ -249,14 +251,19 @@ const server = createServer(app);
 app.use(express.json());
 
 function getToken(req) {
+  const fromCookie = req.headers.cookie?.match(/(?:^|;\s*)dash_token=([^;]+)/)?.[1];
   return req.query.token
     || req.headers['x-dashboard-token']
-    || req.headers.cookie?.match(/(?:^|;\s*)dash_token=([^;]+)/)?.[1]
+    || (fromCookie ? decodeURIComponent(fromCookie) : '')
     || '';
 }
 
+// Assets estáticos públicos — necessários para a página de login renderizar com estilo
+const PUBLIC_STATIC = new Set(['/styles.css', '/favicon.ico']);
+
 function authMiddleware(req, res, next) {
   if (!PASSWORD) return next();
+  if (PUBLIC_STATIC.has(req.path)) return next();
   if (getToken(req) === PASSWORD) return next();
   if (req.headers.accept?.includes('text/html')) return res.sendFile(path.join(PUBLIC_DIR, 'login.html'));
   return res.status(401).json({ error: 'Unauthorized' });
@@ -266,6 +273,15 @@ function authMiddleware(req, res, next) {
 app.post('/api/login', (req, res) => {
   const { password } = req.body ?? {};
   if (!PASSWORD || password === PASSWORD) {
+    // Detecta se a requisição chegou via HTTPS (ex: Cloudflare tunnel)
+    const isSecure = req.headers['x-forwarded-proto'] === 'https' || req.secure;
+    res.cookie('dash_token', PASSWORD, {
+      httpOnly: false,            // precisa ser false para o dashboard.js ler via document.cookie se necessário
+      sameSite: isSecure ? 'none' : 'lax',
+      secure:   isSecure,        // SameSite=None exige Secure
+      path:     '/',
+      maxAge:   7 * 24 * 60 * 60 * 1000, // 7 dias
+    });
     res.json({ ok: true, token: PASSWORD });
   } else {
     res.status(401).json({ error: 'Senha incorreta' });
@@ -289,6 +305,21 @@ app.get('/api/logs', (req, res) => {
   if (level && level !== 'all') logs = logs.filter(l => l.level === level);
   if (search) { const q = search.toLowerCase(); logs = logs.filter(l => l.message.toLowerCase().includes(q)); }
   res.json(logs.slice(-parseInt(limit)));
+});
+
+app.get('/api/stats', (_req, res) => {
+  const dbPath = path.join(ROOT_DIR, 'data', 'luma_metrics.sqlite');
+  try {
+    if (!fs.existsSync(dbPath)) return res.json({});
+    const db   = new Database(dbPath, { readonly: true });
+    const rows = db.prepare('SELECT key, count FROM metrics').all();
+    db.close();
+    const stats = {};
+    for (const row of rows) stats[row.key] = row.count;
+    res.json(stats);
+  } catch (_) {
+    res.json({});
+  }
 });
 
 app.post('/api/bot/start',   (_req, res) => res.json(startBot()));

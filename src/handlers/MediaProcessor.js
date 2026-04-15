@@ -5,22 +5,26 @@ import fs from "fs";
 import path from "path";
 import { CONFIG, MESSAGES } from "../config/constants.js";
 import { Logger } from "../utils/Logger.js";
-import { MessageHandler } from "./MessageHandler.js";
+import { getMessageType } from "../utils/MessageUtils.js";
 import { ImageProcessor } from "../processors/ImageProcessor.js";
 import { VideoConverter } from "../processors/VideoConverter.js";
 import { FileSystem } from "../utils/FileSystem.js";
 
 const execAsync = promisify(exec);
 
+/** Envia texto simples via socket sem depender do MessageHandler. */
+async function sendText(sock, jid, text) {
+  try {
+    await sock.sendMessage(jid, { text });
+  } catch (e) {
+    Logger.error("MediaProcessor: erro ao enviar texto:", e);
+  }
+}
+
 export class MediaProcessor {
   static async processToSticker(message, sock, targetJid = null) {
-    if (
-      message.message?.viewOnceMessage ||
-      message.message?.viewOnceMessageV2
-    ) {
-      Logger.info(
-        "Mensagem de visualização única. Sticker não pode ser criado"
-      );
+    if (message.message?.viewOnceMessage || message.message?.viewOnceMessageV2) {
+      Logger.info("Mensagem de visualização única. Sticker não pode ser criado");
       return;
     }
     try {
@@ -28,11 +32,11 @@ export class MediaProcessor {
       const buffer = await this.downloadMedia(message, sock);
 
       if (!buffer) {
-        await MessageHandler.sendMessage(sock, jid, MESSAGES.DOWNLOAD_ERROR);
+        await sendText(sock, jid, MESSAGES.DOWNLOAD_ERROR);
         return;
       }
 
-      const type = MessageHandler.getMessageType(message);
+      const type = getMessageType(message);
       let stickerBuffer;
 
       if (type === "image") {
@@ -45,15 +49,11 @@ export class MediaProcessor {
         await sock.sendMessage(jid, { sticker: stickerBuffer });
         Logger.info("✅ Sticker enviado");
       } else {
-        await MessageHandler.sendMessage(sock, jid, MESSAGES.CONVERSION_ERROR);
+        await sendText(sock, jid, MESSAGES.CONVERSION_ERROR);
       }
     } catch (error) {
       Logger.error("Erro:", error);
-      await MessageHandler.sendMessage(
-        sock,
-        targetJid || message.key.remoteJid,
-        MESSAGES.GENERAL_ERROR
-      );
+      await sendText(sock, targetJid || message.key.remoteJid, MESSAGES.GENERAL_ERROR);
     }
   }
 
@@ -63,25 +63,16 @@ export class MediaProcessor {
       const buffer = await this.downloadMedia(message, sock);
 
       if (!buffer) {
-        await MessageHandler.sendMessage(sock, jid, MESSAGES.DOWNLOAD_ERROR);
+        await sendText(sock, jid, MESSAGES.DOWNLOAD_ERROR);
         return;
       }
 
       const imageBuffer = await ImageProcessor.toPng(buffer);
-
-      await sock.sendMessage(jid, {
-        image: imageBuffer,
-        caption: MESSAGES.CONVERTED_IMAGE,
-      });
-
+      await sock.sendMessage(jid, { image: imageBuffer, caption: MESSAGES.CONVERTED_IMAGE });
       Logger.info("✅ Imagem enviada");
     } catch (error) {
       Logger.error("Erro:", error);
-      await MessageHandler.sendMessage(
-        sock,
-        targetJid || message.key.remoteJid,
-        MESSAGES.CONVERSION_ERROR
-      );
+      await sendText(sock, targetJid || message.key.remoteJid, MESSAGES.CONVERSION_ERROR);
     }
   }
 
@@ -89,25 +80,18 @@ export class MediaProcessor {
     try {
       Logger.info("🎬 Convertendo sticker para GIF...");
       const jid = targetJid || message.key.remoteJid;
-
       const buffer = await this.downloadMedia(message, sock);
 
       if (!buffer) {
-        await MessageHandler.sendMessage(sock, jid, MESSAGES.DOWNLOAD_ERROR);
+        await sendText(sock, jid, MESSAGES.DOWNLOAD_ERROR);
         return;
       }
 
-      Logger.info("📁 Sticker baixado");
-      Logger.info(`📊 Tamanho: ${(buffer.length / 1024).toFixed(1)}KB`);
-
+      Logger.info(`📁 Sticker baixado — ${(buffer.length / 1024).toFixed(1)}KB`);
       await this.processAnimatedSticker(buffer, sock, jid);
     } catch (error) {
       Logger.error("❌ Erro geral:", error);
-      await MessageHandler.sendMessage(
-        sock,
-        targetJid || message.key.remoteJid,
-        MESSAGES.CONVERSION_ERROR
-      );
+      await sendText(sock, targetJid || message.key.remoteJid, MESSAGES.CONVERSION_ERROR);
     }
   }
 
@@ -117,19 +101,15 @@ export class MediaProcessor {
 
     try {
       const metadata = await ImageProcessor.getMetadata(buffer);
-      Logger.info(
-        `📐 Dimensões: ${metadata.width}x${metadata.height}, páginas: ${metadata.pages || 1
-        }`
-      );
+      Logger.info(`📐 Dimensões: ${metadata.width}x${metadata.height}, páginas: ${metadata.pages || 1}`);
 
       if (!metadata.pages || metadata.pages === 1) {
-        await MessageHandler.sendMessage(sock, jid, MESSAGES.STATIC_STICKER);
+        await sendText(sock, jid, MESSAGES.STATIC_STICKER);
         fs.rmSync(tempDir, { recursive: true, force: true });
         return;
       }
 
       Logger.info(`🎞️ Sticker tem ${metadata.pages} frames`);
-
       await this.extractFrames(buffer, tempDir, metadata.pages);
       await this.createAndSendGif(tempDir, sock, jid);
     } catch (error) {
@@ -142,11 +122,9 @@ export class MediaProcessor {
 
   static async extractFrames(buffer, tempDir, pageCount) {
     Logger.info("🔄 Extraindo frames do sticker animado...");
-
     for (let i = 0; i < Math.min(pageCount, CONFIG.MAX_GIF_FRAMES); i++) {
       await ImageProcessor.extractFrame(buffer, i, tempDir);
     }
-
     Logger.info("✅ Frames extraídos");
   }
 
@@ -158,9 +136,7 @@ export class MediaProcessor {
       throw new Error("GIF não foi criado");
     }
 
-    const gifSizeKB = (fs.statSync(gifOutput).size / 1024).toFixed(1);
-    Logger.info(`✅ GIF criado: ${gifSizeKB}KB`);
-
+    Logger.info(`✅ GIF criado: ${(fs.statSync(gifOutput).size / 1024).toFixed(1)}KB`);
     Logger.info("🔄 Convertendo GIF → MP4 para WhatsApp...");
     const mp4Output = await VideoConverter.toMp4(gifOutput);
 
@@ -169,15 +145,9 @@ export class MediaProcessor {
     }
 
     const mp4Buffer = fs.readFileSync(mp4Output);
-    const mp4SizeKB = (mp4Buffer.length / 1024).toFixed(1);
-    Logger.info(`✅ MP4 criado: ${mp4SizeKB}KB`);
+    Logger.info(`✅ MP4 criado: ${(mp4Buffer.length / 1024).toFixed(1)}KB`);
 
-    await sock.sendMessage(jid, {
-      video: mp4Buffer,
-      caption: MESSAGES.CONVERTED_GIF,
-      gifPlayback: true,
-    });
-
+    await sock.sendMessage(jid, { video: mp4Buffer, caption: MESSAGES.CONVERTED_GIF, gifPlayback: true });
     Logger.info("✅ Enviado como GIF animado!");
     FileSystem.cleanupFiles([mp4Output, gifOutput]);
   }
@@ -185,17 +155,11 @@ export class MediaProcessor {
   static async tryAlternativeMethod(buffer, sock, jid) {
     try {
       Logger.info("🔄 Tentando método alternativo...");
-
-      const inputWebp = path.join(
-        CONFIG.TEMP_DIR,
-        `sticker_${Date.now()}.webp`
-      );
+      const inputWebp = path.join(CONFIG.TEMP_DIR, `sticker_${Date.now()}.webp`);
       fs.writeFileSync(inputWebp, buffer);
 
       const gifOutput = path.join(CONFIG.TEMP_DIR, `gif_${Date.now()}.gif`);
-
       const altCmd = `ffmpeg -y -i "${inputWebp}" -vf "fps=${CONFIG.GIF_FPS},scale=512:512:flags=lanczos" -loop 0 "${gifOutput}"`;
-
       await execAsync(altCmd);
 
       if (!fs.existsSync(gifOutput) || fs.statSync(gifOutput).size === 0) {
@@ -203,14 +167,9 @@ export class MediaProcessor {
       }
 
       const mp4Output = await VideoConverter.toMp4(gifOutput);
-
       if (fs.existsSync(mp4Output)) {
         const mp4Buffer = fs.readFileSync(mp4Output);
-        await sock.sendMessage(jid, {
-          video: mp4Buffer,
-          caption: MESSAGES.CONVERTED_GIF,
-          gifPlayback: true,
-        });
+        await sock.sendMessage(jid, { video: mp4Buffer, caption: MESSAGES.CONVERTED_GIF, gifPlayback: true });
         Logger.info("✅ Método alternativo funcionou!");
         FileSystem.cleanupFiles([mp4Output]);
       }
@@ -218,7 +177,7 @@ export class MediaProcessor {
       FileSystem.cleanupFiles([inputWebp, gifOutput]);
     } catch (error) {
       Logger.error("Todos os métodos falharam", error);
-      await MessageHandler.sendMessage(sock, jid, MESSAGES.UNSUPPORTED_FORMAT);
+      await sendText(sock, jid, MESSAGES.UNSUPPORTED_FORMAT);
     }
   }
 
@@ -231,37 +190,21 @@ export class MediaProcessor {
 
       const msgType = Object.keys(message.message)[0];
       const mediaContent = message.message[msgType];
-
       Logger.info(`📥 Iniciando download de mídia (tipo: ${msgType})...`);
 
       if (mediaContent && !mediaContent.mediaKey && !mediaContent.url && !mediaContent.directPath) {
-        Logger.warn(`⚠️ Mídia do tipo ${msgType} pode estar sem mediaKey válido. O download pode falhar.`);
+        Logger.warn(`⚠️ Mídia do tipo ${msgType} pode estar sem mediaKey válido.`);
       }
 
-      const buffer = await downloadMediaMessage(
-        message,
-        "buffer",
-        {},
-        {
-          logger: undefined,
-          reuploadRequest: sock.updateMediaMessage,
-        }
-      );
+      const buffer = await downloadMediaMessage(message, "buffer", {}, {
+        logger: undefined,
+        reuploadRequest: sock.updateMediaMessage,
+      });
 
-      if (buffer) {
-        Logger.info(`✅ Download concluído. Tamanho: ${(buffer.length / 1024).toFixed(1)} KB`);
-      }
+      if (buffer) Logger.info(`✅ Download concluído. Tamanho: ${(buffer.length / 1024).toFixed(1)} KB`);
       return buffer;
     } catch (error) {
       Logger.error(`❌ Erro ao baixar mídia (${error.message}):`, error);
-
-      try {
-        const msgType = Object.keys(message?.message || {})[0];
-        const mediaContent = message?.message?.[msgType];
-        Logger.debug(`🔍 Detalhes para debug -> Tipo: ${msgType} | Tem mediaKey? ${!!mediaContent?.mediaKey} | Tem url? ${!!mediaContent?.url} | Tem directPath? ${!!mediaContent?.directPath}`);
-      } catch (e) {
-        // Ignora erro ao logar debug
-      }
       return null;
     }
   }
@@ -271,54 +214,29 @@ export class MediaProcessor {
 
     try {
       Logger.info(`🔗 Baixando mídia da URL: ${url}`);
-      await MessageHandler.sendMessage(
-        sock,
-        jid,
-        "🔄 Baixando mídia da URL..."
-      );
+      await sendText(sock, jid, "🔄 Baixando mídia da URL...");
 
       const response = await fetch(url);
-
-      if (!response.ok) {
-        throw new Error(`Falha ao baixar: ${response.statusText}`);
-      }
+      if (!response.ok) throw new Error(`Falha ao baixar: ${response.statusText}`);
 
       const contentType = response.headers.get("content-type");
       const contentLength = response.headers.get("content-length");
 
-      if (
-        contentLength &&
-        parseInt(contentLength) > CONFIG.MAX_FILE_SIZE * 1024 * 5
-      ) {
-        await MessageHandler.sendMessage(
-          sock,
-          jid,
-          "❌ Arquivo muito grande para processar."
-        );
+      if (contentLength && parseInt(contentLength) > CONFIG.MAX_FILE_SIZE * 1024 * 5) {
+        await sendText(sock, jid, "❌ Arquivo muito grande para processar.");
         return;
       }
 
-      const arrayBuffer = await response.arrayBuffer();
-      const buffer = Buffer.from(arrayBuffer);
-
-      if (!buffer || buffer.length === 0) {
-        throw new Error("Buffer vazio");
-      }
+      const buffer = Buffer.from(await response.arrayBuffer());
+      if (!buffer || buffer.length === 0) throw new Error("Buffer vazio");
 
       let stickerBuffer;
-
-      if (
-        contentType &&
-        (contentType.startsWith("video/") || contentType.includes("gif"))
-      ) {
-        const isGif = contentType.includes("gif");
-        stickerBuffer = await VideoConverter.toSticker(buffer, isGif);
+      if (contentType && (contentType.startsWith("video/") || contentType.includes("gif"))) {
+        stickerBuffer = await VideoConverter.toSticker(buffer, contentType.includes("gif"));
       } else if (contentType && contentType.startsWith("image/")) {
         stickerBuffer = await ImageProcessor.toSticker(buffer);
       } else {
-        Logger.warn(
-          `⚠️ Content-Type desconhecido: ${contentType}, tentando como imagem.`
-        );
+        Logger.warn(`⚠️ Content-Type desconhecido: ${contentType}, tentando como imagem.`);
         stickerBuffer = await ImageProcessor.toSticker(buffer);
       }
 
@@ -326,15 +244,11 @@ export class MediaProcessor {
         await sock.sendMessage(jid, { sticker: stickerBuffer });
         Logger.info("✅ Sticker via URL enviado");
       } else {
-        await MessageHandler.sendMessage(sock, jid, MESSAGES.CONVERSION_ERROR);
+        await sendText(sock, jid, MESSAGES.CONVERSION_ERROR);
       }
     } catch (error) {
       Logger.error("Erro ao processar URL:", error);
-      await MessageHandler.sendMessage(
-        sock,
-        jid,
-        "❌ Erro ao baixar ou converter o link."
-      );
+      await sendText(sock, jid, "❌ Erro ao baixar ou converter o link.");
     }
   }
 }

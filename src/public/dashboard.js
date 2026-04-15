@@ -331,6 +331,22 @@ class Dashboard {
         this._showQR(data.qr);
       }
     } catch (_) {}
+
+    try {
+      const res  = await fetch('/api/stats', { headers: authHeader() });
+      if (!res.ok) return;
+      const s = await res.json();
+      const set = (id, key) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = s[key] ?? '0';
+      };
+      set('sAI',       'ai_responses');
+      set('sStickers', 'stickers_created');
+      set('sImages',   'images_created');
+      set('sGifs',     'gifs_created');
+      set('sVideos',   'videos_downloaded');
+      set('sTotal',    'total_messages');
+    } catch (_) {}
   }
 
   // ── Live badge ────────────────────────────────────────────────────────────
