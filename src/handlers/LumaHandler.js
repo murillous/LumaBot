@@ -1,4 +1,5 @@
 import { AIService } from "../services/AIService.js";
+import { OpenAIAdapter } from "../adapters/ai/OpenAIAdapter.js";
 import { Logger } from "../utils/Logger.js";
 import { LUMA_CONFIG } from "../config/lumaConfig.js";
 import { MediaProcessor } from "./MediaProcessor.js";
@@ -17,22 +18,89 @@ export class LumaHandler {
     this.lastBotMessages = new Map();
     this.aiService = null;
 
-    this._initializeService(env.GEMINI_API_KEY);
+    this._initializeService();
     this._startCleanupInterval();
   }
 
-  _initializeService(apiKey) {
-    if (!apiKey || apiKey === "Sua Chave Aqui") {
-      Logger.error("❌ Luma não configurada: GEMINI_API_KEY ausente no .env");
-      return;
-    }
+  /**
+   * Inicializa o serviço de IA com base no provider configurado em AI_PROVIDER.
+   *
+   * - gemini  → AIService legado (acesso direto ao Gemini com multi-turn de busca)
+   * - openai  → OpenAIAdapter via wrapper de compatibilidade
+   * - deepseek → OpenAIAdapter apontando para api.deepseek.com
+   *
+   * O LumaHandler ainda usa o formato de contents Gemini internamente; o wrapper
+   * adapta essa chamada para o formato (history, systemPrompt, tools) do OpenAIAdapter.
+   */
+  _initializeService() {
+    const provider = env.AI_PROVIDER || 'gemini';
     try {
-      this.aiService = new AIService(apiKey);
-      Logger.info("✅ Luma Service inicializado e pronto.");
+      if (provider === 'gemini') {
+        const apiKey = env.GEMINI_API_KEY;
+        if (!apiKey || apiKey === 'Sua Chave Aqui') {
+          Logger.error("❌ Luma não configurada: GEMINI_API_KEY ausente no .env");
+          return;
+        }
+        this.aiService = new AIService(apiKey);
+
+      } else if (provider === 'openai') {
+        if (!env.OPENAI_API_KEY) {
+          Logger.error("❌ Luma não configurada: OPENAI_API_KEY ausente no .env");
+          return;
+        }
+        this.aiService = this._wrapOpenAIAdapter(new OpenAIAdapter({
+          apiKey: env.OPENAI_API_KEY,
+          model:  env.AI_MODEL,
+        }));
+
+      } else if (provider === 'deepseek') {
+        if (!env.DEEPSEEK_API_KEY) {
+          Logger.error("❌ Luma não configurada: DEEPSEEK_API_KEY ausente no .env");
+          return;
+        }
+        this.aiService = this._wrapOpenAIAdapter(new OpenAIAdapter({
+          apiKey:  env.DEEPSEEK_API_KEY,
+          model:   env.AI_MODEL ?? 'deepseek-chat',
+          baseURL: 'https://api.deepseek.com',
+        }));
+
+      } else {
+        Logger.error(`❌ Luma não configurada: AI_PROVIDER="${provider}" não reconhecido. Use gemini, openai ou deepseek.`);
+        return;
+      }
+
+      Logger.info(`✅ Luma Service inicializado com provider: ${provider}`);
     } catch (error) {
       Logger.error("❌ Falha crítica ao iniciar AIService:", error.message);
       this.aiService = null;
     }
+  }
+
+  /**
+   * Cria um wrapper fino que adapta OpenAIAdapter para a interface que
+   * LumaHandler usa internamente: generateContent(contents) onde contents
+   * é um array Gemini-style [{ role, parts: [{ text }] }].
+   *
+   * O LumaHandler já embute toda a personalidade e histórico no texto do
+   * prompt, então o system prompt do OpenAI fica vazio e o texto completo
+   * vai como mensagem do usuário.
+   */
+  _wrapOpenAIAdapter(adapter) {
+    return {
+      async generateContent(contents) {
+        const fullText = contents
+          .flatMap(c => c.parts ?? [])
+          .map(p => p.text ?? '')
+          .join('\n');
+
+        return adapter.generateContent(
+          [{ role: 'user', parts: [{ text: fullText }] }],
+          '', // todo o contexto já está embutido no fullText
+          [],
+        );
+      },
+      getStats() { return adapter.getStats(); },
+    };
   }
 
   get isConfigured() {

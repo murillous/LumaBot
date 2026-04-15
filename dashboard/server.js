@@ -249,14 +249,19 @@ const server = createServer(app);
 app.use(express.json());
 
 function getToken(req) {
+  const fromCookie = req.headers.cookie?.match(/(?:^|;\s*)dash_token=([^;]+)/)?.[1];
   return req.query.token
     || req.headers['x-dashboard-token']
-    || req.headers.cookie?.match(/(?:^|;\s*)dash_token=([^;]+)/)?.[1]
+    || (fromCookie ? decodeURIComponent(fromCookie) : '')
     || '';
 }
 
+// Assets estáticos públicos — necessários para a página de login renderizar com estilo
+const PUBLIC_STATIC = new Set(['/styles.css', '/favicon.ico']);
+
 function authMiddleware(req, res, next) {
   if (!PASSWORD) return next();
+  if (PUBLIC_STATIC.has(req.path)) return next();
   if (getToken(req) === PASSWORD) return next();
   if (req.headers.accept?.includes('text/html')) return res.sendFile(path.join(PUBLIC_DIR, 'login.html'));
   return res.status(401).json({ error: 'Unauthorized' });
