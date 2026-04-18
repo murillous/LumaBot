@@ -1,7 +1,8 @@
 import express    from 'express';
 import { createServer } from 'http';
 import { WebSocketServer } from 'ws';
-import { spawn }     from 'child_process';
+import { spawn, execSync } from 'child_process';
+import crypto        from 'crypto';
 import { fileURLToPath } from 'url';
 import path          from 'path';
 import fs           from 'fs';
@@ -18,6 +19,10 @@ const PUBLIC_DIR = path.join(ROOT_DIR, 'src', 'public');
 const PORT           = parseInt(process.env.DASHBOARD_PORT  || '3000', 10);
 const PASSWORD       = process.env.DASHBOARD_PASSWORD       || '';
 const TUNNEL_ENABLED = process.env.CLOUDFLARE_TUNNEL === 'true';
+const DEPLOY_SECRET  = process.env.DEPLOY_WEBHOOK_SECRET    || '';
+
+let deployDebounceTimer = null;
+const DEPLOY_DEBOUNCE_MS = 5000;
 
 // ─── Estado global ────────────────────────────────────────────────────────────
 
@@ -243,12 +248,50 @@ function startTunnel() {
   });
 }
 
+// ─── Deploy ───────────────────────────────────────────────────────────────────
+
+function verifyGitHubSignature(req) {
+  const signature = req.headers['x-hub-signature-256'] || '';
+  const expected  = 'sha256=' + crypto
+    .createHmac('sha256', DEPLOY_SECRET)
+    .update(req.rawBody)
+    .digest('hex');
+  return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature));
+}
+
+function runDeploy() {
+  pushLog('🚀 Deploy iniciado (push na main)...', 'info');
+  try {
+    pushLog('📥 Executando git pull...', 'info');
+    execSync('git pull origin main', { cwd: ROOT_DIR, timeout: 30000 });
+
+    const changed = execSync('git diff HEAD~1 HEAD --name-only', { cwd: ROOT_DIR }).toString();
+
+    if (changed.includes('package')) {
+      pushLog('📦 Instalando dependências...', 'info');
+      execSync('npm install --omit=dev --no-audit', { cwd: ROOT_DIR, timeout: 120000 });
+    }
+
+    pushLog('✅ Deploy concluído. Reiniciando bot...', 'success');
+    restartBot();
+  } catch (error) {
+    pushLog(`❌ Deploy falhou: ${error.message}`, 'error');
+  }
+}
+
+function scheduleDeploy() {
+  clearTimeout(deployDebounceTimer);
+  deployDebounceTimer = setTimeout(runDeploy, DEPLOY_DEBOUNCE_MS);
+}
+
 // ─── Express ──────────────────────────────────────────────────────────────────
 
 const app    = express();
 const server = createServer(app);
 
-app.use(express.json());
+app.use(express.json({
+  verify: (req, _res, buf) => { req.rawBody = buf; },
+}));
 
 function getToken(req) {
   const fromCookie = req.headers.cookie?.match(/(?:^|;\s*)dash_token=([^;]+)/)?.[1];
@@ -289,6 +332,25 @@ app.post('/api/login', (req, res) => {
 });
 
 app.get('/login', (_req, res) => res.sendFile(path.join(PUBLIC_DIR, 'login.html')));
+
+app.post('/api/deploy', (req, res) => {
+  if (!DEPLOY_SECRET) {
+    pushLog('⚠️ /api/deploy desativado — configure DEPLOY_WEBHOOK_SECRET no .env', 'warn');
+    return res.status(503).json({ error: 'Deploy não configurado' });
+  }
+
+  if (!verifyGitHubSignature(req)) {
+    pushLog('⚠️ Deploy: assinatura inválida — request rejeitado', 'warn');
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  if (req.body.ref !== 'refs/heads/main') {
+    return res.status(200).json({ ok: true, message: 'Branch ignorada' });
+  }
+
+  res.status(200).json({ ok: true, message: 'Deploy agendado' });
+  scheduleDeploy();
+});
 
 // Rotas protegidas
 app.use(authMiddleware);
