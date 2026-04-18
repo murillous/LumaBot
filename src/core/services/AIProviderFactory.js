@@ -68,10 +68,19 @@ export function createAIProvider(env) {
 function _wrapOpenAIAdapter(adapter) {
   return {
     async generateContent(contents) {
-      const fullText = contents
-        .flatMap(c => c.parts ?? [])
-        .map(p => p.text ?? '')
-        .join('\n');
+      let fullText = '';
+      const mediaParts = [];
+
+      // Extrai texto e mídias de todas as partes
+      for (const c of contents) {
+        for (const p of c.parts ?? []) {
+          if (p.text) {
+            fullText += p.text + '\n';
+          } else {
+            mediaParts.push(p);
+          }
+        }
+      }
 
       const SPLIT_MARKER = '[USUÁRIO ATUAL]';
       const splitIdx     = fullText.indexOf(SPLIT_MARKER);
@@ -81,9 +90,13 @@ function _wrapOpenAIAdapter(adapter) {
         : '';
       const userContent = splitIdx !== -1
         ? fullText.substring(splitIdx).trim()
-        : fullText;
+        : fullText.trim();
 
-      const history = [{ role: 'user', parts: [{ text: userContent }] }];
+      const history = [{ 
+        role: 'user', 
+        parts: [{ text: userContent }, ...mediaParts] 
+      }];
+      
       const result  = await adapter.generateContent(history, systemPrompt, LUMA_CONFIG.TOOLS);
 
       if (result.functionCalls?.length > 0) {
@@ -100,7 +113,7 @@ function _wrapOpenAIAdapter(adapter) {
 
           const enrichedHistory = [{
             role:  'user',
-            parts: [{ text: `${userContent}\n\n[Resultados da busca sobre "${query}"]:\n${searchResults}` }],
+            parts: [{ text: `${userContent}\n\n[Resultados da busca sobre "${query}"]:\n${searchResults}` }, ...mediaParts],
           }];
 
           const finalResult = await adapter.generateContent(enrichedHistory, systemPrompt, []);

@@ -35,10 +35,33 @@ export class OpenAIAdapter extends AIPort {
   async generateContent(history, systemPrompt, tools = []) {
     const messages = [
       ...(systemPrompt ? [{ role: "system", content: systemPrompt }] : []),
-      ...history.map(({ role, parts }) => ({
-        role: role === "model" ? "assistant" : "user",
-        content: parts.map((p) => p.text ?? "").join(""),
-      })),
+      ...history.map(({ role, parts }) => {
+        const hasMedia = parts.some(p => p.inlineData);
+        let content;
+
+        if (hasMedia) {
+          content = [];
+          for (const p of parts) {
+            if (p.text) {
+              content.push({ type: "text", text: p.text });
+            } else if (p.inlineData) {
+              content.push({
+                type: "image_url",
+                image_url: {
+                  url: `data:${p.inlineData.mimeType};base64,${p.inlineData.data}`,
+                },
+              });
+            }
+          }
+        } else {
+          content = parts.map((p) => p.text ?? "").join("");
+        }
+
+        return {
+          role: role === "model" ? "assistant" : "user",
+          content,
+        };
+      }),
     ];
 
     Logger.info(`🤖 OpenAI (${this.#model}) — ${messages.length} mensagens`);
