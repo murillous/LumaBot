@@ -3,23 +3,29 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const { ResumoPlugin } = await import('../../../src/plugins/resumo/ResumoPlugin.js');
 const { COMMANDS }     = await import('../../../src/config/constants.js');
 
-function makeLumaHandler({ historyText = 'Usuário: oi\nLuma: olá', responseText = 'Rolou um papo legal.' } = {}) {
+function makeLumaHandler(responseText = 'Rolou um papo bem animado.') {
   return {
     isConfigured: true,
-    history: { getText: vi.fn().mockReturnValue(historyText) },
     aiService: {
       generateContent: vi.fn().mockResolvedValue({ text: responseText, functionCalls: [] }),
     },
   };
 }
 
-function makeBot(body = '!resumo') {
+function makeBot({ jid = 'grupo@g.us', body = '!resumo', senderName = 'Fulano' } = {}) {
   return {
-    jid: 'grupo@g.us',
+    jid,
     body,
+    senderName,
     reply:        vi.fn().mockResolvedValue({}),
     sendPresence: vi.fn().mockResolvedValue({}),
   };
+}
+
+async function seedMessages(plugin, jid, count, namePrefix = 'User') {
+  for (let i = 0; i < count; i++) {
+    await plugin.onMessage(makeBot({ jid, body: `mensagem ${i}`, senderName: `${namePrefix}${i % 3}` }));
+  }
 }
 
 describe('ResumoPlugin', () => {
@@ -29,82 +35,115 @@ describe('ResumoPlugin', () => {
     });
   });
 
-  describe('onCommand — histórico presente', () => {
-    it('chama a IA e responde com o resumo', async () => {
-      const lumaHandler = makeLumaHandler();
+  describe('onMessage — acumulação do buffer', () => {
+    it('acumula mensagens por JID', async () => {
+      const plugin = new ResumoPlugin({ lumaHandler: makeLumaHandler() });
+      await seedMessages(plugin, 'a@g.us', 3);
+      await seedMessages(plugin, 'b@g.us', 2);
+
+      const botA = makeBot({ jid: 'a@g.us' });
+      await plugin.onCommand(COMMANDS.RESUMO, botA);
+      expect(plugin._lumaHandler.aiService.generateContent).toHaveBeenCalledOnce();
+    });
+
+    it('ignora mensagens sem body', async () => {
+      const plugin = new ResumoPlugin({ lumaHandler: makeLumaHandler() });
+      await plugin.onMessage(makeBot({ body: '' }));
+      await plugin.onMessage(makeBot({ body: null }));
+
       const bot = makeBot();
-      const plugin = new ResumoPlugin({ lumaHandler });
-
       await plugin.onCommand(COMMANDS.RESUMO, bot);
-
-      expect(lumaHandler.aiService.generateContent).toHaveBeenCalledOnce();
-      expect(bot.reply).toHaveBeenCalledWith(expect.stringContaining('Rolou um papo legal.'));
+      expect(bot.reply).toHaveBeenCalledWith(expect.stringContaining('Não tem conversa'));
     });
 
-    it('usa o limite padrão de 40 linhas quando não informado', async () => {
-      const lines = Array.from({ length: 60 }, (_, i) => `Linha ${i}`).join('\n');
-      const lumaHandler = makeLumaHandler({ historyText: lines });
-      const bot = makeBot('!resumo');
-      const plugin = new ResumoPlugin({ lumaHandler });
+    it('respeita o tamanho máximo do buffer (bufferSize)', async () => {
+      const plugin = new ResumoPlugin({ lumaHandler: makeLumaHandler(), bufferSize: 5 });
+      await seedMessages(plugin, 'g@g.us', 10);
 
+      // pede mais que o buffer — deve receber só 5
+      const bot = makeBot({ jid: 'g@g.us', body: '!resumo 200' });
       await plugin.onCommand(COMMANDS.RESUMO, bot);
 
-      const [[promptParts]] = lumaHandler.aiService.generateContent.mock.calls;
+      const [[promptParts]] = plugin._lumaHandler.aiService.generateContent.mock.calls;
       const promptText = promptParts[0].parts[0].text;
-      const linesInPrompt = promptText.split('\n').filter(l => l.startsWith('Linha')).length;
-      expect(linesInPrompt).toBe(40);
-    });
-
-    it('respeita o limite numérico informado — !resumo 10', async () => {
-      const lines = Array.from({ length: 50 }, (_, i) => `Linha ${i}`).join('\n');
-      const lumaHandler = makeLumaHandler({ historyText: lines });
-      const bot = makeBot('!resumo 10');
-      const plugin = new ResumoPlugin({ lumaHandler });
-
-      await plugin.onCommand(COMMANDS.RESUMO, bot);
-
-      const [[promptParts]] = lumaHandler.aiService.generateContent.mock.calls;
-      const promptText = promptParts[0].parts[0].text;
-      const linesInPrompt = promptText.split('\n').filter(l => l.startsWith('Linha')).length;
-      expect(linesInPrompt).toBe(10);
-    });
-
-    it('aplica o teto máximo de 100 linhas', async () => {
-      const lines = Array.from({ length: 200 }, (_, i) => `Linha ${i}`).join('\n');
-      const lumaHandler = makeLumaHandler({ historyText: lines });
-      const bot = makeBot('!resumo 999');
-      const plugin = new ResumoPlugin({ lumaHandler });
-
-      await plugin.onCommand(COMMANDS.RESUMO, bot);
-
-      const [[promptParts]] = lumaHandler.aiService.generateContent.mock.calls;
-      const promptText = promptParts[0].parts[0].text;
-      const linesInPrompt = promptText.split('\n').filter(l => l.startsWith('Linha')).length;
-      expect(linesInPrompt).toBe(100);
+      const lines = promptText.split('\n').filter(l => l.includes('mensagem'));
+      expect(lines).toHaveLength(5);
     });
   });
 
-  describe('onCommand — sem histórico', () => {
-    it('avisa que não há conversa salva', async () => {
-      const lumaHandler = makeLumaHandler({ historyText: 'Nenhuma conversa anterior.' });
-      const bot = makeBot();
-      const plugin = new ResumoPlugin({ lumaHandler });
+  describe('onCommand — resumo com mensagens no buffer', () => {
+    let plugin;
+    beforeEach(async () => {
+      plugin = new ResumoPlugin({ lumaHandler: makeLumaHandler() });
+      await seedMessages(plugin, 'grupo@g.us', 60);
+    });
 
+    it('chama a IA e responde com o resumo', async () => {
+      const bot = makeBot();
       await plugin.onCommand(COMMANDS.RESUMO, bot);
 
-      expect(lumaHandler.aiService.generateContent).not.toHaveBeenCalled();
+      expect(plugin._lumaHandler.aiService.generateContent).toHaveBeenCalledOnce();
+      expect(bot.reply).toHaveBeenCalledWith(expect.stringContaining('Rolou um papo bem animado.'));
+    });
+
+    it('usa o limite padrão de 50 mensagens', async () => {
+      const bot = makeBot({ body: '!resumo' });
+      await plugin.onCommand(COMMANDS.RESUMO, bot);
+
+      const [[promptParts]] = plugin._lumaHandler.aiService.generateContent.mock.calls;
+      const promptText = promptParts[0].parts[0].text;
+      const lines = promptText.split('\n').filter(l => l.includes('mensagem'));
+      expect(lines).toHaveLength(50);
+    });
+
+    it('respeita o limite numérico informado — !resumo 10', async () => {
+      const bot = makeBot({ body: '!resumo 10' });
+      await plugin.onCommand(COMMANDS.RESUMO, bot);
+
+      const [[promptParts]] = plugin._lumaHandler.aiService.generateContent.mock.calls;
+      const promptText = promptParts[0].parts[0].text;
+      const lines = promptText.split('\n').filter(l => l.includes('mensagem'));
+      expect(lines).toHaveLength(10);
+    });
+
+    it('aplica o teto máximo de 200 mensagens', async () => {
+      await seedMessages(plugin, 'grupo@g.us', 140); // agora tem 200 no buffer
+
+      const bot = makeBot({ body: '!resumo 999' });
+      await plugin.onCommand(COMMANDS.RESUMO, bot);
+
+      const [[promptParts]] = plugin._lumaHandler.aiService.generateContent.mock.calls;
+      const promptText = promptParts[0].parts[0].text;
+      const lines = promptText.split('\n').filter(l => l.includes('mensagem'));
+      expect(lines).toHaveLength(200);
+    });
+
+    it('inclui nome do remetente no texto enviado à IA', async () => {
+      const bot = makeBot({ body: '!resumo 5' });
+      await plugin.onCommand(COMMANDS.RESUMO, bot);
+
+      const [[promptParts]] = plugin._lumaHandler.aiService.generateContent.mock.calls;
+      const promptText = promptParts[0].parts[0].text;
+      expect(promptText).toMatch(/User\d:/);
+    });
+  });
+
+  describe('onCommand — buffer vazio', () => {
+    it('avisa que não tem conversa salva', async () => {
+      const plugin = new ResumoPlugin({ lumaHandler: makeLumaHandler() });
+      const bot = makeBot();
+      await plugin.onCommand(COMMANDS.RESUMO, bot);
+
+      expect(plugin._lumaHandler.aiService.generateContent).not.toHaveBeenCalled();
       expect(bot.reply).toHaveBeenCalledWith(expect.stringContaining('Não tem conversa'));
     });
   });
 
   describe('onCommand — IA não configurada', () => {
     it('responde com erro de configuração', async () => {
-      const lumaHandler = { isConfigured: false };
+      const plugin = new ResumoPlugin({ lumaHandler: { isConfigured: false } });
       const bot = makeBot();
-      const plugin = new ResumoPlugin({ lumaHandler });
-
       await plugin.onCommand(COMMANDS.RESUMO, bot);
-
       expect(bot.reply).toHaveBeenCalledWith(expect.stringContaining('não configurada'));
     });
   });
@@ -113,11 +152,11 @@ describe('ResumoPlugin', () => {
     it('responde com mensagem de erro', async () => {
       const lumaHandler = makeLumaHandler();
       lumaHandler.aiService.generateContent.mockRejectedValue(new Error('timeout'));
-      const bot = makeBot();
       const plugin = new ResumoPlugin({ lumaHandler });
+      await seedMessages(plugin, 'grupo@g.us', 5);
 
+      const bot = makeBot();
       await plugin.onCommand(COMMANDS.RESUMO, bot);
-
       expect(bot.reply).toHaveBeenCalledWith(expect.stringContaining('Não consegui'));
     });
   });
