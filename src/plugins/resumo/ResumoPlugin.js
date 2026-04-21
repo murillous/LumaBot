@@ -77,6 +77,7 @@ export class ResumoPlugin {
       ]);
       const text = cleanResponseText(response.text)
         .replace(/\[PARTE[^\]]*\]/g, '\n\n')
+        .replace(/\n{3,}/g, '\n\n')
         .trim();
       if (!text) {
         await bot.reply('❌ Não consegui gerar o resumo agora.');
