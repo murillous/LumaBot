@@ -76,7 +76,7 @@ export class ResumoPlugin {
         { role: 'user', parts: [{ text: RESUMO_PROMPT(conversationText, personaConfig) }] },
       ]);
       const text = cleanResponseText(response.text)
-        .replace(/\[PARTE\]/g, '\n\n')
+        .replace(/\[PARTE[^\]]*\]/g, '\n\n')
         .trim();
       if (!text) {
         await bot.reply('❌ Não consegui gerar o resumo agora.');
