@@ -109,8 +109,8 @@ export const LUMA_CONFIG = {
 
     maxHistory: 80,
     groupContextSize: 15,
-    maxResponseLength: 200,
-    maxParts: 4,
+    maxResponseLength: 300,
+    maxParts: 2,
     thinkingDelay: { min: 2000, max: 5000 },
     historyCleanupInterval: 3600000,
     maxHistoryAge: 7200000,
