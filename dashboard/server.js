@@ -352,6 +352,15 @@ app.post('/api/deploy', (req, res) => {
   scheduleDeploy();
 });
 
+app.get('/health', (_req, res) => {
+  const isHealthy = botStatus === 'running' || botStatus === 'qr_wait';
+  res.status(isHealthy ? 200 : 503).json({
+    status: botStatus,
+    timestamp: Date.now(),
+    uptime: getUptime(),
+  });
+});
+
 // Rotas protegidas
 app.use(authMiddleware);
 app.get('/', (_req, res) => res.sendFile(path.join(PUBLIC_DIR, 'dashboard.html')));

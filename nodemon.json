@@ -1,6 +1,6 @@
 {
-  "watch": ["index.js"],
-  "ignore": ["auth_info/**", "temp/**", "node_modules/**", "*.log"],
+  "watch": ["index.js", "src", "dashboard"],
+  "ignore": ["auth_info/**", "data/**", "temp/**", "node_modules/**", "*.log"],
   "ext": "js,json",
   "delay": 1000
 }

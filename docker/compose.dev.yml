@@ -1,0 +1,30 @@
+# Development Compose - Apr 26, 2026
+services:
+  dev:
+    build:
+      context: ..
+      dockerfile: Dockerfile.dev
+    container_name: dev
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - auth_data:/app/auth_info
+      - bot_data:/app/data
+    env_file:
+      - ../.env
+    environment:
+      - NODE_ENV=development
+      - LOG_LEVEL=debug
+    networks:
+      - luma-dev
+
+volumes:
+  auth_data:
+    driver: local
+  bot_data:
+    driver: local
+
+networks:
+  luma-dev:
+    driver: bridge

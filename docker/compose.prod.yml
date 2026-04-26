@@ -1,0 +1,64 @@
+# Production Compose - Apr 26, 2026
+services:
+  nginx:
+    image: nginx:latest
+    container_name: luma-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./ssl:/etc/nginx/ssl:ro
+      - ./public:/usr/share/nginx/html:ro
+    depends_on:
+      - app
+    networks:
+      - luma-prod
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  app:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: luma-bot:latest
+    container_name: luma-bot
+    restart: unless-stopped
+    expose:
+      - "3000"
+    volumes:
+      - auth_data:/app/auth_info
+      - bot_data:/app/data
+    env_file:
+      - ../.env
+    environment:
+      - NODE_ENV=production
+      - LOG_LEVEL=info
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/health', (r) => { if (r.statusCode !== 200) throw new Error(r.statusCode) })"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - luma-prod
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+volumes:
+  auth_data:
+    driver: local
+  bot_data:
+    driver: local
+
+networks:
+  luma-prod:
+    driver: bridge
