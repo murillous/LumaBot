@@ -170,6 +170,32 @@ export class BaileysAdapter extends MessagingPort {
     );
   }
 
+  /**
+   * Nome do autor da mensagem citada.
+   * Retorna "Luma" se a mensagem citada é do bot, o nome do remetente atual se
+   * ele citou a própria mensagem, ou "Alguém" quando o JID não é identificável.
+   */
+  get quotedSenderName() {
+    if (!this.quotedMessage) return null;
+    if (this.isRepliedToMe) return 'Luma';
+
+    const msg = this.innerMessage;
+    const context =
+      msg?.extendedTextMessage?.contextInfo ||
+      msg?.imageMessage?.contextInfo ||
+      msg?.videoMessage?.contextInfo ||
+      msg?.stickerMessage?.contextInfo ||
+      msg?.audioMessage?.contextInfo;
+
+    const quotedJid = context?.participant;
+    if (!quotedJid) return 'Alguém';
+
+    const clean = (id) => id?.split(':')[0].split('@')[0].replace(/\D/g, '');
+    if (clean(quotedJid) === clean(this.senderJid)) return this.senderName;
+
+    return 'Alguém';
+  }
+
   // --- Detecção de Áudio ---
 
   /**
@@ -178,6 +204,14 @@ export class BaileysAdapter extends MessagingPort {
   get hasAudio() {
     const msg = this.innerMessage;
     return !!(msg?.audioMessage);
+  }
+
+  /** Verifica se a mensagem citada contém conteúdo visual (imagem ou sticker). */
+  get quotedHasVisualContent() {
+    const q = this.quotedMessage;
+    if (!q) return false;
+    const unwrapped = BaileysAdapter.unwrapMessage(q);
+    return !!(unwrapped?.imageMessage || unwrapped?.stickerMessage || q?.imageMessage || q?.stickerMessage);
   }
 
   /**

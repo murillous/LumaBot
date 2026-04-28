@@ -100,6 +100,22 @@ export class LumaHandler {
         ? bot.body
         : this.extractUserMessage(bot.body);
 
+      // Quando o usuário dispara a Luma respondendo a uma mensagem de outra pessoa,
+      // injeta a mensagem citada como contexto junto com o autor de cada turno.
+      if (!isReply && (bot.quotedText || bot.quotedHasVisualContent)) {
+        const quotedAuthor = bot.quotedSenderName ?? 'Alguém';
+        let quotedContext;
+        if (bot.quotedHasVisualContent) {
+          const type = bot.quotedMessage?.stickerMessage ? 'figurinha' : 'imagem';
+          quotedContext = bot.quotedText
+            ? `[citando ${quotedAuthor}: ${type} com legenda "${bot.quotedText}"]`
+            : `[citando ${quotedAuthor}: ${type} — analise visualmente]`;
+        } else {
+          quotedContext = `[citando ${quotedAuthor}: "${bot.quotedText}"]`;
+        }
+        userMessage = userMessage ? `${quotedContext} ${userMessage}` : quotedContext;
+      }
+
       if (!userMessage && bot.hasVisualContent) {
         userMessage = bot.hasSticker
           ? '[O usuário respondeu com uma figurinha/sticker. Analise a imagem visualmente, entenda a emoção dela e reaja ao contexto]'
