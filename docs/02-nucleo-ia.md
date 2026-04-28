@@ -6,32 +6,45 @@ A Luma não é "mágica", é pura engenharia de prompt e gerenciamento de estado
 
 O prompt enviado ao Gemini não é apenas o que o usuário escreveu. É um "sanduíche" de informações montado em `LumaHandler.js`:
 
-### Estrutura do Prompt (System Instruction)
+### Estrutura do Prompt
+
+O prompt é montado em `src/core/services/PromptBuilder.js` a partir de um template em `lumaConfig.js`. As seções são substituídas em tempo de execução:
 
 ```text
 [IDENTIDADE]
-Nome: Luma.
-Contexto: Você é uma assistente sarcástica... (Vem de lumaConfig.js)
+Seu nome é Luma. {{PERSONALITY_CONTEXT}}
+Data e hora atual: {{CURRENT_DATETIME}}
+
+[REGRA DE OURO: IMERSÃO TOTAL]
+(instruções sobre nunca revelar que é IA)
 
 [ESTILO]
-Use gírias, seja breve, não use linguagem robótica.
+{{PERSONALITY_STYLE}}
 
 [TRAÇOS OBRIGATÓRIOS]
-- Zoa o usuário se a pergunta for óbvia.
-- Responde em 1 ou 2 frases.
+{{PERSONALITY_TRAITS}}
+- Mensagens curtas e vagas ("não sei", "ok", etc.) são SEMPRE continuação do que você disse antes.
+- Se a mensagem atual não tiver relação com o histórico recente, siga o novo assunto.
 
 [FORMATO WHATSAPP]
-1. SEJA BREVE.
-2. ECONOMIA DE PALAVRAS.
+1. Máx 150 caracteres por bloco.
+2. Use [PARTE] para separar múltiplos balões (máx 2).
 
 [HISTÓRICO]
+CONVERSA ANTERIOR:
 Usuário: Oi
 Luma: Fala logo.
-(Últimas 20 mensagens)
 
-[USUÁRIO ATUAL]
-{{mensagem_do_usuario}}
+[CONVERSA RECENTE NO GRUPO]   ← só em grupos, quando presente
+(o que estava sendo discutido antes de você ser chamada)
+...
+
+Nome: mensagem_atual           ← mensagem atual flui aqui, sem seção separada
+
+Responda (sem prefixos):
 ```
+
+> **Importante:** não existe mais uma seção `[USUÁRIO ATUAL]` separada. A mensagem atual é inserida diretamente após o histórico, mantendo o fluxo contínuo da conversa e evitando que o modelo trate respostas curtas como mensagens sem contexto.
 
 ### Anatomia de um Prompt Real
 
@@ -204,83 +217,55 @@ buildVisionPrompt() {
 
 ## 💾 Gerenciamento de Memória (Contexto)
 
-O Gemini API não tem memória ("Stateless"). Nós precisamos enviar o histórico a cada mensagem.
+O Gemini é stateless — cada requisição é independente. O histórico é mantido em RAM pelo `ConversationHistory` e enviado a cada chamada.
 
-### Estrutura em Memória
+### Chave de Histórico
 
-```javascript
-class LumaHandler {
-    constructor() {
-        // Map<chatId, Array<Message>>
-        this.conversationHistory = new Map();
-        
-        // Configurações
-        this.maxHistoryLength = 20;
-        this.maxHistoryAge = 2 * 60 * 60 * 1000; // 2 horas
-    }
-    
-    addToHistory(chatId, role, content) {
-        if (!this.conversationHistory.has(chatId)) {
-            this.conversationHistory.set(chatId, []);
-        }
-        
-        const history = this.conversationHistory.get(chatId);
-        
-        history.push({
-            role,      // 'user' ou 'model'
-            content,
-            timestamp: Date.now()
-        });
-        
-        // Mantém apenas as últimas N mensagens
-        if (history.length > this.maxHistoryLength) {
-            history.shift(); // Remove a mais antiga
-        }
-    }
-    
-    getHistory(chatId) {
-        const history = this.conversationHistory.get(chatId) || [];
-        
-        // Remove mensagens muito antigas
-        const cutoff = Date.now() - this.maxHistoryAge;
-        return history.filter(msg => msg.timestamp > cutoff);
-    }
-}
+A memória é indexada por uma `historyKey` calculada no `LumaPlugin`:
+
+```js
+// Em grupos: chave composta por grupo + pessoa
+const historyKey = bot.isGroup
+  ? `${bot.jid}:${bot.senderJid}`
+  : bot.jid;
 ```
 
-### Limpeza Automática (Garbage Collection)
+Isso garante que cada pessoa tenha seu próprio fio de conversa dentro de cada grupo. Sem essa separação, múltiplas pessoas falando com a Luma ao mesmo tempo produziriam um histórico entrelaçado e incoerente.
 
-```javascript
-// src/managers/MemoryManager.js
-class MemoryManager {
-    startCleanupTask() {
-        // Roda a cada 1 hora
-        setInterval(() => {
-            this.cleanupStaleHistories();
-        }, 60 * 60 * 1000);
-    }
-    
-    cleanupStaleHistories() {
-        const cutoff = Date.now() - (2 * 60 * 60 * 1000);
-        let cleaned = 0;
-        
-        for (const [chatId, history] of LumaHandler.conversationHistory) {
-            const validMessages = history.filter(
-                msg => msg.timestamp > cutoff
-            );
-            
-            if (validMessages.length === 0) {
-                LumaHandler.conversationHistory.delete(chatId);
-                cleaned++;
-            } else {
-                LumaHandler.conversationHistory.set(chatId, validMessages);
-            }
-        }
-        
-        console.log(`[MemoryManager] Limpou ${cleaned} conversas inativas`);
-    }
-}
+| Contexto | Chave | Exemplo |
+|---|---|---|
+| Privado | `remoteJid` | `5511999@s.whatsapp.net` |
+| Grupo | `groupJid:senderJid` | `120363x@g.us:5511999@s.whatsapp.net` |
+
+> O `PersonalityManager` continua usando apenas o `groupJid` — personalidade é uma configuração do grupo, compartilhada por todos.
+
+### Estrutura em Memória (`ConversationHistory`)
+
+```js
+// src/core/services/ConversationHistory.js
+// Map<historyKey, { messages: string[], lastUpdate: number }>
+
+// Cada entrada é um array de linhas planas:
+[
+  "Murilo: me conta uma piada",
+  "Luma: o que tem 30cm e faz a mulher gritar à noite?",
+  "Murilo: não sei",
+  "Luma: a faca kkk",
+]
 ```
+
+Marcadores `[PARTE]` são removidos antes de salvar — o histórico armazena sempre o texto limpo, independente de quantos balões foram enviados.
+
+### Limites e Limpeza Automática
+
+```js
+// lumaConfig.js → TECHNICAL
+maxHistory: 80,               // máx de linhas por conversa (40 trocas)
+maxHistoryAge: 7200000,       // expira em 2h sem atividade
+historyCleanupInterval: 3600000, // varredura a cada 1h
+```
+
+O `ConversationHistory` roda um `setInterval` interno que descarta conversas inativas. Em testes, passe `cleanupIntervalMs: 1e9` e chame `destroy()` no `afterEach`.
 
 ### Por que Não Salvamos Tudo no Banco?
 
@@ -517,30 +502,31 @@ A troca é silenciosa — o usuário não percebe a diferença.
 
 ## 🧩 Buffer de Contexto do Grupo
 
-Quando a Luma é chamada em meio a uma conversa de grupo, ela precisava de contexto sobre o que estava sendo discutido — mesmo nos tópicos onde não foi mencionada. O **buffer de contexto** resolve isso.
+Quando a Luma é chamada em meio a uma conversa de grupo, ela precisa de contexto sobre o que estava sendo discutido — mesmo nos tópicos onde não foi mencionada. O **buffer de contexto** resolve isso.
 
 ### Como funciona
 
 ```
-Toda mensagem de grupo de outro usuário
+Toda mensagem de grupo (não-bot, com body)
     │
-    ├── SpontaneousHandler.trackActivity(jid)  ← conta para o cooldown inteligente
-    └── MessageHandler._addToGroupBuffer(jid, text, senderName)  ← entra no buffer
+    ├── SpontaneousHandler.trackActivity(jid)   ← conta para o cooldown inteligente
+    └── LumaPlugin.#addToGroupBuffer(jid, text, senderName)  ← entra no buffer
 ```
 
-O buffer mantém as **últimas 15 mensagens por grupo** (FIFO) em memória. Quando a Luma é acionada, o `MessageHandler` extrai esse buffer e o repassa por toda a cadeia até o prompt:
+O buffer é um `Map<groupJid, Array<{name, text}>>` mantido no `LumaPlugin`. Guarda as **últimas 15 mensagens por grupo** (FIFO). Quando a Luma é acionada, o `LumaPlugin` extrai o buffer e o repassa por toda a cadeia até o prompt:
 
 ```
-MessageHandler.process()
-    └── _getGroupContext(jid)  →  "João: falando de futebol\nMaria: o Neymar foi mal..."
-            └── handleLumaCommand(bot, isReply, groupContext)
-                    └── lumaHandler.generateResponse(..., groupContext)
-                            └── _buildPromptRequest(..., groupContext)
+LumaPlugin.onMessage(bot)
+    ├── #addToGroupBuffer(jid, body, senderName)
+    ├── historyKey = `${bot.jid}:${bot.senderJid}`
+    └── lumaHandler.handle(bot, isReply, groupContext, historyKey)
+            └── generateResponse(..., groupContext, historyKey)
+                    └── PromptBuilder.buildPromptRequest({..., groupContext})
 ```
 
 ### Injeção no Prompt
 
-O contexto é injetado como uma seção própria, separada do histórico Luma/usuário:
+O contexto é injetado como uma seção própria, separada do histórico individual:
 
 ```
 [HISTÓRICO]
@@ -554,15 +540,14 @@ João: o Neymar foi muito mal ontem
 Maria: pior que eu concordo
 Pedro: ele tá velho mesmo
 
-[USUÁRIO ATUAL]
 João: luma, e aí, o que você acha?
 ```
 
-A IA distingue claramente o que é diálogo direto com ela e o que é o contexto ambiente do grupo.
+A mensagem atual flui diretamente após o histórico individual e o contexto do grupo — sem seção separada — mantendo continuidade conversacional.
 
 ### Configuração
 
-```javascript
+```js
 // lumaConfig.js → TECHNICAL
 groupContextSize: 15,  // máximo de mensagens no buffer por grupo
 ```
@@ -570,8 +555,8 @@ groupContextSize: 15,  // máximo de mensagens no buffer por grupo
 ### Onde o buffer NÃO é usado
 
 - Chat privado: `groupContext` é sempre `""` — o placeholder some do prompt
-- Interações espontâneas: o `SpontaneousHandler` chama `generateResponse` sem contexto de grupo (a mensagem já é o gatilho)
-- Transcrição de áudio: o contexto é passado normalmente via `_callLumaWithMessage`
+- Interações espontâneas: `SpontaneousPlugin` chama `lumaHandler` diretamente, sem buffer de grupo
+- Transcrição de áudio: o contexto é passado normalmente via `handleAudio`
 
 ---
 

@@ -36,17 +36,20 @@ export class LumaHandler {
   async generateResponse(
     userMessage,
     userJid,
-    message     = null,
-    sock        = null,
-    senderName  = 'Usuário',
+    message      = null,
+    sock         = null,
+    senderName   = 'Usuário',
     groupContext = '',
+    historyKey   = null,
   ) {
     if (!this.isConfigured) return this._getErrorResponse('API_KEY_MISSING');
+
+    const hKey = historyKey ?? userJid;
 
     try {
       const personaConfig = PersonalityManager.getPersonaConfig(userJid);
       let imageData       = message && sock ? await this._extractImage(message, sock) : null;
-      const historyText   = this.history.getText(userJid);
+      const historyText   = this.history.getText(hKey);
 
       if (imageData && this.visionService) {
         Logger.info('👁️ Provider sem visão — descrevendo imagem com Gemini...');
@@ -72,7 +75,7 @@ export class LumaHandler {
       const cleanedResponse = cleanResponseText(response.text);
 
       if (cleanedResponse) {
-        this.history.add(userJid, userMessage, cleanedResponse, senderName);
+        this.history.add(hKey, userMessage, cleanedResponse, senderName);
         this._updateMetrics(userJid);
       }
 
@@ -89,7 +92,7 @@ export class LumaHandler {
 
   // ── Handlers de alto nível (chamados pelo LumaPlugin) ───────────────────────
 
-  async handle(bot, isReply = false, groupContext = '') {
+  async handle(bot, isReply = false, groupContext = '', historyKey = null) {
     if (!this.isConfigured) return;
 
     try {
@@ -115,7 +118,7 @@ export class LumaHandler {
 
       const quotedBot = bot.getQuotedAdapter();
       const response  = await this.generateResponse(
-        userMessage, bot.jid, bot.raw, bot.socket, bot.senderName, groupContext,
+        userMessage, bot.jid, bot.raw, bot.socket, bot.senderName, groupContext, historyKey,
       );
 
       await this._dispatchResponse(bot, response, quotedBot);
@@ -127,12 +130,12 @@ export class LumaHandler {
     }
   }
 
-  async handleAudio(bot, audioTranscriber, groupContext = '') {
+  async handleAudio(bot, audioTranscriber, groupContext = '', historyKey = null) {
     if (!this.isConfigured) return;
 
     try {
       if (!audioTranscriber) {
-        return await this.handle(bot, bot.isRepliedToMe, groupContext);
+        return await this.handle(bot, bot.isRepliedToMe, groupContext, historyKey);
       }
 
       await bot.sendPresence('composing');
@@ -144,7 +147,7 @@ export class LumaHandler {
         mimeType = bot.audioMimeType;
       } else {
         const quotedAdapter = bot.getQuotedAdapter();
-        if (!quotedAdapter) return await this.handle(bot, bot.isRepliedToMe, groupContext);
+        if (!quotedAdapter) return await this.handle(bot, bot.isRepliedToMe, groupContext, historyKey);
         audioRaw = quotedAdapter.raw;
         mimeType = bot.quotedAudioMimeType;
       }
@@ -182,10 +185,10 @@ export class LumaHandler {
         ? `[O usuário respondeu a um áudio com a transcrição: "${transcription}"] ${userText}`
         : `[O usuário pediu pra você ouvir/responder o seguinte áudio que foi transcrito: "${transcription}"]`;
 
-      await this._respondWithMessage(bot, enrichedMessage, groupContext);
+      await this._respondWithMessage(bot, enrichedMessage, groupContext, historyKey);
     } catch (error) {
       Logger.error('❌ Erro no fluxo de transcrição:', error);
-      await this.handle(bot, bot.isRepliedToMe, groupContext);
+      await this.handle(bot, bot.isRepliedToMe, groupContext, historyKey);
     }
   }
 
@@ -232,12 +235,12 @@ export class LumaHandler {
 
   // ── Privados ────────────────────────────────────────────────────────────────
 
-  async _respondWithMessage(bot, message, groupContext = '') {
+  async _respondWithMessage(bot, message, groupContext = '', historyKey = null) {
     await bot.sendPresence('composing');
     await this._delay();
     const quotedBot = bot.getQuotedAdapter();
     const response  = await this.generateResponse(
-      message, bot.jid, bot.raw, bot.socket, bot.senderName, groupContext,
+      message, bot.jid, bot.raw, bot.socket, bot.senderName, groupContext, historyKey,
     );
     await this._dispatchResponse(bot, response, quotedBot);
   }

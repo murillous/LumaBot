@@ -41,8 +41,9 @@ function makeLumaHandler(overrides = {}) {
 }
 
 function makeBot(overrides = {}) {
-  return {
+  const base = {
     jid: 'chat@s.whatsapp.net',
+    senderJid: 'chat@s.whatsapp.net',
     body: '',
     isGroup: false,
     isFromMe: false,
@@ -55,6 +56,7 @@ function makeBot(overrides = {}) {
     sendText: vi.fn().mockResolvedValue({}),
     ...overrides,
   };
+  return base;
 }
 
 describe('LumaPlugin.commands', () => {
@@ -118,7 +120,7 @@ describe('LumaPlugin.onMessage — responde em PV', () => {
 
     await plugin.onMessage(bot);
 
-    expect(lumaHandler.handle).toHaveBeenCalledWith(bot, false, '');
+    expect(lumaHandler.handle).toHaveBeenCalledWith(bot, false, '', bot.jid);
   });
 });
 

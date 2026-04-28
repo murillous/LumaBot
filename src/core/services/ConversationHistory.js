@@ -35,8 +35,9 @@ export class ConversationHistory {
     }
 
     const data = this._store.get(jid);
+    const normalizedResponse = botResponse.replace(/\[PARTE\]/gi, ' ').replace(/  +/g, ' ').trim();
     data.messages.push(`${senderName}: ${userMessage}`);
-    data.messages.push(`Luma: ${botResponse}`);
+    data.messages.push(`Luma: ${normalizedResponse}`);
     data.lastUpdate = Date.now();
 
     if (data.messages.length > this._maxMessages) {

@@ -91,6 +91,8 @@ adapters/
 
 **Regra:** o código de domínio nunca menciona Gemini, SQLite ou Baileys. Ele fala com ports.
 
+> **Nota sobre `ConversationHistory`:** em grupos, o histórico é indexado pela chave composta `groupJid:senderJid` (calculada no `LumaPlugin`), garantindo que cada pessoa tenha seu próprio fio de conversa. Em chats privados a chave continua sendo o `remoteJid`. O `PersonalityManager` continua usando o `groupJid` — personalidade é uma configuração do grupo, não individual.
+
 ### Infra — Wiring e Infraestrutura
 
 `src/infra/` conecta tudo:
@@ -175,7 +177,8 @@ constructor({ aiService, history } = {}) {
 
 ```js
 bot.body          // texto da mensagem
-bot.jid           // JID do remetente
+bot.jid           // JID do chat (grupo ou privado)
+bot.senderJid     // JID de quem enviou (≠ bot.jid em grupos)
 bot.isGroup       // é grupo?
 bot.hasVisualContent  // tem imagem/sticker?
 bot.reply(text)   // responde com quote
@@ -196,16 +199,18 @@ O restante do sistema não sabe que o Baileys existe.
 2. CommandRouter.detect() → null (não é comando)
 3. PluginManager.dispatch(null, bot) → chama onMessage em todos os plugins
 4. LumaPlugin.onMessage(bot):
-   a. LumaHandler.isTriggered(text) → true
-   b. LumaHandler.handle(bot)
+   a. Adiciona mensagem ao #groupBuffer (se grupo)
+   b. LumaHandler.isTriggered(text) → true
+   c. historyKey = groupJid:senderJid (grupo) | jid (privado)
+   d. LumaHandler.handle(bot, isReply, groupContext, historyKey)
 5. LumaHandler:
-   a. ConversationHistory.getText(jid) → histórico
-   b. PersonalityManager.getPersonaConfig(jid) → persona atual
+   a. ConversationHistory.getText(historyKey) → histórico do interlocutor
+   b. PersonalityManager.getPersonaConfig(bot.jid) → persona do grupo
    c. PromptBuilder.buildPromptRequest({...}) → contents[]
    d. aiService.generateContent(contents) → { text, functionCalls }
    e. functionCalls inclui search_web? → WebSearchService.search(query)
-   f. cleanResponseText(text) → texto limpo
-   g. history.add(jid, pergunta, resposta, nome)
+   f. cleanResponseText(text) → texto limpo (remove <think>, "Luma:", [PARTE])
+   g. history.add(historyKey, pergunta, resposta, nome)
 6. _sendParts(bot, parts) → envia em partes se necessário
 ```
 

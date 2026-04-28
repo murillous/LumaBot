@@ -41,11 +41,13 @@ export class LumaPlugin {
     switch (command) {
       case COMMANDS.LUMA_CLEAR:
       case COMMANDS.LUMA_CLEAR_SHORT:
-      case COMMANDS.LUMA_CLEAR_ALT:
-        this.lumaHandler.clearHistory(bot.jid);
+      case COMMANDS.LUMA_CLEAR_ALT: {
+        const clearKey = bot.isGroup ? `${bot.jid}:${bot.senderJid}` : bot.jid;
+        this.lumaHandler.clearHistory(clearKey);
         this.#groupBuffer.delete(bot.jid);
         await bot.reply("🗑️ Memória limpa nesta conversa!");
         break;
+      }
 
       case COMMANDS.LUMA_STATS:
       case COMMANDS.LUMA_STATS_SHORT:
@@ -78,15 +80,16 @@ export class LumaPlugin {
     if (!isPrivate && !isReplyToBot && !isTriggered) return;
 
     const groupContext = bot.isGroup ? this.#getGroupContext(bot.jid) : "";
+    const historyKey   = bot.isGroup ? `${bot.jid}:${bot.senderJid}` : bot.jid;
 
     if (bot.hasAudio && (isPrivate || isReplyToBot)) {
-      return await this.lumaHandler.handleAudio(bot, this.audioTranscriber, groupContext);
+      return await this.lumaHandler.handleAudio(bot, this.audioTranscriber, groupContext, historyKey);
     }
     if (bot.quotedHasAudio && (isPrivate || isReplyToBot || isTriggered)) {
-      return await this.lumaHandler.handleAudio(bot, this.audioTranscriber, groupContext);
+      return await this.lumaHandler.handleAudio(bot, this.audioTranscriber, groupContext, historyKey);
     }
 
-    await this.lumaHandler.handle(bot, isReplyToBot, groupContext);
+    await this.lumaHandler.handle(bot, isReplyToBot, groupContext, historyKey);
   }
 
   // ---------------------------------------------------------------------------

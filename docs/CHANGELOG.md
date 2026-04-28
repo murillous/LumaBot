@@ -1,5 +1,26 @@
 # Changelog — LumaBot
 
+## [6.4.0] — 2026-04-28
+
+### Contexto conversacional: memória por pessoa em grupos + continuidade de tópico
+
+**Histórico por pessoa em grupos (`BaileysAdapter`, `LumaPlugin`, `LumaHandler`)**
+
+- `BaileysAdapter` expõe novo getter síncrono `senderJid`: retorna `message.key.participant` em grupos, `remoteJid` em PV — compatível com JIDs no formato `@lid` (dispositivos linkados)
+- `LumaPlugin.onMessage` calcula `historyKey = groupJid:senderJid` em grupos e `jid` em PV, passando para toda a cadeia (`handle`, `handleAudio`, `_respondWithMessage`)
+- `LumaPlugin.onCommand` usa a mesma chave no `!luma clear` — limpa apenas o histórico de quem digitou o comando, não do grupo inteiro
+- `LumaHandler.generateResponse` recebe `historyKey` como parâmetro opcional (default = `userJid`); `ConversationHistory` é lido e gravado com essa chave; `PersonalityManager` continua usando `userJid` (personalidade por grupo)
+- Resultado: múltiplas pessoas podem conversar com a Luma simultaneamente no mesmo grupo sem cruzamento de contexto; o `#groupBuffer` (15 mensagens recentes do grupo) continua provendo consciência coletiva via `groupContext`
+
+**Continuidade de tópico (`ConversationHistory`, `lumaConfig`)**
+
+- `ConversationHistory.add` normaliza a resposta antes de salvar: marcadores `[PARTE]` são removidos e espaços duplos colapsados — o histórico armazena sempre texto limpo independente do número de balões enviados
+- Removido o separador `[USUÁRIO ATUAL]` do `PROMPT_TEMPLATE` e do `VISION_PROMPT_TEMPLATE`: a mensagem atual flui diretamente após o histórico, mantendo a conversa como um único bloco contínuo
+- Adicionadas duas instruções em `[NATURALIDADE]`: (3) respostas curtas e vagas são sempre interpretadas como continuação do turno anterior; (4) mudança clara de assunto é seguida sem tentar conectar ao histórico antigo
+- Testes: `LumaPlugin.test.js` atualizado para refletir o novo parâmetro `historyKey` e o getter `senderJid` no mock do `BaileysAdapter`
+
+---
+
 ## [6.3.0] — 2026-04-20
 
 ### Processamento paralelo por JID (`JidQueue`, `MessageRouter`)

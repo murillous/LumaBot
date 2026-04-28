@@ -39,6 +39,11 @@ export class BaileysAdapter extends MessagingPort {
     return this.remoteJid.endsWith("@g.us");
   }
 
+  get senderJid() {
+    if (!this.isGroup) return this.remoteJid;
+    return this.message.key.participant || this.message.participant || this.remoteJid;
+  }
+
   /**
    * Desempacota recursivamente os envelopes do WhatsApp
    * (ephemeralMessage, viewOnce, documentWithCaption).
