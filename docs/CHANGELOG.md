@@ -1,5 +1,23 @@
 # Changelog — LumaBot
 
+## [6.4.1] — 2026-04-28
+
+### Contexto de mensagens citadas: texto, imagem e figurinha
+
+**Enriquecimento de contexto ao citar qualquer mensagem (`LumaHandler`, `BaileysAdapter`)**
+
+- Quando o usuário aciona a Luma respondendo a qualquer mensagem (não apenas à própria Luma), o conteúdo citado é injetado automaticamente no prompt com o autor de cada turno
+- Três casos cobertos pelo enriquecimento em `LumaHandler.handle()`:
+  - Mensagem de texto → `[citando Autor: "texto"]`
+  - Imagem/figurinha com legenda → `[citando Autor: imagem com legenda "texto"]`
+  - Imagem/figurinha sem legenda → `[citando Autor: figurinha — analise visualmente]`
+- O tipo visual (`imagem` vs `figurinha`) é derivado da presença de `imageMessage` ou `stickerMessage` na quoted
+- Quando o contexto injetado é o único `userMessage` (usuário não escreveu texto adicional), o early-return de "mensagem vazia" é evitado — `generateResponse` é chamado e `_extractImage` baixa e envia a imagem ao Gemini para análise visual real
+- `BaileysAdapter` ganha getter `quotedHasVisualContent`: verifica `imageMessage` e `stickerMessage` na mensagem citada após unwrap de envelopes (`ephemeralMessage`, `viewOnceMessageV2`, etc.)
+- `quotedSenderName` resolve corretamente o autor da citação: `"Luma"` se o bot, nome do remetente atual se citou a própria mensagem, `"Alguém"` nos demais casos
+
+---
+
 ## [6.4.0] — 2026-04-28
 
 ### Contexto conversacional: memória por pessoa em grupos + continuidade de tópico

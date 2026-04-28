@@ -159,61 +159,50 @@ LumaHandler.getPersonality(groupJID) // Retorna 'aggressive'
 
 ## 🖼️ Visão Computacional (Multimodalidade)
 
-Quando o usuário envia uma imagem, o fluxo muda:
+Quando o usuário envia ou cita uma imagem/sticker, o `LumaHandler` extrai o conteúdo visual e o envia ao Gemini como `inlineData` (base64). O provider deve ter `supportsVision = true` (Gemini); providers sem visão (OpenAI/DeepSeek) recebem uma descrição textual gerada por um `GeminiAdapter` secundário (`visionService`).
 
 ### Pipeline de Imagem + Texto
 
-```javascript
-async generateResponseWithImage(imageBuffer, text, chatId) {
-    // 1. Converte imagem para Base64
-    const base64Image = imageBuffer.toString('base64');
-    
-    // 2. Prepara objeto multimodal
-    const parts = [
-        {
-            inlineData: {
-                mimeType: 'image/jpeg',
-                data: base64Image
-            }
-        },
-        {
-            text: text || 'O que você vê nesta imagem?'
-        }
-    ];
-    
-    // 3. Usa modelo com suporte a visão
-    const model = genAI.getGenerativeModel({
-        model: 'gemini-2.0-flash-exp',
-        systemInstruction: this.buildVisionPrompt()
-    });
-    
-    // 4. Gera resposta
-    const result = await model.generateContent(parts);
-    return result.response.text();
-}
+A imagem é extraída em `LumaHandler._extractImage()`, que cobre dois casos:
 
-buildVisionPrompt() {
-    return `
-        Você está analisando uma imagem enviada no WhatsApp.
-        Responda como se estivesse vendo a imagem em tempo real.
-        
-        REGRAS:
-        - Seja descritiva mas concisa (2-3 frases)
-        - Se for um meme, reaja com humor
-        - Se for uma pergunta visual (ex: "quanto é isso?"), responda objetivamente
-        - Mantenha sua personalidade sarcástica
-    `;
-}
+```
+mensagem atual tem imageMessage ou stickerMessage?
+    └─ SIM → _convertImageToBase64(message, sock) → { inlineData }
+
+mensagem atual é extendedTextMessage (texto com quote)?
+    └─ contextInfo.quotedMessage tem imageMessage ou stickerMessage?
+           └─ SIM → monta fakeMsg com a quoted → _convertImageToBase64 → { inlineData }
 ```
 
-### Modelos Disponíveis e Capacidades
+O `imageData` resultante é passado para `PromptBuilder`, que o inclui como parte multimodal no array `contents` enviado ao Gemini.
 
-| Modelo | Visão | Velocidade | Custo | Quando usar |
-|--------|-------|------------|-------|-------------|
-| `gemini-2.0-flash-exp` | ✅ | Muito Rápida | Grátis | Produção (experimental) |
-| `gemini-1.5-flash` | ✅ | Rápida | Grátis | Fallback estável |
-| `gemini-1.5-flash-8b` | ❌ | Ultra Rápida | Grátis | Texto puro, alta carga |
-| `gemini-1.5-pro` | ✅ | Lenta | Pago | Análises complexas |
+### Contexto de Mensagens Citadas com Visual
+
+Quando o usuário aciona a Luma respondendo a uma imagem ou sticker, `LumaHandler.handle()` injeta o contexto antes de chamar `generateResponse`:
+
+```
+usuario cita imagem/sticker + escreve "luma"
+    │
+    ├─ bot.quotedHasVisualContent = true
+    │
+    ├─ bot.quotedText presente?
+    │      └─ SIM → [citando Autor: imagem com legenda "texto"]
+    │      └─ NÃO → [citando Autor: figurinha — analise visualmente]
+    │
+    └─ userMessage recebe o quotedContext (nunca fica vazio)
+           │
+           └─ generateResponse → _extractImage detecta a imagem citada
+                  └─ imageData enviado ao Gemini → análise visual real
+```
+
+Sem esse enriquecimento, `userMessage` ficaria vazio e o fluxo retornaria antes de chamar a IA.
+
+### Providers e Suporte a Visão
+
+| Provider | `supportsVision` | Comportamento |
+|----------|-----------------|---------------|
+| `GeminiAdapter` | `true` | Imagem enviada diretamente como `inlineData` |
+| `OpenAIAdapter` | `false` | `visionService` (Gemini secundário) descreve em texto; descrição injetada no prompt |
 
 ## 💾 Gerenciamento de Memória (Contexto)
 

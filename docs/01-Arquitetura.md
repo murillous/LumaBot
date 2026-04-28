@@ -176,13 +176,17 @@ constructor({ aiService, history } = {}) {
 `BaileysAdapter` normaliza o protocolo do Baileys num objeto `bot` com getters limpos:
 
 ```js
-bot.body          // texto da mensagem
-bot.jid           // JID do chat (grupo ou privado)
-bot.senderJid     // JID de quem enviou (≠ bot.jid em grupos)
-bot.isGroup       // é grupo?
-bot.hasVisualContent  // tem imagem/sticker?
-bot.reply(text)   // responde com quote
-bot.react(emoji)  // reage
+bot.body                  // texto da mensagem
+bot.jid                   // JID do chat (grupo ou privado)
+bot.senderJid             // JID de quem enviou (≠ bot.jid em grupos; LID-compatível)
+bot.isGroup               // é grupo?
+bot.hasVisualContent      // tem imagem/sticker na mensagem atual?
+bot.quotedText            // texto da mensagem citada (null se não há citação)
+bot.quotedHasVisualContent // mensagem citada contém imagem ou sticker?
+bot.quotedHasAudio        // mensagem citada contém áudio?
+bot.quotedSenderName      // autor da citação: "Luma" | nome do remetente | "Alguém"
+bot.reply(text)           // responde com quote
+bot.react(emoji)          // reage
 bot.sendPresence('composing')  // "digitando..."
 ```
 
