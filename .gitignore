@@ -8,5 +8,7 @@ data/*
 !data/luma_metrics.sqlite
 bin/
 coverage/
+cookie-temp/
+cookies.txt
 .claude
 graphify-out/.graphify_*
