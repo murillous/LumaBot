@@ -88,6 +88,11 @@ export const env = Object.freeze({
   // Número do dono do bot para permissões especiais — opcional
   OWNER_NUMBER: process.env.OWNER_NUMBER || undefined,
 
+  // Arquivo de cookies (formato Netscape) para o yt-dlp autenticar downloads —
+  // opcional. Sem ele, plataformas com login gated (YouTube, Instagram, X)
+  // falham com "sign in to confirm you're not a bot".
+  YTDLP_COOKIES_FILE: process.env.YTDLP_COOKIES_FILE || undefined,
+
   // Nível de log do Baileys/Pino — padrão "silent" para não poluir stdout
   LOG_LEVEL: process.env.LOG_LEVEL || 'silent',
 

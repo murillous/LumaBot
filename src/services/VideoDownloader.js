@@ -4,6 +4,7 @@ import path from "path";
 import fs from "fs";
 import crypto from "crypto";
 import { CONFIG } from "../config/constants.js";
+import { env } from "../config/env.js";
 import { Logger } from "../utils/Logger.js";
 
 const execFileAsync = promisify(execFile);
@@ -113,6 +114,23 @@ export class VideoDownloader {
     }
   }
 
+  /**
+   * Args de cookies para o yt-dlp. Muitas plataformas (YouTube, Instagram, X)
+   * exigem cookies de sessão para baixar — sem eles, retornam "sign in to
+   * confirm you're not a bot" ou resposta vazia. O arquivo (formato Netscape)
+   * é exportado do navegador logado e montado via YTDLP_COOKIES_FILE.
+   * Retorna [] se não configurado, para o yt-dlp seguir sem cookies.
+   */
+  static #cookieArgs() {
+    const file = env.YTDLP_COOKIES_FILE;
+    if (!file) return [];
+    if (!fs.existsSync(file)) {
+      Logger.warn(`⚠️ VideoDownloader: YTDLP_COOKIES_FILE definido mas arquivo não existe: ${file}`);
+      return [];
+    }
+    return ["--cookies", file];
+  }
+
   static async download(url) {
     this.#assertValidUrl(url);
     const ytdlp = await this.getBinaryPath();
@@ -129,6 +147,7 @@ export class VideoDownloader {
       "--max-filesize", `${CONFIG.VIDEO_DOWNLOAD_MAX_SIZE_MB}M`,
       "--no-playlist",
       "--no-warnings",
+      ...this.#cookieArgs(),
       url,
     ];
 
@@ -191,6 +210,7 @@ export class VideoDownloader {
       "-o", outputTemplate,
       "--no-playlist",
       "--no-warnings",
+      ...this.#cookieArgs(),
       url,
     ];
 
@@ -234,7 +254,7 @@ export class VideoDownloader {
     try {
       const { stdout } = await execFileAsync(
         ytdlp,
-        ["--skip-download", "--print", "%(title)s", "--no-warnings", url],
+        ["--skip-download", "--print", "%(title)s", "--no-warnings", ...this.#cookieArgs(), url],
         { timeout: 15000 }
       );
       return stdout.trim() || null;
