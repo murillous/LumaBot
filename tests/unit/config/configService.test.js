@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
-// FS em memória para isolar do disco real (.env + config-overrides.json).
+// FS em memória para isolar do disco real (config-overrides.json + env-overrides.json).
 const files = new Map();
 
 vi.mock("fs", () => {
@@ -22,10 +22,12 @@ vi.mock("fs", () => {
 vi.mock("dotenv", () => ({ default: { config: vi.fn() } }));
 
 const { readConfig, writeConfig } = await import("../../../src/config/configService.js");
+const { EnvStore } = await import("../../../src/config/EnvStore.js");
 
 describe("configService", () => {
   beforeEach(() => {
     files.clear();
+    EnvStore.reload();
   });
   afterEach(() => {
     vi.unstubAllEnvs();
@@ -46,6 +48,15 @@ describe("configService", () => {
     writeConfig([{ key, source: "config", section: "LUMA_CONFIG", value: before + 0.3 }]);
 
     expect(fieldValue(readConfig(), key)).toBe(before + 0.3);
+  });
+
+  it("grava env no EnvStore (data/, gravável), não no .env read-only", () => {
+    writeConfig([{ key: "AI_PROVIDER", source: "env", value: "openai" }]);
+
+    // Persistido no override gravável, não num write ao .env.
+    expect(EnvStore.getOverrides().AI_PROVIDER).toBe("openai");
+    expect([...files.keys()].some((p) => p.includes("env-overrides.json"))).toBe(true);
+    expect([...files.keys()].some((p) => p.endsWith(".env"))).toBe(false);
   });
 
   it("reflete uma env recém-salva no próximo readConfig", () => {

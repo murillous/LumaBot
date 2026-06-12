@@ -106,8 +106,13 @@ src/config/ConfigStore.js    → mescla overrides sobre os defaults no boot
 
 Cada campo tem um `source`:
 
-- **`env`** → vai para o arquivo `.env` (e atualiza `process.env` para o próximo
-  spawn do bot). Ex: `AI_PROVIDER`, chaves de API, `DASHBOARD_PORT`.
+- **`env`** → vai para `data/env-overrides.json` (`EnvStore`, volume gravável) e
+  atualiza `process.env` para o próximo spawn do bot. No boot, `env.js` aplica
+  esses overrides **por cima** do `.env`. Ex: `AI_PROVIDER`, chaves de API,
+  `DASHBOARD_PORT`.
+  > Em produção o container roda com filesystem read-only (`.env` baked na
+  > imagem, EROFS ao escrever). Por isso as edições de env vão para `data/`
+  > (gravável e persistente), nunca reescrevem o `.env`.
 - **`config`** → vai para `data/config-overrides.json` (gitignored), mesclado
   por `ConfigStore` sobre `constants.js`/`lumaConfig.js`. Ex: personalidades,
   `generationConfig`, limites, spontaneous, prompts, mensagens.

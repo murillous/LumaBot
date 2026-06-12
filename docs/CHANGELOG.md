@@ -1,5 +1,29 @@
 # Changelog — LumaBot
 
+## [7.1.2] — 2026-06-12
+
+### Correção: salvar env no dashboard falhava em produção (filesystem read-only)
+
+Editar uma variável `source: env` (ex: `GEMINI_API_KEY`) no dashboard não
+funcionava no deploy cloud: o container roda com filesystem read-only e o
+`.env` é baked na imagem → `EROFS: read-only file system, open '/app/.env'`.
+Pior, o frontend engolia o erro e o botão "Salvar" parecia não fazer nada.
+
+- **`src/config/EnvStore.js` (novo)** — camada de override de env em
+  `data/env-overrides.json` (volume gravável), espelhando o `ConfigStore`.
+  `applyToProcessEnv()` injeta os overrides em `process.env`.
+- **`src/config/env.js`** — após o `dotenv.config`, aplica `EnvStore` por cima
+  do `.env` (o `.env` continua sendo a base; o dashboard tem prioridade).
+- **`src/config/configService.js`** — `updateEnvFile` grava no `EnvStore` em vez
+  do `.env`; `readConfig` recarrega/aplica o `EnvStore` para o painel refletir o
+  valor efetivo. As edições de env agora persistem por reinício do container.
+- **`dashboard/web/src/pages/Config.tsx`** — `save()` passa a tratar o erro e
+  exibir um box vermelho com a mensagem (antes a falha era silenciosa).
+- Testes em `tests/unit/config/configService.test.js` cobrindo a gravação via
+  `EnvStore` (sem tocar no `.env`).
+
+---
+
 ## [7.1.1] — 2026-06-12
 
 ### Refatoração: `dashboard/server.js` modularizado

@@ -1,4 +1,5 @@
 import dotenv from 'dotenv';
+import { EnvStore } from './EnvStore.js';
 
 /**
  * Módulo de configuração centralizada de variáveis de ambiente.
@@ -23,6 +24,10 @@ import dotenv from 'dotenv';
 // override:true garante que o .env do bot prevalece sobre env herdado do processo
 // pai (dashboard), evitando que uma chave antiga em memória contamine o bot.
 dotenv.config({ override: true });
+
+// Overrides de env editados pelo dashboard vivem em data/env-overrides.json
+// (volume gravável) e prevalecem sobre o .env — em produção o .env é read-only.
+EnvStore.applyToProcessEnv();
 
 // ─── Aviso de configuração de IA ──────────────────────────────────────────────
 

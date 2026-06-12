@@ -1,7 +1,6 @@
-import fs from "fs";
-import path from "path";
 import dotenv from "dotenv";
 import { ConfigStore } from "./ConfigStore.js";
+import { EnvStore } from "./EnvStore.js";
 import { CONFIG_SCHEMA, EDITABLE_ENV_KEYS, SECRET_KEYS, flattenSchemaFields } from "./configSchema.js";
 import { CONFIG, MENUS, MESSAGES } from "./constants.js";
 import { LUMA_CONFIG } from "./lumaConfig.js";
@@ -14,8 +13,6 @@ import { LUMA_CONFIG } from "./lumaConfig.js";
  * config vai para o ConfigStore (override JSON). As mudanças entram em vigor
  * no restart do bot.
  */
-
-const ENV_PATH = path.resolve("./.env");
 
 const SECTIONS = { CONFIG, LUMA_CONFIG, MENUS, MESSAGES };
 
@@ -56,6 +53,10 @@ export function readConfig() {
   // desde o boot do dashboard. Sem isto o painel reflete só o estado inicial.
   ConfigStore.reload();
   dotenv.config({ override: true });
+  // Overrides de env (data/env-overrides.json) prevalecem sobre o .env — mesma
+  // ordem do boot do bot, para o painel mostrar o que de fato vale.
+  EnvStore.reload();
+  EnvStore.applyToProcessEnv();
 
   const groups = CONFIG_SCHEMA.groups.map((group) => ({
     ...group,
@@ -64,22 +65,16 @@ export function readConfig() {
   return { groups };
 }
 
-/** Atualiza chaves no arquivo .env preservando o resto e o process.env atual. */
+/**
+ * Persiste alterações de env no EnvStore (data/env-overrides.json, gravável) em
+ * vez do .env — em produção o .env é read-only (EROFS). Também atualiza o
+ * process.env do dashboard para o próximo spawn do bot herdar o novo valor.
+ */
 function updateEnvFile(updates) {
-  let content = fs.existsSync(ENV_PATH) ? fs.readFileSync(ENV_PATH, "utf-8") : "";
-  const lines = content.split("\n");
-
+  EnvStore.save(updates);
   for (const [key, value] of Object.entries(updates)) {
-    const strValue = value == null ? "" : String(value);
-    const idx = lines.findIndex((l) => l.match(new RegExp(`^\\s*${key}\\s*=`)));
-    const line = `${key}=${strValue}`;
-    if (idx >= 0) lines[idx] = line;
-    else lines.push(line);
-    // Atualiza o ambiente do dashboard para o próximo spawn do bot herdar o novo valor.
-    process.env[key] = strValue;
+    process.env[key] = value == null ? "" : String(value);
   }
-
-  fs.writeFileSync(ENV_PATH, lines.join("\n"), "utf-8");
 }
 
 /** Constrói o objeto aninhado {section: {a: {b: value}}} a partir de um path. */
