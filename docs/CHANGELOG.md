@@ -1,5 +1,43 @@
 # Changelog — LumaBot
 
+## [7.1.1] — 2026-06-12
+
+### Refatoração: `dashboard/server.js` modularizado
+
+O backend do dashboard era um monólito de ~735 linhas. Foi quebrado em módulos de
+responsabilidade única, **sem alterar a interface externa** (rotas, eventos de
+WebSocket, deploy, tunnel, sinais de stdout e shutdown idênticos).
+
+- `dashboard/config.js` — `export const config`: env, paths calculados e constantes (TTL, janelas de rate-limit). Único leitor de `process.env` do dashboard.
+- `dashboard/logger.js` — buffer circular + `pushLog`/`getLogs` e `setBroadcast(fn)` (broadcast injetado, sem acoplar aos WebSockets).
+- `dashboard/auth.js` — sessões, `checkRateLimit` genérico (stores isoladas por nome) e middlewares `apiAuth`/`webAuth`.
+- `dashboard/botManager.js` — classe `BotManager` (singleton): processo do bot, QR, parsing de `[LUMA_QR]:`/`[LUMA_STATUS]:`, estado; notifica via `setOnStateChange`.
+- `dashboard/tunnelManager.js` — classe `TunnelManager` (singleton): cloudflared, backoff, modo supervisionado; notifica via `setOnUrlChange`.
+- `dashboard/deploy.js` — `verifyGitHubSignature` + `scheduleDeploy` (debounce 5 s).
+- `dashboard/websocket.js` — `setupWebSocket(server)`: auth, estado inicial, ping e wiring do broadcast.
+- `dashboard/routes/api.js` — `apiRouter` com rotas públicas + sub-router protegido em `/api`.
+- `dashboard/server.js` — agora só o ponto de entrada (~65 linhas).
+
+> O `apiAuth` é aplicado num sub-router montado em `/api`, não via
+> `router.use(apiAuth)` global — que rodaria para `/` e os estáticos e quebraria
+> a SPA / login.
+
+### Correção: config do dashboard voltava ao default ao recarregar a página
+
+`src/config/configService.js`:
+
+- `readConfig()` lia os campos `source: 'config'` a partir do snapshot de
+  `CONFIG`/`LUMA_CONFIG` importado no boot — congelado. Após salvar, o
+  `ConfigStore` era atualizado, mas o snapshot não; ao recarregar, o painel
+  mostrava o valor antigo (parecia "voltar ao default").
+- Agora `readConfig()` faz `ConfigStore.reload()` + `dotenv.config({ override: true })`
+  a cada chamada, e `readFieldValue` prefere o override vivo ao snapshot. Os
+  campos `source: 'env'` passam a refletir o `.env` em disco.
+- Novo teste `tests/unit/config/configService.test.js` cobrindo a regressão
+  (config e env refletem o valor salvo na leitura seguinte).
+
+---
+
 ## [7.1.0] — 2026-06-01
 
 ### Tunnel independente do dashboard (`luma-tunnel`)

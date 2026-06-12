@@ -3,7 +3,8 @@
 O dashboard controla o bot, mostra logs/métricas em tempo real e permite
 configurar **tudo** que vive em `src/config` sem editar código. São duas peças:
 
-- **Backend** — `dashboard/server.js` (Express + WebSocket + API REST). Sobe o
+- **Backend** — pasta `dashboard/` (Express + WebSocket + API REST), organizada
+  em módulos de responsabilidade única (ver "Estrutura modular" abaixo). Sobe o
   servidor web e spawna o bot (`index.js`) como processo filho.
 - **Frontend** — `dashboard/web/` (Vite + React + TypeScript + Tailwind),
   buildado para `dashboard/web/dist` e servido pelo backend.
@@ -15,6 +16,35 @@ Navegador ──HTTP/WS──► dashboard/server.js ──spawn──► index.
                               │                            │
                        API REST /api/*  ◄── lê SQLite (data/*.sqlite)
 ```
+
+---
+
+## 🧩 Estrutura modular do backend
+
+O `dashboard/server.js` deixou de ser um monólito e virou só o ponto de entrada.
+Cada domínio vive em seu próprio módulo, com estado encapsulado (classes só onde
+há estado; funções puras no resto) e comunicação por injeção de callback — nenhum
+módulo conhece os WebSockets diretamente.
+
+| Arquivo | Responsabilidade |
+|---------|------------------|
+| `server.js` | Init mínimo: headers de segurança, `express.json` (+`rawBody`), monta rotas/estáticos, WebSocket, graceful shutdown e `listen`. |
+| `config.js` | `export const config` — env, paths calculados (`WEB_DIST`, `SERVE_DIR`, `IS_SUPERVISED`) e constantes (TTL de sessão, janelas de rate-limit). Único lugar que lê `process.env` do dashboard. |
+| `logger.js` | Buffer circular (máx. 500). `pushLog`/`getLogs` + `setBroadcast(fn)` para o broadcast injetado. |
+| `auth.js` | Sessões (`createSession`/`isValidSession`), `checkRateLimit(store, key, windowMs, max)` genérico (stores isoladas por nome, sem vazamento) e middlewares `apiAuth` (JSON 401) e `webAuth` (redireciona p/ login). Limpeza periódica interna. |
+| `botManager.js` | Classe `BotManager` (singleton): spawn do bot, parsing de `[LUMA_QR]:`/`[LUMA_STATUS]:`, QR Code e estado. Notifica via `setOnStateChange(fn)`. |
+| `tunnelManager.js` | Classe `TunnelManager` (singleton): cloudflared, backoff exponencial, modo supervisionado (lê `data/tunnel-url.txt`). Notifica via `setOnUrlChange(fn)`. |
+| `deploy.js` | `verifyGitHubSignature(req)` (HMAC) e `scheduleDeploy()` (debounce 5 s); `runDeploy` privado. |
+| `websocket.js` | `setupWebSocket(server)`: autentica a conexão, envia estado inicial, mantém ping (25 s) e liga o `broadcast` ao logger/bot/tunnel. |
+| `routes/api.js` | `apiRouter`: rotas públicas (`/api/login`, `/login`, `/api/deploy`, `/health`) + sub-router protegido montado em `/api` (com `apiAuth`) para os endpoints de dados e controle do bot. |
+
+> **Por que o sub-router em `/api`?** `router.use(apiAuth)` direto rodaria para
+> *toda* request que entra no router — inclusive `/` e os estáticos. Escopar o
+> `apiAuth` num sub-router montado em `/api` mantém o "auth a partir daqui" sem
+> bloquear a SPA / página de login.
+
+A interface externa não mudou: rotas, eventos de WebSocket, deploy, tunnel,
+sinais de stdout e shutdown continuam idênticos.
 
 ---
 
@@ -85,6 +115,11 @@ Cada campo tem um `source`:
 > As alterações entram em vigor **no restart do bot**. O dashboard oferece um
 > botão "Reiniciar agora" após salvar. Secrets são mascarados na leitura
 > (`••••XXXX`) e só sobrescritos se um novo valor for digitado.
+
+> **Leitura sempre fresca:** `readConfig()` recarrega override (`ConfigStore.reload()`)
+> e `.env` (`dotenv` com `override`) a cada chamada e prefere o override vivo ao
+> snapshot importado no boot. Sem isso, ao recarregar a página os campos voltavam
+> ao default em vez de refletir o que foi salvo.
 
 Grupos do schema: IA & Provedor · Bot & Dashboard · Ajuste fino da IA ·
 Interações espontâneas · Mídia & Limites · Personalidades · Prompts ·

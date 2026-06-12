@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import dotenv from "dotenv";
 import { ConfigStore } from "./ConfigStore.js";
 import { CONFIG_SCHEMA, EDITABLE_ENV_KEYS, SECRET_KEYS, flattenSchemaFields } from "./configSchema.js";
 import { CONFIG, MENUS, MESSAGES } from "./constants.js";
@@ -38,14 +39,24 @@ function readFieldValue(field) {
     if (field.type === "number") return raw != null && raw !== "" ? Number(raw) : "";
     return raw ?? "";
   }
+  // Prefere o override vivo (recém-salvo) sobre o snapshot importado no boot:
+  // SECTIONS é congelado no load do módulo, então sem isto o dashboard mostraria
+  // o valor de boot e parecia "voltar ao default" após salvar.
+  const liveOverrides = ConfigStore.getOverrides()[field.section];
+  const overrideValue = liveOverrides ? getByPath(liveOverrides, field.key) : undefined;
   const section = SECTIONS[field.section];
-  const value = section ? getByPath(section, field.key) : undefined;
+  const value = overrideValue !== undefined ? overrideValue : section ? getByPath(section, field.key) : undefined;
   if (field.type === "secret") return value ? maskSecret(value) : "";
   return value ?? (field.type === "boolean" ? false : "");
 }
 
 /** Retorna o schema com os valores atuais preenchidos em cada campo. */
 export function readConfig() {
+  // Re-sincroniza com o disco: overrides (config) e .env (env) podem ter mudado
+  // desde o boot do dashboard. Sem isto o painel reflete só o estado inicial.
+  ConfigStore.reload();
+  dotenv.config({ override: true });
+
   const groups = CONFIG_SCHEMA.groups.map((group) => ({
     ...group,
     fields: group.fields.map((field) => ({ ...field, value: readFieldValue(field) })),
