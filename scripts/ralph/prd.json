@@ -1,0 +1,173 @@
+{
+  "project": "LumaBot",
+  "branchName": "ralph/persona-custom-via-chat",
+  "description": "Personas Customizadas via Chat - usuário cria persona da Luma por descrição livre (comando !persona criar ou tool create_persona); IA estrutura, persiste por chat (JID) e ativa na hora. Custom são deletáveis; predefinidas imutáveis. Backend Node.js ESM, sem default export, imports absolutos, comentários PT-BR. Quality gate = npx vitest run.",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Schema custom_personas no DatabaseService",
+      "description": "Como desenvolvedor, preciso de uma tabela para persistir personas custom por chat.",
+      "acceptanceCriteria": [
+        "Em src/services/Database.js, criar tabela custom_personas com colunas: id INTEGER PRIMARY KEY AUTOINCREMENT, chat_jid TEXT NOT NULL, key TEXT NOT NULL, name TEXT NOT NULL, description TEXT NOT NULL, context TEXT NOT NULL, style TEXT NOT NULL, traits_json TEXT NOT NULL, created_at DATETIME DEFAULT CURRENT_TIMESTAMP",
+        "Constraint UNIQUE (chat_jid, key)",
+        "Índice idx_custom_personas_chat em custom_personas(chat_jid)",
+        "Usar CREATE TABLE IF NOT EXISTS no mesmo padrão de init das outras tabelas; vive no luma_private.sqlite",
+        "Testes passando (npx vitest run)"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "Métodos CRUD de custom_personas no DatabaseService",
+      "description": "Como desenvolvedor, preciso de métodos para criar, listar, buscar, deletar e contar personas custom.",
+      "acceptanceCriteria": [
+        "createCustomPersona(chatJid, persona) faz INSERT respeitando UNIQUE (chat_jid, key)",
+        "getCustomPersonas(chatJid) retorna lista das personas do chat (traits desserializado de traits_json)",
+        "getCustomPersona(chatJid, key) retorna persona individual ou null",
+        "deleteCustomPersona(chatJid, key) faz DELETE e retorna booleano se removeu",
+        "countCustomPersonas(chatJid) retorna a contagem do chat",
+        "Métodos estáticos no DatabaseService, seguindo o padrão dos métodos existentes",
+        "Testes Vitest novos cobrindo CRUD, UNIQUE, contagem e deleção, passando (npx vitest run)"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "PersonaGenerator (geração estruturada pela IA)",
+      "description": "Como sistema, preciso transformar uma descrição livre em um shape de persona validado.",
+      "acceptanceCriteria": [
+        "Novo PersonaGenerator em src/core/services/, recebe aiService por injeção de dependência (named export, sem default)",
+        "generate(description) monta prompt instruindo o modelo a devolver JSON { name, description, context, style, traits[] }",
+        "Parseia o JSON e valida: name <= 40 chars; context <= 600; style <= 300; traits entre 3 e 8, cada <= 200",
+        "Campos excedendo limite são truncados quando seguro; traits < 3 rejeita",
+        "Anexa pelo sistema (não pelo modelo) o trait final com a regra de formato WhatsApp (<= 200 chars/bloco, [PARTE]) já usada pelas personas atuais",
+        "JSON malformado dispara 1 retry; se persistir, lança erro tratável (sem gravar nada)",
+        "Lógica de parsing/validação/slug é pura e testável com aiService mockado",
+        "Testes Vitest: JSON válido, JSON inválido + retry, aplicação de limites, anexo do trait de formato, geração de slug único, passando (npx vitest run)"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "PersonalityManager resolve e lista personas custom",
+      "description": "Como sistema, preciso resolver e listar personas mesclando predefinidas e custom do chat.",
+      "acceptanceCriteria": [
+        "getPersonaConfig(jid) resolve na ordem: custom do chat -> predefinida -> DEFAULT_PERSONALITY, devolvendo o shape { name, description, context, style, traits[] } (PromptBuilder não muda)",
+        "setPersonality(jid, key) aceita chaves custom, validando contra predefinidas OU custom do chat",
+        "getList(jid) recebe o JID e mescla predefinidas + custom do chat, marcando cada item com origem (isCustom)",
+        "Chave custom usa prefixo interno 'custom:' no armazenamento para nunca colidir com predefinidas",
+        "Testes Vitest: merge predefinida+custom, resolução de getPersonaConfig nas 3 ordens, setPersonality com chave custom, passando (npx vitest run)"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "PersonalityManager.deletePersona com fallback da ativa",
+      "description": "Como sistema, preciso deletar persona custom e proteger a persona ativa do chat.",
+      "acceptanceCriteria": [
+        "deletePersona(jid, key) remove apenas se a key for custom do chat",
+        "Tentar deletar predefinida recusa (não remove, sinaliza motivo)",
+        "Se a persona deletada era a ativa do chat, volta para DEFAULT_PERSONALITY ('pensadora')",
+        "Testes Vitest: deleção de custom, recusa de predefinida, fallback quando deleta a ativa, passando (npx vitest run)"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "LumaPlugin: subcomando !persona criar",
+      "description": "Como membro, quero digitar !persona criar <descrição> e a Luma virar esse personagem.",
+      "acceptanceCriteria": [
+        "LumaPlugin.onCommand(COMMANDS.PERSONA) faz parsing do subcomando 'criar' (descrição = tudo após 'criar'); parsing fica no plugin, sem inflar CommandRouter",
+        "Descrição vazia -> mensagem de ajuda na voz da Luma, nada gravado",
+        "Antes de gerar, checa countCustomPersonas(jid) < 10; no teto recusa com mensagem clara pedindo pra deletar antes (nada gravado)",
+        "Gera via PersonaGenerator, deriva slug único, grava via createCustomPersona e ativa via setPersonality; confirma na voz da Luma ('agora eu sou <name>')",
+        "Falha de geração (FR-9): Logger.error + mensagem de erro na voz da Luma, nada gravado, persona atual mantida",
+        "Testes Vitest: roteamento de 'criar', descrição vazia, teto de 10, caminho feliz, falha de IA, passando (npx vitest run)"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-007",
+      "title": "LumaPlugin: menu !persona unificado",
+      "description": "Como membro, quero ver predefinidas e custom juntas no menu !persona.",
+      "acceptanceCriteria": [
+        "!persona (sem args) lista predefinidas + custom do chat via getList(jid), numeradas p1..pN",
+        "Predefinidas marcadas com ⭐ (Padrão) quando aplicável; custom marcadas como deletáveis (🗑️)",
+        "Persona ativa destacada como hoje",
+        "Mensagens/labels seguem src/config/constants.js (não hardcode espalhado)",
+        "Testes Vitest do menu unificado (ordem, marcadores, destaque da ativa), passando (npx vitest run)"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-008",
+      "title": "LumaPlugin: subcomando !persona deletar pN",
+      "description": "Como membro, quero deletar uma persona custom com !persona deletar p7.",
+      "acceptanceCriteria": [
+        "Parsing de 'deletar pN' no LumaPlugin; resolve pN via getList(jid)",
+        "Predefinida recusa ('essa é de fábrica, não dá pra apagar')",
+        "Custom chama deletePersona(jid, key); se era a ativa, avisa que voltou pra padrão",
+        "pN fora do range -> 'opção inválida' (igual hoje)",
+        "Testes Vitest: deletar custom, recusar predefinida, fora do range, deletar a ativa, passando (npx vitest run)"
+      ],
+      "priority": 8,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-009",
+      "title": "Tool create_persona (function calling)",
+      "description": "Como usuário, quero pedir em linguagem natural pra Luma virar uma persona.",
+      "acceptanceCriteria": [
+        "Nova entrada create_persona em lumaConfig.TOOLS.functionDeclarations com parâmetro description (STRING, required)",
+        "ToolDispatcher.handleCreatePersona reaproveita PersonaGenerator e executa o mesmo caminho do !persona criar (teto, gravação, ativação, fallback)",
+        "Testes Vitest: handleCreatePersona chama o gerador e ativa a persona, passando (npx vitest run)"
+      ],
+      "priority": 9,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-010",
+      "title": "Telemetria de criação e deleção",
+      "description": "Como mantenedor, quero contadores de uso sem vazar conteúdo nem JID.",
+      "acceptanceCriteria": [
+        "Incrementar DatabaseService.incrementMetric('personas_created') ao criar com sucesso",
+        "Incrementar DatabaseService.incrementMetric('personas_deleted') ao deletar",
+        "Métricas no banco público, sem conteúdo nem JID (respeita doc 04)",
+        "Testes Vitest verificando os incrementos, passando (npx vitest run)"
+      ],
+      "priority": 10,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-011",
+      "title": "Documentação: COMO, ADR e CHANGELOG",
+      "description": "Como time, preciso da feature documentada conforme CLAUDE.md.",
+      "acceptanceCriteria": [
+        "Doc do COMO em docs/ descrevendo personas custom (criação, persistência por chat, deleção, limites)",
+        "ADR em docs/adr/ sobre a decisão de persistir personas por-chat no luma_private.sqlite (Contexto/Decisão/Consequências/Status)",
+        "Entrada Added no CHANGELOG.md (Keep a Changelog)",
+        "Suíte completa passando (npx vitest run)"
+      ],
+      "priority": 11,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}

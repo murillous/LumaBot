@@ -74,6 +74,25 @@ dbPrivate.exec(`
   CREATE INDEX IF NOT EXISTS idx_reminders_due ON reminders(fired, fire_at);
 `);
 
+// Personas customizadas por chat (JID). Cada chat tem suas próprias personas
+// criadas via descrição livre; predefinidas vivem no código e são imutáveis.
+// traits_json = JSON array de strings. UNIQUE (chat_jid, key) evita slug duplicado.
+dbPrivate.exec(`
+  CREATE TABLE IF NOT EXISTS custom_personas (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    chat_jid    TEXT NOT NULL,
+    key         TEXT NOT NULL,
+    name        TEXT NOT NULL,
+    description TEXT NOT NULL,
+    context     TEXT NOT NULL,
+    style       TEXT NOT NULL,
+    traits_json TEXT NOT NULL,
+    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (chat_jid, key)
+  );
+  CREATE INDEX IF NOT EXISTS idx_custom_personas_chat ON custom_personas(chat_jid);
+`);
+
 dbMetrics.exec(`
   CREATE TABLE IF NOT EXISTS metrics (
     key TEXT PRIMARY KEY,
