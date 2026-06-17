@@ -176,7 +176,7 @@ export class LumaPlugin {
     const quotedText = bot.quotedText;
     if (!quotedText?.includes(MENUS.PERSONALITY.HEADER.split("\n")[0])) return false;
 
-    const list  = PersonalityManager.getList();
+    const list  = PersonalityManager.getList(bot.jid);
     const num   = parseInt(bot.body.trim().toLowerCase().replace("p", ""));
     const index = !isNaN(num) && num > 0 ? num - 1 : -1;
 
@@ -209,15 +209,21 @@ export class LumaPlugin {
   }
 
   async #sendPersonalityMenu(bot) {
-    const list        = PersonalityManager.getList();
+    // Passa o jid para mesclar predefinidas + custom do próprio chat.
+    const list        = PersonalityManager.getList(bot.jid);
     const currentName = PersonalityManager.getActiveName(bot.jid);
 
     let text = `${MENUS.PERSONALITY.HEADER}\n`;
     text += `🔹 Atual neste chat: ${currentName}\n\n`;
 
     list.forEach((p, i) => {
-      const isDefault = p.key === LUMA_CONFIG.DEFAULT_PERSONALITY ? " ⭐ (Padrão)" : "";
-      text += `p${i + 1} - ${p.name}${isDefault}\n${p.desc}\n\n`;
+      // Custom são deletáveis (🗑️); a predefinida padrão ganha ⭐.
+      const mark = p.isCustom
+        ? MENUS.PERSONALITY.CUSTOM_MARK
+        : p.key === LUMA_CONFIG.DEFAULT_PERSONALITY
+          ? MENUS.PERSONALITY.DEFAULT_MARK
+          : "";
+      text += `p${i + 1} - ${p.name}${mark}\n${p.desc}\n\n`;
     });
 
     text += MENUS.PERSONALITY.FOOTER;

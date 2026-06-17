@@ -96,6 +96,8 @@ export const MENUS = ConfigStore.apply("MENUS", {
   PERSONALITY: {
     HEADER: "🎭 *CONFIGURAÇÃO DA LUMA*\n_Responda com o código (ex: p1):_\n",
     FOOTER: "\n_A mudança é aplicada imediatamente neste chat._",
+    DEFAULT_MARK: " ⭐ (Padrão)",
+    CUSTOM_MARK: " 🗑️",
   },
 
   MSGS: {

@@ -209,6 +209,49 @@ describe('LumaPlugin.onCommand — !persona criar', () => {
   });
 });
 
+describe('LumaPlugin.onCommand — !persona menu unificado', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    PersonalityManager.getActiveName.mockReturnValue('Luma');
+  });
+
+  it('lista predefinidas + custom do chat, numeradas p1..pN com marcadores', async () => {
+    PersonalityManager.getList.mockReturnValue([
+      { key: 'default', name: 'Luma', desc: 'Assistente padrão', isCustom: false },
+      { key: 'dev', name: 'Dev Mode', desc: 'Modo desenvolvedor', isCustom: false },
+      { key: 'custom:vovo-fofa', name: 'Vovó Fofa', desc: 'a vó mais doce', isCustom: true },
+    ]);
+    const plugin = new LumaPlugin({ lumaHandler: makeLumaHandler() });
+    const bot    = makeBot({ jid: 'grupo@g.us', body: '!persona' });
+
+    await plugin.onCommand(COMMANDS.PERSONA, bot);
+
+    // Passa o jid pra mesclar custom do chat
+    expect(PersonalityManager.getList).toHaveBeenCalledWith('grupo@g.us');
+
+    const text = bot.sendText.mock.calls[0][0];
+    expect(text).toContain('p1 - Luma ⭐ (Padrão)');
+    expect(text).toContain('p2 - Dev Mode');
+    expect(text).toContain('p3 - Vovó Fofa 🗑️');
+    // Predefinida não-padrão não ganha marcador
+    expect(text).not.toContain('Dev Mode ⭐');
+    expect(text).not.toContain('Dev Mode 🗑️');
+  });
+
+  it('destaca a persona ativa do chat', async () => {
+    PersonalityManager.getList.mockReturnValue([
+      { key: 'default', name: 'Luma', desc: 'Assistente padrão', isCustom: false },
+    ]);
+    PersonalityManager.getActiveName.mockReturnValue('Vovó Fofa');
+    const plugin = new LumaPlugin({ lumaHandler: makeLumaHandler() });
+    const bot    = makeBot({ body: '!persona' });
+
+    await plugin.onCommand(COMMANDS.PERSONA, bot);
+
+    expect(bot.sendText.mock.calls[0][0]).toContain('Atual neste chat: Vovó Fofa');
+  });
+});
+
 describe('LumaPlugin.onMessage — responde em PV', () => {
   it('chama lumaHandler.handle em conversa privada', async () => {
     const lumaHandler = makeLumaHandler();
