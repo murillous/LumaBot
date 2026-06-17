@@ -64,6 +64,41 @@ export class PersonalityManager {
   }
 
   /**
+   * Deleta uma persona custom do chat. Só remove se a key for custom (prefixo
+   * 'custom:') e existir no próprio chat. Predefinidas são imutáveis — recusa.
+   * Se a persona deletada era a ativa, o chat volta para o DEFAULT_PERSONALITY.
+   *
+   * Retorna { deleted, reason?, wasActive? }:
+   * - reason 'predefined' quando a key é de fábrica;
+   * - reason 'not_custom' quando a key não tem prefixo custom;
+   * - reason 'not_found' quando não há persona custom com essa key no chat.
+   */
+  static deletePersona(jid, key) {
+    // Predefinida: de fábrica, imutável.
+    if (LUMA_CONFIG.PERSONALITIES[key]) {
+      return { deleted: false, reason: "predefined" };
+    }
+
+    if (typeof key !== "string" || !key.startsWith(CUSTOM_PREFIX)) {
+      return { deleted: false, reason: "not_custom" };
+    }
+
+    const slug = key.slice(CUSTOM_PREFIX.length);
+    const removed = DatabaseService.deleteCustomPersona(jid, slug);
+    if (!removed) {
+      return { deleted: false, reason: "not_found" };
+    }
+
+    // Se a persona removida era a ativa do chat, volta para o padrão.
+    const wasActive = DatabaseService.getPersonality(jid) === key;
+    if (wasActive) {
+      DatabaseService.setPersonality(jid, LUMA_CONFIG.DEFAULT_PERSONALITY);
+    }
+
+    return { deleted: true, wasActive };
+  }
+
+  /**
    * Lista predefinidas + custom do chat. Cada item carrega `isCustom` marcando
    * a origem. Custom recebem o prefixo 'custom:' na key. Sem jid, lista só as
    * predefinidas (compatível com chamadas sem contexto de chat).

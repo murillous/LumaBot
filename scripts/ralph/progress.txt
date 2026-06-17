@@ -42,6 +42,22 @@ Started: Wed, Jun 17, 2026  7:49:20 PM
   - Suíte: 589 testes (582 baseline + 7).
 ---
 
+## Wed, Jun 17, 2026 - US-005
+- PersonalityManager.deletePersona(jid, key) em src/managers/PersonalityManager.js.
+  - Predefinida -> { deleted:false, reason:"predefined" } (não toca no DB).
+  - Key sem prefixo custom e não-predefinida -> { deleted:false, reason:"not_custom" }.
+  - Custom: chama DatabaseService.deleteCustomPersona(jid, slug) (slug = key.slice(7)); se !removed -> reason:"not_found".
+  - wasActive = getPersonality(jid) === key (key prefixada); se ativa, setPersonality(jid, DEFAULT_PERSONALITY).
+  - Retorno: { deleted:true, wasActive } no sucesso.
+- Novo test file tests/unit/managers/PersonalityManagerDelete.test.js (6 testes): delete custom, not_found, recusa predefinida, recusa not_custom, fallback da ativa, ativa diferente.
+- Files changed: src/managers/PersonalityManager.js, tests/unit/managers/PersonalityManagerDelete.test.js
+- **Learnings for future iterations:**
+  - deletePersona recebe a key JÁ PREFIXADA ('custom:slug'), igual setPersonality/getList. US-008 resolve pN via getList(jid) -> item.key já vem prefixado, repassar direto.
+  - Retorno é objeto {deleted, reason?, wasActive?}, não booleano. US-008/US-010 consomem: wasActive -> avisar fallback; deleted -> incrementar métrica 'personas_deleted'.
+  - DEFAULT_PERSONALITY = 'pensadora' (LUMA_CONFIG.DEFAULT_PERSONALITY).
+  - Suíte: 616 testes (610 baseline + 6).
+---
+
 ## Wed, Jun 17, 2026 - US-004
 - PersonalityManager (src/managers/PersonalityManager.js) reescrito para mesclar predefinidas + custom por chat. Novo export CUSTOM_PREFIX = "custom:".
   - getPersonaConfig(jid): se a key salva começa com 'custom:' resolve via DatabaseService.getCustomPersona(jid, slug); se existir devolve shape {name,description,context,style,traits}. Senão -> predefinida -> DEFAULT. PromptBuilder não muda.

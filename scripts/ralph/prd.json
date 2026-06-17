@@ -79,7 +79,7 @@
         "Testes Vitest: deleção de custom, recusa de predefinida, fallback quando deleta a ativa, passando (npx vitest run)"
       ],
       "priority": 5,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
