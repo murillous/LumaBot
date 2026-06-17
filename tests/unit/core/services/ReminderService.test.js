@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const mockAdd = vi.fn().mockReturnValue(1);
 const mockGetDue = vi.fn();
 const mockGetPending = vi.fn();
+const mockGetPendingByChat = vi.fn();
 const mockMarkFired = vi.fn();
 const mockDelete = vi.fn();
 
@@ -11,6 +12,7 @@ vi.mock("../../../../src/services/Database.js", () => ({
     addReminder: (...a) => mockAdd(...a),
     getDueReminders: (...a) => mockGetDue(...a),
     getPendingReminders: (...a) => mockGetPending(...a),
+    getPendingRemindersByChat: (...a) => mockGetPendingByChat(...a),
     markReminderFired: (...a) => mockMarkFired(...a),
     deleteReminder: (...a) => mockDelete(...a),
   },
@@ -110,5 +112,19 @@ describe("ReminderService.getDue", () => {
     const due = ReminderService.getDue(999);
     expect(mockGetDue).toHaveBeenCalledWith(999);
     expect(due[0].mentionJids).toEqual([]);
+  });
+});
+
+describe("ReminderService.getPendingByChat", () => {
+  it("busca lembretes pendentes de um chat específico e normaliza", () => {
+    mockGetPendingByChat.mockReturnValue([
+      { id: 1, chat_jid: "g@g.us", is_group: 1, creator_jid: "u@s", mention_jids: "[]", text: "reunião", fire_at: 123456, fired: 0 },
+      { id: 2, chat_jid: "g@g.us", is_group: 1, creator_jid: "u@s", mention_jids: '["a@s"]', text: "almoço", fire_at: 123789, fired: 0 },
+    ]);
+    const reminders = ReminderService.getPendingByChat("g@g.us");
+    expect(mockGetPendingByChat).toHaveBeenCalledWith("g@g.us");
+    expect(reminders).toHaveLength(2);
+    expect(reminders[0].text).toBe("reunião");
+    expect(reminders[1].mentionJids).toEqual(["a@s"]);
   });
 });

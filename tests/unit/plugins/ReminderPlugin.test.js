@@ -1,16 +1,20 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const mockSchedule = vi.fn();
+const mockGetPendingByChat = vi.fn();
 
 vi.mock("../../../src/core/services/ReminderService.js", () => ({
-  ReminderService: { schedule: (...a) => mockSchedule(...a) },
+  ReminderService: {
+    schedule: (...a) => mockSchedule(...a),
+    getPendingByChat: (...a) => mockGetPendingByChat(...a),
+  },
 }));
 
 vi.mock("../../../src/utils/Logger.js", () => ({
   Logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
-const { ReminderPlugin, parseBrDateTime } = await import(
+const { ReminderPlugin, parseBrDateTime, formatReminderForDisplay } = await import(
   "../../../src/plugins/reminder/ReminderPlugin.js"
 );
 
@@ -31,6 +35,14 @@ describe("parseBrDateTime", () => {
   });
 });
 
+describe("formatReminderForDisplay", () => {
+  it("formata timestamp em DD/MM HH:mm (horário Brasília)", () => {
+    const reminder = { fireAt: Date.parse("2026-06-02T16:30:00-03:00") };
+    const formatted = formatReminderForDisplay(reminder);
+    expect(formatted).toMatch(/02\/06 16:30/);
+  });
+});
+
 function makeBot({ body, jid = "g@g.us", isGroup = true, senderJid = "u@s", mentions = [] } = {}) {
   return {
     body, jid, isGroup, senderJid,
@@ -41,35 +53,52 @@ function makeBot({ body, jid = "g@g.us", isGroup = true, senderJid = "u@s", ment
 }
 
 describe("ReminderPlugin.onCommand", () => {
-  beforeEach(() => mockSchedule.mockReset());
+  beforeEach(() => {
+    mockSchedule.mockReset();
+    mockGetPendingByChat.mockReset();
+  });
 
-  it("mostra uso quando falta o separador |", async () => {
+  it("ignora silenciosamente quando falta o separador |", async () => {
     const bot = makeBot({ body: "!lembrete amanhã reunião" });
     await new ReminderPlugin().onCommand("!lembrete", bot);
-    expect(bot.replied).toContain("Uso:");
+    expect(bot.replied).toBeNull(); // Não responde, deixa Luma falar
     expect(mockSchedule).not.toHaveBeenCalled();
   });
 
-  it("agenda com data válida e usa o autor quando não há menção", async () => {
+  it("agenda com data válida e deixa Luma responder", async () => {
     const bot = makeBot({ body: "!lembrete 02/06/2026 16:00 | reunião" });
     await new ReminderPlugin().onCommand("!lembrete", bot);
     expect(mockSchedule).toHaveBeenCalledOnce();
     const arg = mockSchedule.mock.calls[0][0];
     expect(arg.text).toBe("reunião");
     expect(arg.mentionJids).toEqual(["u@s"]);
-    expect(bot.replied).toContain("agendado");
+    expect(bot.replied).toBeNull(); // Não responde, deixa Luma falar
   });
 
-  it("usa as pessoas mencionadas quando existem", async () => {
-    const bot = makeBot({ body: "!lembrete 02/06/2026 16:00 | call", mentions: ["a@s", "b@s"] });
-    await new ReminderPlugin().onCommand("!lembrete", bot);
-    expect(mockSchedule.mock.calls[0][0].mentionJids).toEqual(["a@s", "b@s"]);
-  });
-
-  it("avisa quando a data é inválida", async () => {
+  it("ignora silenciosamente quando a data é inválida", async () => {
     const bot = makeBot({ body: "!lembrete qualquer coisa | texto" });
     await new ReminderPlugin().onCommand("!lembrete", bot);
-    expect(bot.replied).toMatch(/inválida/i);
+    expect(bot.replied).toBeNull(); // Não responde, deixa Luma falar
     expect(mockSchedule).not.toHaveBeenCalled();
+  });
+
+  it("lista lembretes quando o comando é !lembretes", async () => {
+    const reminders = [
+      { fireAt: Date.parse("2026-06-02T16:00:00-03:00"), text: "reunião" },
+      { fireAt: Date.parse("2026-06-03T14:30:00-03:00"), text: "almoço" },
+    ];
+    mockGetPendingByChat.mockReturnValue(reminders);
+    const bot = makeBot({ body: "!lembretes" });
+    await new ReminderPlugin().onCommand("!lembretes", bot);
+    expect(mockGetPendingByChat).toHaveBeenCalledWith("g@g.us");
+    expect(bot.replied).toContain("Lembretes agendados");
+    expect(bot.replied).toContain("2");
+  });
+
+  it("informa quando não há lembretes", async () => {
+    mockGetPendingByChat.mockReturnValue([]);
+    const bot = makeBot({ body: "!lembretes" });
+    await new ReminderPlugin().onCommand("!lembretes", bot);
+    expect(bot.replied).toContain("Nenhum lembrete");
   });
 });
