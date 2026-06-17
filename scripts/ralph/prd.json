@@ -65,7 +65,7 @@
         "Testes Vitest: merge predefinida+custom, resolução de getPersonaConfig nas 3 ordens, setPersonality com chave custom, passando (npx vitest run)"
       ],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {

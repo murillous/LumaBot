@@ -41,3 +41,18 @@ Started: Wed, Jun 17, 2026  7:49:20 PM
   - Teste de Database usa DB real (sem mock) com JIDs fake + afterEach que deleta tudo do chat de teste. Funciona; novos testes de Database devem seguir esse padrão de cleanup.
   - Suíte: 589 testes (582 baseline + 7).
 ---
+
+## Wed, Jun 17, 2026 - US-004
+- PersonalityManager (src/managers/PersonalityManager.js) reescrito para mesclar predefinidas + custom por chat. Novo export CUSTOM_PREFIX = "custom:".
+  - getPersonaConfig(jid): se a key salva começa com 'custom:' resolve via DatabaseService.getCustomPersona(jid, slug); se existir devolve shape {name,description,context,style,traits}. Senão -> predefinida -> DEFAULT. PromptBuilder não muda.
+  - setPersonality(jid, key): predefinida -> set; key 'custom:slug' valida contra getCustomPersona do chat antes de setar; resto -> false.
+  - getList(jid): predefinidas (isCustom:false) + custom do chat (key prefixada 'custom:', isCustom:true). Sem jid -> só predefinidas (compat com chamadas antigas getList()).
+- Novo test file tests/unit/managers/PersonalityManagerCustom.test.js (10 testes).
+- Files changed: src/managers/PersonalityManager.js, tests/unit/managers/PersonalityManagerCustom.test.js
+- **Learnings for future iterations:**
+  - Chave custom = prefixo interno 'custom:' + slug (slug do PersonaGenerator/createCustomPersona vem SEM prefixo; o prefixo só existe em chat_settings.personality e em getList). Ao gravar key custom no chat_settings use CUSTOM_PREFIX+slug; ao chamar getCustomPersona/deleteCustomPersona use o slug puro (slice 7).
+  - getList agora recebe jid e devolve item.isCustom. Callers existentes (LumaPlugin/ToolDispatcher) chamam getList() sem jid -> só predefinidas. US-007 precisa passar bot.jid pra getList pra ver custom.
+  - Decisão p/ não quebrar PersonalityManager.test.js existente (mocka só getPersonality/setPersonality): custom DB methods só são chamados quando a key tem prefixo 'custom:'. Keys planas nunca disparam getCustomPersona. Mantenha isso.
+  - Mock de DatabaseService em teste com factory hoistada: TODAS as fns precisam ser `let` + getter (`get x() { return mockX }`), nunca `const` direto referenciado na factory (ReferenceError before init).
+  - Suíte: 610 testes (600 baseline + 10).
+---
