@@ -110,7 +110,7 @@
         "Testes Vitest do menu unificado (ordem, marcadores, destaque da ativa), passando (npx vitest run)"
       ],
       "priority": 7,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {

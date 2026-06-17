@@ -90,3 +90,15 @@ Started: Wed, Jun 17, 2026  7:49:20 PM
   - US-007 (menu unificado) deve passar bot.jid pra PersonalityManager.getList(jid) — hoje #sendPersonalityMenu chama getList() sem jid (só predefinidas). US-008 reusa #parsePersonaSubcommand pra 'deletar pN'.
   - Suíte: 621 testes (616 baseline + 5).
 ---
+
+## Wed, Jun 17, 2026 - US-007
+- #sendPersonalityMenu agora chama PersonalityManager.getList(bot.jid) -> mescla predefinidas + custom do chat, numeradas p1..pN.
+- Marcadores movidos pra constants.js (MENUS.PERSONALITY): DEFAULT_MARK (" ⭐ (Padrão)") na predefinida padrão, CUSTOM_MARK (" 🗑️") nas custom (deletáveis). Predefinida não-padrão sem marcador.
+- Persona ativa destacada no header "Atual neste chat: <name>" (como antes, via getActiveName(jid)).
+- #handleMenuReply também passa bot.jid pra getList -> seleção de pN custom resolve a key prefixada correta.
+- Files changed: src/plugins/luma/LumaPlugin.js, src/config/constants.js, tests/unit/plugins/LumaPlugin.test.js
+- **Learnings for future iterations:**
+  - getList(jid) item shape: { key, name, desc, isCustom }. Custom já vem com key prefixada 'custom:slug'. US-008 (deletar pN) resolve pN via getList(jid)[index].key (já prefixada) -> passa direto pra deletePersona(jid, key).
+  - Marcadores de menu vivem em MENUS.PERSONALITY.DEFAULT_MARK/CUSTOM_MARK (constants.js). Não hardcode emojis no plugin.
+  - Suíte: 623 testes (621 baseline + 2).
+---
