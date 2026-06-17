@@ -1,3 +1,29 @@
 # Ralph Progress Log
 Started: Wed, Jun 17, 2026  7:49:20 PM
 ---
+
+## Codebase Patterns
+- DatabaseService (src/services/Database.js) = static-method class over two better-sqlite3 instances: `dbPrivate` (luma_private.sqlite, contém JIDs) e `dbMetrics` (luma_metrics.sqlite, sem JID/conteúdo). Tabelas criadas no topo do módulo com `CREATE TABLE IF NOT EXISTS`.
+- Persona predefinidas vivem em código (lumaConfig.js / PersonalityManager). Custom personas persistem por chat em custom_personas (luma_private.sqlite).
+- Quality gate único: `npx vitest run` (44 arquivos, 582 testes baseline). Sem typecheck/lint separados.
+- Métricas: nunca gravar JID/conteúdo no banco público (doc 04). Use DatabaseService.incrementMetric(key).
+- Não há test file de Database ainda; better-sqlite3 abre arquivos reais no import. Testes de CRUD precisam usar o DB real (dados de teste com JIDs fake) ou isolar.
+
+## Wed, Jun 17, 2026 - US-001
+- Adicionada tabela custom_personas + índice idx_custom_personas_chat em src/services/Database.js (dbPrivate / luma_private.sqlite), com UNIQUE (chat_jid, key).
+- Files changed: src/services/Database.js
+- **Learnings for future iterations:**
+  - Schema vive no topo do módulo, antes do bloco dbMetrics.exec. Padrão IF NOT EXISTS.
+  - Suíte completa passou (582) sem novo teste — schema validado pelo import bem-sucedido. US-002 adiciona os métodos CRUD + testes.
+---
+
+## Wed, Jun 17, 2026 - US-002
+- Métodos CRUD estáticos de custom_personas no DatabaseService: createCustomPersona, getCustomPersonas, getCustomPersona, deleteCustomPersona, countCustomPersonas + helper privado #mapCustomPersona (desserializa traits_json).
+- Novo test file tests/unit/services/Database.test.js (7 testes): CRUD, UNIQUE por chat, mesma key em chats distintos, contagem isolada por chat, deleção com booleano.
+- Files changed: src/services/Database.js, tests/unit/services/Database.test.js
+- **Learnings for future iterations:**
+  - Padrão CRUD: prepare(...).run/get/all dentro de método estático. INSERT retorna info.lastInsertRowid; DELETE retorna info.changes (>0 = removeu).
+  - traits serializa como JSON em traits_json no banco; métodos de leitura desserializam e devolvem `traits` (array). Shape retornado inclui id, key, name, description, context, style, traits, createdAt.
+  - Teste de Database usa DB real (sem mock) com JIDs fake + afterEach que deleta tudo do chat de teste. Funciona; novos testes de Database devem seguir esse padrão de cleanup.
+  - Suíte: 589 testes (582 baseline + 7).
+---

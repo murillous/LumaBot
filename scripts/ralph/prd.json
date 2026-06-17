@@ -15,7 +15,7 @@
         "Testes passando (npx vitest run)"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -32,7 +32,7 @@
         "Testes Vitest novos cobrindo CRUD, UNIQUE, contagem e deleção, passando (npx vitest run)"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
