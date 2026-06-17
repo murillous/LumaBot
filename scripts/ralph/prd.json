@@ -125,7 +125,7 @@
         "Testes Vitest: deletar custom, recusar predefinida, fora do range, deletar a ativa, passando (npx vitest run)"
       ],
       "priority": 8,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {

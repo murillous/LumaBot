@@ -63,6 +63,8 @@ export class LumaPlugin {
         const { action, arg } = this.#parsePersonaSubcommand(bot.body);
         if (action === "criar") {
           await this.#handleCreatePersona(bot, arg);
+        } else if (action === "deletar") {
+          await this.#handleDeletePersona(bot, arg);
         } else {
           await this.#sendPersonalityMenu(bot);
         }
@@ -115,6 +117,34 @@ export class LumaPlugin {
       Logger.error("❌ Erro ao criar persona custom:", error);
       await bot.reply(MENUS.MSGS.PERSONA_CREATE_FAIL);
     }
+  }
+
+  /**
+   * Deleta uma persona custom resolvida por `pN` (mesma numeração do menu).
+   * Predefinidas são recusadas; pN fora do range responde "opção inválida".
+   * Se a persona deletada era a ativa, avisa que o chat voltou para o padrão.
+   */
+  async #handleDeletePersona(bot, arg) {
+    const list  = PersonalityManager.getList(bot.jid);
+    const num   = parseInt(arg.trim().toLowerCase().replace("p", ""));
+    const index = !isNaN(num) && num > 0 ? num - 1 : -1;
+
+    if (index < 0 || index >= list.length) {
+      await bot.reply(MENUS.MSGS.INVALID_OPT);
+      return;
+    }
+
+    const target = list[index];
+    const result = PersonalityManager.deletePersona(bot.jid, target.key);
+
+    if (!result.deleted) {
+      // Predefinida é de fábrica; demais motivos (not_custom/not_found) também caem aqui.
+      await bot.reply(MENUS.MSGS.PERSONA_DELETE_PREDEFINED);
+      return;
+    }
+
+    const tail = result.wasActive ? MENUS.MSGS.PERSONA_DELETE_ACTIVE : "";
+    await bot.reply(`${MENUS.MSGS.PERSONA_DELETE_OK}*${target.name}*.${tail}`);
   }
 
   // ---------------------------------------------------------------------------

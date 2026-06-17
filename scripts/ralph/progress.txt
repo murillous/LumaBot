@@ -102,3 +102,15 @@ Started: Wed, Jun 17, 2026  7:49:20 PM
   - Marcadores de menu vivem em MENUS.PERSONALITY.DEFAULT_MARK/CUSTOM_MARK (constants.js). Não hardcode emojis no plugin.
   - Suíte: 623 testes (621 baseline + 2).
 ---
+
+## Wed, Jun 17, 2026 - US-008
+- LumaPlugin.onCommand(COMMANDS.PERSONA): novo subcomando 'deletar pN' roteado via #parsePersonaSubcommand (action==='deletar').
+- #handleDeletePersona(bot, arg): resolve pN via PersonalityManager.getList(bot.jid)[index].key (key já prefixada). Fora do range -> INVALID_OPT. result.deleted=false (predefined/not_custom/not_found) -> PERSONA_DELETE_PREDEFINED. Sucesso -> PERSONA_DELETE_OK + nome; se wasActive, anexa PERSONA_DELETE_ACTIVE avisando fallback pra padrão.
+- Mensagens novas em MENUS.MSGS (constants.js): PERSONA_DELETE_OK/PERSONA_DELETE_PREDEFINED/PERSONA_DELETE_ACTIVE.
+- Files changed: src/plugins/luma/LumaPlugin.js, src/config/constants.js, tests/unit/plugins/LumaPlugin.test.js
+- **Learnings for future iterations:**
+  - getList(jid)[index].key vem prefixada ('custom:slug' p/ custom, key plana p/ predefinida) -> passa direto pra deletePersona, que distingue por LUMA_CONFIG.PERSONALITIES[key] vs prefixo. Reutiliza padrão do #handleMenuReply.
+  - deletePersona retorna {deleted, reason?, wasActive?}; plugin só ramifica em deleted + wasActive. Motivo específico (predefined/not_custom/not_found) todos mapeiam pra mesma msg de recusa — na prática pN do menu só resolve predefinida ou custom existente.
+  - Test mock de PersonalityManager precisa de deletePersona (faltava). US-009 (tool create_persona) e US-010 (telemetria) reusam DatabaseService/PersonalityManager mocks.
+  - Suíte: 627 testes (623 baseline + 4).
+---

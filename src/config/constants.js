@@ -110,6 +110,10 @@ export const MENUS = ConfigStore.apply("MENUS", {
     PERSONA_CREATE_OK: "Prontinho! Agora eu sou ",
     PERSONA_CREATE_FAIL:
       "Eita, não rolou criar essa persona agora 🥺 Tenta de novo daqui a pouco?",
+    PERSONA_DELETE_OK: "🗑️ Pronto, apaguei a persona ",
+    PERSONA_DELETE_PREDEFINED:
+      "Essa é de fábrica, não dá pra apagar 😅 Só dá pra deletar as que foram criadas aqui no chat.",
+    PERSONA_DELETE_ACTIVE: "\nComo era a que tava ativa, voltei pra padrão.",
   },
 });
 

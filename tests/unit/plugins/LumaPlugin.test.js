@@ -20,6 +20,7 @@ vi.mock('../../../src/managers/PersonalityManager.js', () => ({
     ]),
     getActiveName: vi.fn().mockReturnValue('Luma'),
     setPersonality: vi.fn().mockReturnValue(true),
+    deletePersona: vi.fn().mockReturnValue({ deleted: true, wasActive: false }),
   },
 }));
 
@@ -249,6 +250,60 @@ describe('LumaPlugin.onCommand — !persona menu unificado', () => {
     await plugin.onCommand(COMMANDS.PERSONA, bot);
 
     expect(bot.sendText.mock.calls[0][0]).toContain('Atual neste chat: Vovó Fofa');
+  });
+});
+
+describe('LumaPlugin.onCommand — !persona deletar pN', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    PersonalityManager.getList.mockReturnValue([
+      { key: 'default', name: 'Luma', desc: 'Assistente padrão', isCustom: false },
+      { key: 'dev', name: 'Dev Mode', desc: 'Modo desenvolvedor', isCustom: false },
+      { key: 'custom:vovo-fofa', name: 'Vovó Fofa', desc: 'a vó mais doce', isCustom: true },
+    ]);
+  });
+
+  it('deleta a custom resolvida por pN repassando a key prefixada', async () => {
+    PersonalityManager.deletePersona.mockReturnValue({ deleted: true, wasActive: false });
+    const plugin = new LumaPlugin({ lumaHandler: makeLumaHandler() });
+    const bot    = makeBot({ jid: 'grupo@g.us', body: '!persona deletar p3' });
+
+    await plugin.onCommand(COMMANDS.PERSONA, bot);
+
+    expect(PersonalityManager.getList).toHaveBeenCalledWith('grupo@g.us');
+    expect(PersonalityManager.deletePersona).toHaveBeenCalledWith('grupo@g.us', 'custom:vovo-fofa');
+    expect(bot.reply).toHaveBeenCalledWith(expect.stringContaining('Vovó Fofa'));
+  });
+
+  it('avisa que voltou pra padrão quando deleta a persona ativa', async () => {
+    PersonalityManager.deletePersona.mockReturnValue({ deleted: true, wasActive: true });
+    const plugin = new LumaPlugin({ lumaHandler: makeLumaHandler() });
+    const bot    = makeBot({ body: '!persona deletar p3' });
+
+    await plugin.onCommand(COMMANDS.PERSONA, bot);
+
+    expect(bot.reply).toHaveBeenCalledWith(expect.stringContaining('padrão'));
+  });
+
+  it('recusa deletar uma predefinida', async () => {
+    PersonalityManager.deletePersona.mockReturnValue({ deleted: false, reason: 'predefined' });
+    const plugin = new LumaPlugin({ lumaHandler: makeLumaHandler() });
+    const bot    = makeBot({ body: '!persona deletar p1' });
+
+    await plugin.onCommand(COMMANDS.PERSONA, bot);
+
+    expect(PersonalityManager.deletePersona).toHaveBeenCalledWith(bot.jid, 'default');
+    expect(bot.reply).toHaveBeenCalledWith(expect.stringContaining('fábrica'));
+  });
+
+  it('pN fora do range responde opção inválida sem deletar', async () => {
+    const plugin = new LumaPlugin({ lumaHandler: makeLumaHandler() });
+    const bot    = makeBot({ body: '!persona deletar p99' });
+
+    await plugin.onCommand(COMMANDS.PERSONA, bot);
+
+    expect(PersonalityManager.deletePersona).not.toHaveBeenCalled();
+    expect(bot.reply).toHaveBeenCalledWith(expect.stringContaining('inválida'));
   });
 });
 
