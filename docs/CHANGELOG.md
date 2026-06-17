@@ -1,5 +1,38 @@
 # Changelog — LumaBot
 
+## [7.2.0] — 2026-06-17
+
+### Added: Personas customizadas via chat
+
+Qualquer membro pode criar uma persona da Luma a partir de uma descrição livre —
+por comando (`!persona criar <descrição>`) ou em linguagem natural (tool
+`create_persona`). A IA estrutura a descrição num shape validado, a persona é
+persistida **por chat** (`JID`) e ativada na hora. Custom são deletáveis;
+predefinidas continuam imutáveis.
+
+- **`src/services/Database.js`** — tabela `custom_personas` no
+  `luma_private.sqlite` (`UNIQUE (chat_jid, key)` + índice
+  `idx_custom_personas_chat`) e CRUD estático
+  (`createCustomPersona` / `getCustomPersonas` / `getCustomPersona` /
+  `deleteCustomPersona` / `countCustomPersonas`).
+- **`src/core/services/PersonaGenerator.js` (novo)** — recebe `aiService` por DI;
+  `generate(description)` monta o prompt, parseia/valida/trunca o JSON, anexa o
+  trait de formato do WhatsApp pelo sistema e faz 1 retry em JSON malformado.
+  `slugify(name, existingKeys)` deriva key única.
+- **`src/managers/PersonalityManager.js`** — resolução custom → predefinida →
+  default; `getList(jid)` mescla as duas origens (`isCustom`); `deletePersona`
+  com fallback da ativa para a padrão.
+- **`src/plugins/luma/LumaPlugin.js`** — subcomandos `!persona criar` e
+  `!persona deletar pN`; menu unificado com marcadores `⭐ (Padrão)` / `🗑️`.
+- **`src/handlers/ToolDispatcher.js`** + **`src/config/lumaConfig.js`** — tool
+  `create_persona` reusa o mesmo caminho do comando.
+- **Limite** de 10 personas custom por chat; **telemetria** agregada
+  (`personas_created` / `personas_deleted`) no banco público, sem JID nem conteúdo.
+- Docs: [`docs/09-personas-custom.md`](09-personas-custom.md) e ADR
+  [`docs/adr/0001-personas-custom-por-chat.md`](adr/0001-personas-custom-por-chat.md).
+
+---
+
 ## [7.1.2] — 2026-06-12
 
 ### Correção: salvar env no dashboard falhava em produção (filesystem read-only)

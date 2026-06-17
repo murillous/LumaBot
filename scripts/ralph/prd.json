@@ -166,7 +166,7 @@
         "Suíte completa passando (npx vitest run)"
       ],
       "priority": 11,
-      "passes": false,
+      "passes": true,
       "notes": ""
     }
   ]

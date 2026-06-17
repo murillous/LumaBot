@@ -139,3 +139,17 @@ Started: Wed, Jun 17, 2026  7:49:20 PM
   - Criação custom flui por 2 call-sites (LumaPlugin + ToolDispatcher) que reusam createCustomPersona; deleção flui por 1 (deletePersona). Métrica de criação = nos 2 plugins; métrica de deleção = no manager (ponto único). Não centralizar created no Database.createCustomPersona pra manter o contrato CRUD limpo.
   - Suíte: 635 testes (633 baseline + 2 novos testes de telemetria de deleção; testes de created só ganharam asserção incrementMetric).
 ---
+
+## Wed, Jun 17, 2026 - US-011
+- Documentação da feature (COMO + PORQUE + PROGRESSO), sem mudança de código.
+- COMO: novo docs/09-personas-custom.md (uso !persona criar/deletar, tool create_persona, fluxo interno PersonaGenerator/PersonalityManager, persistência por chat, teto 10, telemetria sem JID/conteúdo).
+- Schema: docs/04-banco-dados.md ganhou a tabela custom_personas + índice no bloco luma_private, e personas_created/personas_deleted na lista de métricas conhecidas + nota de privacidade linkando 09 e o ADR.
+- PORQUE: novo docs/adr/ (não existia) com 0001-personas-custom-por-chat.md (Contexto/Decisão/Consequências/Status=Aceito).
+- PROGRESSO: entrada [7.2.0] Added no docs/CHANGELOG.md (Keep a Changelog), bump minor de 7.1.2.
+- Files changed: docs/04-banco-dados.md, docs/09-personas-custom.md, docs/adr/0001-personas-custom-por-chat.md, docs/CHANGELOG.md, scripts/ralph/prd.json
+- **Learnings for future iterations:**
+  - CHANGELOG vive em docs/CHANGELOG.md (não na raiz). Última versão era 7.1.2; features novas bumpam minor.
+  - docs/adr/ NÃO existia neste repo (apesar do CLAUDE.md citar o padrão ADR do backend/accessibility). Criado agora; próximos ADRs seguem docs/adr/NNNN-titulo.md.
+  - Docs em PT-BR, numeradas 01..09; usam emoji no H1 e blocos sql/ascii. Esquema autoritativo de DB é a seção "Esquema real" do doc 04.
+  - US-011 era a última. Suíte: 635 testes (sem mudança — docs only).
+---
