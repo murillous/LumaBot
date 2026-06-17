@@ -1,8 +1,12 @@
 import { COMMANDS, MENUS } from "../../config/constants.js";
 import { LumaHandler } from "../../handlers/LumaHandler.js";
-import { PersonalityManager } from "../../managers/PersonalityManager.js";
+import { PersonalityManager, CUSTOM_PREFIX } from "../../managers/PersonalityManager.js";
 import { DatabaseService } from "../../services/Database.js";
 import { LUMA_CONFIG } from "../../config/lumaConfig.js";
+import { Logger } from "../../utils/Logger.js";
+
+/** Teto de personas custom por chat — protege o banco de criação ilimitada. */
+const MAX_CUSTOM_PERSONAS = 10;
 
 /**
  * Plugin principal da Luma: gerencia histórico, personalidade, stats e respostas de IA.
@@ -28,9 +32,10 @@ export class LumaPlugin {
    * @param {import('../../handlers/LumaHandler.js').LumaHandler} deps.lumaHandler
    * @param {import('../../services/AudioTranscriber.js').AudioTranscriber|null} deps.audioTranscriber
    */
-  constructor({ lumaHandler, audioTranscriber = null }) {
-    this.lumaHandler    = lumaHandler;
+  constructor({ lumaHandler, audioTranscriber = null, personaGenerator = null }) {
+    this.lumaHandler      = lumaHandler;
     this.audioTranscriber = audioTranscriber;
+    this.personaGenerator = personaGenerator;
   }
 
   // ---------------------------------------------------------------------------
@@ -54,9 +59,61 @@ export class LumaPlugin {
         await this.#sendStats(bot);
         break;
 
-      case COMMANDS.PERSONA:
-        await this.#sendPersonalityMenu(bot);
+      case COMMANDS.PERSONA: {
+        const { action, arg } = this.#parsePersonaSubcommand(bot.body);
+        if (action === "criar") {
+          await this.#handleCreatePersona(bot, arg);
+        } else {
+          await this.#sendPersonalityMenu(bot);
+        }
         break;
+      }
+    }
+  }
+
+  /**
+   * Separa o subcomando de `!persona <sub> <resto>`. O parsing vive aqui, no
+   * plugin, pra não inflar o CommandRouter (que só detecta o prefixo !persona).
+   */
+  #parsePersonaSubcommand(body) {
+    const rest    = (body ?? "").trim().replace(/^!persona\s*/i, "").trim();
+    const first   = rest.split(/\s+/)[0] ?? "";
+    const action  = first.toLowerCase();
+    const arg     = rest.slice(first.length).trim();
+    return { action, arg };
+  }
+
+  /**
+   * Cria uma persona custom a partir de uma descrição livre, ativa-a no chat e
+   * confirma na voz da Luma. Em qualquer falha não grava nada e mantém a persona
+   * atual (FR-9).
+   */
+  async #handleCreatePersona(bot, description) {
+    if (!description) {
+      await bot.reply(MENUS.MSGS.PERSONA_CREATE_HELP);
+      return;
+    }
+    if (!this.personaGenerator) {
+      await bot.reply(MENUS.MSGS.PERSONA_CREATE_FAIL);
+      return;
+    }
+    if (DatabaseService.countCustomPersonas(bot.jid) >= MAX_CUSTOM_PERSONAS) {
+      await bot.reply(MENUS.MSGS.PERSONA_LIMIT);
+      return;
+    }
+
+    try {
+      const persona      = await this.personaGenerator.generate(description);
+      const existingKeys = DatabaseService.getCustomPersonas(bot.jid).map((p) => p.key);
+      const slug         = this.personaGenerator.slugify(persona.name, existingKeys);
+
+      DatabaseService.createCustomPersona(bot.jid, { ...persona, key: slug });
+      PersonalityManager.setPersonality(bot.jid, `${CUSTOM_PREFIX}${slug}`);
+
+      await bot.reply(`${MENUS.MSGS.PERSONA_CREATE_OK}*${persona.name}*! 😎`);
+    } catch (error) {
+      Logger.error("❌ Erro ao criar persona custom:", error);
+      await bot.reply(MENUS.MSGS.PERSONA_CREATE_FAIL);
     }
   }
 

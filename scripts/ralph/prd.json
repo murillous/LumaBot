@@ -95,7 +95,7 @@
         "Testes Vitest: roteamento de 'criar', descrição vazia, teto de 10, caminho feliz, falha de IA, passando (npx vitest run)"
       ],
       "priority": 6,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {

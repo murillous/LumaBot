@@ -5,7 +5,10 @@ Started: Wed, Jun 17, 2026  7:49:20 PM
 ## Codebase Patterns
 - DatabaseService (src/services/Database.js) = static-method class over two better-sqlite3 instances: `dbPrivate` (luma_private.sqlite, contém JIDs) e `dbMetrics` (luma_metrics.sqlite, sem JID/conteúdo). Tabelas criadas no topo do módulo com `CREATE TABLE IF NOT EXISTS`.
 - Persona predefinidas vivem em código (lumaConfig.js / PersonalityManager). Custom personas persistem por chat em custom_personas (luma_private.sqlite).
-- Quality gate único: `npx vitest run` (44 arquivos, 582 testes baseline). Sem typecheck/lint separados.
+- Quality gate único: `npx vitest run` (48 arquivos, 621 testes após US-006). Sem typecheck/lint separados.
+- bot.body = texto completo da mensagem (inclui o comando). Subcomandos de `!persona` parseiam bot.body no próprio LumaPlugin (`#parsePersonaSubcommand`), CommandRouter só detecta o prefixo `!persona`. US-008 reusa esse parser pra 'deletar pN'.
+- LumaPlugin agora recebe `personaGenerator` por DI; wired em MessageHandler.buildPluginManager reusando `lumaHandler.aiService` (null-guard: se não há aiService, personaGenerator=null e criar responde erro).
+- Mensagens de persona ficam em MENUS.MSGS (constants.js): PERSONA_CREATE_HELP/LIMIT/OK/FAIL. Não hardcode no plugin.
 - Métricas: nunca gravar JID/conteúdo no banco público (doc 04). Use DatabaseService.incrementMetric(key).
 - Não há test file de Database ainda; better-sqlite3 abre arquivos reais no import. Testes de CRUD precisam usar o DB real (dados de teste com JIDs fake) ou isolar.
 
@@ -71,4 +74,19 @@ Started: Wed, Jun 17, 2026  7:49:20 PM
   - Decisão p/ não quebrar PersonalityManager.test.js existente (mocka só getPersonality/setPersonality): custom DB methods só são chamados quando a key tem prefixo 'custom:'. Keys planas nunca disparam getCustomPersona. Mantenha isso.
   - Mock de DatabaseService em teste com factory hoistada: TODAS as fns precisam ser `let` + getter (`get x() { return mockX }`), nunca `const` direto referenciado na factory (ReferenceError before init).
   - Suíte: 610 testes (600 baseline + 10).
+---
+
+## Wed, Jun 17, 2026 - US-006
+- LumaPlugin.onCommand(COMMANDS.PERSONA): roteia subcomando 'criar' (descrição = tudo após 'criar') via novo #parsePersonaSubcommand; sem 'criar' cai no menu de sempre.
+- #handleCreatePersona(bot, description): descrição vazia -> PERSONA_CREATE_HELP (nada gravado); sem personaGenerator -> PERSONA_CREATE_FAIL; countCustomPersonas(jid) >= 10 -> PERSONA_LIMIT (nada gravado); caminho feliz -> generate -> slugify(nome, slugs existentes) -> createCustomPersona({...persona, key:slug}) -> setPersonality(jid, 'custom:'+slug) -> confirma "agora eu sou <name>"; falha -> Logger.error + PERSONA_CREATE_FAIL, nada gravado, persona atual mantida (FR-9).
+- MAX_CUSTOM_PERSONAS=10 const no topo do LumaPlugin.
+- personaGenerator injetado via construtor; MessageHandler.buildPluginManager cria PersonaGenerator com lumaHandler.aiService (null-guard).
+- Mensagens novas em MENUS.MSGS (constants.js): PERSONA_CREATE_HELP/LIMIT/OK/FAIL.
+- Files changed: src/plugins/luma/LumaPlugin.js, src/handlers/MessageHandler.js, src/config/constants.js, tests/unit/plugins/LumaPlugin.test.js
+- **Learnings for future iterations:**
+  - createCustomPersona(chatJid, persona) espera persona com `key` (slug puro, SEM prefixo) + name/description/context/style/traits. setPersonality usa a key PREFIXADA ('custom:'+slug). Não misturar.
+  - slugify(name, existingKeys) recebe slugs puros existentes (getCustomPersonas(jid).map(p=>p.key)), não prefixados.
+  - Teste de LumaPlugin: clearAllMocks no beforeEach mantém implementações/mockReturnValue (só zera calls). Importar DatabaseService/PersonalityManager mockados via dynamic import pra assertar chamadas. CUSTOM_PREFIX precisa estar no mock de PersonalityManager.
+  - US-007 (menu unificado) deve passar bot.jid pra PersonalityManager.getList(jid) — hoje #sendPersonalityMenu chama getList() sem jid (só predefinidas). US-008 reusa #parsePersonaSubcommand pra 'deletar pN'.
+  - Suíte: 621 testes (616 baseline + 5).
 ---

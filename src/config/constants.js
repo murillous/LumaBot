@@ -101,6 +101,13 @@ export const MENUS = ConfigStore.apply("MENUS", {
   MSGS: {
     INVALID_OPT: "❌ Opção inválida. Tente p1, p2, etc.",
     PERSONA_CHANGED: "✅ Personalidade alterada para: ",
+    PERSONA_CREATE_HELP:
+      "Pra eu virar um personagem novo, me conta como ele é logo depois do *criar*.\nEx: `!persona criar uma vó fofa que adora fazer bolo`",
+    PERSONA_LIMIT:
+      "Opa, esse chat já tem o limite de personas criadas (10) 😅\nApaga alguma com `!persona deletar pN` antes de criar outra.",
+    PERSONA_CREATE_OK: "Prontinho! Agora eu sou ",
+    PERSONA_CREATE_FAIL:
+      "Eita, não rolou criar essa persona agora 🥺 Tenta de novo daqui a pouco?",
   },
 });
 

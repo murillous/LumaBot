@@ -5,10 +5,14 @@ vi.mock('../../../src/services/Database.js', () => ({
     incrementMetric: vi.fn(),
     incrementInteraction: vi.fn(),
     getMetrics: vi.fn().mockReturnValue({ ai_responses: 10, stickers_created: 5 }),
+    countCustomPersonas: vi.fn().mockReturnValue(0),
+    getCustomPersonas: vi.fn().mockReturnValue([]),
+    createCustomPersona: vi.fn(),
   },
 }));
 
 vi.mock('../../../src/managers/PersonalityManager.js', () => ({
+  CUSTOM_PREFIX: 'custom:',
   PersonalityManager: {
     getList: vi.fn().mockReturnValue([
       { key: 'default', name: 'Luma', desc: 'Assistente padrão' },
@@ -29,6 +33,8 @@ vi.mock('../../../src/config/lumaConfig.js', () => ({
 
 const { LumaPlugin } = await import('../../../src/plugins/luma/LumaPlugin.js');
 const { COMMANDS } = await import('../../../src/config/constants.js');
+const { DatabaseService } = await import('../../../src/services/Database.js');
+const { PersonalityManager } = await import('../../../src/managers/PersonalityManager.js');
 
 function makeLumaHandler(overrides = {}) {
   return {
@@ -106,6 +112,96 @@ describe('LumaPlugin.onCommand — !persona', () => {
   it('envia o menu de personalidades', async () => {
     const plugin = new LumaPlugin({ lumaHandler: makeLumaHandler() });
     const bot    = makeBot();
+
+    await plugin.onCommand(COMMANDS.PERSONA, bot);
+
+    expect(bot.sendText).toHaveBeenCalledWith(expect.stringContaining('CONFIGURAÇÃO'));
+  });
+});
+
+describe('LumaPlugin.onCommand — !persona criar', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    DatabaseService.countCustomPersonas.mockReturnValue(0);
+    DatabaseService.getCustomPersonas.mockReturnValue([]);
+    PersonalityManager.setPersonality.mockReturnValue(true);
+  });
+
+  function makePersonaGenerator(overrides = {}) {
+    return {
+      generate: vi.fn().mockResolvedValue({
+        name: 'Vovó Fofa',
+        description: '🍰 a vó mais doce',
+        context: 'Você é uma vó carinhosa.',
+        style: 'fala com carinho',
+        traits: ['t1', 't2', 't3'],
+      }),
+      slugify: vi.fn().mockReturnValue('vovo-fofa'),
+      ...overrides,
+    };
+  }
+
+  it('roteia "criar", gera, grava e ativa a persona (caminho feliz)', async () => {
+    const personaGenerator = makePersonaGenerator();
+    const plugin = new LumaPlugin({ lumaHandler: makeLumaHandler(), personaGenerator });
+    const bot    = makeBot({ body: '!persona criar uma vó fofa que faz bolo' });
+
+    await plugin.onCommand(COMMANDS.PERSONA, bot);
+
+    expect(personaGenerator.generate).toHaveBeenCalledWith('uma vó fofa que faz bolo');
+    expect(DatabaseService.createCustomPersona).toHaveBeenCalledWith(
+      bot.jid,
+      expect.objectContaining({ key: 'vovo-fofa', name: 'Vovó Fofa' }),
+    );
+    expect(PersonalityManager.setPersonality).toHaveBeenCalledWith(bot.jid, 'custom:vovo-fofa');
+    expect(bot.reply).toHaveBeenCalledWith(expect.stringContaining('Vovó Fofa'));
+  });
+
+  it('descrição vazia: manda ajuda e não grava nada', async () => {
+    const personaGenerator = makePersonaGenerator();
+    const plugin = new LumaPlugin({ lumaHandler: makeLumaHandler(), personaGenerator });
+    const bot    = makeBot({ body: '!persona criar' });
+
+    await plugin.onCommand(COMMANDS.PERSONA, bot);
+
+    expect(personaGenerator.generate).not.toHaveBeenCalled();
+    expect(DatabaseService.createCustomPersona).not.toHaveBeenCalled();
+    expect(bot.reply).toHaveBeenCalled();
+  });
+
+  it('teto de 10: recusa criação sem chamar o gerador', async () => {
+    DatabaseService.countCustomPersonas.mockReturnValue(10);
+    const personaGenerator = makePersonaGenerator();
+    const plugin = new LumaPlugin({ lumaHandler: makeLumaHandler(), personaGenerator });
+    const bot    = makeBot({ body: '!persona criar mais uma' });
+
+    await plugin.onCommand(COMMANDS.PERSONA, bot);
+
+    expect(personaGenerator.generate).not.toHaveBeenCalled();
+    expect(DatabaseService.createCustomPersona).not.toHaveBeenCalled();
+    expect(bot.reply).toHaveBeenCalled();
+  });
+
+  it('falha de IA: não grava, não ativa, responde erro', async () => {
+    const personaGenerator = makePersonaGenerator({
+      generate: vi.fn().mockRejectedValue(new Error('IA fora do ar')),
+    });
+    const plugin = new LumaPlugin({ lumaHandler: makeLumaHandler(), personaGenerator });
+    const bot    = makeBot({ body: '!persona criar algo legal' });
+
+    await plugin.onCommand(COMMANDS.PERSONA, bot);
+
+    expect(DatabaseService.createCustomPersona).not.toHaveBeenCalled();
+    expect(PersonalityManager.setPersonality).not.toHaveBeenCalled();
+    expect(bot.reply).toHaveBeenCalled();
+  });
+
+  it('sem subcomando ainda envia o menu', async () => {
+    const plugin = new LumaPlugin({
+      lumaHandler: makeLumaHandler(),
+      personaGenerator: makePersonaGenerator(),
+    });
+    const bot = makeBot({ body: '!persona' });
 
     await plugin.onCommand(COMMANDS.PERSONA, bot);
 
