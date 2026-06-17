@@ -114,3 +114,17 @@ Started: Wed, Jun 17, 2026  7:49:20 PM
   - Test mock de PersonalityManager precisa de deletePersona (faltava). US-009 (tool create_persona) e US-010 (telemetria) reusam DatabaseService/PersonalityManager mocks.
   - Suíte: 627 testes (623 baseline + 4).
 ---
+
+## Wed, Jun 17, 2026 - US-009
+- Nova tool create_persona em lumaConfig.TOOLS.functionDeclarations (param description STRING required) — function calling pra Luma virar persona via linguagem natural.
+- ToolDispatcher.handleCreatePersona(bot, args, lumaHandler): instancia PersonaGenerator com lumaHandler.aiService e roda o MESMO caminho do !persona criar (descrição vazia -> HELP; sem aiService -> FAIL; teto 10 -> LIMIT; gera -> slugify -> createCustomPersona -> setPersonality(CUSTOM_PREFIX+slug) -> confirma; falha -> Logger.error + FAIL, nada gravado/FR-9). MAX_CUSTOM_PERSONAS=10 const no topo do ToolDispatcher.
+- Switch case "create_persona" em handleToolCalls (lumaHandler já vem na assinatura).
+- Novo test file tests/unit/handlers/ToolDispatcher.test.js (6 testes): caminho feliz, descrição vazia, sem aiService, teto, falha de IA, roteamento via handleToolCalls.
+- Files changed: src/config/lumaConfig.js, src/handlers/ToolDispatcher.js, tests/unit/handlers/ToolDispatcher.test.js
+- **Learnings for future iterations:**
+  - ToolDispatcher é classe estática SEM DI; handleToolCalls(bot, toolCalls, lumaHandler, quotedBot). Tools que precisam de aiService pegam de lumaHandler.aiService e instanciam o serviço na hora (new PersonaGenerator({aiService})).
+  - Teste de ToolDispatcher: mockar Database (abre sqlite real no import) + GroupManager/MediaProcessor/ReminderService (deps pesadas) como objetos vazios + PersonaGenerator com class mock (generate/slugify como fns de módulo). Logger não precisa mock.
+  - lumaConfig.TOOLS = array com 1 objeto { functionDeclarations: [...] }. Cada tool: { name, description, parameters:{ type:"OBJECT", properties, required } }.
+  - US-010 (telemetria): incrementMetric('personas_created') no sucesso de criação (LumaPlugin #handleCreatePersona E ToolDispatcher handleCreatePersona — DOIS pontos) e 'personas_deleted' na deleção (PersonalityManager.deletePersona ou LumaPlugin #handleDeletePersona). Cuidado pra não duplicar contagem.
+  - Suíte: 633 testes (627 baseline + 6).
+---

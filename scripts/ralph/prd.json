@@ -138,7 +138,7 @@
         "Testes Vitest: handleCreatePersona chama o gerador e ativa a persona, passando (npx vitest run)"
       ],
       "priority": 9,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
