@@ -21,6 +21,7 @@ Stack: Node.js 18+ ESM, Baileys 7.x, Google Gemini / OpenAI / DeepSeek, SQLite, 
 - Quando houver duas abordagens, escolha a que: facilita testes, reduz acoplamento, permite trocar implementações sem tocar em código consumidor.
 - Siga SOLID de forma pragmática, não dogmática.
 - **Não quebre funcionalidade existente.** Se não existir teste cobrindo o que você vai mexer, crie o teste antes.
+- **Sempre leia a documentação disponível antes de qualquer alteração** 
 
 ---
 
@@ -35,6 +36,73 @@ Nomenclatura: camelCase (vars/funcs) | PascalCase (classes) | UPPER_SNAKE (const
 Erros: Nunca engula silenciosamente — log + rethrow ou log + fallback explícito
 Documentação: Sempre que fizer alguma grande alteração, documente na pasta docs/ e adicione ao CHANGELOG.md
 ```
+
+---
+
+## Critérios de Aceite Obrigatórios
+
+**Estas regras valem para o repositório inteiro e não são negociáveis.** Uma feature
+ou correção só está "pronta" quando TODOS os itens abaixo são satisfeitos.
+
+1. **Todos os testes passando.** Nenhuma entrega com teste vermelho. Rode a suíte
+   antes de considerar qualquer tarefa concluída.
+2. **Nunca apague ou reescreva um teste existente.** Só sob permissão explícita do
+   dono do repositório. Se um teste parece errado ou obsoleto, **pergunte antes** —
+   não toque. Adicionar testes novos é sempre permitido.
+3. **Documentação ao fim de cada feature.** Ao concluir uma feature, escreva/atualize:
+   - a documentação do COMO em `docs/` (ver "Documentação Obrigatória");
+   - o ADR do PORQUE, se houve decisão arquitetural;
+   - a entrada no changelog do PROGRESSO.
+   Uma feature sem documentação, ADR (quando aplicável) e changelog **não está pronta**.
+4. **Comentários úteis no código.** Comente trechos importantes, não intuitivos, e
+   conceitos necessários para entender a codebase. **Não comente o óbvio** — comentário
+   que apenas repete o que o código já diz é ruído. Comente o *porquê*, não o *o quê*.
+5. **A menor solução que resolve é a melhor.** Menos linhas, menos bugs. Não
+   adicione abstração, configuração ou generalização que a tarefa atual não exige.
+   Exceção: quando a tarefa for explicitamente quitar um débito técnico.
+6. **Features novas começam por levantamento de requisitos.** Sempre que o usuário
+   pedir uma feature nova, cave os requisitos com a skill `/grill-me` (se disponível)
+   **antes** de escrever código. Não presuma o escopo — extraia-o.
+
+---
+
+## Documentação Obrigatória
+
+Cada submódulo mantém um diretório `docs/` versionado, construído **gradualmente**
+junto com o código (não como um esforço de "documentar tudo no fim"). A documentação
+responde a três perguntas distintas:
+
+| Pergunta | Onde vive | Conteúdo |
+|----------|-----------|----------|
+| **COMO** o sistema funciona | `docs/` | O que o repo faz, o que cada módulo faz, entrypoints, schemas |
+| **POR QUE** as decisões foram tomadas | `docs/adr/` | Architecture Decision Records (um arquivo por decisão) |
+| **O PROGRESSO** ao longo do tempo | `CHANGELOG.md` | Histórico de mudanças por versão/feature |
+
+### COMO — conteúdo mínimo de `docs/`
+
+A documentação do COMO deve sempre cobrir, no mínimo:
+- **O que o repositório faz** — visão geral em uma página (`docs/README.md` ou `docs/overview.md`).
+- **O que cada módulo faz** — um parágrafo por módulo/pasta relevante.
+- **Entrypoints** — onde a execução começa e quais são os pontos de entrada (rotas, `main`, comandos).
+- **Schemas** — os modelos de dados (Pydantic no backend, models/DTOs no app) e o que cada um representa.
+
+### POR QUE — Architecture Decision Records (ADR)
+
+- Um ADR por decisão arquitetural significativa, em `docs/adr/NNNN-titulo-curto.md`.
+- Formato sugerido: **Contexto** (o problema/força), **Decisão** (o que foi escolhido),
+  **Consequências** (trade-offs, o que fica mais fácil/difícil), **Status**
+  (proposto/aceito/substituído).
+- ADR é imutável depois de aceito: para mudar uma decisão, escreva um ADR novo que
+  marca o anterior como "substituído por NNNN".
+- Os contratos em `contracts/` são exemplos do PORQUE. Os ADRs do módulo
+  accessibility já estão consolidados no padrão ADR em `backend/docs/adr/0001`–`0007`
+  (índice em `backend/docs/adr/README.md`); o antigo `accessibility/DECISIONS.md` foi removido.
+
+### PROGRESSO — Changelog
+
+- `CHANGELOG.md` em cada submódulo, no formato [Keep a Changelog](https://keepachangelog.com).
+- Toda feature concluída gera uma entrada (Added/Changed/Fixed/Deprecated/Removed).
+- O changelog acompanha o que mudou e quando — é a trilha de progresso do projeto.
 
 ---
 

@@ -74,6 +74,25 @@ dbPrivate.exec(`
   CREATE INDEX IF NOT EXISTS idx_reminders_due ON reminders(fired, fire_at);
 `);
 
+// Personas customizadas por chat (JID). Cada chat tem suas próprias personas
+// criadas via descrição livre; predefinidas vivem no código e são imutáveis.
+// traits_json = JSON array de strings. UNIQUE (chat_jid, key) evita slug duplicado.
+dbPrivate.exec(`
+  CREATE TABLE IF NOT EXISTS custom_personas (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    chat_jid    TEXT NOT NULL,
+    key         TEXT NOT NULL,
+    name        TEXT NOT NULL,
+    description TEXT NOT NULL,
+    context     TEXT NOT NULL,
+    style       TEXT NOT NULL,
+    traits_json TEXT NOT NULL,
+    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (chat_jid, key)
+  );
+  CREATE INDEX IF NOT EXISTS idx_custom_personas_chat ON custom_personas(chat_jid);
+`);
+
 dbMetrics.exec(`
   CREATE TABLE IF NOT EXISTS metrics (
     key TEXT PRIMARY KEY,
@@ -269,5 +288,82 @@ export class DatabaseService {
 
   static deleteReminder(id) {
     dbPrivate.prepare("DELETE FROM reminders WHERE id = ?").run(id);
+  }
+
+  // === PERSONAS CUSTOMIZADAS (custom_personas) ===
+
+  /**
+   * Cria uma persona custom para o chat. Respeita UNIQUE (chat_jid, key):
+   * tentar criar com key já existente no chat lança erro do better-sqlite3.
+   * @param {string} chatJid
+   * @param {{key:string, name:string, description:string, context:string,
+   *          style:string, traits:string[]}} persona
+   */
+  static createCustomPersona(chatJid, persona) {
+    const info = dbPrivate.prepare(`
+      INSERT INTO custom_personas (chat_jid, key, name, description, context, style, traits_json)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      chatJid,
+      persona.key,
+      persona.name,
+      persona.description,
+      persona.context,
+      persona.style,
+      JSON.stringify(persona.traits ?? [])
+    );
+    return info.lastInsertRowid;
+  }
+
+  /** Lista as personas custom de um chat, com traits desserializado. */
+  static getCustomPersonas(chatJid) {
+    const rows = dbPrivate
+      .prepare("SELECT * FROM custom_personas WHERE chat_jid = ? ORDER BY id ASC")
+      .all(chatJid);
+    return rows.map((row) => DatabaseService.#mapCustomPersona(row));
+  }
+
+  /** Persona custom individual de um chat, ou null se não existir. */
+  static getCustomPersona(chatJid, key) {
+    const row = dbPrivate
+      .prepare("SELECT * FROM custom_personas WHERE chat_jid = ? AND key = ?")
+      .get(chatJid, key);
+    return row ? DatabaseService.#mapCustomPersona(row) : null;
+  }
+
+  /** Remove uma persona custom; retorna true se algo foi removido. */
+  static deleteCustomPersona(chatJid, key) {
+    const info = dbPrivate
+      .prepare("DELETE FROM custom_personas WHERE chat_jid = ? AND key = ?")
+      .run(chatJid, key);
+    return info.changes > 0;
+  }
+
+  /** Contagem de personas custom de um chat. */
+  static countCustomPersonas(chatJid) {
+    const row = dbPrivate
+      .prepare("SELECT COUNT(*) AS total FROM custom_personas WHERE chat_jid = ?")
+      .get(chatJid);
+    return row.total;
+  }
+
+  /** Converte uma linha do banco no shape de persona (traits desserializado). */
+  static #mapCustomPersona(row) {
+    let traits = [];
+    try {
+      traits = JSON.parse(row.traits_json);
+    } catch (e) {
+      // traits_json corrompido — devolve lista vazia em vez de quebrar a resolução
+    }
+    return {
+      id: row.id,
+      key: row.key,
+      name: row.name,
+      description: row.description,
+      context: row.context,
+      style: row.style,
+      traits,
+      createdAt: row.created_at,
+    };
   }
 }

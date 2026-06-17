@@ -245,6 +245,20 @@ const LUMA_CONFIG_DEFAULTS = {
             required: ["reminder_text", "datetime"],
           },
         },
+        {
+          name: "create_persona",
+          description: "Cria uma nova personalidade (persona) sua a partir de uma descrição livre e a ativa imediatamente neste chat. Use quando o usuário pedir para você 'virar', 'se transformar em', 'ser' ou 'fingir ser' um personagem/personalidade específica (ex: 'vira uma vovó italiana carinhosa', 'seja um pirata mal-humorado', 'finge que você é um coach motivacional').",
+          parameters: {
+            type: "OBJECT",
+            properties: {
+              description: {
+                type: "STRING",
+                description: "A descrição livre da personalidade desejada, do jeito que o usuário pediu. Ex: 'uma vovó italiana carinhosa que fala com sotaque', 'um pirata mal-humorado dos sete mares'.",
+              },
+            },
+            required: ["description"],
+          },
+        },
       ],
     },
   ],

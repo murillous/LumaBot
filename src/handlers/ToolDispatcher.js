@@ -2,10 +2,14 @@ import { Logger } from "../utils/Logger.js";
 import { GroupManager } from "../managers/GroupManager.js";
 import { MediaProcessor } from "./MediaProcessor.js";
 import { DatabaseService } from "../services/Database.js";
-import { PersonalityManager } from "../managers/PersonalityManager.js";
+import { PersonalityManager, CUSTOM_PREFIX } from "../managers/PersonalityManager.js";
 import { MENUS } from "../config/constants.js";
 import { LUMA_CONFIG } from "../config/lumaConfig.js";
 import { ReminderService } from "../core/services/ReminderService.js";
+import { PersonaGenerator } from "../core/services/PersonaGenerator.js";
+
+/** Teto de personas custom por chat — mesmo limite do !persona criar. */
+const MAX_CUSTOM_PERSONAS = 10;
 
 /**
  * Despachante de ferramentas acionadas pela IA.
@@ -48,6 +52,9 @@ export class ToolDispatcher {
                         break;
                     case "show_personality_menu":
                         await this.handleShowPersonalityMenu(bot);
+                        break;
+                    case "create_persona":
+                        await this.handleCreatePersona(bot, call.args, lumaHandler);
                         break;
                     default:
                         Logger.warn(`⚠️ Ferramenta desconhecida: ${call.name}`);
@@ -289,6 +296,49 @@ export class ToolDispatcher {
         } catch (error) {
             Logger.error("Erro ao agendar lembrete:", error);
             await bot.reply(`⚠️ Não consegui agendar: ${error.message}`);
+        }
+    }
+
+    /**
+     * Cria uma persona custom a partir de uma descrição em linguagem natural,
+     * ativa-a no chat e confirma na voz da Luma. Reaproveita o PersonaGenerator
+     * (instanciado com o aiService do LumaHandler) e segue o mesmo caminho do
+     * !persona criar: teto de 10, gravação, ativação e fallback em caso de falha
+     * (FR-9 — nada é gravado e a persona atual é mantida).
+     */
+    static async handleCreatePersona(bot, args, lumaHandler) {
+        const description = (args?.description ?? "").trim();
+        if (!description) {
+            await bot.reply(MENUS.MSGS.PERSONA_CREATE_HELP);
+            return;
+        }
+
+        const aiService = lumaHandler?.aiService;
+        if (!aiService) {
+            await bot.reply(MENUS.MSGS.PERSONA_CREATE_FAIL);
+            return;
+        }
+
+        if (DatabaseService.countCustomPersonas(bot.jid) >= MAX_CUSTOM_PERSONAS) {
+            await bot.reply(MENUS.MSGS.PERSONA_LIMIT);
+            return;
+        }
+
+        try {
+            const generator    = new PersonaGenerator({ aiService });
+            const persona      = await generator.generate(description);
+            const existingKeys = DatabaseService.getCustomPersonas(bot.jid).map((p) => p.key);
+            const slug         = generator.slugify(persona.name, existingKeys);
+
+            DatabaseService.createCustomPersona(bot.jid, { ...persona, key: slug });
+            PersonalityManager.setPersonality(bot.jid, `${CUSTOM_PREFIX}${slug}`);
+            // Telemetria no banco público: só contagem, sem JID nem conteúdo (doc 04).
+            DatabaseService.incrementMetric("personas_created");
+
+            await bot.reply(`${MENUS.MSGS.PERSONA_CREATE_OK}*${persona.name}*! 😎`);
+        } catch (error) {
+            Logger.error("❌ Erro ao criar persona custom (tool):", error);
+            await bot.reply(MENUS.MSGS.PERSONA_CREATE_FAIL);
         }
     }
 

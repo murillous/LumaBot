@@ -63,12 +63,31 @@ CREATE TABLE conversation_history (
   role TEXT NOT NULL, parts_json TEXT NOT NULL,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Personas customizadas por chat (PersonalityManager / PersonaGenerator)
+CREATE TABLE custom_personas (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  chat_jid TEXT NOT NULL, key TEXT NOT NULL,
+  name TEXT NOT NULL, description TEXT NOT NULL,
+  context TEXT NOT NULL, style TEXT NOT NULL,
+  traits_json TEXT NOT NULL,                 -- JSON array de traits
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (chat_jid, key)
+);
+CREATE INDEX idx_custom_personas_chat ON custom_personas(chat_jid);
 ```
 
 Padrões: WAL mode nos dois bancos; upserts via `INSERT ... ON CONFLICT DO UPDATE`;
 índices em `luma_interactions(group_jid, count DESC)` e `reminders(fired, fire_at)`.
 Métricas conhecidas: `ai_responses`, `total_messages`, `stickers_created`,
-`images_created`, `gifs_created`, `videos_downloaded`, `audios_downloaded`.
+`images_created`, `gifs_created`, `videos_downloaded`, `audios_downloaded`,
+`personas_created`, `personas_deleted`.
+
+> As personas custom vivem **só** no `luma_private.sqlite` (contêm `chat_jid`).
+> No banco público entram apenas os contadores agregados `personas_created` /
+> `personas_deleted` — sem JID nem conteúdo da persona. Ver
+> [`docs/09-personas-custom.md`](09-personas-custom.md) e o ADR
+> [`docs/adr/0001-personas-custom-por-chat.md`](adr/0001-personas-custom-por-chat.md).
 
 ---
 

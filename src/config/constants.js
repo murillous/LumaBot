@@ -96,11 +96,24 @@ export const MENUS = ConfigStore.apply("MENUS", {
   PERSONALITY: {
     HEADER: "🎭 *CONFIGURAÇÃO DA LUMA*\n_Responda com o código (ex: p1):_\n",
     FOOTER: "\n_A mudança é aplicada imediatamente neste chat._",
+    DEFAULT_MARK: " ⭐ (Padrão)",
+    CUSTOM_MARK: " 🗑️",
   },
 
   MSGS: {
     INVALID_OPT: "❌ Opção inválida. Tente p1, p2, etc.",
     PERSONA_CHANGED: "✅ Personalidade alterada para: ",
+    PERSONA_CREATE_HELP:
+      "Pra eu virar um personagem novo, me conta como ele é logo depois do *criar*.\nEx: `!persona criar uma vó fofa que adora fazer bolo`",
+    PERSONA_LIMIT:
+      "Opa, esse chat já tem o limite de personas criadas (10) 😅\nApaga alguma com `!persona deletar pN` antes de criar outra.",
+    PERSONA_CREATE_OK: "Prontinho! Agora eu sou ",
+    PERSONA_CREATE_FAIL:
+      "Eita, não rolou criar essa persona agora 🥺 Tenta de novo daqui a pouco?",
+    PERSONA_DELETE_OK: "🗑️ Pronto, apaguei a persona ",
+    PERSONA_DELETE_PREDEFINED:
+      "Essa é de fábrica, não dá pra apagar 😅 Só dá pra deletar as que foram criadas aqui no chat.",
+    PERSONA_DELETE_ACTIVE: "\nComo era a que tava ativa, voltei pra padrão.",
   },
 });
 
