@@ -30,8 +30,10 @@ Stack: Node.js 18+ ESM, Baileys 7.x, Google Gemini / OpenAI / DeepSeek, SQLite, 
 Linguagem dos comentários: Português (PT-BR)
 Módulos: ESM — import/export, nunca require/module.exports
 Exports: Named exports apenas — nunca default export
+Imports: Sempre use imports Absolutos, nunca use algo como ../config/env.js
 Nomenclatura: camelCase (vars/funcs) | PascalCase (classes) | UPPER_SNAKE (constantes)
 Erros: Nunca engula silenciosamente — log + rethrow ou log + fallback explícito
+Documentação: Sempre que fizer alguma grande alteração, documente na pasta docs/ e adicione ao CHANGELOG.md
 ```
 
 ---

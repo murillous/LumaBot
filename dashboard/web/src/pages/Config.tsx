@@ -14,6 +14,7 @@ export function Config() {
   const [active, setActive] = useState(0);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   useEffect(() => {
     api.getConfig().then((r) => setGroups(r.groups)).catch(() => {});
@@ -24,6 +25,7 @@ export function Config() {
 
   function setValue(f: ConfigField, value: unknown) {
     setSaved(false);
+    setSaveError(null);
     setEdited((prev) => ({ ...prev, [fieldId(f)]: value }));
   }
 
@@ -39,10 +41,14 @@ export function Config() {
   async function save() {
     if (hasJsonError) return;
     setSaving(true);
+    setSaveError(null);
     try {
       await api.saveConfig(changes);
       setEdited({});
       setSaved(true);
+    } catch (err) {
+      // Sem isto a falha era engolida silenciosamente — o botão "não fazia nada".
+      setSaveError(err instanceof Error ? err.message : "Falha ao salvar configuração.");
     } finally {
       setSaving(false);
     }
@@ -119,6 +125,12 @@ export function Config() {
           <Button size="sm" variant="outline" className="ml-auto" onClick={() => api.botRestart()}>
             <RotateCw className="h-4 w-4" /> Reiniciar agora
           </Button>
+        </div>
+      )}
+
+      {saveError && (
+        <div className="flex items-center gap-3 rounded-md border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
+          <AlertTriangle className="h-4 w-4" /> Falha ao salvar: {saveError}
         </div>
       )}
     </div>

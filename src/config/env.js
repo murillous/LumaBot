@@ -1,4 +1,5 @@
 import dotenv from 'dotenv';
+import { EnvStore } from './EnvStore.js';
 
 /**
  * Módulo de configuração centralizada de variáveis de ambiente.
@@ -23,6 +24,10 @@ import dotenv from 'dotenv';
 // override:true garante que o .env do bot prevalece sobre env herdado do processo
 // pai (dashboard), evitando que uma chave antiga em memória contamine o bot.
 dotenv.config({ override: true });
+
+// Overrides de env editados pelo dashboard vivem em data/env-overrides.json
+// (volume gravável) e prevalecem sobre o .env — em produção o .env é read-only.
+EnvStore.applyToProcessEnv();
 
 // ─── Aviso de configuração de IA ──────────────────────────────────────────────
 
@@ -87,6 +92,11 @@ export const env = Object.freeze({
 
   // Número do dono do bot para permissões especiais — opcional
   OWNER_NUMBER: process.env.OWNER_NUMBER || undefined,
+
+  // Arquivo de cookies (formato Netscape) para o yt-dlp autenticar downloads —
+  // opcional. Sem ele, plataformas com login gated (YouTube, Instagram, X)
+  // falham com "sign in to confirm you're not a bot".
+  YTDLP_COOKIES_FILE: process.env.YTDLP_COOKIES_FILE || undefined,
 
   // Nível de log do Baileys/Pino — padrão "silent" para não poluir stdout
   LOG_LEVEL: process.env.LOG_LEVEL || 'silent',

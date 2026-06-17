@@ -4,6 +4,7 @@ import path from "path";
 import fs from "fs";
 import crypto from "crypto";
 import { CONFIG } from "../config/constants.js";
+import { env } from "../config/env.js";
 import { Logger } from "../utils/Logger.js";
 
 const execFileAsync = promisify(execFile);
@@ -113,6 +114,23 @@ export class VideoDownloader {
     }
   }
 
+  /**
+   * Args de cookies para o yt-dlp. Muitas plataformas (YouTube, Instagram, X)
+   * exigem cookies de sessão para baixar — sem eles, retornam "sign in to
+   * confirm you're not a bot" ou resposta vazia. O arquivo (formato Netscape)
+   * é exportado do navegador logado e montado via YTDLP_COOKIES_FILE.
+   * Retorna [] se não configurado, para o yt-dlp seguir sem cookies.
+   */
+  static #cookieArgs() {
+    const file = env.YTDLP_COOKIES_FILE;
+    if (!file) return [];
+    if (!fs.existsSync(file)) {
+      Logger.warn(`⚠️ VideoDownloader: YTDLP_COOKIES_FILE definido mas arquivo não existe: ${file}`);
+      return [];
+    }
+    return ["--cookies", file];
+  }
+
   static async download(url) {
     this.#assertValidUrl(url);
     const ytdlp = await this.getBinaryPath();
@@ -129,15 +147,18 @@ export class VideoDownloader {
       "--max-filesize", `${CONFIG.VIDEO_DOWNLOAD_MAX_SIZE_MB}M`,
       "--no-playlist",
       "--no-warnings",
+      ...this.#cookieArgs(),
       url,
     ];
 
     Logger.info(`📥 VideoDownloader: Iniciando download de ${url}`);
 
+    let ytdlpError = null;
     try {
       await execFileAsync(ytdlp, args, { timeout: CONFIG.VIDEO_DOWNLOAD_TIMEOUT_MS });
     } catch (error) {
-      Logger.warn(`⚠️ VideoDownloader: yt-dlp saiu com erro: ${error.message}`);
+      ytdlpError = error;
+      Logger.warn(`⚠️ VideoDownloader: yt-dlp saiu com erro: ${error.stderr || error.message}`);
     }
 
     // Localiza o arquivo gerado com o id único
@@ -147,9 +168,11 @@ export class VideoDownloader {
       .map((f) => path.join(CONFIG.TEMP_DIR, f));
 
     if (tempFiles.length === 0) {
-      throw new Error(
-        "Arquivo não encontrado após download. Verifique se o conteúdo é público e a URL é válida."
-      );
+      // Propaga a causa real do yt-dlp em vez de mascarar tudo como "conteúdo privado"
+      const detail = ytdlpError
+        ? (ytdlpError.stderr?.trim() || ytdlpError.message)
+        : "yt-dlp não produziu nenhum arquivo";
+      throw new Error(`Download falhou: ${detail}`);
     }
 
     const filePath = tempFiles[0];
@@ -187,15 +210,18 @@ export class VideoDownloader {
       "-o", outputTemplate,
       "--no-playlist",
       "--no-warnings",
+      ...this.#cookieArgs(),
       url,
     ];
 
     Logger.info(`📥 VideoDownloader (áudio): Iniciando download de ${url}`);
 
+    let ytdlpError = null;
     const [title] = await Promise.all([
       this._fetchTitle(url, ytdlp),
       execFileAsync(ytdlp, args, { timeout: CONFIG.VIDEO_DOWNLOAD_TIMEOUT_MS }).catch((err) => {
-        Logger.warn(`⚠️ VideoDownloader (áudio): yt-dlp saiu com erro: ${err.message}`);
+        ytdlpError = err;
+        Logger.warn(`⚠️ VideoDownloader (áudio): yt-dlp saiu com erro: ${err.stderr || err.message}`);
       }),
     ]);
 
@@ -205,9 +231,11 @@ export class VideoDownloader {
       .map((f) => path.join(CONFIG.TEMP_DIR, f));
 
     if (tempFiles.length === 0) {
-      throw new Error(
-        "Arquivo de áudio não encontrado após download. Verifique se o conteúdo é público e a URL é válida."
-      );
+      // Propaga a causa real do yt-dlp em vez de mascarar tudo como "conteúdo privado"
+      const detail = ytdlpError
+        ? (ytdlpError.stderr?.trim() || ytdlpError.message)
+        : "yt-dlp não produziu nenhum arquivo";
+      throw new Error(`Download de áudio falhou: ${detail}`);
     }
 
     const filePath = tempFiles[0];
@@ -226,7 +254,7 @@ export class VideoDownloader {
     try {
       const { stdout } = await execFileAsync(
         ytdlp,
-        ["--skip-download", "--print", "%(title)s", "--no-warnings", url],
+        ["--skip-download", "--print", "%(title)s", "--no-warnings", ...this.#cookieArgs(), url],
         { timeout: 15000 }
       );
       return stdout.trim() || null;
