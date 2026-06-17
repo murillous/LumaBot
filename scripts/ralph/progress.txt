@@ -128,3 +128,14 @@ Started: Wed, Jun 17, 2026  7:49:20 PM
   - US-010 (telemetria): incrementMetric('personas_created') no sucesso de criação (LumaPlugin #handleCreatePersona E ToolDispatcher handleCreatePersona — DOIS pontos) e 'personas_deleted' na deleção (PersonalityManager.deletePersona ou LumaPlugin #handleDeletePersona). Cuidado pra não duplicar contagem.
   - Suíte: 633 testes (627 baseline + 6).
 ---
+
+## Wed, Jun 17, 2026 - US-010
+- Telemetria de criação/deleção de persona custom no banco público (métricas, sem JID/conteúdo).
+- 'personas_created': incrementMetric nos DOIS caminhos de criação após createCustomPersona+setPersonality — LumaPlugin #handleCreatePersona e ToolDispatcher handleCreatePersona (paths mutuamente exclusivos, sem dup).
+- 'personas_deleted': incrementMetric em PersonalityManager.deletePersona, ponto ÚNICO (só após remoção bem-sucedida, antes do return deleted:true). LumaPlugin #handleDeletePersona sempre passa por aqui -> sem duplicação.
+- Files changed: src/plugins/luma/LumaPlugin.js, src/handlers/ToolDispatcher.js, src/managers/PersonalityManager.js, tests/unit/managers/PersonalityManagerDelete.test.js, tests/unit/handlers/ToolDispatcher.test.js, tests/unit/plugins/LumaPlugin.test.js
+- **Learnings for future iterations:**
+  - PersonalityManagerDelete.test.js mockava DatabaseService sem incrementMetric — deletePersona quebraria. Ao adicionar chamada nova a DatabaseService em código já testado, conferir se TODOS os mocks daquele serviço expõem o método (getter `get x(){return mockX}`), senão TypeError.
+  - Criação custom flui por 2 call-sites (LumaPlugin + ToolDispatcher) que reusam createCustomPersona; deleção flui por 1 (deletePersona). Métrica de criação = nos 2 plugins; métrica de deleção = no manager (ponto único). Não centralizar created no Database.createCustomPersona pra manter o contrato CRUD limpo.
+  - Suíte: 635 testes (633 baseline + 2 novos testes de telemetria de deleção; testes de created só ganharam asserção incrementMetric).
+---

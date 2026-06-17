@@ -332,6 +332,8 @@ export class ToolDispatcher {
 
             DatabaseService.createCustomPersona(bot.jid, { ...persona, key: slug });
             PersonalityManager.setPersonality(bot.jid, `${CUSTOM_PREFIX}${slug}`);
+            // Telemetria no banco público: só contagem, sem JID nem conteúdo (doc 04).
+            DatabaseService.incrementMetric("personas_created");
 
             await bot.reply(`${MENUS.MSGS.PERSONA_CREATE_OK}*${persona.name}*! 😎`);
         } catch (error) {

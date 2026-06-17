@@ -10,12 +10,14 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 let mockGetPersonality = vi.fn().mockReturnValue(null);
 let mockSetPersonality = vi.fn();
 let mockDeleteCustomPersona = vi.fn().mockReturnValue(false);
+let mockIncrementMetric = vi.fn();
 
 vi.mock("../../../src/services/Database.js", () => ({
   DatabaseService: {
     get getPersonality() { return mockGetPersonality; },
     get setPersonality() { return mockSetPersonality; },
     get deleteCustomPersona() { return mockDeleteCustomPersona; },
+    get incrementMetric() { return mockIncrementMetric; },
   },
 }));
 
@@ -28,6 +30,7 @@ beforeEach(() => {
   mockGetPersonality = vi.fn().mockReturnValue(null);
   mockSetPersonality = vi.fn();
   mockDeleteCustomPersona = vi.fn().mockReturnValue(false);
+  mockIncrementMetric = vi.fn();
 });
 
 describe("deletePersona — deleção de custom", () => {
@@ -47,6 +50,25 @@ describe("deletePersona — deleção de custom", () => {
 
     expect(result).toEqual({ deleted: false, reason: "not_found" });
     expect(mockSetPersonality).not.toHaveBeenCalled();
+  });
+});
+
+describe("deletePersona — telemetria (US-010)", () => {
+  it("incrementa personas_deleted ao deletar com sucesso", () => {
+    mockDeleteCustomPersona = vi.fn().mockReturnValue(true);
+
+    PersonalityManager.deletePersona(JID, `${CUSTOM_PREFIX}batman`);
+
+    expect(mockIncrementMetric).toHaveBeenCalledWith("personas_deleted");
+  });
+
+  it("não incrementa quando a deleção falha (not_found/predefinida)", () => {
+    mockDeleteCustomPersona = vi.fn().mockReturnValue(false);
+
+    PersonalityManager.deletePersona(JID, `${CUSTOM_PREFIX}fantasma`);
+    PersonalityManager.deletePersona(JID, "pensadora");
+
+    expect(mockIncrementMetric).not.toHaveBeenCalled();
   });
 });
 

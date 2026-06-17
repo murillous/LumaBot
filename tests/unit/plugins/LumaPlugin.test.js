@@ -155,6 +155,7 @@ describe('LumaPlugin.onCommand — !persona criar', () => {
       expect.objectContaining({ key: 'vovo-fofa', name: 'Vovó Fofa' }),
     );
     expect(PersonalityManager.setPersonality).toHaveBeenCalledWith(bot.jid, 'custom:vovo-fofa');
+    expect(DatabaseService.incrementMetric).toHaveBeenCalledWith('personas_created');
     expect(bot.reply).toHaveBeenCalledWith(expect.stringContaining('Vovó Fofa'));
   });
 

@@ -76,6 +76,7 @@ describe('ToolDispatcher.handleCreatePersona', () => {
       key: 'vovo-italiana',
     });
     expect(PersonalityManager.setPersonality).toHaveBeenCalledWith(bot.jid, 'custom:vovo-italiana');
+    expect(DatabaseService.incrementMetric).toHaveBeenCalledWith('personas_created');
     expect(bot.reply).toHaveBeenCalledWith(expect.stringContaining('Vovó Italiana'));
   });
 

@@ -89,6 +89,10 @@ export class PersonalityManager {
       return { deleted: false, reason: "not_found" };
     }
 
+    // Telemetria no banco público: só contagem, sem JID nem conteúdo (doc 04).
+    // Ponto único de deleção — LumaPlugin sempre passa por aqui, sem duplicar.
+    DatabaseService.incrementMetric("personas_deleted");
+
     // Se a persona removida era a ativa do chat, volta para o padrão.
     const wasActive = DatabaseService.getPersonality(jid) === key;
     if (wasActive) {
