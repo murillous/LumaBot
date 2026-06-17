@@ -50,7 +50,7 @@
         "Testes Vitest: JSON válido, JSON inválido + retry, aplicação de limites, anexo do trait de formato, geração de slug único, passando (npx vitest run)"
       ],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {

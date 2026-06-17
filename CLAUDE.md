@@ -41,7 +41,7 @@ Documentação: Sempre que fizer alguma grande alteração, documente na pasta d
 
 ## Critérios de Aceite Obrigatórios
 
-**Estas regras valem para os dois submódulos e não são negociáveis.** Uma feature
+**Estas regras valem para o repositório inteiro e não são negociáveis.** Uma feature
 ou correção só está "pronta" quando TODOS os itens abaixo são satisfeitos.
 
 1. **Todos os testes passando.** Nenhuma entrega com teste vermelho. Rode a suíte

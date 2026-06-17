@@ -17,6 +17,20 @@ Started: Wed, Jun 17, 2026  7:49:20 PM
   - Suíte completa passou (582) sem novo teste — schema validado pelo import bem-sucedido. US-002 adiciona os métodos CRUD + testes.
 ---
 
+## Wed, Jun 17, 2026 - US-003
+- Novo PersonaGenerator em src/core/services/ (named export, sem default), recebe aiService por DI.
+- generate(description): monta prompt PT-BR pedindo JSON { name, description, context, style, traits[] }; extrai JSON tolerando cercas de código/texto extra; valida limites (name<=40, context<=600, style<=300, trait<=200, traits 3..8); trunca quando seguro; rejeita traits<3; anexa WHATSAPP_FORMAT_TRAIT pelo sistema. JSON inválido -> 1 retry -> lança erro tratável (sem gravar nada).
+- slugify(name, existingKeys[]): kebab-case sem acentos, fallback 'persona', unicidade via sufixo -2/-3.
+- Novo test file tests/unit/core/services/PersonaGenerator.test.js (11 testes): JSON válido, cercas, retry, falha após retry, truncamento, cap de 8 traits, traits<3, descrição vazia, slugify (acentos/unicidade/fallback).
+- Files changed: src/core/services/PersonaGenerator.js, tests/unit/core/services/PersonaGenerator.test.js
+- **Learnings for future iterations:**
+  - aiService (AIPort) = generateContent([{ role:'user', parts:[{text}] }]) -> { text, functionCalls }. Para texto puro basta usar response.text (ver ResumoPlugin como referência de uso simples).
+  - Mock de aiService em teste: objeto { generateContent: vi.fn() } com mockResolvedValueOnce por resposta — não precisa vi.mock de módulo, só DI.
+  - WHATSAPP_FORMAT_TRAIT exportado de PersonaGenerator é a string exata do trait de formato das personas predefinidas (lumaConfig.js). Reutilizar em US-004+ se precisar.
+  - Imports no codebase são relativos na prática (apesar do CLAUDE.md citar absolutos); core/services importa Logger via ../../utils/Logger.js.
+  - Suíte: 600 testes (589 baseline + 11).
+---
+
 ## Wed, Jun 17, 2026 - US-002
 - Métodos CRUD estáticos de custom_personas no DatabaseService: createCustomPersona, getCustomPersonas, getCustomPersona, deleteCustomPersona, countCustomPersonas + helper privado #mapCustomPersona (desserializa traits_json).
 - Novo test file tests/unit/services/Database.test.js (7 testes): CRUD, UNIQUE por chat, mesma key em chats distintos, contagem isolada por chat, deleção com booleano.
