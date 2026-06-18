@@ -58,28 +58,64 @@ describe("ReminderPlugin.onCommand", () => {
     mockGetPendingByChat.mockReset();
   });
 
-  it("ignora silenciosamente quando falta o separador |", async () => {
+  it("informa formato inválido quando falta o separador |", async () => {
     const bot = makeBot({ body: "!lembrete amanhã reunião" });
+
     await new ReminderPlugin().onCommand("!lembrete", bot);
-    expect(bot.replied).toBeNull(); // Não responde, deixa Luma falar
+
+    expect(bot.replied).toContain("Formato inválido");
     expect(mockSchedule).not.toHaveBeenCalled();
   });
 
-  it("agenda com data válida e deixa Luma responder", async () => {
+  it("agenda com data válida e responde com confirmação (melhoria 3)", async () => {
     const bot = makeBot({ body: "!lembrete 02/06/2026 16:00 | reunião" });
     await new ReminderPlugin().onCommand("!lembrete", bot);
     expect(mockSchedule).toHaveBeenCalledOnce();
     const arg = mockSchedule.mock.calls[0][0];
     expect(arg.text).toBe("reunião");
     expect(arg.mentionJids).toEqual(["u@s"]);
-    expect(bot.replied).toBeNull(); // Não responde, deixa Luma falar
+    expect(bot.replied).toContain("✅ Lembrete criado!");
+    expect(bot.replied).toContain("02/06 16:00");
+    expect(bot.replied).toContain("reunião");
   });
 
-  it("ignora silenciosamente quando a data é inválida", async () => {
+  it("responde quando a data é inválida", async () => {
     const bot = makeBot({ body: "!lembrete qualquer coisa | texto" });
+
     await new ReminderPlugin().onCommand("!lembrete", bot);
-    expect(bot.replied).toBeNull(); // Não responde, deixa Luma falar
+
+    expect(bot.replied).toContain("não existe");
     expect(mockSchedule).not.toHaveBeenCalled();
+  });
+
+  it("responde com erro amigável quando a data não existe no calendário (melhoria 1)", async () => {
+    const bot = makeBot({ body: "!lembrete 31/02/2026 10:00 | reunião" });
+    await new ReminderPlugin().onCommand("!lembrete", bot);
+    expect(bot.replied).toContain("não existe no calendário");
+    expect(mockSchedule).not.toHaveBeenCalled();
+  });
+
+  it("responde com erro amigável quando 29/02 não é bissexto (melhoria 1)", async () => {
+    const bot = makeBot({ body: "!lembrete 29/02/2026 10:00 | reunião" });
+    await new ReminderPlugin().onCommand("!lembrete", bot);
+    expect(bot.replied).toContain("não existe no calendário");
+    expect(mockSchedule).not.toHaveBeenCalled();
+  });
+
+  it("aceita 29/02 quando o ano é bissexto (melhoria 1)", async () => {
+    const bot = makeBot({ body: "!lembrete 29/02/2028 10:00 | reunião" });
+    await new ReminderPlugin().onCommand("!lembrete", bot);
+    expect(mockSchedule).toHaveBeenCalledOnce();
+    expect(bot.replied).toContain("✅ Lembrete criado!");
+  });
+
+  it("repassa ao usuário o erro lançado pelo ReminderService, ex: data passada (melhoria 2)", async () => {
+    mockSchedule.mockImplementation(() => {
+      throw new Error("A data deve estar no futuro.");
+    });
+    const bot = makeBot({ body: "!lembrete 01/01/2020 08:00 | reunião" });
+    await new ReminderPlugin().onCommand("!lembrete", bot);
+    expect(bot.replied).toContain("A data deve estar no futuro.");
   });
 
   it("lista lembretes quando o comando é !lembretes", async () => {
