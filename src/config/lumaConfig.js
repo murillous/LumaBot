@@ -195,7 +195,7 @@ const LUMA_CONFIG_DEFAULTS = {
         },
         {
           name: "create_sticker",
-          description: "Cria uma figurinha (sticker) a partir de uma imagem, vídeo curto ou GIF. Use isso se o usuário pedir para fazer uma figurinha.",
+          description: "Cria uma figurinha (sticker) a partir de uma imagem, vídeo curto ou GIF (enviado junto ou na mensagem respondida). Use SEMPRE que o usuário pedir uma figurinha/sticker de qualquer jeito — 'faz uma figurinha', 'vira figurinha', 'transforma isso em sticker', 'stickeriza', 'faz sticker disso', 'bota de figurinha', 'cria um stick', 'fig disso' — ou quando ele responder a uma imagem/vídeo dizendo só 'figurinha', 'sticker', 'fig' ou similar. Na dúvida, se houver mídia envolvida e ele mencionar figurinha/sticker, chame esta função.",
         },
         {
           name: "create_image",
@@ -247,7 +247,7 @@ const LUMA_CONFIG_DEFAULTS = {
         },
         {
           name: "create_persona",
-          description: "Cria uma nova personalidade (persona) sua a partir de uma descrição livre e a ativa imediatamente neste chat. Use quando o usuário pedir para você 'virar', 'se transformar em', 'ser' ou 'fingir ser' um personagem/personalidade específica (ex: 'vira uma vovó italiana carinhosa', 'seja um pirata mal-humorado', 'finge que você é um coach motivacional').",
+          description: "Cria uma nova personalidade (persona) sua a partir de uma descrição livre e a ativa imediatamente neste chat. Use SEMPRE que o usuário pedir para você mudar de jeito de ser — 'virar', 'ser', 'se transformar em', 'fingir/finge que é', 'se passar por', 'incorporar', 'atuar/agir como', 'imitar', 'responder como', 'assumir a personalidade de' — qualquer personagem, figura ou personalidade (ex: 'vira uma vovó italiana carinhosa', 'seja um pirata mal-humorado', 'finge que você é um coach motivacional', 'responde como se fosse o Sherlock', 'age igual uma patricinha', 'quero que você seja uma chef italiana'). Na dúvida entre só conversar e virar o personagem, prefira chamar esta função.",
           parameters: {
             type: "OBJECT",
             properties: {
@@ -285,6 +285,8 @@ Você é capaz de executar algumas ações no WhatsApp (marcar todos, expulsar m
 - Se o usuário pedir explicitamente para pesquisar, buscar, googlar ou procurar algo na internet, use search_web OBRIGATORIAMENTE — sem exceções.
 - Para perguntas sobre notícias recentes, eventos atuais, preços, lançamentos, resultados de jogos, clima ou qualquer coisa que possa ter mudado após 2024, use search_web ANTES de responder.
 - Quando o usuário perguntar o que você faz, quais são seus comandos, como te usar, ou pedir ajuda geral, use show_help OBRIGATORIAMENTE.
+- Quando o usuário pedir para você virar, ser, se transformar em, fingir ser, se passar por, incorporar, atuar/agir como, imitar ou responder como qualquer personagem ou personalidade, use create_persona OBRIGATORIAMENTE com a descrição que ele deu — não responda só conversando.
+- Quando o usuário pedir uma figurinha/sticker (ex: 'faz figurinha disso', 'vira sticker', 'stickeriza', 'transforma em figurinha'), ou responder a uma imagem/vídeo dizendo só 'figurinha'/'sticker'/'fig', use create_sticker OBRIGATORIAMENTE.
 - Quando o usuário pedir para ser lembrado de algo, marcar um compromisso/evento futuro ou avisar alguém depois, use schedule_reminder com a data/hora ABSOLUTA em ISO 8601 (fuso -03:00), calculada a partir da "Data e hora atual" informada acima.
 - Você NÃO precisa justificar que chamou a função. Responda com uma pequena frase condizente com sua personalidade e a ação será tomada.
 - IMPORTANTE: NÃO ESCREVA O NOME DA FUNÇÃO NO TEXTO. Execute a ação pelo sistema (chamada de ferramenta da API). VOCÊ ESTÁ PROIBIDA DE ESCREVER CÓDIGO OU TEXTO IMITANDO CÓDIGO COMO "nome_da_funcao()". APENAS ENVIE TEXTO NORMAL PARA O USUÁRIO E ACIONE A FERRAMENTA DE FATO.
@@ -345,6 +347,8 @@ Você é capaz de executar algumas ações no WhatsApp (marcar todos, expulsar m
 - Se o usuário pedir explicitamente para pesquisar, buscar, googlar ou procurar algo na internet, use search_web OBRIGATORIAMENTE — sem exceções.
 - Para perguntas sobre notícias recentes, eventos atuais, preços, lançamentos ou qualquer coisa que possa ter mudado após 2024, use search_web ANTES de responder.
 - Quando o usuário perguntar o que você faz, quais são seus comandos, como te usar, ou pedir ajuda geral, use show_help OBRIGATORIAMENTE.
+- Quando o usuário pedir para você virar, ser, se transformar em, fingir ser, se passar por, incorporar, atuar/agir como, imitar ou responder como qualquer personagem ou personalidade, use create_persona OBRIGATORIAMENTE com a descrição que ele deu — não responda só conversando.
+- Quando o usuário pedir uma figurinha/sticker da imagem (ex: 'faz figurinha disso', 'vira sticker', 'stickeriza', 'transforma em figurinha') ou disser só 'figurinha'/'sticker'/'fig', use create_sticker OBRIGATORIAMENTE.
 - Quando o usuário pedir para ser lembrado de algo, marcar um compromisso/evento futuro ou avisar alguém depois, use schedule_reminder com a data/hora ABSOLUTA em ISO 8601 (fuso -03:00), calculada a partir da "Data e hora atual" informada acima.
 - Você NÃO precisa justificar que chamou a função. Responda com uma pequena frase condizente com sua personalidade e a ação será tomada.
 - IMPORTANTE: NÃO ESCREVA O NOME DA FUNÇÃO NO TEXTO. Execute a ação pelo sistema (chamada de ferramenta da API). VOCÊ ESTÁ PROIBIDA DE ESCREVER CÓDIGO OU TEXTO IMITANDO CÓDIGO COMO "nome_da_funcao()". APENAS ENVIE TEXTO NORMAL PARA O USUÁRIO E ACIONE A FERRAMENTA DE FATO.

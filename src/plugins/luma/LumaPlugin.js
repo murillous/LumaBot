@@ -61,9 +61,9 @@ export class LumaPlugin {
 
       case COMMANDS.PERSONA: {
         const { action, arg } = this.#parsePersonaSubcommand(bot.body);
-        if (action === "criar") {
+        if (action === COMMANDS.PERSONA_CREATE_SUB) {
           await this.#handleCreatePersona(bot, arg);
-        } else if (action === "deletar") {
+        } else if (action === COMMANDS.PERSONA_DELETE_SUB) {
           await this.#handleDeletePersona(bot, arg);
         } else {
           await this.#sendPersonalityMenu(bot);
@@ -78,7 +78,9 @@ export class LumaPlugin {
    * plugin, pra não inflar o CommandRouter (que só detecta o prefixo !persona).
    */
   #parsePersonaSubcommand(body) {
-    const rest    = (body ?? "").trim().replace(/^!persona\s*/i, "").trim();
+    // Monta o regex a partir da constante pra não hardcodar o prefixo do comando.
+    const prefix  = COMMANDS.PERSONA.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const rest    = (body ?? "").trim().replace(new RegExp(`^${prefix}\\s*`, "i"), "").trim();
     const first   = rest.split(/\s+/)[0] ?? "";
     const action  = first.toLowerCase();
     const arg     = rest.slice(first.length).trim();

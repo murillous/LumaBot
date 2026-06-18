@@ -1,5 +1,21 @@
 # Changelog — LumaBot
 
+## [7.2.1] — 2026-06-17
+
+### Fixed / Changed: descoberta das personas custom e figurinhas
+
+- **`src/config/constants.js`** — subcomandos `criar`/`deletar` do `!persona`
+  saíram dos literais hardcoded e viraram `COMMANDS.PERSONA_CREATE_SUB` /
+  `PERSONA_DELETE_SUB`. `LumaPlugin` passou a consumir as constantes.
+- **`src/config/constants.js` (`MENUS.HELP_TEXT`)** — `!persona criar` e
+  `!persona deletar pN` agora aparecem no `!help` (antes só `!persona`).
+- **`src/config/lumaConfig.js`** — `create_persona` e `create_sticker` ficaram
+  mais sensíveis no function calling: descrições com mais gatilhos
+  (virar/ser/imitar/responder como; stickeriza/vira figurinha/fig) e instrução
+  `OBRIGATORIAMENTE` correspondente nos prompts de texto e de visão.
+
+---
+
 ## [7.2.0] — 2026-06-17
 
 ### Added: Personas customizadas via chat
