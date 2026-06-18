@@ -95,6 +95,7 @@ export class ReminderPlugin {
   static commands = [
     COMMANDS.REMINDER,
     COMMANDS.REMINDER_LIST,
+    COMMANDS.REMINDER_CANCEL,
   ];
 
   async onCommand(command, bot) {
@@ -105,7 +106,7 @@ export class ReminderPlugin {
       await this.listReminders(bot);
       return;
     }
-    if (command === "cancelarlembrete") {
+    if (command === COMMANDS.REMINDER_CANCEL) {
       const index = Number.parseInt(
         (bot.body || "").trim().split(" ")[1],
         10

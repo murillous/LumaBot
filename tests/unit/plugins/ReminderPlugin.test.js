@@ -2,11 +2,13 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const mockSchedule = vi.fn();
 const mockGetPendingByChat = vi.fn();
+const mockCancel = vi.fn();
 
 vi.mock("../../../src/core/services/ReminderService.js", () => ({
   ReminderService: {
     schedule: (...a) => mockSchedule(...a),
     getPendingByChat: (...a) => mockGetPendingByChat(...a),
+    cancel: (...a) => mockCancel(...a),
   },
 }));
 
@@ -56,6 +58,7 @@ describe("ReminderPlugin.onCommand", () => {
   beforeEach(() => {
     mockSchedule.mockReset();
     mockGetPendingByChat.mockReset();
+    mockCancel.mockReset();
   });
 
   it("informa formato inválido quando falta o separador |", async () => {
@@ -116,6 +119,22 @@ describe("ReminderPlugin.onCommand", () => {
     const bot = makeBot({ body: "!lembrete 01/01/2020 08:00 | reunião" });
     await new ReminderPlugin().onCommand("!lembrete", bot);
     expect(bot.replied).toContain("A data deve estar no futuro.");
+  });
+
+  it("cancela um lembrete pelo comando !cancelarlembrete n", async () => {
+    const reminders = [
+      { id: 10, fireAt: Date.parse("2026-06-02T16:00:00-03:00"), text: "reunião" },
+      { id: 11, fireAt: Date.parse("2026-06-03T14:30:00-03:00"), text: "almoço" },
+    ];
+    mockGetPendingByChat.mockReturnValue(reminders);
+    const bot = makeBot({ body: "!cancelarlembrete 2" });
+
+    await new ReminderPlugin().onCommand("!cancelarlembrete", bot);
+
+    expect(mockGetPendingByChat).toHaveBeenCalledWith("g@g.us");
+    expect(mockCancel).toHaveBeenCalledWith(11);
+    expect(bot.replied).toContain("✅ Lembrete removido");
+    expect(bot.replied).toContain("almoço");
   });
 
   it("lista lembretes quando o comando é !lembretes", async () => {

@@ -27,6 +27,8 @@ describe('CommandRouter.detect — comandos', () => {
     ['!luma stats',   '!luma stats'],
     ['!ls',           '!luma stats'],
     ['!meunumero',    '!meunumero'],
+    ['!lembretes',    '!lembretes'],
+    ['!cancelarlembrete 2', '!cancelarlembrete'],
     ['@everyone',     '@everyone'],
     ['@todos',        '@everyone'],
   ])('detecta "%s" como "%s"', (input, expected) => {
