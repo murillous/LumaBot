@@ -335,6 +335,10 @@ export class ToolDispatcher {
             // Telemetria no banco público: só contagem, sem JID nem conteúdo (doc 04).
             DatabaseService.incrementMetric("personas_created");
 
+            // Persona nova começa do zero: limpa a memória pra não vazar o roleplay anterior.
+            const clearKey = bot.isGroup ? `${bot.jid}:${bot.senderJid}` : bot.jid;
+            lumaHandler.clearHistory?.(clearKey);
+
             await bot.reply(`${MENUS.MSGS.PERSONA_CREATE_OK}*${persona.name}*! 😎`);
         } catch (error) {
             Logger.error("❌ Erro ao criar persona custom (tool):", error);

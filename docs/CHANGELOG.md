@@ -13,6 +13,10 @@
   mais sensíveis no function calling: descrições com mais gatilhos
   (virar/ser/imitar/responder como; stickeriza/vira figurinha/fig) e instrução
   `OBRIGATORIAMENTE` correspondente nos prompts de texto e de visão.
+- **`src/plugins/luma/LumaPlugin.js`** + **`src/handlers/ToolDispatcher.js`** —
+  criar uma persona agora **limpa a memória da conversa** (mesma chave do
+  `!luma clear`: `jid:senderJid` em grupo, `jid` em PV), pra a persona nova não
+  herdar o roleplay anterior.
 
 ---
 

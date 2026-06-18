@@ -116,6 +116,11 @@ export class LumaPlugin {
       // Telemetria no banco público: só contagem, sem JID nem conteúdo (doc 04).
       DatabaseService.incrementMetric("personas_created");
 
+      // Persona nova começa do zero: limpa a memória pra não vazar o roleplay anterior.
+      const clearKey = bot.isGroup ? `${bot.jid}:${bot.senderJid}` : bot.jid;
+      this.lumaHandler.clearHistory(clearKey);
+      this.#groupBuffer.delete(bot.jid);
+
       await bot.reply(`${MENUS.MSGS.PERSONA_CREATE_OK}*${persona.name}*! 😎`);
     } catch (error) {
       Logger.error("❌ Erro ao criar persona custom:", error);
