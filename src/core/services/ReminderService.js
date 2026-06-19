@@ -56,6 +56,11 @@ export class ReminderService {
     return DatabaseService.getPendingReminders().map(ReminderService.normalize);
   }
 
+  /** Lembretes pendentes de um chat específico. */
+  static getPendingByChat(chatJid) {
+    return DatabaseService.getPendingRemindersByChat(chatJid).map(ReminderService.normalize);
+  }
+
   static markFired(id) {
     DatabaseService.markReminderFired(id);
   }

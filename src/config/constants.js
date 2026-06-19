@@ -64,6 +64,8 @@ export const COMMANDS = ConfigStore.apply("COMMANDS", {
   RANK: "!rank",
   REMINDER: "!lembrete",
   REMINDER_SHORT: "!lembrar",
+  REMINDER_LIST: "!lembretes",
+  REMINDER_CANCEL: "!cancelarlembrete",
 });
 
 export const MENUS = ConfigStore.apply("MENUS", {
@@ -87,7 +89,9 @@ export const MENUS = ConfigStore.apply("MENUS", {
     "• *!rank global* - Ranking geral (todos os chats)\n" +
     "• *!nick SeuNome* - Define como você aparece nos rankings\n" +
     "• *!nick @pessoa Nome* - Define o apelido de alguém\n" +
-    "• *!lembrete* (ou peça à Luma) - Agenda um lembrete com menção\n\n" +
+    "• *!lembrete* (ou peça à Luma) - Agenda um lembrete com menção\n" +
+    "• *!lembretes* - Lista todos os lembretes agendados neste chat\n" +
+    "• *!cancelarlembrete* <n> - Cancela o lembrete n da lista\n\n" +
     "🛠️ *UTILITÁRIOS*\n" +
     "• *!download* (!d) - Baixa vídeo do Twitter/X ou Instagram\n" +
     "• *!audio* (!a) - Baixa somente o áudio (MP3) de qualquer link\n" +

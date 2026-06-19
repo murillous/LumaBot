@@ -40,6 +40,10 @@ export class CommandRouter {
     if (lower.startsWith(COMMANDS.NICK_ALT))       return COMMANDS.NICK_ALT;
     if (lower.startsWith(COMMANDS.NICK))           return COMMANDS.NICK;
     if (lower.startsWith(COMMANDS.RANK))           return COMMANDS.RANK;
+    if (lower === COMMANDS.REMINDER_LIST)          return COMMANDS.REMINDER_LIST;
+    if (lower.startsWith(COMMANDS.REMINDER_LIST))  return COMMANDS.REMINDER_LIST;
+    if (lower === COMMANDS.REMINDER_CANCEL)         return COMMANDS.REMINDER_CANCEL;
+    if (lower.startsWith(COMMANDS.REMINDER_CANCEL)) return COMMANDS.REMINDER_CANCEL;
     if (lower.startsWith(COMMANDS.REMINDER_SHORT)) return COMMANDS.REMINDER;
     if (lower.startsWith(COMMANDS.REMINDER))       return COMMANDS.REMINDER;
 
