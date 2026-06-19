@@ -282,6 +282,13 @@ export class DatabaseService {
       .all();
   }
 
+  /** Lembretes pendentes de um chat específico, ordenados por horário. */
+  static getPendingRemindersByChat(chatJid) {
+    return dbPrivate
+      .prepare("SELECT * FROM reminders WHERE fired = 0 AND chat_jid = ? ORDER BY fire_at ASC")
+      .all(chatJid);
+  }
+
   static markReminderFired(id) {
     dbPrivate.prepare("UPDATE reminders SET fired = 1 WHERE id = ?").run(id);
   }
