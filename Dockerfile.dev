@@ -8,6 +8,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     g++ \
     ffmpeg \
     ca-certificates \
+    fonts-noto-core \
+    fonts-noto-cjk \
     && rm -rf /var/lib/apt/lists/*
 
 COPY package*.json ./
