@@ -7,7 +7,7 @@ import { ToolDispatcher } from './ToolDispatcher.js';
 import { env } from '../config/env.js';
 import { createAIProvider } from '../core/services/AIProviderFactory.js';
 import { ConversationHistory } from '../core/services/ConversationHistory.js';
-import { buildPromptRequest } from '../core/services/PromptBuilder.js';
+import { buildConversationRequest } from '../core/services/PromptBuilder.js';
 import { cleanResponseText, splitIntoParts } from '../utils/ResponseFormatter.js';
 
 /**
@@ -33,6 +33,12 @@ export class LumaHandler {
 
   // ── Pipeline principal ──────────────────────────────────────────────────────
 
+  /**
+   * @param {object} [options]
+   * @param {boolean} [options.persist=true] - Se false, não grava o par no histórico.
+   *   Usado por interações espontâneas, cujos prompts são instruções de sistema e
+   *   poluiriam a memória se fossem gravados como fala do usuário.
+   */
   async generateResponse(
     userMessage,
     userJid,
@@ -41,6 +47,7 @@ export class LumaHandler {
     senderName   = 'Usuário',
     groupContext = '',
     historyKey   = null,
+    { persist = true } = {},
   ) {
     if (!this.isConfigured) return this._getErrorResponse('API_KEY_MISSING');
 
@@ -49,7 +56,7 @@ export class LumaHandler {
     try {
       const personaConfig = PersonalityManager.getPersonaConfig(userJid);
       let imageData       = message && sock ? await this._extractImage(message, sock) : null;
-      const historyText   = this.history.getText(hKey);
+      const historyTurns  = this.history.getTurns(hKey);
 
       if (imageData && this.visionService) {
         Logger.info('👁️ Provider sem visão — descrevendo imagem com Gemini...');
@@ -62,19 +69,19 @@ export class LumaHandler {
         imageData = null;
       }
 
-      const promptParts = buildPromptRequest({
+      const { systemInstruction, contents } = buildConversationRequest({
         userMessage,
-        historyText,
+        historyTurns,
         personaConfig,
         senderName,
         groupContext,
         imageData,
       });
 
-      const response       = await this.aiService.generateContent(promptParts);
+      const response        = await this.aiService.generateContent(contents, systemInstruction);
       const cleanedResponse = cleanResponseText(response.text);
 
-      if (cleanedResponse) {
+      if (cleanedResponse && persist) {
         this.history.add(hKey, userMessage, cleanedResponse, senderName);
         this._updateMetrics(userJid);
       }

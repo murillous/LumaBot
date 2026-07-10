@@ -110,6 +110,57 @@ describe('ConversationHistory.getText — formatação para prompt', () => {
   });
 });
 
+// ── getTurns ─────────────────────────────────────────────────────────────────────
+
+describe('ConversationHistory.getTurns — turnos com papel real', () => {
+  let history;
+
+  beforeEach(() => { history = makeHistory(); });
+  afterEach(()  => { history.destroy(); });
+
+  it('retorna array vazio para JID sem histórico', () => {
+    expect(history.getTurns('desconhecido@s.whatsapp.net')).toEqual([]);
+  });
+
+  it('mapeia fala do usuário como role "user" mantendo o rótulo "Nome:"', () => {
+    const jid = 'gt1@s.whatsapp.net';
+    history.add(jid, 'oi', 'olá', 'Ana');
+    const turns = history.getTurns(jid);
+
+    expect(turns[0]).toEqual({ role: 'user', text: 'Ana: oi' });
+  });
+
+  it('mapeia resposta da Luma como role "model" sem o prefixo "Luma:"', () => {
+    const jid = 'gt2@s.whatsapp.net';
+    history.add(jid, 'oi', 'olá', 'Ana');
+    const turns = history.getTurns(jid);
+
+    expect(turns[1]).toEqual({ role: 'model', text: 'olá' });
+  });
+
+  it('alterna user/model ao longo de várias trocas', () => {
+    const jid = 'gt3@s.whatsapp.net';
+    history.add(jid, 'm1', 'r1', 'U');
+    history.add(jid, 'm2', 'r2', 'U');
+
+    expect(history.getTurns(jid).map((t) => t.role)).toEqual(['user', 'model', 'user', 'model']);
+  });
+
+  it('detecta o papel pelo prefixo, permanecendo correto após poda cortar um par', () => {
+    const h   = makeHistory({ maxMessages: 3 });
+    const jid = 'gt4@s.whatsapp.net';
+    h.add(jid, 'm1', 'r1', 'U'); // [U:m1, Luma:r1]
+    h.add(jid, 'm2', 'r2', 'U'); // vira 4 linhas -> poda p/ 3: [Luma:r1, U:m2, Luma:r2]
+
+    const turns = h.getTurns(jid);
+    // Mesmo começando por uma linha "Luma:", o papel é derivado do prefixo.
+    expect(turns[0].role).toBe('model');
+    expect(turns.map((t) => t.role)).toEqual(['model', 'user', 'model']);
+
+    h.destroy();
+  });
+});
+
 // ── clear ──────────────────────────────────────────────────────────────────────
 
 describe('ConversationHistory.clear — remoção de histórico', () => {

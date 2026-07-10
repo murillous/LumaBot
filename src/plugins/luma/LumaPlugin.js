@@ -161,8 +161,12 @@ export class LumaPlugin {
   // ---------------------------------------------------------------------------
 
   async onMessage(bot) {
-    // Mantém buffer de contexto do grupo
-    if (bot.isGroup && !bot.isFromMe && bot.body) {
+    // Mantém buffer de contexto do grupo. Guarda se ESTA mensagem entrou no
+    // buffer: se sim, ela é a última entrada e precisa ser excluída do
+    // groupContext desta resposta — senão a fala que disparou a Luma apareceria
+    // duas vezes (como contexto ambiente e como mensagem atual).
+    const pushedToBuffer = bot.isGroup && !bot.isFromMe && !!bot.body;
+    if (pushedToBuffer) {
       this.#addToGroupBuffer(bot.jid, bot.body, bot.senderName);
     }
 
@@ -180,7 +184,7 @@ export class LumaPlugin {
     // '_pv_' agrupa as conversas privadas no ranking global.
     DatabaseService.incrementInteraction(bot.isGroup ? bot.jid : "_pv_", bot.senderJid);
 
-    const groupContext = bot.isGroup ? this.#getGroupContext(bot.jid) : "";
+    const groupContext = bot.isGroup ? this.#getGroupContext(bot.jid, pushedToBuffer ? 1 : 0) : "";
     const historyKey   = bot.isGroup ? `${bot.jid}:${bot.senderJid}` : bot.jid;
 
     if (bot.hasAudio && (isPrivate || isReplyToBot || isMentioned)) {
@@ -205,10 +209,12 @@ export class LumaPlugin {
     this.#groupBuffer.set(jid, buf);
   }
 
-  #getGroupContext(jid) {
+  #getGroupContext(jid, dropLast = 0) {
     const buf = this.#groupBuffer.get(jid);
     if (!buf?.length) return "";
-    return buf.map((m) => `${m.name}: ${m.text}`).join("\n");
+    const slice = dropLast > 0 ? buf.slice(0, -dropLast) : buf;
+    if (!slice.length) return "";
+    return slice.map((m) => `${m.name}: ${m.text}`).join("\n");
   }
 
   async #handleMenuReply(bot) {

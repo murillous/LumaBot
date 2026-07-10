@@ -109,12 +109,19 @@ export class SpontaneousHandler {
         prompt = LUMA_CONFIG.SPONTANEOUS.prompts.TOPIC;
       }
 
+      // Lê o histórico pela MESMA chave do fluxo disparado (por-participante em
+      // grupo) para coerência; mas persist:false — o prompt aqui é uma instrução
+      // de sistema e gravá-lo como fala do usuário poluiria a memória.
+      const historyKey = `${bot.jid}:${bot.senderJid}`;
       const response = await lumaHandler.generateResponse(
         prompt,
         bot.jid,
         bot.raw,
         bot.socket,
         bot.senderName,
+        "",
+        historyKey,
+        { persist: false },
       );
 
       if (!response.parts?.length) return;

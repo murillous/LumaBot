@@ -43,9 +43,10 @@ export class GeminiAdapter extends AIPort {
    * Trata o loop multi-turn de busca (search_web tool call) internamente.
    *
    * @param {Array} contents - Array de mensagens no formato { role, parts } do @google/genai
+   * @param {string} [systemInstruction] - Instrução de sistema (persona/regras da Luma)
    * @returns {Promise<{text: string, functionCalls: Array}>}
    */
-  async generateContent(contents) {
+  async generateContent(contents, systemInstruction = "") {
     let lastError = null;
 
     for (const model of this.models) {
@@ -53,12 +54,12 @@ export class GeminiAdapter extends AIPort {
 
       try {
         Logger.info(`🤖 GeminiAdapter: tentando modelo ${model}...`);
-        const response = await this._callModel(model, contents);
+        const response = await this._callModel(model, contents, systemInstruction);
         const result = this._extractFromResponse(response);
 
         const searchCall = result.functionCalls.find((fc) => fc.name === "search_web");
         if (searchCall) {
-          const final = await this._handleSearchTurn(model, contents, response, result, searchCall);
+          const final = await this._handleSearchTurn(model, contents, response, result, searchCall, systemInstruction);
           stat.successes++;
           stat.lastUsed = new Date().toISOString();
           stat.lastError = null;
@@ -95,11 +96,12 @@ export class GeminiAdapter extends AIPort {
   // ---------------------------------------------------------------------------
 
   /** @private */
-  async _callModel(model, contents) {
+  async _callModel(model, contents, systemInstruction = "") {
     return await this.client.models.generateContent({
       model,
       contents,
       config: {
+        ...(systemInstruction ? { systemInstruction } : {}),
         tools: this.tools,
         temperature: this.genConfig.temperature,
         maxOutputTokens: this.genConfig.maxOutputTokens,
@@ -122,7 +124,7 @@ export class GeminiAdapter extends AIPort {
    * 3. Retorna a resposta final gerada a partir dos resultados
    * @private
    */
-  async _handleSearchTurn(model, originalContents, modelResponse, firstResult, searchCall) {
+  async _handleSearchTurn(model, originalContents, modelResponse, firstResult, searchCall, systemInstruction = "") {
     try {
       const query = searchCall.args?.query || "";
       Logger.info(`🔍 GeminiAdapter buscando: "${query}"`);
@@ -153,7 +155,7 @@ export class GeminiAdapter extends AIPort {
         },
       ];
 
-      const followUpResponse = await this._callModel(model, followUpContents);
+      const followUpResponse = await this._callModel(model, followUpContents, systemInstruction);
       const finalResult = this._extractFromResponse(followUpResponse);
 
       const otherCalls = firstResult.functionCalls.filter((fc) => fc.name !== "search_web");
