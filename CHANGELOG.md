@@ -24,7 +24,7 @@ e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR
 
 - Interações espontâneas gravavam no bucket de histórico errado e poluíam a memória com prompts-de-sistema; agora usam chave alinhada `jid:senderJid` e `{ persist: false }`.
 - Mensagem que dispara a Luma aparecia duplicada no contexto de grupo; agora é excluída do `groupContext`.
-- Mensagem citada/respondida não entrava no contexto quando o usuário respondia **à própria Luma** (guarda `!isReply` em `LumaHandler.handle`); agora o trecho citado é sempre injetado (`_buildQuotedContext`), com o autor do turno.
+- Mensagem citada/respondida não entrava no contexto quando o usuário respondia **à própria Luma** (guarda `!isReply` em `LumaHandler.handle`); agora o trecho citado é injetado (`_buildQuotedContext`) com o autor do turno. Reply à **última** fala da Luma (já no histórico) não é reinjetado — evita que ela interprete uma resposta comum como estar sendo "citada/rebatida"; citações de falas dela fora do histórico do interlocutor usam moldura auto-referente ("respondendo a esta sua mensagem"), não "citando Luma".
 - Áudio que respondia a um texto/imagem citados descartava esse contexto (`handleAudio`); agora preserva a citação.
 - `BaileysAdapter.quotedText` retornava `null` para citações envelopadas (ephemeral/viewOnce); agora desembrulha via `unwrapMessage`, como os demais getters quoted.
 

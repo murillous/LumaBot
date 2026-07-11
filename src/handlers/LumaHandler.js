@@ -120,7 +120,7 @@ export class LumaHandler {
       // própria Luma. O trecho citado é o que o usuário está apontando ("esse
       // prompt aqui") e pode nem estar no histórico dele (em grupo o histórico é
       // por-participante). quotedSenderName já devolve 'Luma' quando é a Luma.
-      const quotedContext = this._buildQuotedContext(bot);
+      const quotedContext = this._buildQuotedContext(bot, historyKey);
       if (quotedContext) {
         userMessage = userMessage ? `${quotedContext} ${userMessage}` : quotedContext;
       }
@@ -207,7 +207,7 @@ export class LumaHandler {
       // Áudio que responde a um texto/imagem citados: preserva esse contexto, que
       // não vem no body do áudio. (No branch de áudio citado, o citado é o próprio
       // áudio — daí o guard hasAudio, que faz o helper virar no-op nesse caso.)
-      const quotedContext = bot.hasAudio ? this._buildQuotedContext(bot) : '';
+      const quotedContext = bot.hasAudio ? this._buildQuotedContext(bot, historyKey) : '';
       const finalMessage  = quotedContext ? `${quotedContext} ${enrichedMessage}` : enrichedMessage;
 
       await this._respondWithMessage(bot, finalMessage, groupContext, historyKey);
@@ -261,20 +261,60 @@ export class LumaHandler {
   // ── Privados ────────────────────────────────────────────────────────────────
 
   /**
-   * Monta o prefixo de contexto de uma mensagem citada (reply/quote), com o
-   * autor do turno. Retorna '' quando não há citação. Compartilhado por handle()
-   * e handleAudio() para não duplicar a lógica.
+   * Monta o prefixo de contexto de uma mensagem citada (reply/quote). Retorna ''
+   * quando não há citação. Compartilhado por handle() e handleAudio().
+   *
+   * Distingue três casos, pra Luma não confundir um reply comum com "estar sendo
+   * citada/rebatida":
+   * - citação da PRÓPRIA Luma que é a última fala dela já no histórico → '' (é só
+   *   continuação; reinjetar soaria como o usuário jogando as palavras dela de volta);
+   * - citação da Luma fora do histórico do interlocutor (ex.: uma fala dela dirigida
+   *   a outra pessoa no grupo) → moldura auto-referente ("respondendo a esta sua
+   *   mensagem"), não "citando Luma";
+   * - citação de terceiro → "[citando Autor: ...]".
    */
-  _buildQuotedContext(bot) {
+  _buildQuotedContext(bot, historyKey = null) {
     if (!bot.quotedText && !bot.quotedHasVisualContent) return '';
-    const quotedAuthor = bot.quotedSenderName ?? 'Alguém';
+
+    const isFromLuma = bot.quotedSenderName === 'Luma';
+
+    if (isFromLuma && bot.quotedText && this._isLastLumaTurn(historyKey ?? bot.jid, bot.quotedText)) {
+      return '';
+    }
+
     if (bot.quotedHasVisualContent) {
       const type = bot.quotedMessage?.stickerMessage ? 'figurinha' : 'imagem';
+      if (isFromLuma) {
+        return bot.quotedText
+          ? `[o usuário está respondendo a uma ${type} que você mandou, com legenda "${bot.quotedText}"]`
+          : `[o usuário está respondendo a uma ${type} que você mandou — analise visualmente]`;
+      }
       return bot.quotedText
-        ? `[citando ${quotedAuthor}: ${type} com legenda "${bot.quotedText}"]`
-        : `[citando ${quotedAuthor}: ${type} — analise visualmente]`;
+        ? `[citando ${bot.quotedSenderName ?? 'Alguém'}: ${type} com legenda "${bot.quotedText}"]`
+        : `[citando ${bot.quotedSenderName ?? 'Alguém'}: ${type} — analise visualmente]`;
     }
-    return `[citando ${quotedAuthor}: "${bot.quotedText}"]`;
+
+    if (isFromLuma) {
+      return `[o usuário está respondendo a esta sua mensagem anterior: "${bot.quotedText}"]`;
+    }
+    return `[citando ${bot.quotedSenderName ?? 'Alguém'}: "${bot.quotedText}"]`;
+  }
+
+  /**
+   * Diz se `quotedText` corresponde à última resposta da Luma no histórico da
+   * conversa. Usa `includes` nos dois sentidos porque uma resposta pode ter sido
+   * enviada em vários balões ([PARTE]) e o usuário cita só um deles, enquanto o
+   * histórico guarda a resposta inteira normalizada num único turno.
+   */
+  _isLastLumaTurn(hKey, quotedText) {
+    const turns = this.history.getTurns?.(hKey) ?? [];
+    const lastModel = [...turns].reverse().find((t) => t.role === 'model');
+    if (!lastModel) return false;
+    const norm = (s) => s.replace(/\s+/g, ' ').trim().toLowerCase();
+    const full = norm(lastModel.text);
+    const part = norm(quotedText);
+    if (!part) return false;
+    return full.includes(part) || part.includes(full);
   }
 
   async _respondWithMessage(bot, message, groupContext = '', historyKey = null) {

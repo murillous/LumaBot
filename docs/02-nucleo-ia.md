@@ -209,22 +209,29 @@ reusado por `handle()` e `handleAudio()`:
 ```
 usuario responde/cita uma mensagem
     │
-    ├─ bot.quotedHasVisualContent?
-    │      ├─ SIM + legenda → [citando Autor: imagem com legenda "texto"]
-    │      ├─ SIM sem legenda → [citando Autor: figurinha — analise visualmente]
-    │      └─ NÃO (texto)    → [citando Autor: "texto citado"]
+    ├─ é fala da própria Luma? (quotedSenderName === "Luma")
+    │      ├─ e é a ÚLTIMA fala dela no histórico → NÃO injeta nada (continuação normal)
+    │      └─ fala dela fora do histórico deste interlocutor
+    │             → [o usuário está respondendo a esta sua mensagem anterior: "texto"]
     │
-    └─ quotedSenderName resolve o Autor (devolve "Luma" quando a citação é da própria Luma)
-           │
-           └─ userMessage = `${quotedContext} ${userMessage}`
+    └─ é de terceiro?
+           ├─ visual + legenda → [citando Autor: imagem com legenda "texto"]
+           ├─ visual sem legenda → [citando Autor: figurinha — analise visualmente]
+           └─ texto             → [citando Autor: "texto citado"]
+
+    → userMessage = `${quotedContext} ${userMessage}`
 ```
 
 Pontos-chave:
 
-- **Reply à Luma também entra no contexto.** O trecho citado é o que o usuário
-  está apontando ("esse prompt aqui") e pode nem estar no histórico dele — em
-  grupo o histórico é por-participante, então uma fala dirigida a outra pessoa
-  não aparece na memória do interlocutor atual. A citação é a ponte.
+- **Reply comum à Luma não é reinjetado.** Se a citação é a última resposta dela
+  (já presente no histórico como turno `model`), reinjetar faria a Luma achar que
+  o usuário está jogando as palavras dela de volta pra rebater. `_isLastLumaTurn`
+  detecta esse caso (comparação tolerante a `[PARTE]`) e o helper retorna `''`.
+- **Reply à Luma que NÃO está no histórico entra no contexto.** O trecho pode ser
+  uma fala dela dirigida a outra pessoa no grupo (histórico é por-participante) —
+  a citação é a ponte, com moldura auto-referente ("respondendo a esta sua
+  mensagem"), nunca "citando Luma".
 - **A ordem preserva a instrução de mídia.** O placeholder de figurinha/imagem
   da mensagem *atual* é montado ANTES da citação, então responder citando algo e
   mandando só uma figurinha mantém a instrução de análise visual + a citação.

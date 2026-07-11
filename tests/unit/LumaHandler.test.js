@@ -249,9 +249,18 @@ describe('LumaHandler._buildQuotedContext — contexto da mensagem citada', () =
     expect(ctx).toBe('[citando Ana: "e aí?"]');
   });
 
-  it('cita mensagem da própria Luma (quotedSenderName = "Luma")', () => {
+  it('mensagem da Luma fora do histórico vira moldura auto-referente (não "citando")', () => {
+    // history mockado não tem getTurns -> _isLastLumaTurn = false -> injeta auto-referente
     const ctx = handler._buildQuotedContext({ quotedText: 'o prompt é X', quotedSenderName: 'Luma' });
-    expect(ctx).toBe('[citando Luma: "o prompt é X"]');
+    expect(ctx).toBe('[o usuário está respondendo a esta sua mensagem anterior: "o prompt é X"]');
+  });
+
+  it('reply à ÚLTIMA fala da Luma no histórico não injeta nada (é continuação)', () => {
+    const h = new LumaHandler();
+    h.history = { getTurns: () => [{ role: 'user', text: 'Ana: e aí' }, { role: 'model', text: 'resposta completa da luma aqui' }] };
+    // usuário cita um balão da última resposta -> redundante -> ''
+    const ctx = h._buildQuotedContext({ quotedText: 'resposta completa', quotedSenderName: 'Luma' }, 'k');
+    expect(ctx).toBe('');
   });
 
   it('cita imagem/sticker com legenda', () => {
@@ -303,7 +312,7 @@ describe('LumaHandler.handle — contexto de mensagem respondida', () => {
     await handler.handle(bot, true, '', 'g@g.us:suami');
 
     const userMessage = handler.generateResponse.mock.calls[0][0];
-    expect(userMessage).toContain('[citando Luma: "cria uma cena voxel..."]');
+    expect(userMessage).toContain('respondendo a esta sua mensagem anterior: "cria uma cena voxel..."');
     expect(userMessage).toContain('esse prompt luma');
   });
 
@@ -317,7 +326,7 @@ describe('LumaHandler.handle — contexto de mensagem respondida', () => {
 
     const userMessage = handler.generateResponse.mock.calls[0][0];
     expect(userMessage).toContain('figurinha/sticker');           // placeholder preservado (RISK 3)
-    expect(userMessage).toContain('[citando Luma: "minha última resposta"]');
+    expect(userMessage).toContain('respondendo a esta sua mensagem anterior: "minha última resposta"');
   });
 });
 
