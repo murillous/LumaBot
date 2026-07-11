@@ -113,7 +113,7 @@ function createStickerTextOverlay(text) {
     <svg width="${CONFIG.STICKER_SIZE}" height="${CONFIG.STICKER_SIZE}" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
       <text
         text-anchor="middle"
-        font-family="Arial, Helvetica, sans-serif"
+        font-family="Arial, Helvetica, 'Noto Sans', 'Noto Sans Arabic', 'Noto Sans SC', 'Noto Sans JP', 'Noto Sans KR', sans-serif"
         font-size="${fontSize}"
         font-weight="900"
         fill="#ffffff"
