@@ -199,28 +199,42 @@ if (imageData) currentParts.push(imageData);   // 2ª part = imagem
 contents.push({ role: 'user', parts: currentParts });
 ```
 
-### Contexto de Mensagens Citadas com Visual
+### Contexto de Mensagens Citadas (reply/quote)
 
-Quando o usuário aciona a Luma respondendo a uma imagem ou sticker,
-`LumaHandler.handle()` injeta o contexto antes de chamar `generateResponse`:
+Sempre que o usuário responde a uma mensagem (de terceiro **ou da própria
+Luma**), o trecho citado é injetado no `userMessage` antes de chamar a IA. O
+helper `LumaHandler._buildQuotedContext(bot)` centraliza essa montagem e é
+reusado por `handle()` e `handleAudio()`:
 
 ```
-usuario cita imagem/sticker + escreve "luma"
+usuario responde/cita uma mensagem
     │
-    ├─ bot.quotedHasVisualContent = true
+    ├─ bot.quotedHasVisualContent?
+    │      ├─ SIM + legenda → [citando Autor: imagem com legenda "texto"]
+    │      ├─ SIM sem legenda → [citando Autor: figurinha — analise visualmente]
+    │      └─ NÃO (texto)    → [citando Autor: "texto citado"]
     │
-    ├─ bot.quotedText presente?
-    │      └─ SIM → [citando Autor: imagem com legenda "texto"]
-    │      └─ NÃO → [citando Autor: figurinha — analise visualmente]
-    │
-    └─ userMessage recebe o quotedContext (nunca fica vazio)
+    └─ quotedSenderName resolve o Autor (devolve "Luma" quando a citação é da própria Luma)
            │
-           └─ generateResponse → _extractImage detecta a imagem citada
-                  └─ imageData enviado ao Gemini → análise visual real
+           └─ userMessage = `${quotedContext} ${userMessage}`
 ```
 
-Sem esse enriquecimento, `userMessage` ficaria vazio e o fluxo cairia numa
-resposta "entediada" antes de chamar a IA.
+Pontos-chave:
+
+- **Reply à Luma também entra no contexto.** O trecho citado é o que o usuário
+  está apontando ("esse prompt aqui") e pode nem estar no histórico dele — em
+  grupo o histórico é por-participante, então uma fala dirigida a outra pessoa
+  não aparece na memória do interlocutor atual. A citação é a ponte.
+- **A ordem preserva a instrução de mídia.** O placeholder de figurinha/imagem
+  da mensagem *atual* é montado ANTES da citação, então responder citando algo e
+  mandando só uma figurinha mantém a instrução de análise visual + a citação.
+- **`handleAudio`** injeta a citação quando um áudio responde a um texto/imagem
+  (esse contexto não vem no corpo do áudio).
+- **`BaileysAdapter.quotedText`** desembrulha envelopes (ephemeral/viewOnce) via
+  `unwrapMessage`, senão citações envelopadas voltariam vazias.
+
+Para citações visuais, `generateResponse → _extractImage` detecta a imagem
+citada e envia o `imageData` ao Gemini para análise visual real.
 
 ### Providers e Suporte a Visão
 

@@ -107,26 +107,22 @@ export class LumaHandler {
         ? bot.body
         : this.extractUserMessage(bot.body);
 
-      // Quando o usuário dispara a Luma respondendo a uma mensagem de outra pessoa,
-      // injeta a mensagem citada como contexto junto com o autor de cada turno.
-      if (!isReply && (bot.quotedText || bot.quotedHasVisualContent)) {
-        const quotedAuthor = bot.quotedSenderName ?? 'Alguém';
-        let quotedContext;
-        if (bot.quotedHasVisualContent) {
-          const type = bot.quotedMessage?.stickerMessage ? 'figurinha' : 'imagem';
-          quotedContext = bot.quotedText
-            ? `[citando ${quotedAuthor}: ${type} com legenda "${bot.quotedText}"]`
-            : `[citando ${quotedAuthor}: ${type} — analise visualmente]`;
-        } else {
-          quotedContext = `[citando ${quotedAuthor}: "${bot.quotedText}"]`;
-        }
-        userMessage = userMessage ? `${quotedContext} ${userMessage}` : quotedContext;
-      }
-
+      // Mensagem atual só com mídia (sem texto): usa o placeholder como base
+      // ANTES de prefixar a citação, pra não perder a instrução de sticker/emoção
+      // quando a pessoa responde citando algo e manda só uma figurinha/imagem.
       if (!userMessage && bot.hasVisualContent) {
         userMessage = bot.hasSticker
           ? '[O usuário respondeu com uma figurinha/sticker. Analise a imagem visualmente, entenda a emoção dela e reaja ao contexto]'
           : '[O usuário enviou uma imagem. Analise o conteúdo]';
+      }
+
+      // Injeta a mensagem citada SEMPRE que houver citação — de terceiro OU da
+      // própria Luma. O trecho citado é o que o usuário está apontando ("esse
+      // prompt aqui") e pode nem estar no histórico dele (em grupo o histórico é
+      // por-participante). quotedSenderName já devolve 'Luma' quando é a Luma.
+      const quotedContext = this._buildQuotedContext(bot);
+      if (quotedContext) {
+        userMessage = userMessage ? `${quotedContext} ${userMessage}` : quotedContext;
       }
 
       if (!userMessage) {
@@ -208,7 +204,13 @@ export class LumaHandler {
         ? `[O usuário respondeu a um áudio com a transcrição: "${transcription}"] ${userText}`
         : `[O usuário pediu pra você ouvir/responder o seguinte áudio que foi transcrito: "${transcription}"]`;
 
-      await this._respondWithMessage(bot, enrichedMessage, groupContext, historyKey);
+      // Áudio que responde a um texto/imagem citados: preserva esse contexto, que
+      // não vem no body do áudio. (No branch de áudio citado, o citado é o próprio
+      // áudio — daí o guard hasAudio, que faz o helper virar no-op nesse caso.)
+      const quotedContext = bot.hasAudio ? this._buildQuotedContext(bot) : '';
+      const finalMessage  = quotedContext ? `${quotedContext} ${enrichedMessage}` : enrichedMessage;
+
+      await this._respondWithMessage(bot, finalMessage, groupContext, historyKey);
     } catch (error) {
       Logger.error('❌ Erro no fluxo de transcrição:', error);
       await this.handle(bot, bot.isRepliedToMe, groupContext, historyKey);
@@ -257,6 +259,23 @@ export class LumaHandler {
   }
 
   // ── Privados ────────────────────────────────────────────────────────────────
+
+  /**
+   * Monta o prefixo de contexto de uma mensagem citada (reply/quote), com o
+   * autor do turno. Retorna '' quando não há citação. Compartilhado por handle()
+   * e handleAudio() para não duplicar a lógica.
+   */
+  _buildQuotedContext(bot) {
+    if (!bot.quotedText && !bot.quotedHasVisualContent) return '';
+    const quotedAuthor = bot.quotedSenderName ?? 'Alguém';
+    if (bot.quotedHasVisualContent) {
+      const type = bot.quotedMessage?.stickerMessage ? 'figurinha' : 'imagem';
+      return bot.quotedText
+        ? `[citando ${quotedAuthor}: ${type} com legenda "${bot.quotedText}"]`
+        : `[citando ${quotedAuthor}: ${type} — analise visualmente]`;
+    }
+    return `[citando ${quotedAuthor}: "${bot.quotedText}"]`;
+  }
 
   async _respondWithMessage(bot, message, groupContext = '', historyKey = null) {
     await bot.sendPresence('composing');
