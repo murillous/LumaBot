@@ -43,6 +43,10 @@ export const COMMANDS = ConfigStore.apply("COMMANDS", {
   GIF_SHORT: "!g",
   HELP: "!help",
   PERSONA: "!persona",
+  // Subcomandos de !persona (token logo após o comando). Centralizados aqui
+  // pra não ficarem hardcoded no parsing do LumaPlugin.
+  PERSONA_CREATE_SUB: "criar",
+  PERSONA_DELETE_SUB: "deletar",
   EVERYONE: "@everyone",
   DOWNLOAD_SHORT: "!d",
   DOWNLOAD: "!download",
@@ -76,6 +80,8 @@ export const MENUS = ConfigStore.apply("MENUS", {
     "🧠 *INTELIGÊNCIA ARTIFICIAL*\n" +
     "• *Luma* - Fale qualquer coisa (ex: 'Luma, bom dia')\n" +
     "• *!persona* - Abre o menu para mudar a Luma\n" +
+    "• *!persona criar <descrição>* - Cria uma personalidade nova só descrevendo a vibe\n" +
+    "• *!persona deletar pN* - Apaga uma persona criada (use o número do !persona)\n" +
     "• *!luma clear* (!lc ou !clear) - Limpa memória da conversa\n" +
     "• *!luma stats* (!ls) - Mostra estatísticas da Luma\n\n" +
     "🏆 *SOCIAL*\n" +

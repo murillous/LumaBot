@@ -52,8 +52,15 @@ Todas as mensagens/labels ficam em `src/config/constants.js` (`MENUS.MSGS`,
                        ▼
        PersonalityManager.setPersonality(jid, 'custom:'+slug)  → ativa
                        ▼
+       lumaHandler.clearHistory(clearKey)   → memória zerada (não herda roleplay)
+                       ▼
        DatabaseService.incrementMetric('personas_created')
 ```
+
+> **Memória zerada na criação:** ao criar uma persona, a conversa é limpa
+> automaticamente (mesma chave do `!luma clear`: `jid:senderJid` em grupo, `jid`
+> em PV) pra a persona nova não herdar o contexto do roleplay anterior. Vale para
+> os dois caminhos (comando e tool).
 
 ### `PersonaGenerator` (`src/core/services/PersonaGenerator.js`)
 

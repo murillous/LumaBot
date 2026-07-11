@@ -56,6 +56,28 @@ export class ConversationHistory {
   }
 
   /**
+   * Retorna o histórico como turnos com papel real (`user`/`model`), para montar
+   * um `contents` multi-turn em que a IA distingue estruturalmente quem falou.
+   *
+   * O papel é derivado do prefixo `Luma: ` (usado em toda resposta da Luma em
+   * `add`), não da posição no array — assim continua correto mesmo depois da poda
+   * cortar um par pela metade. O texto do usuário mantém o rótulo `Nome: msg`.
+   *
+   * @param {string} jid
+   * @returns {Array<{role: 'user'|'model', text: string}>}
+   */
+  getTurns(jid) {
+    const data = this._store.get(jid);
+    if (!data?.messages?.length) return [];
+    const LUMA_PREFIX = 'Luma: ';
+    return data.messages.map((line) =>
+      line.startsWith(LUMA_PREFIX)
+        ? { role: 'model', text: line.slice(LUMA_PREFIX.length) }
+        : { role: 'user', text: line }
+    );
+  }
+
+  /**
    * Remove o histórico de um JID.
    * @param {string} jid
    */

@@ -68,37 +68,11 @@ export function createAIProvider(env) {
 function _wrapOpenAIAdapter(adapter) {
   return {
     supportsVision: false,
-    async generateContent(contents) {
-      let fullText = '';
-      const mediaParts = [];
-
-      // Extrai texto e mídias de todas as partes
-      for (const c of contents) {
-        for (const p of c.parts ?? []) {
-          if (p.text) {
-            fullText += p.text + '\n';
-          } else {
-            mediaParts.push(p);
-          }
-        }
-      }
-
-      const SPLIT_MARKER = '[USUÁRIO ATUAL]';
-      const splitIdx     = fullText.indexOf(SPLIT_MARKER);
-
-      const systemPrompt = splitIdx !== -1
-        ? fullText.substring(0, splitIdx).trim()
-        : '';
-      const userContent = splitIdx !== -1
-        ? fullText.substring(splitIdx).trim()
-        : fullText.trim();
-
-      const history = [{ 
-        role: 'user', 
-        parts: [{ text: userContent }, ...mediaParts] 
-      }];
-      
-      const result  = await adapter.generateContent(history, systemPrompt, LUMA_CONFIG.TOOLS);
+    async generateContent(contents, systemInstruction = '') {
+      // contents já chega como turnos reais (role user/model); o OpenAIAdapter
+      // mapeia esse formato para o Messages da OpenAI e recebe o systemInstruction
+      // separado. Sem gambiarra de marcador de texto.
+      const result = await adapter.generateContent(contents, systemInstruction, LUMA_CONFIG.TOOLS);
 
       if (result.functionCalls?.length > 0) {
         Logger.info(`🔧 OpenAI/DeepSeek: função(ões) chamada(s): ${result.functionCalls.map(fc => fc.name).join(', ')}`);
@@ -112,12 +86,13 @@ function _wrapOpenAIAdapter(adapter) {
 
           const searchResults = await WebSearchService.search(query, null, null);
 
-          const enrichedHistory = [{
-            role:  'user',
-            parts: [{ text: `${userContent}\n\n[Resultados da busca sobre "${query}"]:\n${searchResults}` }, ...mediaParts],
-          }];
+          // Resultado da busca entra como um novo turno `user`, preservando a conversa.
+          const enrichedContents = [
+            ...contents,
+            { role: 'user', parts: [{ text: `[Resultados da busca sobre "${query}"]:\n${searchResults}` }] },
+          ];
 
-          const finalResult = await adapter.generateContent(enrichedHistory, systemPrompt, []);
+          const finalResult = await adapter.generateContent(enrichedContents, systemInstruction, []);
           const otherCalls  = result.functionCalls.filter(fc => fc.name !== 'search_web');
           finalResult.functionCalls = [...otherCalls, ...(finalResult.functionCalls ?? [])];
 

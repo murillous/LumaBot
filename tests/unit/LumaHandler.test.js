@@ -234,6 +234,102 @@ describe('LumaHandler.getRandomBoredResponse — respostas de tédio', () => {
   });
 });
 
+// ── _buildQuotedContext ─────────────────────────────────────────────────────────
+
+describe('LumaHandler._buildQuotedContext — contexto da mensagem citada', () => {
+  let handler;
+  beforeEach(() => { handler = new LumaHandler(); });
+
+  it('retorna "" quando não há citação', () => {
+    expect(handler._buildQuotedContext({})).toBe('');
+  });
+
+  it('cita texto de terceiro com o autor', () => {
+    const ctx = handler._buildQuotedContext({ quotedText: 'e aí?', quotedSenderName: 'Ana' });
+    expect(ctx).toBe('[citando Ana: "e aí?"]');
+  });
+
+  it('mensagem da Luma fora do histórico vira moldura auto-referente (não "citando")', () => {
+    // history mockado não tem getTurns -> _isLastLumaTurn = false -> injeta auto-referente
+    const ctx = handler._buildQuotedContext({ quotedText: 'o prompt é X', quotedSenderName: 'Luma' });
+    expect(ctx).toBe('[o usuário está respondendo a esta sua mensagem anterior: "o prompt é X"]');
+  });
+
+  it('reply à ÚLTIMA fala da Luma no histórico não injeta nada (é continuação)', () => {
+    const h = new LumaHandler();
+    h.history = { getTurns: () => [{ role: 'user', text: 'Ana: e aí' }, { role: 'model', text: 'resposta completa da luma aqui' }] };
+    // usuário cita um balão da última resposta -> redundante -> ''
+    const ctx = h._buildQuotedContext({ quotedText: 'resposta completa', quotedSenderName: 'Luma' }, 'k');
+    expect(ctx).toBe('');
+  });
+
+  it('cita imagem/sticker com legenda', () => {
+    const ctx = handler._buildQuotedContext({
+      quotedHasVisualContent: true,
+      quotedText: 'olha isso',
+      quotedSenderName: 'Ana',
+      quotedMessage: { imageMessage: {} },
+    });
+    expect(ctx).toBe('[citando Ana: imagem com legenda "olha isso"]');
+  });
+
+  it('cita figurinha sem legenda pedindo análise visual', () => {
+    const ctx = handler._buildQuotedContext({
+      quotedHasVisualContent: true,
+      quotedText: null,
+      quotedSenderName: 'Ana',
+      quotedMessage: { stickerMessage: {} },
+    });
+    expect(ctx).toBe('[citando Ana: figurinha — analise visualmente]');
+  });
+});
+
+// ── handle — injeção de citação em reply (bug: reply à Luma perdia o citado) ─────
+
+describe('LumaHandler.handle — contexto de mensagem respondida', () => {
+  let handler;
+
+  function makeBot(overrides = {}) {
+    return {
+      jid: 'g@g.us', senderName: 'Suamí', raw: {}, socket: {},
+      body: '', hasVisualContent: false, hasSticker: false,
+      quotedText: null, quotedHasVisualContent: false, quotedSenderName: null, quotedMessage: null,
+      sendPresence: vi.fn().mockResolvedValue(), reply: vi.fn().mockResolvedValue({}),
+      getQuotedAdapter: vi.fn().mockReturnValue(null),
+      ...overrides,
+    };
+  }
+
+  beforeEach(() => {
+    handler = new LumaHandler();
+    handler._delay = vi.fn().mockResolvedValue();          // evita o delay de "pensando"
+    handler.generateResponse = vi.fn().mockResolvedValue({ parts: [], toolCalls: [] });
+  });
+
+  it('injeta o texto citado mesmo quando o usuário responde À Luma (isReply=true)', async () => {
+    const bot = makeBot({ body: 'esse prompt luma', quotedText: 'cria uma cena voxel...', quotedSenderName: 'Luma' });
+
+    await handler.handle(bot, true, '', 'g@g.us:suami');
+
+    const userMessage = handler.generateResponse.mock.calls[0][0];
+    expect(userMessage).toContain('respondendo a esta sua mensagem anterior: "cria uma cena voxel..."');
+    expect(userMessage).toContain('esse prompt luma');
+  });
+
+  it('reply à Luma com figurinha sem legenda mantém a instrução de sticker E a citação', async () => {
+    const bot = makeBot({
+      body: '', hasVisualContent: true, hasSticker: true,
+      quotedText: 'minha última resposta', quotedSenderName: 'Luma',
+    });
+
+    await handler.handle(bot, true, '', 'g@g.us:suami');
+
+    const userMessage = handler.generateResponse.mock.calls[0][0];
+    expect(userMessage).toContain('figurinha/sticker');           // placeholder preservado (RISK 3)
+    expect(userMessage).toContain('respondendo a esta sua mensagem anterior: "minha última resposta"');
+  });
+});
+
 // ── saveLastBotMessage / isReplyToLuma ─────────────────────────────────────────
 
 describe('LumaHandler — rastreamento da última mensagem do bot', () => {

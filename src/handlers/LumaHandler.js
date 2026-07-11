@@ -7,7 +7,7 @@ import { ToolDispatcher } from './ToolDispatcher.js';
 import { env } from '../config/env.js';
 import { createAIProvider } from '../core/services/AIProviderFactory.js';
 import { ConversationHistory } from '../core/services/ConversationHistory.js';
-import { buildPromptRequest } from '../core/services/PromptBuilder.js';
+import { buildConversationRequest } from '../core/services/PromptBuilder.js';
 import { cleanResponseText, splitIntoParts } from '../utils/ResponseFormatter.js';
 
 /**
@@ -33,6 +33,12 @@ export class LumaHandler {
 
   // ── Pipeline principal ──────────────────────────────────────────────────────
 
+  /**
+   * @param {object} [options]
+   * @param {boolean} [options.persist=true] - Se false, não grava o par no histórico.
+   *   Usado por interações espontâneas, cujos prompts são instruções de sistema e
+   *   poluiriam a memória se fossem gravados como fala do usuário.
+   */
   async generateResponse(
     userMessage,
     userJid,
@@ -41,6 +47,7 @@ export class LumaHandler {
     senderName   = 'Usuário',
     groupContext = '',
     historyKey   = null,
+    { persist = true } = {},
   ) {
     if (!this.isConfigured) return this._getErrorResponse('API_KEY_MISSING');
 
@@ -49,7 +56,7 @@ export class LumaHandler {
     try {
       const personaConfig = PersonalityManager.getPersonaConfig(userJid);
       let imageData       = message && sock ? await this._extractImage(message, sock) : null;
-      const historyText   = this.history.getText(hKey);
+      const historyTurns  = this.history.getTurns(hKey);
 
       if (imageData && this.visionService) {
         Logger.info('👁️ Provider sem visão — descrevendo imagem com Gemini...');
@@ -62,19 +69,19 @@ export class LumaHandler {
         imageData = null;
       }
 
-      const promptParts = buildPromptRequest({
+      const { systemInstruction, contents } = buildConversationRequest({
         userMessage,
-        historyText,
+        historyTurns,
         personaConfig,
         senderName,
         groupContext,
         imageData,
       });
 
-      const response       = await this.aiService.generateContent(promptParts);
+      const response        = await this.aiService.generateContent(contents, systemInstruction);
       const cleanedResponse = cleanResponseText(response.text);
 
-      if (cleanedResponse) {
+      if (cleanedResponse && persist) {
         this.history.add(hKey, userMessage, cleanedResponse, senderName);
         this._updateMetrics(userJid);
       }
@@ -100,26 +107,22 @@ export class LumaHandler {
         ? bot.body
         : this.extractUserMessage(bot.body);
 
-      // Quando o usuário dispara a Luma respondendo a uma mensagem de outra pessoa,
-      // injeta a mensagem citada como contexto junto com o autor de cada turno.
-      if (!isReply && (bot.quotedText || bot.quotedHasVisualContent)) {
-        const quotedAuthor = bot.quotedSenderName ?? 'Alguém';
-        let quotedContext;
-        if (bot.quotedHasVisualContent) {
-          const type = bot.quotedMessage?.stickerMessage ? 'figurinha' : 'imagem';
-          quotedContext = bot.quotedText
-            ? `[citando ${quotedAuthor}: ${type} com legenda "${bot.quotedText}"]`
-            : `[citando ${quotedAuthor}: ${type} — analise visualmente]`;
-        } else {
-          quotedContext = `[citando ${quotedAuthor}: "${bot.quotedText}"]`;
-        }
-        userMessage = userMessage ? `${quotedContext} ${userMessage}` : quotedContext;
-      }
-
+      // Mensagem atual só com mídia (sem texto): usa o placeholder como base
+      // ANTES de prefixar a citação, pra não perder a instrução de sticker/emoção
+      // quando a pessoa responde citando algo e manda só uma figurinha/imagem.
       if (!userMessage && bot.hasVisualContent) {
         userMessage = bot.hasSticker
           ? '[O usuário respondeu com uma figurinha/sticker. Analise a imagem visualmente, entenda a emoção dela e reaja ao contexto]'
           : '[O usuário enviou uma imagem. Analise o conteúdo]';
+      }
+
+      // Injeta a mensagem citada SEMPRE que houver citação — de terceiro OU da
+      // própria Luma. O trecho citado é o que o usuário está apontando ("esse
+      // prompt aqui") e pode nem estar no histórico dele (em grupo o histórico é
+      // por-participante). quotedSenderName já devolve 'Luma' quando é a Luma.
+      const quotedContext = this._buildQuotedContext(bot, historyKey);
+      if (quotedContext) {
+        userMessage = userMessage ? `${quotedContext} ${userMessage}` : quotedContext;
       }
 
       if (!userMessage) {
@@ -201,7 +204,13 @@ export class LumaHandler {
         ? `[O usuário respondeu a um áudio com a transcrição: "${transcription}"] ${userText}`
         : `[O usuário pediu pra você ouvir/responder o seguinte áudio que foi transcrito: "${transcription}"]`;
 
-      await this._respondWithMessage(bot, enrichedMessage, groupContext, historyKey);
+      // Áudio que responde a um texto/imagem citados: preserva esse contexto, que
+      // não vem no body do áudio. (No branch de áudio citado, o citado é o próprio
+      // áudio — daí o guard hasAudio, que faz o helper virar no-op nesse caso.)
+      const quotedContext = bot.hasAudio ? this._buildQuotedContext(bot, historyKey) : '';
+      const finalMessage  = quotedContext ? `${quotedContext} ${enrichedMessage}` : enrichedMessage;
+
+      await this._respondWithMessage(bot, finalMessage, groupContext, historyKey);
     } catch (error) {
       Logger.error('❌ Erro no fluxo de transcrição:', error);
       await this.handle(bot, bot.isRepliedToMe, groupContext, historyKey);
@@ -250,6 +259,63 @@ export class LumaHandler {
   }
 
   // ── Privados ────────────────────────────────────────────────────────────────
+
+  /**
+   * Monta o prefixo de contexto de uma mensagem citada (reply/quote). Retorna ''
+   * quando não há citação. Compartilhado por handle() e handleAudio().
+   *
+   * Distingue três casos, pra Luma não confundir um reply comum com "estar sendo
+   * citada/rebatida":
+   * - citação da PRÓPRIA Luma que é a última fala dela já no histórico → '' (é só
+   *   continuação; reinjetar soaria como o usuário jogando as palavras dela de volta);
+   * - citação da Luma fora do histórico do interlocutor (ex.: uma fala dela dirigida
+   *   a outra pessoa no grupo) → moldura auto-referente ("respondendo a esta sua
+   *   mensagem"), não "citando Luma";
+   * - citação de terceiro → "[citando Autor: ...]".
+   */
+  _buildQuotedContext(bot, historyKey = null) {
+    if (!bot.quotedText && !bot.quotedHasVisualContent) return '';
+
+    const isFromLuma = bot.quotedSenderName === 'Luma';
+
+    if (isFromLuma && bot.quotedText && this._isLastLumaTurn(historyKey ?? bot.jid, bot.quotedText)) {
+      return '';
+    }
+
+    if (bot.quotedHasVisualContent) {
+      const type = bot.quotedMessage?.stickerMessage ? 'figurinha' : 'imagem';
+      if (isFromLuma) {
+        return bot.quotedText
+          ? `[o usuário está respondendo a uma ${type} que você mandou, com legenda "${bot.quotedText}"]`
+          : `[o usuário está respondendo a uma ${type} que você mandou — analise visualmente]`;
+      }
+      return bot.quotedText
+        ? `[citando ${bot.quotedSenderName ?? 'Alguém'}: ${type} com legenda "${bot.quotedText}"]`
+        : `[citando ${bot.quotedSenderName ?? 'Alguém'}: ${type} — analise visualmente]`;
+    }
+
+    if (isFromLuma) {
+      return `[o usuário está respondendo a esta sua mensagem anterior: "${bot.quotedText}"]`;
+    }
+    return `[citando ${bot.quotedSenderName ?? 'Alguém'}: "${bot.quotedText}"]`;
+  }
+
+  /**
+   * Diz se `quotedText` corresponde à última resposta da Luma no histórico da
+   * conversa. Usa `includes` nos dois sentidos porque uma resposta pode ter sido
+   * enviada em vários balões ([PARTE]) e o usuário cita só um deles, enquanto o
+   * histórico guarda a resposta inteira normalizada num único turno.
+   */
+  _isLastLumaTurn(hKey, quotedText) {
+    const turns = this.history.getTurns?.(hKey) ?? [];
+    const lastModel = [...turns].reverse().find((t) => t.role === 'model');
+    if (!lastModel) return false;
+    const norm = (s) => s.replace(/\s+/g, ' ').trim().toLowerCase();
+    const full = norm(lastModel.text);
+    const part = norm(quotedText);
+    if (!part) return false;
+    return full.includes(part) || part.includes(full);
+  }
 
   async _respondWithMessage(bot, message, groupContext = '', historyKey = null) {
     await bot.sendPresence('composing');

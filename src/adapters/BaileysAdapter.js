@@ -186,12 +186,16 @@ export class BaileysAdapter extends MessagingPort {
     const q = this.quotedMessage;
     if (!q) return null;
 
+    // Desembrulha envelopes (ephemeral/viewOnce) como os demais getters quoted,
+    // senão uma citação envelopada retorna null e o texto some do contexto.
+    const u = BaileysAdapter.unwrapMessage(q) || q;
+
     return (
-      q.conversation ||
-      q.extendedTextMessage?.text ||
-      q.imageMessage?.caption ||
-      q.videoMessage?.caption ||
-      q.documentMessage?.caption ||
+      u.conversation ||
+      u.extendedTextMessage?.text ||
+      u.imageMessage?.caption ||
+      u.videoMessage?.caption ||
+      u.documentMessage?.caption ||
       null
     );
   }

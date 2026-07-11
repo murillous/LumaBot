@@ -61,9 +61,9 @@ export class LumaPlugin {
 
       case COMMANDS.PERSONA: {
         const { action, arg } = this.#parsePersonaSubcommand(bot.body);
-        if (action === "criar") {
+        if (action === COMMANDS.PERSONA_CREATE_SUB) {
           await this.#handleCreatePersona(bot, arg);
-        } else if (action === "deletar") {
+        } else if (action === COMMANDS.PERSONA_DELETE_SUB) {
           await this.#handleDeletePersona(bot, arg);
         } else {
           await this.#sendPersonalityMenu(bot);
@@ -78,7 +78,9 @@ export class LumaPlugin {
    * plugin, pra não inflar o CommandRouter (que só detecta o prefixo !persona).
    */
   #parsePersonaSubcommand(body) {
-    const rest    = (body ?? "").trim().replace(/^!persona\s*/i, "").trim();
+    // Monta o regex a partir da constante pra não hardcodar o prefixo do comando.
+    const prefix  = COMMANDS.PERSONA.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const rest    = (body ?? "").trim().replace(new RegExp(`^${prefix}\\s*`, "i"), "").trim();
     const first   = rest.split(/\s+/)[0] ?? "";
     const action  = first.toLowerCase();
     const arg     = rest.slice(first.length).trim();
@@ -113,6 +115,11 @@ export class LumaPlugin {
       PersonalityManager.setPersonality(bot.jid, `${CUSTOM_PREFIX}${slug}`);
       // Telemetria no banco público: só contagem, sem JID nem conteúdo (doc 04).
       DatabaseService.incrementMetric("personas_created");
+
+      // Persona nova começa do zero: limpa a memória pra não vazar o roleplay anterior.
+      const clearKey = bot.isGroup ? `${bot.jid}:${bot.senderJid}` : bot.jid;
+      this.lumaHandler.clearHistory(clearKey);
+      this.#groupBuffer.delete(bot.jid);
 
       await bot.reply(`${MENUS.MSGS.PERSONA_CREATE_OK}*${persona.name}*! 😎`);
     } catch (error) {
@@ -154,8 +161,12 @@ export class LumaPlugin {
   // ---------------------------------------------------------------------------
 
   async onMessage(bot) {
-    // Mantém buffer de contexto do grupo
-    if (bot.isGroup && !bot.isFromMe && bot.body) {
+    // Mantém buffer de contexto do grupo. Guarda se ESTA mensagem entrou no
+    // buffer: se sim, ela é a última entrada e precisa ser excluída do
+    // groupContext desta resposta — senão a fala que disparou a Luma apareceria
+    // duas vezes (como contexto ambiente e como mensagem atual).
+    const pushedToBuffer = bot.isGroup && !bot.isFromMe && !!bot.body;
+    if (pushedToBuffer) {
       this.#addToGroupBuffer(bot.jid, bot.body, bot.senderName);
     }
 
@@ -173,7 +184,7 @@ export class LumaPlugin {
     // '_pv_' agrupa as conversas privadas no ranking global.
     DatabaseService.incrementInteraction(bot.isGroup ? bot.jid : "_pv_", bot.senderJid);
 
-    const groupContext = bot.isGroup ? this.#getGroupContext(bot.jid) : "";
+    const groupContext = bot.isGroup ? this.#getGroupContext(bot.jid, pushedToBuffer ? 1 : 0) : "";
     const historyKey   = bot.isGroup ? `${bot.jid}:${bot.senderJid}` : bot.jid;
 
     if (bot.hasAudio && (isPrivate || isReplyToBot || isMentioned)) {
@@ -198,10 +209,12 @@ export class LumaPlugin {
     this.#groupBuffer.set(jid, buf);
   }
 
-  #getGroupContext(jid) {
+  #getGroupContext(jid, dropLast = 0) {
     const buf = this.#groupBuffer.get(jid);
     if (!buf?.length) return "";
-    return buf.map((m) => `${m.name}: ${m.text}`).join("\n");
+    const slice = dropLast > 0 ? buf.slice(0, -dropLast) : buf;
+    if (!slice.length) return "";
+    return slice.map((m) => `${m.name}: ${m.text}`).join("\n");
   }
 
   async #handleMenuReply(bot) {

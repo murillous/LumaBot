@@ -159,6 +159,28 @@ describe('LumaPlugin.onCommand — !persona criar', () => {
     expect(bot.reply).toHaveBeenCalledWith(expect.stringContaining('Vovó Fofa'));
   });
 
+  it('limpa a memória ao criar persona (PV usa o jid como chave)', async () => {
+    const personaGenerator = makePersonaGenerator();
+    const lumaHandler = makeLumaHandler();
+    const plugin = new LumaPlugin({ lumaHandler, personaGenerator });
+    const bot    = makeBot({ isGroup: false, body: '!persona criar uma vó fofa que faz bolo' });
+
+    await plugin.onCommand(COMMANDS.PERSONA, bot);
+
+    expect(lumaHandler.clearHistory).toHaveBeenCalledWith(bot.jid);
+  });
+
+  it('limpa a memória ao criar persona (grupo usa jid:senderJid)', async () => {
+    const personaGenerator = makePersonaGenerator();
+    const lumaHandler = makeLumaHandler();
+    const plugin = new LumaPlugin({ lumaHandler, personaGenerator });
+    const bot    = makeBot({ isGroup: true, jid: 'grupo@g.us', senderJid: '55119@s.whatsapp.net', body: '!persona criar uma vó fofa que faz bolo' });
+
+    await plugin.onCommand(COMMANDS.PERSONA, bot);
+
+    expect(lumaHandler.clearHistory).toHaveBeenCalledWith('grupo@g.us:55119@s.whatsapp.net');
+  });
+
   it('descrição vazia: manda ajuda e não grava nada', async () => {
     const personaGenerator = makePersonaGenerator();
     const plugin = new LumaPlugin({ lumaHandler: makeLumaHandler(), personaGenerator });

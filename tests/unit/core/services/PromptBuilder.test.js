@@ -1,26 +1,26 @@
 import { describe, it, expect, vi } from 'vitest';
 
-// Mocka LUMA_CONFIG com templates simples e previsíveis.
+// Mocka LUMA_CONFIG com templates de sistema simples e previsíveis.
+// Os novos templates NÃO têm placeholders de histórico nem de mensagem atual —
+// esses viram turnos reais no array `contents`.
 vi.mock('../../../../src/config/lumaConfig.js', () => ({
   LUMA_CONFIG: {
-    PROMPT_TEMPLATE: [
+    SYSTEM_PROMPT_TEMPLATE: [
       'CONTEXTO:{{PERSONALITY_CONTEXT}}',
       'ESTILO:{{PERSONALITY_STYLE}}',
       'TRAITS:{{PERSONALITY_TRAITS}}',
-      '{{HISTORY_PLACEHOLDER}}',
+      'DATA:{{CURRENT_DATETIME}}',
       '{{GROUP_CONTEXT_PLACEHOLDER}}',
-      '[USUÁRIO ATUAL]{{USER_MESSAGE}}',
     ].join('\n'),
 
-    VISION_PROMPT_TEMPLATE: [
+    SYSTEM_VISION_PROMPT_TEMPLATE: [
       '[VISÃO]CONTEXTO:{{PERSONALITY_CONTEXT}}',
-      '{{HISTORY_PLACEHOLDER}}',
-      '[USUÁRIO ATUAL]{{USER_MESSAGE}}',
+      '{{GROUP_CONTEXT_PLACEHOLDER}}',
     ].join('\n'),
   },
 }));
 
-import { buildPromptRequest } from '../../../../src/core/services/PromptBuilder.js';
+import { buildConversationRequest } from '../../../../src/core/services/PromptBuilder.js';
 
 const DEFAULT_PERSONA = {
   context: 'Você é a Luma.',
@@ -28,178 +28,119 @@ const DEFAULT_PERSONA = {
   traits:  ['seja amigável', 'seja direta'],
 };
 
-const NO_HISTORY = 'Nenhuma conversa anterior.';
+function build(overrides = {}) {
+  return buildConversationRequest({
+    userMessage:   'oi',
+    historyTurns:  [],
+    personaConfig: DEFAULT_PERSONA,
+    senderName:    'Teste',
+    ...overrides,
+  });
+}
 
 // ── estrutura de retorno ───────────────────────────────────────────────────────
 
-describe('buildPromptRequest — estrutura de retorno', () => {
-  it('retorna array com um elemento de role "user"', () => {
-    const result = buildPromptRequest({
-      userMessage:  'oi',
-      historyText:  NO_HISTORY,
-      personaConfig: DEFAULT_PERSONA,
-      senderName:   'Teste',
-    });
-
-    expect(Array.isArray(result)).toBe(true);
-    expect(result).toHaveLength(1);
-    expect(result[0].role).toBe('user');
+describe('buildConversationRequest — estrutura de retorno', () => {
+  it('retorna { systemInstruction, contents }', () => {
+    const result = build();
+    expect(typeof result.systemInstruction).toBe('string');
+    expect(Array.isArray(result.contents)).toBe(true);
   });
 
-  it('partes contém pelo menos um objeto com campo "text"', () => {
-    const result = buildPromptRequest({
-      userMessage:  'olá',
-      historyText:  NO_HISTORY,
-      personaConfig: DEFAULT_PERSONA,
-      senderName:   'U',
-    });
-
-    const { parts } = result[0];
-    expect(Array.isArray(parts)).toBe(true);
-    expect(parts.length).toBeGreaterThanOrEqual(1);
-    expect(typeof parts[0].text).toBe('string');
+  it('contents termina com um turno "user" contendo a mensagem atual', () => {
+    const { contents } = build({ userMessage: 'qual é a capital?', senderName: 'Maria' });
+    const last = contents[contents.length - 1];
+    expect(last.role).toBe('user');
+    expect(last.parts[0].text).toBe('Maria: qual é a capital?');
   });
 });
 
-// ── conteúdo do prompt ─────────────────────────────────────────────────────────
+// ── instrução de sistema ───────────────────────────────────────────────────────
 
-describe('buildPromptRequest — conteúdo do prompt', () => {
-  it('inclui a mensagem do usuário no texto', () => {
-    const result = buildPromptRequest({
-      userMessage:   'qual é a capital?',
-      historyText:   NO_HISTORY,
-      personaConfig: DEFAULT_PERSONA,
-      senderName:    'Maria',
-    });
-
-    const text = result[0].parts[0].text;
-    expect(text).toContain('qual é a capital?');
+describe('buildConversationRequest — systemInstruction', () => {
+  it('inclui persona (contexto, estilo, traits) e data', () => {
+    const { systemInstruction } = build();
+    expect(systemInstruction).toContain('Você é a Luma.');
+    expect(systemInstruction).toContain('informal');
+    expect(systemInstruction).toContain('- seja amigável');
+    expect(systemInstruction).toContain('- seja direta');
+    expect(systemInstruction).toContain('DATA:');
   });
 
-  it('inclui o senderName no texto', () => {
-    const result = buildPromptRequest({
-      userMessage:   'msg',
-      historyText:   NO_HISTORY,
-      personaConfig: DEFAULT_PERSONA,
-      senderName:    'João',
-    });
-
-    expect(result[0].parts[0].text).toContain('João');
+  it('NÃO inclui a mensagem atual (ela vive em contents, não no sistema)', () => {
+    const { systemInstruction } = build({ userMessage: 'mensagem secreta', senderName: 'X' });
+    expect(systemInstruction).not.toContain('mensagem secreta');
   });
 
-  it('inclui o contexto da persona', () => {
-    const result = buildPromptRequest({
-      userMessage:   'msg',
-      historyText:   NO_HISTORY,
-      personaConfig: DEFAULT_PERSONA,
-      senderName:    'U',
-    });
-
-    expect(result[0].parts[0].text).toContain('Você é a Luma.');
+  it('inclui o groupContext rotulado como contexto ambiente quando fornecido', () => {
+    const { systemInstruction } = build({ groupContext: 'discussão sobre futebol' });
+    expect(systemInstruction).toContain('discussão sobre futebol');
+    expect(systemInstruction).toContain('CONTEXTO AMBIENTE');
   });
 
-  it('inclui os traits da persona como lista', () => {
-    const result = buildPromptRequest({
-      userMessage:   'msg',
-      historyText:   NO_HISTORY,
-      personaConfig: DEFAULT_PERSONA,
-      senderName:    'U',
-    });
+  it('NÃO inclui bloco de grupo quando groupContext vazio', () => {
+    const { systemInstruction } = build({ groupContext: '' });
+    expect(systemInstruction).not.toContain('CONTEXTO AMBIENTE');
+  });
+});
 
-    const text = result[0].parts[0].text;
-    expect(text).toContain('- seja amigável');
-    expect(text).toContain('- seja direta');
+// ── histórico como turnos reais ─────────────────────────────────────────────────
+
+describe('buildConversationRequest — histórico multi-turn', () => {
+  it('converte historyTurns em turnos com papel real antes da mensagem atual', () => {
+    const historyTurns = [
+      { role: 'user',  text: 'Ana: oi' },
+      { role: 'model', text: 'olá!' },
+    ];
+    const { contents } = build({ historyTurns });
+
+    expect(contents).toHaveLength(3); // 2 histórico + 1 atual
+    expect(contents[0]).toEqual({ role: 'user',  parts: [{ text: 'Ana: oi' }] });
+    expect(contents[1]).toEqual({ role: 'model', parts: [{ text: 'olá!' }] });
+    expect(contents[2].role).toBe('user');
   });
 
-  it('inclui histórico quando presente', () => {
-    const result = buildPromptRequest({
-      userMessage:   'msg',
-      historyText:   'User: oi\nLuma: olá',
-      personaConfig: DEFAULT_PERSONA,
-      senderName:    'U',
-    });
+  it('descarta turnos "model" órfãos no início (Gemini exige começar com user)', () => {
+    const historyTurns = [
+      { role: 'model', text: 'resposta órfã' },
+      { role: 'user',  text: 'Ana: pergunta' },
+      { role: 'model', text: 'resposta' },
+    ];
+    const { contents } = build({ historyTurns });
 
-    expect(result[0].parts[0].text).toContain('CONVERSA ANTERIOR:');
-    expect(result[0].parts[0].text).toContain('User: oi');
+    expect(contents[0].role).toBe('user');
+    expect(contents[0].parts[0].text).toBe('Ana: pergunta');
+    // o turno órfão não deve aparecer
+    expect(contents.some((c) => c.parts[0].text === 'resposta órfã')).toBe(false);
   });
 
-  it('NÃO inclui bloco de histórico para "Nenhuma conversa anterior."', () => {
-    const result = buildPromptRequest({
-      userMessage:   'msg',
-      historyText:   NO_HISTORY,
-      personaConfig: DEFAULT_PERSONA,
-      senderName:    'U',
-    });
-
-    expect(result[0].parts[0].text).not.toContain('CONVERSA ANTERIOR:');
-  });
-
-  it('inclui groupContext quando fornecido', () => {
-    const result = buildPromptRequest({
-      userMessage:   'msg',
-      historyText:   NO_HISTORY,
-      personaConfig: DEFAULT_PERSONA,
-      senderName:    'U',
-      groupContext:  'discussão sobre futebol',
-    });
-
-    expect(result[0].parts[0].text).toContain('discussão sobre futebol');
-  });
-
-  it('NÃO inclui groupContext quando vazio', () => {
-    const result = buildPromptRequest({
-      userMessage:   'msg',
-      historyText:   NO_HISTORY,
-      personaConfig: DEFAULT_PERSONA,
-      senderName:    'U',
-      groupContext:  '',
-    });
-
-    expect(result[0].parts[0].text).not.toContain('CONVERSA RECENTE NO GRUPO');
+  it('sem histórico, contents tem só a mensagem atual', () => {
+    const { contents } = build({ historyTurns: [] });
+    expect(contents).toHaveLength(1);
+    expect(contents[0].role).toBe('user');
   });
 });
 
 // ── imageData / visão ──────────────────────────────────────────────────────────
 
-describe('buildPromptRequest — modo visão (imageData)', () => {
+describe('buildConversationRequest — modo visão (imageData)', () => {
   const imageData = { inlineData: { data: 'base64==', mimeType: 'image/jpeg' } };
 
-  it('adiciona imageData como segunda parte quando presente', () => {
-    const result = buildPromptRequest({
-      userMessage:   'o que é isso?',
-      historyText:   NO_HISTORY,
-      personaConfig: DEFAULT_PERSONA,
-      senderName:    'U',
-      imageData,
-    });
-
-    const { parts } = result[0];
-    expect(parts).toHaveLength(2);
-    expect(parts[1]).toEqual(imageData);
+  it('anexa imageData como segunda parte do turno atual', () => {
+    const { contents } = build({ imageData });
+    const last = contents[contents.length - 1];
+    expect(last.parts).toHaveLength(2);
+    expect(last.parts[1]).toEqual(imageData);
   });
 
-  it('usa VISION_PROMPT_TEMPLATE quando imageData presente', () => {
-    const result = buildPromptRequest({
-      userMessage:   'analise',
-      historyText:   NO_HISTORY,
-      personaConfig: DEFAULT_PERSONA,
-      senderName:    'U',
-      imageData,
-    });
-
-    // O template de visão começa com "[VISÃO]"
-    expect(result[0].parts[0].text).toContain('[VISÃO]');
+  it('usa SYSTEM_VISION_PROMPT_TEMPLATE quando há imageData', () => {
+    const { systemInstruction } = build({ imageData });
+    expect(systemInstruction).toContain('[VISÃO]');
   });
 
-  it('usa PROMPT_TEMPLATE normal quando sem imageData', () => {
-    const result = buildPromptRequest({
-      userMessage:   'texto',
-      historyText:   NO_HISTORY,
-      personaConfig: DEFAULT_PERSONA,
-      senderName:    'U',
-    });
-
-    expect(result[0].parts[0].text).not.toContain('[VISÃO]');
-    expect(result[0].parts).toHaveLength(1);
+  it('usa template normal (sem visão) quando não há imageData', () => {
+    const { systemInstruction, contents } = build();
+    expect(systemInstruction).not.toContain('[VISÃO]');
+    expect(contents[contents.length - 1].parts).toHaveLength(1);
   });
 });
