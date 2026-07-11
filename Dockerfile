@@ -37,6 +37,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     dumb-init \
     python3 \
+    fonts-noto-core \
+    fonts-noto-cjk \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=dependencies --chown=node:node /app/node_modules ./node_modules
