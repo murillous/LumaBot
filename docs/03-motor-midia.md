@@ -483,23 +483,32 @@ async function testStickerQuality() {
 }
 ```
 
-## 📥 Download de Vídeos de Redes Sociais
+## 📥 Download de Mídia de Redes Sociais
 
-O LumaBot usa o **yt-dlp** para baixar vídeos do Twitter/X e Instagram diretamente no chat.
+O LumaBot usa o **yt-dlp** para baixar vídeos e imagens do Twitter/X e Instagram diretamente no chat.
 
 ### Fluxo Completo
 
 ```
 !download <url>
     ↓
-VideoDownloader.download(url)     → yt-dlp salva MP4 em temp/
+VideoDownloader.download(url)     → yt-dlp salva o arquivo em temp/ (MP4 ou imagem)
     ↓
-VideoConverter.remuxForMobile()   → FFmpeg converte para H.264 + faststart
-    ↓
-sock.sendMessage({ video: buffer }) → Enviado ao WhatsApp
+Extensão é imagem (.jpg/.jpeg/.png/.webp)?
+    ├─ sim → sock.sendMessage({ image: buffer })        → Enviado ao WhatsApp
+    └─ não → VideoConverter.remuxForMobile()            → FFmpeg converte para H.264 + faststart
+           → sock.sendMessage({ video: buffer })        → Enviado ao WhatsApp
     ↓
 Arquivos temporários removidos
 ```
+
+### Por que imagens pulam o remux?
+
+O seletor de formato (`VIDEO_DOWNLOAD_FORMAT`) termina no fallback `best`, que para posts de
+foto (Instagram `/p/`, imagem no X) é a própria imagem — então o yt-dlp já baixa o arquivo
+correto. Passar um `.jpg` pelo FFmpeg geraria um MP4 de 1 frame, que o WhatsApp rejeita ou
+exibe quebrado. O `DownloadPlugin` detecta a extensão do arquivo produzido e envia direto
+como `{ image }`, registrando a métrica `images_downloaded`.
 
 ### Por que Re-encodar?
 
