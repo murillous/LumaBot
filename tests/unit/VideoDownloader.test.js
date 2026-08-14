@@ -55,6 +55,21 @@ describe('VideoDownloader.detectVideoUrl — URLs suportadas', () => {
     expect(url).toBe('https://instagram.com/tv/abcde/');
   });
 
+  it('detecta URL do TikTok', () => {
+    const url = VideoDownloader.detectVideoUrl('https://www.tiktok.com/@user/video/1234567890123456789');
+    expect(url).toBe('https://www.tiktok.com/@user/video/1234567890123456789');
+  });
+
+  it('detecta URL curta do TikTok (vm.tiktok.com)', () => {
+    const url = VideoDownloader.detectVideoUrl('confere https://vm.tiktok.com/ZMabcdefg/');
+    expect(url).toBe('https://vm.tiktok.com/ZMabcdefg/');
+  });
+
+  it('detecta URL curta do TikTok (vt.tiktok.com)', () => {
+    const url = VideoDownloader.detectVideoUrl('https://vt.tiktok.com/ZShijklmn/');
+    expect(url).toBe('https://vt.tiktok.com/ZShijklmn/');
+  });
+
   it('remove pontuação do final da URL', () => {
     const url = VideoDownloader.detectVideoUrl('veja https://x.com/user/status/123.');
     // A URL não deve terminar com ponto
