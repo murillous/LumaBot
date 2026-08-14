@@ -153,6 +153,7 @@ export const MESSAGES = ConfigStore.apply("MESSAGES", {
   UNSUPPORTED_FORMAT: "❌ Formato não suportado ou arquivo corrompido.",
   VIDEO_DOWNLOADING: "⏳ Baixando vídeo...",
   VIDEO_SENT: "🎬 Pronto!",
+  IMAGE_SENT: "🖼️ Pronto!",
   VIDEO_TOO_LARGE: "❌ Vídeo muito grande para enviar (máx. ~50MB).",
   VIDEO_DOWNLOAD_ERROR:
     "❌ Não consegui baixar esse vídeo. O conteúdo pode ser privado ou a URL inválida.",
