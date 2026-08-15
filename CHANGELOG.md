@@ -9,7 +9,7 @@ e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR
 
 ### Added
 
-- `ConversationHistory.getTurns()` — retorna turnos com papel real (`user`/`model`), derivado do prefixo `Luma: `.
+- `ConversationHistory.getTurns()` — retorna turnos com papel real (`user`/`model`), derivado do prefixo `Luma:`.
 - `LumaHandler.generateResponse` ganhou a opção `{ persist }` para controlar se a interação é gravada no histórico.
 
 ### Changed
@@ -22,6 +22,7 @@ e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR
 
 ### Fixed
 
+- `!download` tratava todo arquivo baixado como vídeo (remux FFmpeg + envio como `{ video }`), fazendo links de posts de imagem (foto do Instagram, imagem no X) falharem ou virarem um MP4 de 1 frame. O plugin agora detecta a extensão produzida pelo yt-dlp (`.jpg`/`.jpeg`/`.png`/`.webp`) e envia direto como `{ image }` com a nova mensagem `IMAGE_SENT`, registrando a métrica `images_downloaded`.
 - Interações espontâneas gravavam no bucket de histórico errado e poluíam a memória com prompts-de-sistema; agora usam chave alinhada `jid:senderJid` e `{ persist: false }`.
 - Mensagem que dispara a Luma aparecia duplicada no contexto de grupo; agora é excluída do `groupContext`.
 - Mensagem citada/respondida não entrava no contexto quando o usuário respondia **à própria Luma** (guarda `!isReply` em `LumaHandler.handle`); agora o trecho citado é injetado (`_buildQuotedContext`) com o autor do turno. Reply à **última** fala da Luma (já no histórico) não é reinjetado — evita que ela interprete uma resposta comum como estar sendo "citada/rebatida"; citações de falas dela fora do histórico do interlocutor usam moldura auto-referente ("respondendo a esta sua mensagem"), não "citando Luma".
