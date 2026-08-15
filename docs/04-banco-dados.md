@@ -80,8 +80,8 @@ CREATE INDEX idx_custom_personas_chat ON custom_personas(chat_jid);
 Padrões: WAL mode nos dois bancos; upserts via `INSERT ... ON CONFLICT DO UPDATE`;
 índices em `luma_interactions(group_jid, count DESC)` e `reminders(fired, fire_at)`.
 Métricas conhecidas: `ai_responses`, `total_messages`, `stickers_created`,
-`images_created`, `gifs_created`, `videos_downloaded`, `audios_downloaded`,
-`personas_created`, `personas_deleted`.
+`images_created`, `gifs_created`, `videos_downloaded`, `images_downloaded`,
+`audios_downloaded`, `personas_created`, `personas_deleted`.
 
 > As personas custom vivem **só** no `luma_private.sqlite` (contêm `chat_jid`).
 > No banco público entram apenas os contadores agregados `personas_created` /

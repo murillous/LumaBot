@@ -18,17 +18,18 @@ const YTDLP_URL = isWindows
 
 /**
  * Serviço de download de vídeos de redes sociais via yt-dlp.
- * Suporta Twitter/X e Instagram (reels, posts, stories).
+ * Suporta Twitter/X, Instagram (reels, posts, stories) e TikTok.
  * Baixa automaticamente o binário standalone se não encontrar.
  */
 export class VideoDownloader {
   static SUPPORTED_PATTERNS = [
     /https?:\/\/(www\.)?(twitter\.com|x\.com)\/\S+/i,
     /https?:\/\/(www\.)?instagram\.com\/(p|reel|reels|tv|stories)\/[^\s]+/i,
+    /https?:\/\/(www\.|vm\.|vt\.)?tiktok\.com\/\S+/i,
   ];
 
   /**
-   * Detecta se o texto contém uma URL suportada (Twitter/X ou Instagram).
+   * Detecta se o texto contém uma URL suportada (Twitter/X, Instagram ou TikTok).
    * Retorna a URL limpa ou null se não encontrar.
    */
   static detectVideoUrl(text) {
