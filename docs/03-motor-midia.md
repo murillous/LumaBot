@@ -2,12 +2,16 @@
 
 Aqui explicamos a matemática e os comandos por trás da geração de stickers.
 
+Legendas podem ser adicionadas ao criar uma figurinha usando texto ou emoji após
+`!sticker`/`!s`, inclusive ao responder uma imagem ou informar uma URL. O texto é
+renderizado no rodapé da figurinha com fontes de fallback para emoji.
+
 ## 📐 Especificações do WhatsApp
 
 Para um sticker ser válido, ele deve obedecer regras estritas:
 
 | Propriedade | Valor Obrigatório | Razão |
-|-------------|-------------------|-------|
+| ------------- | ------------------- | ------- |
 | **Formato** | WebP | Único formato aceito pelo WhatsApp |
 | **Dimensão** | 512x512 pixels | Especificação oficial |
 | **Tamanho** | < 1MB (ideal < 800KB) | Limite de upload |
@@ -64,7 +68,7 @@ Resultado: Sticker perfeito sem distorção
 ### Comparação de Métodos
 
 | Método | Resultado | Problemas |
-|--------|-----------|-----------|
+| -------- | ----------- | ----------- |
 | **Stretch** | Estica para 512x512 | ❌ Deforma a imagem |
 | **Contain** | Cabe tudo com bordas | ❌ Bordas pretas/brancas |
 | **Cover (nosso)** | Preenche tudo, corta excesso | ✅ Visual profissional |
@@ -420,7 +424,7 @@ async ensureSize(stickerBuffer, maxSize = 800 * 1024) {
 ### Tempos de Processamento (Médios)
 
 | Operação | Tempo | Gargalo |
-|----------|-------|---------|
+| ---------- | ------- | --------- |
 | Imagem → Sticker (Sharp) | 0.2s | CPU |
 | Vídeo → Sticker (FFmpeg) | 3-5s | CPU + I/O |
 | Adicionar Exif | 0.01s | RAM |
@@ -515,7 +519,7 @@ como `{ image }`, registrando a métrica `images_downloaded`.
 Vídeos baixados de redes sociais frequentemente usam codecs como **VP9**, **H.265** ou **AV1**, que não são reproduzidos corretamente no iOS via WhatsApp. O re-encoding garante:
 
 | Problema | Solução |
-|----------|---------|
+| ---------- | --------- |
 | Codec incompatível (VP9/H.265/AV1) | `-c:v libx264` (H.264 universal) |
 | Vídeo não carrega no iOS | `-movflags faststart` (moov atom no início) |
 | Pixel format incompatível | `-pix_fmt yuv420p` |

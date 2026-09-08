@@ -5,10 +5,11 @@ Todas as mudanças relevantes deste projeto são documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/),
 e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
-## [Unreleased]
+## [1.5.0] — 2026-09-03
 
 ### Added
 
+- Legendas com emoji em figurinhas criadas por imagem, incluindo imagens obtidas por URL.
 - `ConversationHistory.getTurns()` — retorna turnos com papel real (`user`/`model`), derivado do prefixo `Luma:`.
 - `LumaHandler.generateResponse` ganhou a opção `{ persist }` para controlar se a interação é gravada no histórico.
 
@@ -30,3 +31,4 @@ e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR
 - `BaileysAdapter.quotedText` retornava `null` para citações envelopadas (ephemeral/viewOnce); agora desembrulha via `unwrapMessage`, como os demais getters quoted.
 
 [Unreleased]: https://github.com/murillous/LumaBot/commits/main
+[1.5.0]: https://github.com/murillous/LumaBot/releases/tag/1.5.0

@@ -2,12 +2,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../../../src/handlers/MediaProcessor.js', () => ({
   MediaProcessor: {
-    processToSticker:      vi.fn().mockResolvedValue({}),
+    processToSticker: vi.fn().mockResolvedValue({}),
     processStickerToImage: vi.fn().mockResolvedValue({}),
-    processStickerToGif:   vi.fn().mockResolvedValue({}),
-    processImageToPdf:     vi.fn().mockResolvedValue(true),
-    processUrlToSticker:   vi.fn().mockResolvedValue({}),
-    downloadMedia:         vi.fn().mockResolvedValue(Buffer.from('pdf')),
+    processStickerToGif: vi.fn().mockResolvedValue({}),
+    processImageToPdf: vi.fn().mockResolvedValue(true),
+    processUrlToSticker: vi.fn().mockResolvedValue({}),
+    downloadMedia: vi.fn().mockResolvedValue(Buffer.from('pdf')),
   },
 }));
 
@@ -64,7 +64,7 @@ describe('MediaPlugin.commands', () => {
 describe('MediaPlugin - !pdf com imagem', () => {
   it('converte imagem direta para PDF quando hasMedia=true', async () => {
     const plugin = new MediaPlugin();
-    const bot    = makeBot({ hasMedia: true });
+    const bot = makeBot({ hasMedia: true });
 
     await plugin.onCommand(COMMANDS.PDF, bot);
 
@@ -75,7 +75,7 @@ describe('MediaPlugin - !pdf com imagem', () => {
   it('converte imagem citada para PDF', async () => {
     const quoted = makeBot({ hasMedia: true, raw: { quoted: true } });
     const plugin = new MediaPlugin();
-    const bot    = makeBot({ getQuotedAdapter: vi.fn().mockReturnValue(quoted) });
+    const bot = makeBot({ getQuotedAdapter: vi.fn().mockReturnValue(quoted) });
 
     await plugin.onCommand(COMMANDS.PDF, bot);
 
@@ -86,7 +86,7 @@ describe('MediaPlugin - !pdf com imagem', () => {
   it('usa nome personalizado quando informado apos !pdf', async () => {
     const quoted = makeBot({ hasMedia: true, raw: { quoted: true } });
     const plugin = new MediaPlugin();
-    const bot    = makeBot({
+    const bot = makeBot({
       body: '!pdf trabalho de fisica',
       getQuotedAdapter: vi.fn().mockReturnValue(quoted),
     });
@@ -103,7 +103,7 @@ describe('MediaPlugin - !pdf com imagem', () => {
 
   it('remove acentos e caracteres invalidos do nome personalizado', async () => {
     const plugin = new MediaPlugin();
-    const bot    = makeBot({ body: '!pdf Física: lista 01?', hasMedia: true });
+    const bot = makeBot({ body: '!pdf Física: lista 01?', hasMedia: true });
 
     await plugin.onCommand(COMMANDS.PDF, bot);
 
@@ -117,7 +117,7 @@ describe('MediaPlugin - !pdf com imagem', () => {
 
   it('responde quando nao ha imagem', async () => {
     const plugin = new MediaPlugin();
-    const bot    = makeBot();
+    const bot = makeBot();
 
     await plugin.onCommand(COMMANDS.PDF, bot);
 
@@ -215,14 +215,19 @@ describe('MediaPlugin - !mergepdf', () => {
   });
 });
 
-describe('MediaPlugin — !sticker com URL no body', () => {
-  it('processa URL como sticker e reage ✅', async () => {
+describe('MediaPlugin — !sticker com URL', () => {
+  it('processa URL como sticker com legenda emoji e reage ✅', async () => {
     const plugin = new MediaPlugin();
-    const bot    = makeBot({ body: '!sticker https://example.com/img.jpg' });
+    const bot = makeBot({ body: '!sticker 🔥 https://example.com/img.jpg' });
 
     await plugin.onCommand(COMMANDS.STICKER, bot);
 
-    expect(MediaProcessor.processUrlToSticker).toHaveBeenCalled();
+    expect(MediaProcessor.processUrlToSticker).toHaveBeenCalledWith(
+      'https://example.com/img.jpg',
+      bot.socket,
+      bot.raw,
+      { text: '🔥' },
+    );
     expect(bot.react).toHaveBeenCalledWith('✅');
   });
 });
@@ -230,7 +235,7 @@ describe('MediaPlugin — !sticker com URL no body', () => {
 describe('MediaPlugin — !sticker com mídia direta', () => {
   it('processa mídia direta quando hasMedia=true', async () => {
     const plugin = new MediaPlugin();
-    const bot    = makeBot({ hasMedia: true });
+    const bot = makeBot({ hasMedia: true });
 
     await plugin.onCommand(COMMANDS.STICKER, bot);
 
@@ -242,7 +247,7 @@ describe('MediaPlugin — !sticker com mídia direta', () => {
 describe('MediaPlugin - !sticker com texto', () => {
   it('passa texto da legenda para figurinha com midia direta', async () => {
     const plugin = new MediaPlugin();
-    const bot    = makeBot({ body: '!sticker bom dia', hasMedia: true });
+    const bot = makeBot({ body: '!sticker bom dia', hasMedia: true });
 
     await plugin.onCommand(COMMANDS.STICKER, bot);
 
@@ -257,7 +262,7 @@ describe('MediaPlugin - !sticker com texto', () => {
   it('passa texto da legenda para figurinha com imagem citada', async () => {
     const quoted = makeBot({ hasVisualContent: true, raw: { quoted: true } });
     const plugin = new MediaPlugin();
-    const bot    = makeBot({
+    const bot = makeBot({
       body: '!s texto da figurinha',
       getQuotedAdapter: vi.fn().mockReturnValue(quoted),
     });
@@ -276,7 +281,7 @@ describe('MediaPlugin - !sticker com texto', () => {
 describe('MediaPlugin — !sticker sem mídia', () => {
   it('reage ❌ e responde quando não há mídia nem quoted', async () => {
     const plugin = new MediaPlugin();
-    const bot    = makeBot();
+    const bot = makeBot();
 
     await plugin.onCommand(COMMANDS.STICKER, bot);
 
@@ -288,7 +293,7 @@ describe('MediaPlugin — !sticker sem mídia', () => {
 describe('MediaPlugin — !image com sticker', () => {
   it('converte sticker para imagem quando hasSticker=true', async () => {
     const plugin = new MediaPlugin();
-    const bot    = makeBot({ hasSticker: true });
+    const bot = makeBot({ hasSticker: true });
 
     await plugin.onCommand(COMMANDS.IMAGE, bot);
 
@@ -300,7 +305,7 @@ describe('MediaPlugin — !image com sticker', () => {
 describe('MediaPlugin — !gif com sticker', () => {
   it('converte sticker para gif quando hasSticker=true', async () => {
     const plugin = new MediaPlugin();
-    const bot    = makeBot({ hasSticker: true });
+    const bot = makeBot({ hasSticker: true });
 
     await plugin.onCommand(COMMANDS.GIF, bot);
 

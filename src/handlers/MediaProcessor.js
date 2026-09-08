@@ -328,7 +328,7 @@ export class MediaProcessor {
     }
   }
 
-  static async processUrlToSticker(url, sock, message) {
+  static async processUrlToSticker(url, sock, message, options = {}) {
     const jid = message.key.remoteJid;
 
     try {
@@ -358,7 +358,7 @@ export class MediaProcessor {
       if (isVideo || isGif) {
         stickerBuffer = await VideoConverter.toSticker(buffer, isGif);
       } else {
-        stickerBuffer = await ImageProcessor.toSticker(buffer);
+        stickerBuffer = await ImageProcessor.toSticker(buffer, { text: options.text });
       }
 
       if (stickerBuffer) {
