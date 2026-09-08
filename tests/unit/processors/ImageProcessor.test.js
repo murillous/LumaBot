@@ -40,4 +40,24 @@ describe('ImageProcessor.toSticker', () => {
     expect(sticker.length).toBeGreaterThan(0);
     expect(metadata.format).toBe('webp');
   });
+
+  it('renderiza legenda formada por emoji', async () => {
+    const input = await sharp({
+      create: {
+        width: 256,
+        height: 256,
+        channels: 4,
+        background: '#3478f6',
+      },
+    }).png().toBuffer();
+
+    const sticker = await ImageProcessor.toSticker(input, { text: '🔥✨' });
+    const { data } = await sharp(sticker).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+    const hasOverlayPixels = data.some((value, index) => {
+      const channel = index % 3;
+      return channel === 0 && value > 240;
+    });
+
+    expect(hasOverlayPixels).toBe(true);
+  });
 });

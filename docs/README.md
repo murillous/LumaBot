@@ -16,6 +16,7 @@ Base de conhecimento do LumaBot v7.0. Implementa **Arquitetura Hexagonal (Ports 
 | 4 | [Banco de Dados](./04-banco-dados.md) | SQLite — métricas públicas, usuários, ranking e lembretes |
 | 5 | [Conexão WhatsApp](./05-conexao-wa.md) | Baileys, autenticação via QR, reconexão, enriquecimento de usuários |
 | 6 | [Dashboard](./06-dashboard.md) | App React, API REST, configuração em runtime e deploy/PM2 |
+| 10 | [Versionamento](./10-versionamento.md) | SemVer, CHANGELOG, workflow de release |
 
 ---
 

@@ -39,9 +39,10 @@ function getPdfMergeKey(bot) {
   return bot.isGroup ? `${bot.jid}:${bot.senderJid}` : bot.jid;
 }
 
-function getStickerText(body) {
+function getStickerText(body, url = null) {
   const rawText = body
     ?.replace(/^\s*!(sticker|s)\s*/i, "")
+    .replace(url || "", "")
     .trim();
 
   if (!rawText || /^https?:\/\//i.test(rawText)) return null;
@@ -89,10 +90,10 @@ export class MediaPlugin {
   async #handleSticker(bot) {
     await bot.react("⏳");
     const url = extractUrl(bot.body);
-    const text = getStickerText(bot.body);
+    const text = getStickerText(bot.body, url);
 
     if (url) {
-      await MediaProcessor.processUrlToSticker(url, bot.socket, bot.raw);
+      await MediaProcessor.processUrlToSticker(url, bot.socket, bot.raw, { text });
       MediaPlugin.#incrementMedia("stickers_created");
       await bot.react("✅");
       return;
