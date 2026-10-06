@@ -1,37 +1,45 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { Transport } from '#transport/types.ts';
+import { TestTransport } from '#transport/fake-transport.test-support.ts';
 import { type Bot, BotStateError, createBot } from './bot.ts';
 import { StopHookError } from './stop-hooks.ts';
 
-interface FakeTransport extends Transport {
-  readonly calls: string[];
+// Estende o transport de teste do M1-2 só com o que o lifecycle observa: a ordem das chamadas
+// e o controle de quando o `connect()` termina.
+class FakeTransport extends TestTransport {
+  readonly calls: string[] = [];
+  readonly #manualConnect: boolean;
+  readonly #disconnectError: Error | undefined;
+  #settle: ((error?: Error) => void) | undefined;
+
+  constructor(options: { manualConnect?: boolean; disconnectError?: Error }) {
+    super([]);
+    this.#manualConnect = options.manualConnect ?? false;
+    this.#disconnectError = options.disconnectError;
+  }
+
+  override connect(): Promise<void> {
+    this.calls.push('connect');
+    if (!this.#manualConnect) return Promise.resolve();
+    return new Promise<void>((resolve, reject) => {
+      this.#settle = (error) => (error ? reject(error) : resolve());
+    });
+  }
+
+  override disconnect(): Promise<void> {
+    this.calls.push('disconnect');
+    return this.#disconnectError ? Promise.reject(this.#disconnectError) : Promise.resolve();
+  }
+
   /** Resolve o `connect()` pendente (quando criado com `manualConnect`). */
-  finishConnect(error?: Error): void;
+  finishConnect(error?: Error): void {
+    this.#settle?.(error);
+  }
 }
 
 function fakeTransport(
   options: { manualConnect?: boolean; disconnectError?: Error } = {},
 ): FakeTransport {
-  const calls: string[] = [];
-  let settle: ((error?: Error) => void) | undefined;
-  return {
-    name: 'fake',
-    calls,
-    connect() {
-      calls.push('connect');
-      if (!options.manualConnect) return Promise.resolve();
-      return new Promise<void>((resolve, reject) => {
-        settle = (error) => (error ? reject(error) : resolve());
-      });
-    },
-    disconnect() {
-      calls.push('disconnect');
-      return options.disconnectError ? Promise.reject(options.disconnectError) : Promise.resolve();
-    },
-    finishConnect(error) {
-      settle?.(error);
-    },
-  };
+  return new FakeTransport(options);
 }
 
 describe('createBot', () => {
