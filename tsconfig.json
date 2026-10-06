@@ -11,5 +11,5 @@
     "noEmit": true
   },
   "include": ["*.config.ts"],
-  "references": []
+  "references": [{ "path": "packages/core" }]
 }
