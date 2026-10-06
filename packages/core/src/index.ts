@@ -3,6 +3,8 @@ export { BotStateError, createBot } from '#bot/bot.ts';
 export type { ShutdownOptions, StopHook, StopHookOptions } from '#bot/stop-hooks.ts';
 export { StopHookError } from '#bot/stop-hooks.ts';
 export type { MessageContext } from '#context.ts';
+export { createMessage, type MessageInit } from '#message/create.ts';
+export { createMedia, type MediaSource } from '#message/media.ts';
 export type {
   AudioMessage,
   Chat,
