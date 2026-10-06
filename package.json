@@ -1,0 +1,6 @@
+{
+  "name": "zapforge",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@12.9.1"
+}
