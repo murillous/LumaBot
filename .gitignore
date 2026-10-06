@@ -6,3 +6,4 @@ coverage/
 .claude
 dist/
 *.tsbuildinfo
+.tsbuild/

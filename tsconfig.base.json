@@ -8,17 +8,16 @@
     "lib": ["es2024"],
     "types": ["node"],
 
-    // ESM puro com a resolução do Node: imports relativos exigem extensão.
+    // ESM puro com a resolução do Node.
     "module": "nodenext",
     "moduleResolution": "nodenext",
     "moduleDetection": "force",
     "verbatimModuleSyntax": true,
 
     // Em dev o Node executa o .ts direto (type stripping, D26): só sintaxe apagável
-    // (sem enum/namespace/parameter properties) e imports relativos com `.ts`,
-    // reescritos para `.js` na emissão.
+    // (sem enum/namespace/parameter properties) e imports com extensão `.ts`.
     "erasableSyntaxOnly": true,
-    "rewriteRelativeImportExtensions": true,
+    "allowImportingTsExtensions": true,
 
     // Aliases @zapforge/*: cada pacote exporta o fonte sob esta condição (ver README).
     "customConditions": ["@zapforge/source"],
@@ -29,11 +28,15 @@
     "noFallthroughCasesInSwitch": true,
     "noPropertyAccessFromIndexSignature": true,
 
-    // Project references (`tsc -b`) exigem composite + declarações.
+    // O tsc só checa tipos (`tsc -b`); o JS e os .d.ts publicados saem do tsdown. Project
+    // references exigem composite + emissão de declarações, que vão para .tsbuild/ (ignorado).
     "composite": true,
     "declaration": true,
+    "emitDeclarationOnly": true,
     "declarationMap": true,
-    "sourceMap": true,
+    // Tipos explícitos na API exportada: o tsdown gera os .d.ts via oxc, sem depender da API
+    // ainda experimental do TypeScript 7.
+    "isolatedDeclarations": true,
 
     "skipLibCheck": true
   }

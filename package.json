@@ -7,10 +7,19 @@
     "node": ">=24"
   },
   "scripts": {
-    "typecheck": "tsc -b"
+    "build": "pnpm -r build",
+    "typecheck": "tsc -b",
+    "lint": "biome check",
+    "lint:fix": "biome check --write",
+    "test": "vitest run",
+    "changeset": "changeset"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.5.15",
+    "@changesets/cli": "^3.0.3",
     "@types/node": "^24.19.1",
-    "typescript": "^7.0.2"
+    "tsdown": "^0.23.0",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.3"
   }
 }

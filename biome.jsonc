@@ -1,0 +1,66 @@
+{
+  "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+  "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
+  "files": {
+    // legacy/ segue com as próprias ferramentas até a paridade.
+    "includes": ["**", "!legacy", "!**/dist", "!pnpm-lock.yaml"]
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 100
+  },
+  "javascript": {
+    "formatter": { "quoteStyle": "single" }
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "preset": "recommended",
+      "style": {
+        // Convenções do ZapForge (ZAPFORGE_PLAN.md §8): só named exports...
+        "noDefaultExport": "error",
+        // ...nenhum process.env fora da camada de config (ver overrides)...
+        "noProcessEnv": "error",
+        // ...e imports entre pacotes pelo nome @zapforge/*, nunca subindo diretórios.
+        "noRestrictedImports": {
+          "level": "error",
+          "options": {
+            "patterns": [
+              {
+                "group": ["../**", ".."],
+                "message": "Import relativo ascendente: importe pelo pacote (@zapforge/*) ou reorganize o módulo."
+              }
+            ]
+          }
+        }
+      },
+      "complexity": {
+        // Conflita com noPropertyAccessFromIndexSignature do tsconfig, que exige env['X'].
+        "useLiteralKeys": "off"
+      },
+      "suspicious": {
+        // Nunca engolir erros: bloco vazio (incluindo catch {}) é erro.
+        "noEmptyBlockStatements": "error"
+      }
+    }
+  },
+  "plugins": ["./tooling/biome/no-swallowed-catch.grit"],
+  "assist": {
+    "enabled": true,
+    "actions": { "source": { "organizeImports": "on" } }
+  },
+  "overrides": [
+    {
+      // Arquivos de config de ferramentas (vitest, tsdown...) exigem export default.
+      "includes": ["**/*.config.ts", "**/*.config.mts", "**/*.config.js"],
+      "linter": { "rules": { "style": { "noDefaultExport": "off" } } }
+    },
+    {
+      // A camada de config é o único lugar que lê process.env.
+      "includes": ["**/src/config.ts", "**/src/config/**"],
+      "linter": { "rules": { "style": { "noProcessEnv": "off" } } }
+    }
+  ]
+}

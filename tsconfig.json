@@ -1,6 +1,15 @@
 {
-  // Solution da raiz: `pnpm typecheck` roda `tsc -b` em todos os pacotes listados aqui.
-  // Ao criar um pacote, adicione-o em `references`.
-  "files": [],
+  // Solution da raiz: `pnpm typecheck` roda `tsc -b` nos arquivos de config da raiz e em todos
+  // os pacotes listados em `references` — ao criar um pacote, adicione-o lá.
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "composite": false,
+    "declaration": false,
+    "emitDeclarationOnly": false,
+    "declarationMap": false,
+    "isolatedDeclarations": false,
+    "noEmit": true
+  },
+  "include": ["*.config.ts"],
   "references": []
 }
