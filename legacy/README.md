@@ -379,10 +379,14 @@ npm run test:coverage
 O dashboard é o processo principal em produção: ele sobe o servidor web e
 spawna o bot (`index.js`) como processo filho.
 
+> Servidores instalados antes da mudança para `legacy/` precisam de uma migração
+> manual — veja [docs/07-Producao.md](docs/07-Producao.md#migração-para-legacy).
+
 ### Produção com PM2 (sobrevive a reboot)
 
 ```bash
 npm install -g pm2
+cd legacy           # o LumaBot vive em legacy/ do monorepo ZapForge
 git pull && npm install && npm run dashboard:build
 pm2 start ecosystem.config.cjs
 pm2 save

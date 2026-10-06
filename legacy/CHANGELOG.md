@@ -14,6 +14,7 @@ e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR
 ### Changed
 
 - Código do LumaBot movido para `legacy/` (ZapForge M0-4.1), preservando o histórico git. Comandos (`npm ci`, `npm test`, `npm start`) agora rodam a partir de `legacy/`; `.github/` e `ZAPFORGE_PLAN.md` ficam na raiz.
+- Deploy de produção aponta para `legacy/` (ZapForge M0-4.3): o workflow `deploy-ec2.yml` builda a imagem com contexto `legacy/` e só dispara para mudanças em `legacy/`. `docs/07-Producao.md` ganhou o passo a passo de migração de servidores PM2/Docker instalados a partir da raiz.
 
 ## [1.5.0] — 2026-09-03
 
