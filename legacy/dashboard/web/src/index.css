@@ -1,0 +1,90 @@
+@import "@fontsource/space-grotesk/400.css";
+@import "@fontsource/space-grotesk/500.css";
+@import "@fontsource/space-grotesk/700.css";
+@import "@fontsource/ibm-plex-sans/400.css";
+@import "@fontsource/ibm-plex-sans/500.css";
+@import "@fontsource/ibm-plex-sans/600.css";
+@import "@fontsource/jetbrains-mono/400.css";
+@import "@fontsource/jetbrains-mono/500.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Identidade Thera (canais RGB para usar com /<alpha>) */
+  --bg: 14 14 16;
+  --surface: 24 24 27;
+  --elevated: 32 32 36;
+  --border: 44 44 50;
+  --muted: 120 120 130;
+  --fg: 244 244 245;
+  --fg-soft: 175 175 185;
+  --primary: 139 47 224;
+  --primary-fg: 255 255 255;
+  --accent: 10 108 224;
+  --success: 46 204 113;
+  --warn: 240 180 41;
+  --danger: 235 73 90;
+}
+
+* {
+  border-color: rgb(var(--border));
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  margin: 0;
+  background: rgb(var(--bg));
+  color: rgb(var(--fg));
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  /* Brilho ambiente violeta no topo — assinatura visual Thera */
+  background-image:
+    radial-gradient(70% 55% at 50% -10%, rgb(139 47 224 / 0.16), transparent 60%),
+    radial-gradient(40% 30% at 100% 0%, rgb(10 108 224 / 0.1), transparent 70%);
+  background-attachment: fixed;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgb(var(--border));
+  border-radius: 8px;
+  border: 2px solid rgb(var(--bg));
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgb(var(--muted));
+}
+
+/* Hairline com gradiente violeta→azul — divisor de assinatura */
+.hairline {
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgb(var(--primary) / 0.6),
+    rgb(var(--accent) / 0.5),
+    transparent
+  );
+}
+
+.gradient-text {
+  background: linear-gradient(100deg, rgb(var(--fg)), rgb(var(--primary)) 60%, rgb(var(--accent)));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+:focus-visible {
+  outline: 2px solid rgb(var(--primary) / 0.7);
+  outline-offset: 2px;
+}

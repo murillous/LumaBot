@@ -1,0 +1,177 @@
+import { ConfigStore } from "./ConfigStore.js";
+
+export const CONFIG = ConfigStore.apply("CONFIG", {
+  TEMP_DIR: "./temp",
+  AUTH_DIR: "./auth_info",
+
+  MAX_RECONNECT_ATTEMPTS: 3,
+  RECONNECT_DELAY: 5000,
+  MIN_CLEAN_INTERVAL: 60000,
+  STICKER_SIZE: 512,
+  STICKER_QUALITY: 90,
+  VIDEO_DURATION: 20,
+  GIF_DURATION: 15,
+  GIF_FPS: 15,
+  VIDEO_FPS: 15,
+  MAX_FILE_SIZE: 800,
+  VIDEO_DOWNLOAD_MAX_SIZE_MB: 100,
+  VIDEO_DOWNLOAD_TIMEOUT_MS: 240000,
+  VIDEO_DOWNLOAD_FORMAT:
+    "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best/best",
+  AUDIO_DOWNLOAD_FORMAT: "bestaudio/best",
+  WEBP_QUALITY: 75,
+  MAX_GIF_FRAMES: 50,
+  TIMEOUT_MS: 60000,
+  KEEPALIVE_MS: 30000,
+  IGNORE_SELF: true,
+});
+
+export const STICKER_METADATA = ConfigStore.apply("STICKER_METADATA", {
+  PACK_NAME: "LumaBot  Stickers",
+  AUTHOR: "Criado com ❤️ por LumaBot",
+});
+
+export const COMMANDS = ConfigStore.apply("COMMANDS", {
+  STICKER: "!sticker",
+  STICKER_SHORT: "!s",
+  IMAGE: "!image",
+  IMAGE_SHORT: "!i",
+  PDF: "!pdf",
+  PDF_MERGE: "!mergepdf",
+  PDF_MERGE_ALT: "!joinpdf",
+  GIF: "!gif",
+  GIF_SHORT: "!g",
+  HELP: "!help",
+  PERSONA: "!persona",
+  // Subcomandos de !persona (token logo após o comando). Centralizados aqui
+  // pra não ficarem hardcoded no parsing do LumaPlugin.
+  PERSONA_CREATE_SUB: "criar",
+  PERSONA_DELETE_SUB: "deletar",
+  EVERYONE: "@everyone",
+  DOWNLOAD_SHORT: "!d",
+  DOWNLOAD: "!download",
+  AUDIO_DOWNLOAD: "!audio",
+  AUDIO_DOWNLOAD_SHORT: "!a",
+  LUMA_STATS: "!luma stats",
+  LUMA_STATS_SHORT: "!ls",
+  LUMA_CLEAR: "!luma clear",
+  LUMA_CLEAR_SHORT: "!lc",
+  LUMA_CLEAR_ALT: "!clear",
+  MY_NUMBER: "!meunumero",
+  RESUMO: "!resumo",
+  NICK: "!nick",
+  NICK_ALT: "!apelido",
+  RANK: "!rank",
+  REMINDER: "!lembrete",
+  REMINDER_SHORT: "!lembrar",
+  REMINDER_LIST: "!lembretes",
+  REMINDER_CANCEL: "!cancelarlembrete",
+});
+
+export const MENUS = ConfigStore.apply("MENUS", {
+  HELP_TEXT:
+    "🤖 *LISTA DE COMANDOS* 🤖\n\n" +
+    "🎨 *MÍDIA*\n" +
+    "• *!sticker* (!s) - Imagem/Vídeo/Link -> Sticker\n" +
+    "• *!gif* (!g) - Sticker Animado -> GIF\n" +
+    "• *!image* (!i) - Sticker -> Imagem\n" +
+    "• *!pdf* - Imagem -> PDF\n" +
+    "• *!mergepdf* - Adiciona PDFs; finalize com !mergepdf done nome\n\n" +
+    "🧠 *INTELIGÊNCIA ARTIFICIAL*\n" +
+    "• *Luma* - Fale qualquer coisa (ex: 'Luma, bom dia')\n" +
+    "• *!persona* - Abre o menu para mudar a Luma\n" +
+    "• *!persona criar <descrição>* - Cria uma personalidade nova só descrevendo a vibe\n" +
+    "• *!persona deletar pN* - Apaga uma persona criada (use o número do !persona)\n" +
+    "• *!luma clear* (!lc ou !clear) - Limpa memória da conversa\n" +
+    "• *!luma stats* (!ls) - Mostra estatísticas da Luma\n\n" +
+    "🏆 *SOCIAL*\n" +
+    "• *!rank* - Ranking de quem mais interage com a Luma no grupo\n" +
+    "• *!rank global* - Ranking geral (todos os chats)\n" +
+    "• *!nick SeuNome* - Define como você aparece nos rankings\n" +
+    "• *!nick @pessoa Nome* - Define o apelido de alguém\n" +
+    "• *!lembrete* (ou peça à Luma) - Agenda um lembrete com menção\n" +
+    "• *!lembretes* - Lista todos os lembretes agendados neste chat\n" +
+    "• *!cancelarlembrete* <n> - Cancela o lembrete n da lista\n\n" +
+    "🛠️ *UTILITÁRIOS*\n" +
+    "• *!download* (!d) - Baixa vídeo do Twitter/X ou Instagram\n" +
+    "• *!audio* (!a) - Baixa somente o áudio (MP3) de qualquer link\n" +
+    "• *!meunumero* - Vê seu ID/Número\n" +
+    "• *!resumo* (ex: !resumo 30) - Resume as últimas mensagens da conversa\n" +
+    "• *!help* - Mostra essa lista\n" +
+    "• *@everyone* ou *@todos* - Marca todos os membros do grupo\n\n" +
+    "👮 *AUTOR*\n" +
+    "• Feito por Murilo Castelhano\n" +
+    "• Repositório: https://github.com/murillous/LumaBot",
+
+  PERSONALITY: {
+    HEADER: "🎭 *CONFIGURAÇÃO DA LUMA*\n_Responda com o código (ex: p1):_\n",
+    FOOTER: "\n_A mudança é aplicada imediatamente neste chat._",
+    DEFAULT_MARK: " ⭐ (Padrão)",
+    CUSTOM_MARK: " 🗑️",
+  },
+
+  MSGS: {
+    INVALID_OPT: "❌ Opção inválida. Tente p1, p2, etc.",
+    PERSONA_CHANGED: "✅ Personalidade alterada para: ",
+    PERSONA_CREATE_HELP:
+      "Pra eu virar um personagem novo, me conta como ele é logo depois do *criar*.\nEx: `!persona criar uma vó fofa que adora fazer bolo`",
+    PERSONA_LIMIT:
+      "Opa, esse chat já tem o limite de personas criadas (10) 😅\nApaga alguma com `!persona deletar pN` antes de criar outra.",
+    PERSONA_CREATE_OK: "Prontinho! Agora eu sou ",
+    PERSONA_CREATE_FAIL:
+      "Eita, não rolou criar essa persona agora 🥺 Tenta de novo daqui a pouco?",
+    PERSONA_DELETE_OK: "🗑️ Pronto, apaguei a persona ",
+    PERSONA_DELETE_PREDEFINED:
+      "Essa é de fábrica, não dá pra apagar 😅 Só dá pra deletar as que foram criadas aqui no chat.",
+    PERSONA_DELETE_ACTIVE: "\nComo era a que tava ativa, voltei pra padrão.",
+  },
+});
+
+export const MESSAGES = ConfigStore.apply("MESSAGES", {
+  INITIALIZING: "🤖 WhatsApp Sticker Bot - Conversor Completo",
+  STICKER_COMMAND: "🔄 !sticker - Converte imagem/vídeo para sticker",
+  IMAGE_COMMAND: "🖼️ !image - Converte sticker para imagem",
+  GIF_COMMAND: "🎬 !gif - Converte sticker animado para GIF",
+  WAITING_QR: "📱 Aguarde o QR Code...",
+  CONNECTING: "🔄 Iniciando conexão com WhatsApp...",
+  CONNECTED: "✅ Conectado com sucesso!",
+  BOT_READY: "🎯 Bot pronto para uso",
+  DISCONNECTED: "❌ Conexão fechada:",
+  SEND_MEDIA_STICKER: "ℹ️ Envie uma mídia com !sticker",
+  REPLY_MEDIA_STICKER: "ℹ️ Responda a uma imagem/vídeo com !sticker",
+  SEND_STICKER_IMAGE: "ℹ️ Envie um sticker com !image",
+  REPLY_STICKER_IMAGE: "ℹ️ Responda a um sticker com !image",
+  SEND_STICKER_GIF: "ℹ️ Envie um sticker animado com !gif",
+  REPLY_STICKER_GIF: "ℹ️ Responda a um sticker animado com !gif",
+  STATIC_STICKER: "ℹ️ Este é um sticker estático. Use !image para converter",
+  CONVERTED_IMAGE: "🖼️ Convertido!",
+  EVERYONE_COMMAND: "📢 @everyone - Marca todos os integrantes do grupo",
+  CONVERTED_GIF: "🎬 Convertido!",
+  DOWNLOAD_ERROR: "❌ Erro ao baixar",
+  CONVERSION_ERROR: "❌ Erro na conversão",
+  GENERAL_ERROR: "❌ Erro",
+  UNSUPPORTED_FORMAT: "❌ Formato não suportado ou arquivo corrompido.",
+  VIDEO_DOWNLOADING: "⏳ Baixando vídeo...",
+  VIDEO_SENT: "🎬 Pronto!",
+  IMAGE_SENT: "🖼️ Pronto!",
+  VIDEO_TOO_LARGE: "❌ Vídeo muito grande para enviar (máx. ~50MB).",
+  VIDEO_DOWNLOAD_ERROR:
+    "❌ Não consegui baixar esse vídeo. O conteúdo pode ser privado ou a URL inválida.",
+  VIDEO_NO_URL:
+    "ℹ️ Cole o link do vídeo junto com o comando.\nEx: `!download https://x.com/...`",
+  AUDIO_NO_URL:
+    "ℹ️ Cole o link junto com o comando.\nEx: `!audio https://youtu.be/...`",
+  AUDIO_SENT: "🎵 Pronto!",
+  AUDIO_DOWNLOAD_ERROR:
+    "❌ Não consegui baixar o áudio. O conteúdo pode ser privado ou a URL inválida.",
+  YTDLP_NOT_FOUND:
+    "❌ Não foi possível baixar o yt-dlp. Verifique sua conexão e tente novamente.",
+  REPLY_IMAGE_PDF:
+    "ℹ️ Envie uma imagem com !pdf ou responda a uma imagem com !pdf nome do arquivo",
+  PDF_MERGE_USAGE:
+    "ℹ️ Envie/responda PDFs com !mergepdf para adicionar. Finalize com !mergepdf done nome do arquivo. Use !mergepdf clear para cancelar.",
+  PDF_MERGE_NEED_MORE: "ℹ️ Adicione pelo menos 2 PDFs antes de finalizar.",
+  PDF_MERGE_ADDED: "📎 PDF adicionado",
+  PDF_MERGE_CLEARED: "🗑️ Lista de PDFs limpa.",
+  PDF_MERGE_ERROR: "❌ Não consegui juntar esses PDFs.",
+});

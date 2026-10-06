@@ -1,0 +1,1 @@
+{"root":["./src/App.tsx","./src/main.tsx","./src/components/AppShell.tsx","./src/components/ui.tsx","./src/lib/api.ts","./src/lib/status.ts","./src/lib/types.ts","./src/lib/useLive.ts","./src/lib/utils.ts","./src/pages/Config.tsx","./src/pages/Login.tsx","./src/pages/Logs.tsx","./src/pages/Overview.tsx","./src/pages/Reminders.tsx","./src/pages/Social.tsx"],"version":"5.9.3"}

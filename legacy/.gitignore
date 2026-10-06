@@ -1,0 +1,14 @@
+node_modules/
+dashboard/web/node_modules/
+dashboard/web/dist/
+auth_info
+.env
+blacklist.json
+data/*
+!data/luma_metrics.sqlite
+bin/
+coverage/
+cookie-temp/
+cookies.txt
+.claude
+graphify-out/.graphify_*
