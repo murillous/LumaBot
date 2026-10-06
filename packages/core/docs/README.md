@@ -4,3 +4,4 @@ Como usar o kernel. O porquê das decisões está nos [ADRs](../../../docs/adr/R
 
 | Guia | Assunto |
 | --- | --- |
+| [Fila de entrada](inbound-queue.md) | `InboundQueue`: mesmo chat em série, backlog, métricas, shutdown |
