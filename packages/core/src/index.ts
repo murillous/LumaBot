@@ -1,3 +1,7 @@
+export type { Bot, BotConfig, BotState } from '#bot/bot.ts';
+export { BotStateError, createBot } from '#bot/bot.ts';
+export type { ShutdownOptions, StopHook, StopHookOptions } from '#bot/stop-hooks.ts';
+export { StopHookError } from '#bot/stop-hooks.ts';
 export type { MessageContext } from '#context.ts';
 export type {
   AudioMessage,
