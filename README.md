@@ -6,6 +6,8 @@ O porquê de cada decisão (D01–D31) está nos ADRs em [`docs/adr/`](docs/adr/
 
 O LumaBot atual (em produção até a paridade) vive em [`legacy/`](legacy/README.md).
 
+Quer contribuir? Veja o [`CONTRIBUTING.md`](CONTRIBUTING.md).
+
 ## Desenvolvimento
 
 Monorepo pnpm (`packages/*`, `plugins/*`, `apps/*`). A versão do pnpm vem de
