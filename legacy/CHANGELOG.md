@@ -5,6 +5,12 @@ Todas as mudanças relevantes deste projeto são documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/),
 e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
+## [Unreleased]
+
+### Changed
+
+- Código do LumaBot movido para `legacy/` (ZapForge M0-4.1), preservando o histórico git. Comandos (`npm ci`, `npm test`, `npm start`) agora rodam a partir de `legacy/`; `.github/` e `ZAPFORGE_PLAN.md` ficam na raiz.
+
 ## [1.5.0] — 2026-09-03
 
 ### Added

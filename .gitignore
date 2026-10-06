@@ -1,0 +1,6 @@
+# Regras do LumaBot atual vivem em legacy/.gitignore (padrões ancorados como
+# data/* só valem relativos ao diretório do próprio .gitignore).
+node_modules/
+.env
+coverage/
+.claude
