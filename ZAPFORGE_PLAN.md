@@ -125,9 +125,9 @@ Consequências / Status).
 | D26 | **Tooling**: Node 24 LTS+, pnpm, TS executado direto no Node em dev e `tsdown` para publicar (JS + `.d.ts`), Vitest, Biome | Node 18/20/22; tsup (em manutenção); ESLint + Prettier | LTS mais longo; pnpm estrito evita dependência fantasma em plugins; Biome = uma ferramenta, rápida |
 | D27 | **Releases com Changesets**; `0.x` livre; após 1.0, remoção só após ciclo `@deprecated` de ≥ 1 minor; APIs novas podem nascer `@experimental` | Versionamento manual | Comunidade depende de `engine: '^1.0.0'` |
 | D28 | **Licença Apache-2.0** no core e plugins públicos; `legacy/` continua MIT | MIT; AGPL dual | Concessão explícita de patentes, adequada a uso comercial |
-| D29 | **Open core**: plugins/transports comerciais em **repo privado** consumindo os pacotes **publicados** (registry privado, ex.: GitHub Packages) | Pastas privadas no monorepo | Repo privado é o teste definitivo da API pública |
+| D29 | **Open core**: plugins/transports comerciais em **repo privado** na org `thera-org` do GitHub, publicados como pacotes privados na org npm da Thera e consumindo os pacotes **públicos** `@zapforge/*` | Pastas privadas no monorepo | Repo privado é o teste definitivo da API pública |
 | D30 | **Metas de performance mensuráveis** com benchmark no CI (seção 7) | "Rápido" sem métrica | Sem régua não há aceite nem detecção de regressão |
-| D31 | **Nome: ZapForge** (`@zapforge/*`) | zapcore (conflita com `go.uber.org/zap/zapcore`) | Disponível no npm e GitHub (verificado em 2026-10-06; confirmar criação da org npm) |
+| D31 | **Nome: ZapForge** (`@zapforge/*`) | zapcore (conflita com `go.uber.org/zap/zapcore`) | Org `zapforge` criada no npm em 2026-10-06; kernel e plugins públicos no GitHub sob a conta pessoal `murillous`; plugins privados ficam na `thera-org` (ver D29) |
 
 ---
 
@@ -427,7 +427,7 @@ critérios de aceite. Toda issue herda os critérios gerais:
 **Objetivo**: monorepo funcional, tooling, decisões registradas, legacy isolado e verde.
 
 - **#M0-1 Criar monorepo**
-  - Criar org `zapforge` no GitHub e no npm (confirmar disponibilidade da org npm)
+  - Criar org `zapforge` no npm (feito em 2026-10-06); repositório fica na conta pessoal do GitHub
   - Inicializar pnpm workspaces (`packages/*`, `plugins/*`, `apps/*`)
   - `tsconfig.base.json` (strict, ESM, `NodeNext`) + project references
   - Aliases `@zapforge/*`
