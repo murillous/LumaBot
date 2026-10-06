@@ -13,42 +13,89 @@ O `legacy/` fica fora do workspace e continua usando npm.
 
 Requer Node 24+ (`engines` na raiz; `.nvmrc` para `nvm use`/`fnm use`).
 
-### TypeScript
+### Comandos (na raiz)
 
-- `tsconfig.base.json`: strict, ESM, `module`/`moduleResolution` `nodenext`. Em dev o Node
-  executa o `.ts` direto, então só vale sintaxe apagável (`erasableSyntaxOnly`) e imports
-  relativos levam extensão `.ts` (reescrita para `.js` na emissão).
-- Project references: cada pacote tem seu `tsconfig.json` estendendo a base e listando em
-  `references` os pacotes `@zapforge/*` de que depende; o `tsconfig.json` da raiz referencia
-  todos os pacotes. `pnpm typecheck` roda `tsc -b` na raiz.
+| Comando | O que faz |
+| --- | --- |
+| `pnpm lint` / `pnpm lint:fix` | Biome: lint + formatação + organização de imports |
+| `pnpm typecheck` | `tsc -b` em todos os pacotes (project references) |
+| `pnpm test` | Vitest em todos os pacotes |
+| `pnpm build` | `tsdown` em cada pacote (ESM + `.d.ts` em `dist/`) |
+| `pnpm changeset` | Registra a mudança de um pacote publicável |
 
-Exemplo de `packages/<nome>/tsconfig.json`:
+### Novo pacote
 
-```jsonc
+```
+packages/<nome>/
+  package.json
+  tsconfig.json
+  src/index.ts
+```
+
+`package.json`:
+
+```json
+{
+  "name": "@zapforge/<nome>",
+  "version": "0.0.0",
+  "type": "module",
+  "imports": { "#*": "./src/*" },
+  "exports": {
+    ".": {
+      "@zapforge/source": "./src/index.ts",
+      "types": "./dist/index.d.mts",
+      "default": "./dist/index.mjs"
+    }
+  },
+  "files": ["dist"],
+  "scripts": { "build": "tsdown" }
+}
+```
+
+`tsconfig.json` (em `references`, os pacotes `@zapforge/*` de que este depende):
+
+```json
 {
   "extends": "../../tsconfig.base.json",
-  "compilerOptions": { "rootDir": "src", "outDir": "dist" },
+  "compilerOptions": { "rootDir": "src", "outDir": ".tsbuild" },
   "include": ["src"],
   "references": [{ "path": "../core" }]
 }
 ```
 
-### Aliases `@zapforge/*`
+E adicione o pacote em `references` no `tsconfig.json` da raiz. Testes (`*.test.ts`) ficam
+ao lado do código em `src/`; o Vitest descobre o pacote sozinho.
 
-Pacotes se importam pelo nome (`import { … } from '@zapforge/core'`), declarando a
-dependência como `"@zapforge/core": "workspace:*"` — sem `paths` no tsconfig. Cada pacote
-expõe o fonte sob a condição `@zapforge/source` e o build no resto:
+### TypeScript
 
-```json
-"exports": {
-  ".": {
-    "@zapforge/source": "./src/index.ts",
-    "types": "./dist/index.d.ts",
-    "default": "./dist/index.js"
-  }
-}
-```
+`tsconfig.base.json`: strict, ESM, `nodenext`. Em dev o Node executa o `.ts` direto, então:
 
-O TypeScript já resolve essa condição (`customConditions` na base). Para rodar o fonte
-direto no Node, sem build: `node --conditions=@zapforge/source src/main.ts`. Publicado, o
-pacote cai em `dist/`.
+- só vale sintaxe apagável (`erasableSyntaxOnly` — sem `enum`, `namespace`, parameter properties);
+- imports levam a extensão `.ts` (`import { x } from './x.ts'`);
+- a API exportada tem tipos explícitos (`isolatedDeclarations`), o que permite ao tsdown gerar
+  os `.d.ts` sem rodar o compilador.
+
+O `tsc` só checa tipos; o JS publicado sai do tsdown, com as dependências fora do bundle.
+
+### Imports
+
+- **Entre pacotes**: pelo nome (`import { … } from '@zapforge/core'`), com a dependência
+  `"@zapforge/core": "workspace:*"` — sem `paths` no tsconfig. A condição `@zapforge/source`
+  nos `exports` aponta para o fonte: TypeScript (`customConditions`) e Vitest já a usam, e
+  para rodar sem build use `node --conditions=@zapforge/source src/main.ts`. Fora dela, o
+  pacote resolve para `dist/`.
+- **Dentro do pacote**: relativo só para a mesma pasta ou abaixo (`./sub/x.ts`). Para subir
+  de pasta, use o alias do próprio pacote (`import { env } from '#config/env.ts'`, via
+  `imports` no `package.json`) — o Biome barra `../`.
+
+### Regras do Biome
+
+Além do preset recomendado, viram erro: `export default` (exceto em `*.config.ts`), import
+relativo ascendente, `process.env` fora da camada de config (`src/config.ts` ou `src/config/`)
+e `catch` sem nenhuma instrução — inclusive só com comentário (plugin em
+[`tooling/biome/`](tooling/biome/no-swallowed-catch.grit)).
+
+### Changesets
+
+PR que muda um pacote publicável leva um changeset (`pnpm changeset`) — ver
+[`.changeset/README.md`](.changeset/README.md).

@@ -1,0 +1,11 @@
+language js
+
+// `catch` sem nenhuma instrução engole o erro, mesmo com só um comentário dentro.
+or {
+  `try { $_ } catch { }`,
+  `try { $_ } catch ($_) { }`,
+  `try { $_ } catch { } finally { $_ }`,
+  `try { $_ } catch ($_) { } finally { $_ }`
+} as $try where {
+  register_diagnostic(span=$try, message="catch vazio engole o erro: trate, relance ou registre.", severity="error")
+}
