@@ -6,6 +6,8 @@ O porquê de cada decisão (D01–D31) está nos ADRs em [`docs/adr/`](docs/adr/
 
 O LumaBot atual (em produção até a paridade) vive em [`legacy/`](legacy/README.md).
 
+Quer contribuir? Veja o [`CONTRIBUTING.md`](CONTRIBUTING.md).
+
 ## Desenvolvimento
 
 Monorepo pnpm (`packages/*`, `plugins/*`, `apps/*`). A versão do pnpm vem de
@@ -112,3 +114,8 @@ Todo push e PR para `main`/`develop` roda dois workflows:
 
 O setup comum (Node do `.nvmrc`, pnpm do `packageManager`, `pnpm install --frozen-lockfile`)
 fica em [`.github/actions/setup`](.github/actions/setup/action.yml).
+
+## Licença
+
+[Apache-2.0](LICENSE) para `packages/*`, `plugins/*` e `apps/*` ([ADR 0028](docs/adr/0028-licenca-apache-2.md)).
+O `legacy/` continua sob [MIT](legacy/LICENSE).

@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Plano e decisões do ZapForge
+    url: https://github.com/murillous/LumaBot/blob/develop/ZAPFORGE_PLAN.md
+    about: Antes de propor algo, veja se já está no roadmap ou nos ADRs.

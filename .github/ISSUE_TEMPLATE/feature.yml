@@ -1,0 +1,27 @@
+name: Feature
+description: Proponha uma funcionalidade ou mudança de API.
+labels: [type:feature]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        O escopo do core é fechado ([ADR 0013](https://github.com/murillous/LumaBot/blob/develop/docs/adr/0013-escopo-do-core.md)) — veja se a ideia cabe num plugin antes.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problema
+      description: O que você quer fazer e hoje não consegue?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposta
+      description: Como a API ficaria para quem usa. Um esboço de código ajuda.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternativas consideradas
+      description: Inclua por que um plugin (ou `ctx.unsafe.native`) não resolve.
