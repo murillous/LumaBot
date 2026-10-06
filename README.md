@@ -112,3 +112,8 @@ Todo push e PR para `main`/`develop` roda dois workflows:
 
 O setup comum (Node do `.nvmrc`, pnpm do `packageManager`, `pnpm install --frozen-lockfile`)
 fica em [`.github/actions/setup`](.github/actions/setup/action.yml).
+
+## Licença
+
+[Apache-2.0](LICENSE) para `packages/*`, `plugins/*` e `apps/*` ([ADR 0028](docs/adr/0028-licenca-apache-2.md)).
+O `legacy/` continua sob [MIT](legacy/LICENSE).
