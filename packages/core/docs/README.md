@@ -4,3 +4,4 @@ Como usar o kernel. O porquê das decisões está nos [ADRs](../../../docs/adr/R
 
 | Guia | Assunto |
 | --- | --- |
+| [Transport](transport.md) | Contrato `Transport`, eventos, capabilities e política de reconexão |
