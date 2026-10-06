@@ -19,24 +19,23 @@ jobs:
   test:
     name: Testes do legacy
     runs-on: ubuntu-latest
+    # Mesma base e fontes da imagem de produção (legacy/Dockerfile). O runner
+    # ubuntu-latest traz Noto Color Emoji, que o libvips do sharp seleciona mas
+    # não desenha — a legenda de emoji some e o teste do ImageProcessor falha.
+    container: node:20-slim
     defaults:
       run:
         working-directory: legacy
-    # A suíte assume o ambiente de dev: lembretes usam o fuso local (esperam
-    # horário de Brasília) e a legenda de figurinha precisa de fonte de emoji.
+    # Lembretes usam o fuso local; a suíte espera horário de Brasília.
     env:
       TZ: America/Sao_Paulo
     steps:
+      - run: |
+          apt-get update -qq
+          apt-get install -y -qq --no-install-recommends ffmpeg fonts-noto-core fonts-noto-cjk
+        working-directory: /
+
       - uses: actions/checkout@v4
-
-      - run: sudo apt-get update -qq && sudo apt-get install -y -qq fonts-noto-color-emoji
-
-      # Mesma major da imagem de produção (legacy/Dockerfile usa node:20-slim).
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-          cache-dependency-path: legacy/package-lock.json
 
       - run: npm ci --no-audit --no-fund
       - run: npx vitest run

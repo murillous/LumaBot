@@ -9,7 +9,7 @@ e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR
 
 ### Added
 
-- Workflow `Legacy CI` (`.github/workflows/legacy-ci.yml`): roda a suíte do `legacy/` em Node 20 a cada push/PR em `main` e `develop` (ZapForge M0-4.2).
+- Workflow `Legacy CI` (`.github/workflows/legacy-ci.yml`): roda a suíte do `legacy/` num container `node:20-slim` com as fontes da imagem de produção e `TZ=America/Sao_Paulo`, a cada push/PR em `main` e `develop` (ZapForge M0-4.2).
 
 ### Changed
 
