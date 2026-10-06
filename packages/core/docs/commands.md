@@ -1,0 +1,150 @@
+# Comandos
+
+O roteador é o 2º estágio do pipeline ([ADR 0012](../../../docs/adr/0012-pipeline-de-3-estagios.md)):
+depois dos middlewares, antes dos listeners. Se a mensagem invoca um comando, ele valida papel e
+`accepts`, roda o comando e **consome** a mensagem — ela não chega aos listeners.
+
+## Declarar um comando
+
+```ts
+import { command } from '@zapforge/core';
+
+const sticker = command({
+  name: 'sticker',
+  aliases: ['s'],
+  description: 'Transforma imagem ou vídeo em figurinha',
+  accepts: ['image', 'video', 'quoted:image', 'quoted:video'],
+  onReject: () => 'Mande ou responda uma imagem/vídeo 🙂',
+  role: 'everyone',
+  run: async (ctx) => {
+    const buffer = await ctx.media!.download(); // própria mensagem OU citada, já resolvido
+    // ...
+  },
+});
+```
+
+`command()` valida nome e aliases na hora (não vazios, sem espaço) e devolve a definição.
+O nome vai **sem** o prefixo.
+
+## Montar o roteador
+
+```ts
+import { createCommandRouter } from '@zapforge/core';
+
+const router = createCommandRouter({
+  prefix: '!',                         // padrão '!'; não pode ser vazio
+  owners: ['5511999999999@s.whatsapp.net'],
+  isGroupAdmin: (chatId, senderId) => transport.isGroupAdmin(chatId, senderId),
+});
+
+router.registry.add('media', sticker); // 1º argumento: o plugin dono do comando
+
+const result = await router.dispatch(ctx); // ctx: MessageContext
+if (!result.consumed) {
+  // não era comando: segue para os listeners
+}
+```
+
+Enquanto o loader de plugins (M1-8) e o `Bot` não existem, quem compõe chama `registry.add` e
+`dispatch` diretamente.
+
+## Match
+
+- O texto vem de `message.text` (texto ou legenda da mídia), sem os espaços iniciais.
+- Começa com o prefixo? O **token** é o trecho do fim do prefixo até o primeiro espaço em
+  branco. Ele casa por igualdade exata com um nome ou alias registrado — nunca por
+  `includes()`/`startsWith()`, então `vou mandar !sticker`, `!stickers` e `!sabado` (com alias
+  `s`) não casam.
+- **Sem diferenciar caixa** no prefixo e no token: `!Sticker` e `!STICKER` casam com `sticker`.
+  Teclado de celular capitaliza a primeira letra sozinho, e o legacy já comparava em
+  minúsculas. Os argumentos mantêm a caixa original.
+- `! sticker` (espaço depois do prefixo) não é comando.
+
+## Argumentos
+
+O contexto do `run` (`CommandContext`) estende `MessageContext` com:
+
+| Campo | Conteúdo |
+| --- | --- |
+| `command` | Nome canônico do comando casado |
+| `invokedAs` | Token digitado (nome ou alias), em minúsculas |
+| `args` | Argumentos já quebrados (ver abaixo) |
+| `rawArgs` | Texto após o token, sem o espaço inicial, com quebras de linha |
+| `accepted` | `{ spec, message }` da entrada de `accepts` que casou, ou `null` |
+| `media` | Mídia resolvida, ou `null` |
+
+`args` quebra por qualquer espaço em branco (inclusive quebra de linha). Trecho entre aspas
+vira um argumento só, sem as aspas: `!persona criar "Luma séria"` → `['criar', 'Luma séria']`.
+
+- Valem `"..."` e as tipográficas `“...”` (o iOS troca uma pela outra).
+- Aspas simples **não** agrupam: o apóstrofo aparece em texto comum (`d'água`).
+- `""` gera argumento vazio; aspa sem fechamento vai até o fim do texto.
+- Sem escape (`\"`): quem precisa do texto literal usa `rawArgs`.
+
+`parseArgs(texto)` é exportado para quem quiser o mesmo parse em subcomandos.
+
+## `accepts` e `ctx.media`
+
+Cada entrada é um `MessageType` da própria mensagem (`'image'`) ou da citada
+(`'quoted:image'`). A **primeira entrada que casar, na ordem declarada**, vence e define
+`ctx.accepted` e `ctx.media` (a mídia daquela mensagem; `null` para tipos sem mídia, como
+`'quoted:text'`). Para preferir a mídia própria, liste os tipos próprios antes dos `quoted:*`.
+
+Sem `accepts`, qualquer mensagem passa; `ctx.media` é a mídia própria ou, na falta dela, a da
+citada.
+
+## `role`
+
+| Papel | Quem roda |
+| --- | --- |
+| `everyone` (padrão) | Todo mundo |
+| `owner` | Remetente cujo `sender.id` está em `owners` |
+| `group-admin` | Admin do grupo, segundo a porta `isGroupAdmin(chatId, senderId)` |
+
+- Owner passa também em `group-admin`.
+- `group-admin` fora de grupo é recusado (não há grupo a que o papel se refira).
+- Sem `isGroupAdmin` (transport sem a capability `groups`), `group-admin` recusa todo mundo
+  exceto owners: falha fechada, nunca libera por falta de informação.
+- `owners` é comparado por igualdade com `message.sender.id`, então use o formato de ID do
+  transport.
+
+Papéis custom são middleware ([ADR 0024](../../../docs/adr/0024-papeis-no-core.md)).
+
+## Recusa e `onReject`
+
+A ordem é: papel → `accepts` → `run`. Na recusa, o roteador chama
+`onReject(ctx, rejection)`, com `rejection` igual a `{ reason: 'role', required }` ou
+`{ reason: 'accepts', accepts }`. O texto retornado volta em `result.reply` para quem chamou
+`dispatch` enviar ao chat (o `ctx.reply` chega no M1-12). Sem `onReject`, ou retornando
+`null`/`undefined`, a recusa é silenciosa (`reply: null`). Comando recusado também consome a
+mensagem.
+
+## Resultado de `dispatch`
+
+`dispatch` nunca rejeita a promise. O resultado diz o que aconteceu:
+
+| `status` | `consumed` | Extra |
+| --- | --- | --- |
+| `no-match` | `false` | — |
+| `ran` | `true` | `command` |
+| `rejected` | `true` | `command`, `rejection`, `reply` |
+| `failed` | `true` | `command`, `error` (de `run`, `onReject` ou `isGroupAdmin`) |
+
+`command` é `{ plugin, name, invokedAs }`. Quem chama decide o destino do erro de `failed`
+(log, evento `plugin.error`).
+
+## Conflitos
+
+Nome e aliases são únicos no bot inteiro, sem diferenciar caixa. `registry.add` lança
+`CommandConflictError` se algum token já pertence a outro comando — de outro plugin ou do mesmo —
+e não registra nada do comando recusado. O erro traz `token`, `existing` e `incoming` (cada um
+com `plugin` e `definition`), e a mensagem cita os dois plugins:
+
+```
+Conflito de comando "s": "search" do plugin "busca" colide com "sticker" do plugin "media".
+```
+
+Como os comandos são registrados no `setup` dos plugins, o conflito derruba o boot. Alias
+repetido ou igual ao próprio nome dentro do mesmo comando é inofensivo e não conta.
+
+`registry.removePlugin(nome)` tira todos os comandos de um plugin (teardown e reload).

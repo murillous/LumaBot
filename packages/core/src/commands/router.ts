@@ -1,0 +1,190 @@
+import type { MessageContext } from '#context.ts';
+import type { Media, Message } from '#message/types.ts';
+import { parseArgs } from './args.ts';
+import type {
+  AcceptedMessage,
+  AcceptSpec,
+  CommandContext,
+  CommandDefinition,
+  CommandRejection,
+  CommandRole,
+  RejectContext,
+} from './command.ts';
+import { type CommandRegistry, createCommandRegistry, type RegisteredCommand } from './registry.ts';
+
+/**
+ * Porta para consultar admins de grupo. Vem do transport (capability `groups`, M1-2); o core
+ * não importa transport, então quem compõe o bot injeta.
+ */
+export type IsGroupAdmin = (chatId: string, senderId: string) => boolean | Promise<boolean>;
+
+export interface CommandRouterOptions {
+  /** Padrão: `'!'`. Comparado sem diferenciar caixa. */
+  readonly prefix?: string;
+  /** IDs de dono do bot, no mesmo formato de `message.sender.id`. */
+  readonly owners?: readonly string[];
+  /** Sem a porta, `role: 'group-admin'` recusa todo mundo exceto owners (fail-closed). */
+  readonly isGroupAdmin?: IsGroupAdmin;
+  /** Registro a usar; padrão: um novo. */
+  readonly registry?: CommandRegistry;
+}
+
+/** Comando casado, para quem chamou o roteador saber o que rodou. */
+export interface MatchedCommand {
+  readonly plugin: string;
+  readonly name: string;
+  readonly invokedAs: string;
+}
+
+/**
+ * Resultado de `dispatch`. `consumed` diz se a mensagem para aqui (não vai aos listeners):
+ * basta o token casar, mesmo que o comando seja recusado ou falhe.
+ */
+export type DispatchResult =
+  | { readonly consumed: false; readonly status: 'no-match' }
+  | { readonly consumed: true; readonly status: 'ran'; readonly command: MatchedCommand }
+  | {
+      readonly consumed: true;
+      readonly status: 'rejected';
+      readonly command: MatchedCommand;
+      readonly rejection: CommandRejection;
+      /** Texto de `onReject` a enviar ao chat; `null` = recusa silenciosa. */
+      readonly reply: string | null;
+    }
+  | {
+      readonly consumed: true;
+      readonly status: 'failed';
+      readonly command: MatchedCommand;
+      /** Erro de `run`, `onReject` ou `isGroupAdmin`; quem chamou registra/reporta. */
+      readonly error: unknown;
+    };
+
+export interface CommandRouter {
+  readonly registry: CommandRegistry;
+  /** Comando que a mensagem invoca, sem validar papel nem `accepts`. */
+  match(message: Message): CommandMatch | null;
+  /** Casa, valida papel e `accepts` e roda. Nunca rejeita: erros vêm em `status: 'failed'`. */
+  dispatch(ctx: MessageContext): Promise<DispatchResult>;
+}
+
+export interface CommandMatch {
+  readonly entry: RegisteredCommand;
+  readonly invokedAs: string;
+  readonly rawArgs: string;
+}
+
+const FIRST_WHITESPACE = /\s/;
+
+function mediaOf(message: Message | null): Media | null {
+  return message !== null && 'media' in message ? message.media : null;
+}
+
+/** Primeira entrada de `accepts` que casa, na ordem declarada. */
+function resolveAccepts(message: Message, accepts: readonly AcceptSpec[]): AcceptedMessage | null {
+  for (const spec of accepts) {
+    const quoted = spec.startsWith('quoted:');
+    const target = quoted ? message.quoted : message;
+    const type = quoted ? spec.slice('quoted:'.length) : spec;
+    if (target !== null && target.type === type) return { spec, message: target };
+  }
+  return null;
+}
+
+export function createCommandRouter(options: CommandRouterOptions = {}): CommandRouter {
+  const prefix = (options.prefix ?? '!').toLowerCase();
+  if (prefix.length === 0) {
+    // Prefixo vazio faria a primeira palavra de qualquer conversa virar comando.
+    throw new TypeError('O prefixo de comando não pode ser vazio');
+  }
+  const owners = new Set(options.owners ?? []);
+  const isGroupAdmin = options.isGroupAdmin;
+  const registry = options.registry ?? createCommandRegistry();
+
+  function match(message: Message): CommandMatch | null {
+    const text = message.text?.trimStart();
+    if (!text || text.slice(0, prefix.length).toLowerCase() !== prefix) return null;
+
+    // Token = do fim do prefixo até o primeiro espaço em branco. Match exato no Map: o
+    // `includes()` do legacy fazia "!s" casar dentro de "vou mandar !sticker depois".
+    const rest = text.slice(prefix.length);
+    const end = rest.search(FIRST_WHITESPACE);
+    const token = (end === -1 ? rest : rest.slice(0, end)).toLowerCase();
+    if (token.length === 0) return null;
+
+    const entry = registry.find(token);
+    if (!entry) return null;
+    const rawArgs = end === -1 ? '' : rest.slice(end).trimStart();
+    return { entry, invokedAs: token, rawArgs };
+  }
+
+  async function hasRole(role: CommandRole, message: Message): Promise<boolean> {
+    if (role === 'everyone') return true;
+    // Dono é superusuário: passa também em `group-admin`.
+    if (owners.has(message.sender.id)) return true;
+    if (role === 'owner') return false;
+    // `group-admin` fora de grupo não tem a quem se referir: recusa.
+    if (!message.chat.isGroup || !isGroupAdmin) return false;
+    return isGroupAdmin(message.chat.id, message.sender.id);
+  }
+
+  async function reject(
+    definition: CommandDefinition,
+    ctx: RejectContext,
+    rejection: CommandRejection,
+  ): Promise<string | null> {
+    return (await definition.onReject?.(ctx, rejection)) ?? null;
+  }
+
+  return {
+    registry,
+    match,
+
+    async dispatch(ctx) {
+      const found = match(ctx.message);
+      if (!found) return { consumed: false, status: 'no-match' };
+
+      const { entry, invokedAs, rawArgs } = found;
+      const { definition } = entry;
+      const command: MatchedCommand = { plugin: entry.plugin, name: definition.name, invokedAs };
+      const message = ctx.message;
+
+      try {
+        // Herda do contexto recebido em vez de copiar: preserva métodos e getters que os
+        // estágios anteriores (ou o Bot) tenham colocado nele.
+        const base: RejectContext = Object.assign(Object.create(ctx) as MessageContext, {
+          command: definition.name,
+          invokedAs,
+          args: parseArgs(rawArgs),
+          rawArgs,
+        });
+
+        const role = definition.role ?? 'everyone';
+        if (!(await hasRole(role, message))) {
+          const rejection: CommandRejection = { reason: 'role', required: role };
+          const reply = await reject(definition, base, rejection);
+          return { consumed: true, status: 'rejected', command, rejection, reply };
+        }
+
+        let accepted: AcceptedMessage | null = null;
+        let media: Media | null;
+        if (definition.accepts) {
+          accepted = resolveAccepts(message, definition.accepts);
+          if (!accepted) {
+            const rejection: CommandRejection = { reason: 'accepts', accepts: definition.accepts };
+            const reply = await reject(definition, base, rejection);
+            return { consumed: true, status: 'rejected', command, rejection, reply };
+          }
+          media = mediaOf(accepted.message);
+        } else {
+          media = mediaOf(message) ?? mediaOf(message.quoted);
+        }
+
+        const commandCtx: CommandContext = Object.assign(base, { accepted, media });
+        await definition.run(commandCtx);
+        return { consumed: true, status: 'ran', command };
+      } catch (error) {
+        return { consumed: true, status: 'failed', command, error };
+      }
+    },
+  };
+}
