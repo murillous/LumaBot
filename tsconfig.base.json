@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  // Base de todos os pacotes de packages/*, plugins/* e apps/*. Cada pacote estende este
+  // arquivo e define só rootDir/outDir/include/references (caminhos aqui seriam relativos à raiz).
+  "compilerOptions": {
+    // Node 24 roda ES2024 nativo — nada de downlevel.
+    "target": "es2024",
+    "lib": ["es2024"],
+    "types": ["node"],
+
+    // ESM puro com a resolução do Node: imports relativos exigem extensão.
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "moduleDetection": "force",
+    "verbatimModuleSyntax": true,
+
+    // Em dev o Node executa o .ts direto (type stripping, D26): só sintaxe apagável
+    // (sem enum/namespace/parameter properties) e imports relativos com `.ts`,
+    // reescritos para `.js` na emissão.
+    "erasableSyntaxOnly": true,
+    "rewriteRelativeImportExtensions": true,
+
+    // Aliases @zapforge/*: cada pacote exporta o fonte sob esta condição (ver README).
+    "customConditions": ["@zapforge/source"],
+
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "noPropertyAccessFromIndexSignature": true,
+
+    // Project references (`tsc -b`) exigem composite + declarações.
+    "composite": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+
+    "skipLibCheck": true
+  }
+}
