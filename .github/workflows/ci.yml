@@ -46,3 +46,12 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
       - run: pnpm build
+
+  # Placeholder: o benchmark (bench/, FakeTransport, baseline e falha > 10%) chega no M2-4.
+  # O job já existe para o check ter nome estável quando for ativado.
+  benchmark:
+    name: Benchmark
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "::notice title=Benchmark::Ainda não ativado — entra no M2-4 (ZAPFORGE_PLAN.md §7)."
