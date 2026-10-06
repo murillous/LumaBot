@@ -3,13 +3,17 @@ name: Deploy LumaBot to EC2
 on:
   push:
     branches: [monteiro/cloud]
-    paths-ignore:
-      - 'docs/**'
-      - 'tests/**'
-      - 'infra/**'
-      - '*.md'
-      - '.gitignore'
-      - '.dockerignore'
+    # O bot de produção vive em legacy/ (ZapForge M0-4.3): mudanças no kernel
+    # (packages/, plugins/, apps/) não disparam deploy.
+    paths:
+      - 'legacy/**'
+      - '.github/workflows/deploy-ec2.yml'
+      - '!legacy/docs/**'
+      - '!legacy/tests/**'
+      - '!legacy/infra/**'
+      - '!legacy/**/*.md'
+      - '!legacy/.gitignore'
+      - '!legacy/.dockerignore'
   workflow_dispatch:
 
 env:
@@ -61,8 +65,8 @@ jobs:
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
         with:
-          context: .
-          file: Dockerfile
+          context: legacy
+          file: legacy/Dockerfile
           push: true
           tags: ${{ env.GHCR_IMAGE }}:latest,${{ env.GHCR_IMAGE }}:${{ github.sha }}
           # cache disabled - default docker driver doesn't support cache export

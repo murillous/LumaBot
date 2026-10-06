@@ -4,6 +4,11 @@
 
 Este guia cobre o deploy seguro e eficiente do LumaBot em produção usando Docker, Docker Compose e Nginx.
 
+> **Monorepo ZapForge:** o LumaBot vive em `legacy/` do repositório. Todos os
+> caminhos e comandos deste guia são relativos a `legacy/` — rode-os de lá.
+> Servidores instalados antes da mudança precisam da migração descrita em
+> [Migração para `legacy/`](#migração-para-legacy).
+
 ## Pré-requisitos
 
 - Docker 20.10+
@@ -14,7 +19,7 @@ Este guia cobre o deploy seguro e eficiente do LumaBot em produção usando Dock
 ## Estrutura de Arquivos
 
 ```
-.
+legacy/
 ├── Dockerfile              # Imagem de produção (multi-stage otimizada)
 ├── Dockerfile.dev          # Imagem de desenvolvimento com live-reload
 ├── docker/
@@ -39,6 +44,7 @@ ssh user@seu-servidor.com
 cd /opt/lumabot
 
 git clone https://github.com/murillous/LumaBot.git .
+cd legacy
 ```
 
 ### 2. Configurar Variáveis de Ambiente
@@ -224,6 +230,57 @@ git pull origin main
 docker-compose -f docker/compose.prod.yml build --no-cache
 docker-compose -f docker/compose.prod.yml up -d app
 ```
+
+## Migração para `legacy/`
+
+Com o monorepo ZapForge (M0-4), o código saiu da raiz do repositório para
+`legacy/`. A imagem Docker é a mesma (o `Dockerfile` usa `legacy/` como contexto e
+o layout interno `/app` não mudou), mas **servidores instalados a partir da raiz
+precisam de um passo manual** quando essa mudança chegar à `main`. Faça-o numa
+janela de manutenção, logo após o merge.
+
+### Docker Compose (`docker/compose.prod.yml`)
+
+O nome do projeto Compose vem da pasta do arquivo (`docker/`), que não mudou —
+os volumes `auth_data`/`bot_data` continuam os mesmos. Só o `.env` muda de lugar:
+
+```bash
+cd /opt/lumabot
+docker-compose -f docker/compose.prod.yml down   # antes do pull, com o layout antigo
+git pull origin main
+mv .env legacy/.env
+cd legacy
+docker-compose -f docker/compose.prod.yml up -d --build
+```
+
+### PM2 (`ecosystem.config.cjs`)
+
+O PM2 guarda o caminho absoluto do script; após o pull, `dashboard/server.js` não
+existe mais na raiz e o processo entra em loop de crash. Por isso **o auto-deploy
+(`/api/deploy`) não consegue aplicar essa mudança sozinho** — desative o webhook
+ou pare o processo antes do merge na `main`.
+
+```bash
+cd /opt/lumabot
+pm2 delete luma luma-tunnel        # remove os processos com o caminho antigo
+git pull origin main
+mv .env auth_info legacy/          # credenciais do WhatsApp e variáveis
+mv data/* legacy/data/             # bancos SQLite (inclui luma_private.sqlite)
+cd legacy
+npm install --omit=dev && npm run dashboard:build
+pm2 start ecosystem.config.cjs     # (--only luma, se não usar o tunnel)
+pm2 save
+```
+
+Depois disso o auto-deploy volta a funcionar normalmente: ele roda `git pull` e
+`npm install` a partir de `legacy/`.
+
+### EC2 (GitHub Actions)
+
+O workflow `.github/workflows/deploy-ec2.yml` builda a imagem com contexto
+`legacy/` e só dispara para mudanças em `legacy/`. Na instância nada muda: o
+`/app/docker-compose.yml` gerado pelo `infra/user_data.sh.tpl` já consome a imagem
+do GHCR e monta `/app/auth_info`, `/app/data` e `/app/.env` como antes.
 
 ## Troubleshooting
 
