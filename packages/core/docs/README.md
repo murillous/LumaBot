@@ -4,5 +4,5 @@ Como usar o kernel. O porquê das decisões está nos [ADRs](../../../docs/adr/R
 
 | Guia | Assunto |
 | --- | --- |
-| [transport.md](transport.md) | Contrato `Transport`, eventos, capabilities e política de reconexão |
+| [Transport](transport.md) | Contrato `Transport`, eventos, capabilities e política de reconexão |
 | [Bot e lifecycle](bot.md) | `createBot`, `start`/`stop`, estados e ganchos de parada |
