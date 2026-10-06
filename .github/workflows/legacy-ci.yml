@@ -1,0 +1,36 @@
+name: Legacy CI
+
+# Garante que o LumaBot em legacy/ segue verde durante a migração para o ZapForge.
+# A suíte roda exatamente como está (sem alteração) — é a rede de segurança até a paridade.
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: legacy-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Testes do legacy
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: legacy
+    steps:
+      - uses: actions/checkout@v4
+
+      # Mesma major da imagem de produção (legacy/Dockerfile usa node:20-slim).
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: legacy/package-lock.json
+
+      - run: npm ci --no-audit --no-fund
+      - run: npx vitest run
