@@ -1,0 +1,5 @@
+# legacy/ fica fora do workspace: segue com npm e o próprio package-lock até a paridade.
+packages:
+  - packages/*
+  - plugins/*
+  - apps/*
