@@ -2,6 +2,28 @@ export type { Bot, BotConfig, BotState } from '#bot/bot.ts';
 export { BotStateError, createBot } from '#bot/bot.ts';
 export type { ShutdownOptions, StopHook, StopHookOptions } from '#bot/stop-hooks.ts';
 export { StopHookError } from '#bot/stop-hooks.ts';
+export { parseArgs } from '#commands/args.ts';
+export type {
+  AcceptedMessage,
+  AcceptSpec,
+  CommandContext,
+  CommandDefinition,
+  CommandRejection,
+  CommandRole,
+  RejectContext,
+} from '#commands/command.ts';
+export { command } from '#commands/command.ts';
+export type { CommandRegistry, RegisteredCommand } from '#commands/registry.ts';
+export { CommandConflictError, createCommandRegistry } from '#commands/registry.ts';
+export type {
+  CommandMatch,
+  CommandRouter,
+  CommandRouterOptions,
+  DispatchResult,
+  IsGroupAdmin,
+  MatchedCommand,
+} from '#commands/router.ts';
+export { createCommandRouter } from '#commands/router.ts';
 export type { MessageContext } from '#context.ts';
 export { createMessage, type MessageInit } from '#message/create.ts';
 export { createMedia, type MediaSource } from '#message/media.ts';
