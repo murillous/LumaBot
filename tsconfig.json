@@ -1,0 +1,6 @@
+{
+  // Solution da raiz: `pnpm typecheck` roda `tsc -b` em todos os pacotes listados aqui.
+  // Ao criar um pacote, adicione-o em `references`.
+  "files": [],
+  "references": []
+}
