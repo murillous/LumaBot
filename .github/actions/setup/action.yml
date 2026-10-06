@@ -1,0 +1,17 @@
+name: Setup
+description: Node (versão do .nvmrc), pnpm (versão do packageManager) e dependências do workspace.
+
+runs:
+  using: composite
+  steps:
+    # Antes do setup-node: o cache precisa do pnpm instalado para achar o store.
+    - uses: pnpm/action-setup@v4
+
+    - uses: actions/setup-node@v4
+      with:
+        node-version-file: .nvmrc
+        # Cacheia o store do pnpm, com chave pelo hash do pnpm-lock.yaml.
+        cache: pnpm
+
+    - run: pnpm install --frozen-lockfile
+      shell: bash

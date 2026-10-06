@@ -1,0 +1,57 @@
+name: CI
+
+# Kernel ZapForge (workspace pnpm). O legacy/ tem o próprio workflow (legacy-ci.yml).
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - run: pnpm lint
+
+  typecheck:
+    name: Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - run: pnpm typecheck
+
+  test:
+    name: Testes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - run: pnpm test
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - run: pnpm build
+
+  # Placeholder: o benchmark (bench/, FakeTransport, baseline e falha > 10%) chega no M2-4.
+  # O job já existe para o check ter nome estável quando for ativado.
+  benchmark:
+    name: Benchmark
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "::notice title=Benchmark::Ainda não ativado — entra no M2-4 (ZAPFORGE_PLAN.md §7)."
