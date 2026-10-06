@@ -22,8 +22,14 @@ jobs:
     defaults:
       run:
         working-directory: legacy
+    # A suíte assume o ambiente de dev: lembretes usam o fuso local (esperam
+    # horário de Brasília) e a legenda de figurinha precisa de fonte de emoji.
+    env:
+      TZ: America/Sao_Paulo
     steps:
       - uses: actions/checkout@v4
+
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq fonts-noto-color-emoji
 
       # Mesma major da imagem de produção (legacy/Dockerfile usa node:20-slim).
       - uses: actions/setup-node@v4
