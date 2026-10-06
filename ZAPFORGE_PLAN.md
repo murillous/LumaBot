@@ -515,10 +515,21 @@ critérios de aceite. Toda issue herda os critérios gerais:
   - Campos `secret` (mascarados, nunca logados)
   - Reload de plugin ao mudar config (`teardown` → `setup`)
   - Objeto `messages` sobrescrevível
+  - `owners` da config do bot: telefones só com dígitos, comparados com `Contact.phone` (M1-16)
 - **#M1-14 Logger**
   - pino com `plugin` e `chatId` no contexto; nível configurável
 - **#M1-15 Escape hatch**
   - `ctx.unsafe.native` com aviso no log (uma vez por plugin)
+- **#M1-16 Pipeline integrado no `Bot`**
+  - Fluxo da seção 5.3 dentro do `Bot`: evento `message` do transport → fila de entrada →
+    middlewares → roteador → listeners (M1-7); `stop()` fecha a fila por um gancho de parada
+  - Texto de trabalho `ctx.text`: preenchido pelo middleware `sanitize`, lido pelo roteador e
+    pelos listeners
+  - `ReconnectionPolicy` ligada a `connection.status`/`connection.qr`; o `Bot` executa a decisão
+  - Owners por telefone: `Contact.phone` (só dígitos, `null` se o transport não souber); o
+    roteador compara `owners` com `sender.phone`
+  - *Aceite*: mensagem de um `Transport` de teste percorre os estágios até o comando ou os
+    listeners (teste de ponta a ponta sem transporte real)
 
 ---
 
@@ -526,7 +537,8 @@ critérios de aceite. Toda issue herda os critérios gerais:
 
 - **#M2-1 `@zapforge/transport-baileys`**
   - Conexão, QR e pairing code, reconexão
-  - Normalização (unwrap ephemeral/viewOnce/documentWithCaption) → modelo do core
+  - Normalização (unwrap ephemeral/viewOnce/documentWithCaption) → modelo do core, incluindo
+    `Contact.phone` resolvido também para remetentes com LID (M1-16)
   - Envio de todos os tipos; mídia; grupos; reações; presença; edição/deleção
   - Declaração de capabilities (seção 6.10)
   - Auth state via `StoragePort` (substitui `useMultiFileAuthState`)
@@ -687,5 +699,5 @@ Levantada do LumaBot v1.5.0 (`src/config/constants.js`, plugins e docs). Revisar
   - Outros: `good first issue`, `breaking`, `needs-adr`
 - **Campos customizados** (Project v2): `Milestone`, `Pacote`, `Estimativa`, `Status`
   (Backlog → Ready → In progress → Review → Done).
-- **Dependências**: M1 bloqueia M2; M2-3 (`testing`) bloqueia M4; M1-9 (services) e
+- **Dependências**: M1 bloqueia M2; M1-7 bloqueia o estágio de listeners do M1-16; M2-3 (`testing`) bloqueia M4; M1-9 (services) e
   M4-3 (`user-names`) bloqueiam M5-1.
