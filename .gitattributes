@@ -1,0 +1,3 @@
+# LF no checkout em qualquer SO: o Biome exige LF e o core.autocrlf=true do Windows
+# convertia para CRLF, quebrando o `pnpm lint` local. Binários são detectados pelo text=auto.
+* text=auto eol=lf
