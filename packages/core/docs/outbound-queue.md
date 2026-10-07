@@ -150,6 +150,10 @@ opção é ignorada. Uma falha de presença não impede o envio, que sai na hora
 - `close({ drain: false })` rejeita o que aguarda com `OutboundQueueError` `'closed'`, cancela
   re-tentativas e só espera os envios já em andamento. Pode ser chamado durante um `close()`
   para abortar a drenagem.
+- Com humanização, um envio que ainda está na presença ou no "digitando" ainda não chegou ao
+  transport: o descarte encerra a espera e o rejeita com `'closed'` (conta em `dropped`), sem
+  chamar `send`. Um `send` que o transport já recebeu não tem como ser cancelado; o
+  `close({ drain: false })` espera a resposta dele, até `sendTimeoutMs`.
 - `onIdle()` resolve quando não há nada aguardando nem em andamento, sem fechar.
 
 O `Bot` cria a fila com as opções de `createBot({ outbound })`, entrega `ctx.send` aos plugins e
