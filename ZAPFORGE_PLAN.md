@@ -144,6 +144,7 @@ decisão anterior.
 | D44 | **`bot.settled()` espera o bot processar o que recebeu** (detalha D22/D34): resolve quando fila de entrada, listeners assíncronos do barramento e fila de saída estão vazios na mesma conferência, esperando as três de novo enquanto não; listener que estoura o prazo deixa de contar; fila de saída pausada espera (teto `maxPauseMs`); jobs do scheduler ficam de fora; nunca rejeita | Expor as filas ou os `onIdle()`; nome `idle()`, que colide com `BotState`; contar jobs do scheduler; rejeitar com a fila pausada | O kit de testes implementa `receive()` sobre a API pública e asserções negativas ficam seguras; o caminho quente paga um incremento e um decremento por listener assíncrono |
 | D45 | **Queda de rede nunca limpa a sessão** (detalha D03/D37): `connection-lost`/`unknown` reconectam com backoff sem limite de tentativas; `clean-session` só para `logged-out`, `auth-failed` e `qr-limit`; saem `maxReconnectAttempts` e a causa `reconnect-limit` | Limite que decide `stop` e deixa o supervisor reiniciar; limite opcional; manter e documentar | ~30 s de rede fora não apagam credenciais válidas nem exigem parear de novo no celular |
 | D46 | **Ids de contato em espaços diferentes** (detalha D03/D09): `group-admin` casa o participante admin por id ou, quando os dois lados o têm, por `phone`; o contrato do `Transport` diz que ids podem vir em espaços diferentes (LID, JID de telefone), que o adapter preenche `phone` sempre que souber e que `getGroupMetadata` deve ser barato (cache no adapter, invalidado por `group.participants`/`group.updated`); o core segue sem cache | Transport normaliza tudo para um espaço só; cache de metadados no core | Admin com LID não é recusado em silêncio; cada comando de admin não vira ida à rede do WhatsApp |
+| D47 | **A espera na fila de saída não conta no prazo do handler** (detalha D19/D33/D42): o prazo de comando e de listener pausa enquanto um `reply`/`react` do contexto não assenta (fila, humanização, retry, transport) e volta com o que sobrou; `ctx.send` do plugin, `ctx.groups` e jobs seguem contando; benchmark de vazão do M2-4 roda com os intervalos da fila de saída em 0 | `reply` resolve ao enfileirar; manter e documentar | Rajada em chats diferentes não vira `timedOut` falso; o chat fica preso só enquanto espera a própria resposta, limitado pelos tetos da fila |
 
 ---
 
@@ -611,7 +612,7 @@ critérios de aceite. Toda issue herda os critérios gerais:
     (`toContainSticker`, `toHaveReplied`...)
   - Fixtures de mídia
 - **#M2-4 Benchmark**
-  - Cenários da seção 7 em `bench/`
+  - Cenários da seção 7 em `bench/`; vazão com `globalIntervalMs`/`chatIntervalMs` em 0 (D47)
   - Job de CI com baseline e falha > 10%
 - **#M2-5 App mínimo**
   - `apps/lumabot` conectando via Baileys + SQLite com um plugin "ping"

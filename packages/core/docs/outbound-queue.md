@@ -66,6 +66,11 @@ Uma presença explícita ocupa o intervalo do chat: o envio logo depois dela esp
 Os padrões são conservadores (≈3 msg/s no total, 1 msg/s por chat). A latência sob carga sobe
 por design: é o preço de não tomar ban.
 
+A espera aqui não conta no prazo do comando ou listener que chamou `ctx.reply`/`ctx.react`: o
+prazo pausa até o envio assentar ([ADR 0047](../../../docs/adr/0047-espera-na-fila-de-saida-fora-do-prazo.md)).
+Benchmark de vazão do kernel roda com `globalIntervalMs` e `chatIntervalMs` em 0, senão a taxa
+domina a medição.
+
 ## Prioridade e ordem
 
 `priority` é `'high'`, `'normal'` (padrão) ou `'low'`. Quando o intervalo global libera, sai o

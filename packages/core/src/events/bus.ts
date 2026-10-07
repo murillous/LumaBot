@@ -249,17 +249,18 @@ export function createEventBus(options: EventBusOptions): EventBus {
       let settled = false;
       const disarm = (): void => {
         settled = true;
-        clearTimeout(timer);
+        cancel();
         armed.delete(disarm);
         settle();
       };
-      const timer = setTimeout(() => {
+      // Pausa enquanto o `reply` do listener aguarda a fila de saída (ADR 0047).
+      const cancel = deadline.armTimer(entry.timeoutMs, () => {
         disarm();
         const error = new ListenerTimeoutError(entry.plugin, event, entry.timeoutMs);
         deadline.expire(error);
         fail(entry, event, error, true);
         resolve(true);
-      }, entry.timeoutMs);
+      });
       armed.add(disarm);
       result.then(
         () => {
