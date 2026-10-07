@@ -101,6 +101,12 @@ export type {
 } from '#queue/inbound.ts';
 export { InboundQueue } from '#queue/inbound.ts';
 export type { JobHandler, Scheduler } from '#scheduler/types.ts';
+export type { ProvidedService, ServiceRegistry } from '#services/registry.ts';
+export {
+  createServiceRegistry,
+  ServiceConflictError,
+  ServiceNotFoundError,
+} from '#services/registry.ts';
 export type { ServiceAccess, ServiceName, Services } from '#services/types.ts';
 export type {
   Collection,
