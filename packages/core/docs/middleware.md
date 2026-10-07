@@ -34,6 +34,8 @@ Regras:
   capturá-los com `try { await next() } catch …`.
 - O middleware é genérico no contexto: `Middleware<C extends MessageContext>`. No bot, o contexto
   é um `BotMessageContext` (`message`, `text`, `reply`, `log`).
+- No bot, **edições** (`message.edited`) também passam pelos middlewares. Quem só quer mensagem
+  nova confere `ctx.message.isEdited` ([Bot](bot.md#fluxo-de-uma-mensagem)).
 
 ## O texto de trabalho `ctx.text`
 

@@ -369,10 +369,19 @@ export function createBot(config: BotConfig): Bot {
 
   // --- Fluxo de uma mensagem (plano §5.3) -------------------------------------------------
 
-  async function handleMessage(message: Message): Promise<void> {
-    if (!ready && !(await readyPromise)) return;
+  /**
+   * Barreiras comuns à mensagem nova e à edição: espera o fim do boot e roda os middlewares.
+   * Devolve o contexto se a mensagem passou.
+   */
+  async function admit(message: Message): Promise<KernelMessageContext | undefined> {
+    if (!ready && !(await readyPromise)) return undefined;
     const ctx = createMessageContext(message, contextDeps);
-    if (!(await pipeline.run(ctx))) return;
+    return (await pipeline.run(ctx)) ? ctx : undefined;
+  }
+
+  async function handleMessage(message: Message): Promise<void> {
+    const ctx = await admit(message);
+    if (ctx === undefined) return;
     const result = await router.dispatch(ctx);
     if (!result.consumed) {
       await bus.emit('message', message, listenerExtras(ctx));
@@ -407,8 +416,18 @@ export function createBot(config: BotConfig): Bot {
     return messageExtras(ctx) as unknown as ListenerExtras<'message'>;
   }
 
-  function onMessage(message: Message): void {
-    const result = inbound.enqueue(message.chat.id, () => handleMessage(message));
+  /**
+   * Edição passa pelas mesmas barreiras da mensagem nova (fila do chat, boot, middlewares — o
+   * `rateLimit` a conta), mas não dispara comando: só os listeners de `message.edited`.
+   */
+  async function handleEdited(message: Message): Promise<void> {
+    const ctx = await admit(message);
+    if (ctx !== undefined) await bus.emit('message.edited', message, listenerExtras(ctx));
+  }
+
+  /** Põe a mensagem (nova ou editada) na fila do chat dela: o mesmo chat anda em série. */
+  function enqueue(message: Message, handle: (message: Message) => Promise<void>): void {
+    const result = inbound.enqueue(message.chat.id, () => handle(message));
     if (result !== 'queued') {
       log.warn('mensagem descartada pela fila de entrada', {
         chatId: message.chat.id,
@@ -416,13 +435,6 @@ export function createBot(config: BotConfig): Bot {
         reason: result,
       });
     }
-  }
-
-  function onEdited(message: Message): void {
-    // Edição não passa por middlewares nem comandos (não é mensagem nova): vai direto aos
-    // listeners, com o mesmo contexto de mensagem.
-    const ctx = createMessageContext(message, contextDeps);
-    void bus.emit('message.edited', message, listenerExtras(ctx));
   }
 
   /** Repassa um evento do transport direto ao barramento. */
@@ -436,8 +448,8 @@ export function createBot(config: BotConfig): Bot {
   /** Assina todos os eventos do transport; devolve a função que desfaz. */
   function subscribeTransport(): () => void {
     const offs: (() => void)[] = [
-      transport.on('message', onMessage),
-      transport.on('message.edited', onEdited),
+      transport.on('message', (message) => enqueue(message, handleMessage)),
+      transport.on('message.edited', (message) => enqueue(message, handleEdited)),
       transport.on('connection.status', (status) => {
         reconnector?.onStatus(status);
         void bus.emit('connection.status', status);

@@ -9,6 +9,7 @@ import { secret } from '#config/schema.ts';
 import type { PluginErrorEvent } from '#events/types.ts';
 import { createLogger } from '#logger/logger.ts';
 import { createSecretSet } from '#logger/secrets.ts';
+import type { TextMessage } from '#message/types.ts';
 import { definePlugin } from '#plugin/define.ts';
 import { PluginHostStateError } from '#plugin/host.ts';
 import { createMemoryStorage } from '#storage/memory.ts';
@@ -322,6 +323,131 @@ describe('Bot: fluxo da mensagem (§5.3)', () => {
 
     await vi.waitFor(() => expect(sentTexts(transport)).toEqual(['vi a edição']));
     expect(got).toEqual(['reaction:👍', 'edited:depois']);
+  });
+});
+
+/** Edição de `message(...)`: mesma mensagem com texto novo e `isEdited`. */
+function edited(text: string, options: Parameters<typeof message>[1] = {}): TextMessage {
+  return { ...message(text, options), isEdited: true };
+}
+
+/** Plugin que só registra, em ordem, o que chegou em `message` e `message.edited`. */
+function registro(got: string[], options: { gate?: Promise<void> } = {}) {
+  return definePlugin({
+    name: 'registro',
+    version: '1.0.0',
+    engine: ENGINE,
+    setup(ctx) {
+      ctx.commands.add(command({ name: 'cmd', run: () => void got.push('comando') }));
+      ctx.events.on('message', async (e) => {
+        got.push(`message:${e.text}`);
+        await options.gate;
+      });
+      ctx.events.on('message.edited', (e) => {
+        got.push(`edited:${e.text}`);
+      });
+    },
+  });
+}
+
+describe('Bot: edição de mensagem (#197)', () => {
+  it('passa pelos middlewares: chatFilter e ignoreSelf barram a edição, e o comando não roda', async () => {
+    const transport = new RecordingTransport();
+    const got: string[] = [];
+    const b = bot({
+      transport,
+      plugins: [registro(got)],
+      middlewares: { chatFilter: { block: ['bloq@test'] } },
+    });
+    await b.start();
+
+    transport.emit('message.edited', edited('bloqueado', { chatId: 'bloq@test' }));
+    transport.emit('message.edited', edited('eu mesmo', { fromMe: true }));
+    transport.emit('message.edited', edited('!cmd'));
+
+    await vi.waitFor(() => expect(got).toEqual(['edited:!cmd']));
+  });
+
+  it('o ctx.text da edição vem do sanitize, e o middleware do app a reconhece por isEdited', async () => {
+    const transport = new RecordingTransport();
+    const got: string[] = [];
+    const vistos: boolean[] = [];
+    const b = bot({
+      transport,
+      plugins: [registro(got)],
+      middlewares: {
+        sanitize: { maxTextLength: 4 },
+        use: [
+          (ctx, next) => {
+            vistos.push(ctx.message.isEdited);
+            return next();
+          },
+        ],
+      },
+    });
+    await b.start();
+
+    transport.emit('message.edited', edited('texto comprido'));
+
+    await vi.waitFor(() => expect(got).toEqual(['edited:text']));
+    expect(vistos).toEqual([true]);
+  });
+
+  it('o rateLimit conta a edição como uma mensagem', async () => {
+    const transport = new RecordingTransport();
+    const got: string[] = [];
+    const b = bot({
+      transport,
+      plugins: [registro(got)],
+      middlewares: { rateLimit: { max: 1, windowMs: 60_000 } },
+    });
+    await b.start();
+
+    transport.emit('message', message('primeira'));
+    transport.emit('message.edited', edited('excedeu'));
+    transport.emit('message', message('outra', { sender: { id: 'outra@test' } }));
+
+    await vi.waitFor(() => expect(got).toEqual(['message:primeira', 'message:outra']));
+  });
+
+  it('entra na fila do chat: espera a mensagem anterior do mesmo chat terminar', async () => {
+    const transport = new RecordingTransport();
+    const got: string[] = [];
+    const gate = deferred();
+    const b = bot({ transport, plugins: [registro(got, { gate: gate.promise })] });
+    await b.start();
+
+    transport.emit('message', message('lenta'));
+    transport.emit('message.edited', edited('editada'));
+    await vi.waitFor(() => expect(got).toEqual(['message:lenta']));
+    // Tempo para uma edição fora da fila furar a ordem.
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(got).toEqual(['message:lenta']);
+
+    gate.resolve();
+    await vi.waitFor(() => expect(got).toEqual(['message:lenta', 'edited:editada']));
+  });
+
+  it('edição que chega durante o boot espera os plugins subirem', async () => {
+    const transport = new RecordingTransport();
+    const got: string[] = [];
+    const gate = deferred();
+    const tardio = definePlugin({
+      name: 'tardio',
+      version: '1.0.0',
+      engine: ENGINE,
+      async setup(ctx) {
+        await gate.promise;
+        ctx.events.on('message.edited', (e) => void got.push(`edited:${e.text}`));
+      },
+    });
+    const b = bot({ transport, plugins: [tardio] });
+    const started = b.start();
+    transport.emit('message.edited', edited('cedo'));
+    gate.resolve();
+    await started;
+
+    await vi.waitFor(() => expect(got).toEqual(['edited:cedo']));
   });
 });
 
