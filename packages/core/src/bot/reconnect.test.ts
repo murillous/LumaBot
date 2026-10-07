@@ -121,6 +121,103 @@ describe('Bot: reconexão', () => {
     expect(b.state).toBe('running');
   });
 
+  it('queda durante o connect inicial não agenda reconexão: quem trata é o start()', async () => {
+    class DropsOnConnect extends RecordingTransport {
+      override async connect(): Promise<void> {
+        if (this.calls.length === 0) {
+          this.emit('connection.status', {
+            status: 'closed',
+            reason: 'connection-lost',
+            error: null,
+          });
+        }
+        await super.connect();
+      }
+    }
+    const transport = new DropsOnConnect();
+    const b = bot({ transport, reconnection: { backoff: () => 1000 } });
+    await b.start();
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(connects(transport)).toBe(1);
+  });
+
+  it('quedas repetidas com a reconexão já agendada reconectam uma vez só', async () => {
+    const transport = new RecordingTransport();
+    const b = bot({ transport, reconnection: { backoff: () => 1000 } });
+    await b.start();
+
+    const closed = { status: 'closed', reason: 'connection-lost', error: null } as const;
+    transport.emit('connection.status', closed);
+    transport.emit('connection.status', closed);
+    await vi.advanceTimersByTimeAsync(500);
+    transport.emit('connection.status', closed);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(connects(transport)).toBe(2);
+  });
+
+  it('stop() espera a reconexão em andamento antes de desconectar', async () => {
+    let releaseConnect!: () => void;
+    class SlowReconnect extends RecordingTransport {
+      override async connect(): Promise<void> {
+        if (this.calls.length > 0) {
+          this.calls.push('reconnecting');
+          await new Promise<void>((resolve) => {
+            releaseConnect = resolve;
+          });
+        }
+        await super.connect();
+        this.calls.push('connected');
+      }
+    }
+    const transport = new SlowReconnect();
+    const b = bot({ transport, reconnection: { backoff: () => 1000 } });
+    await b.start();
+
+    transport.emit('connection.status', {
+      status: 'closed',
+      reason: 'connection-lost',
+      error: null,
+    });
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(transport.calls).toEqual(['connect', 'connected', 'reconnecting']);
+
+    const stopping = b.stop();
+    await vi.advanceTimersByTimeAsync(0);
+    releaseConnect();
+    await stopping;
+    expect(transport.calls).toEqual([
+      'connect',
+      'connected',
+      'reconnecting',
+      'connect',
+      'connected',
+      'disconnect',
+    ]);
+  });
+
+  it('stop() durante o clearSession não reconecta', async () => {
+    const transport = new RecordingTransport();
+    let releaseClear!: () => void;
+    const clearSession = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          releaseClear = resolve;
+        }),
+    );
+    const b = bot({ transport, reconnection: { clearSession, cleanDelayMs: 100 } });
+    await b.start();
+
+    transport.emit('connection.status', { status: 'closed', reason: 'logged-out', error: null });
+    await vi.advanceTimersByTimeAsync(100);
+    expect(clearSession).toHaveBeenCalledOnce();
+
+    // O stop() espera a reconexão em andamento; a limpeza termina depois dele já ter começado.
+    const stopping = b.stop();
+    releaseClear();
+    await stopping;
+    expect(transport.calls).toEqual(['connect', 'disconnect']);
+  });
+
   it('QR vai para o log e o barramento, e conta para o limite de QRs', async () => {
     const transport = new RecordingTransport();
     const logger = recordingLogger();
