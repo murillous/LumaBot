@@ -4,7 +4,7 @@ import {
   type Logger,
   type Message,
 } from '@zapforge/core';
-import type { AuthStateStore, TransportDeps } from '@zapforge/core/adapter';
+import { type AuthStateStore, CAPABILITIES, type TransportDeps } from '@zapforge/core/adapter';
 import { DisconnectReason, type WAMessage } from 'baileys';
 import { describe, expect, it, vi } from 'vitest';
 import { boom, FakeDriver } from './fake-socket.test-support.ts';
@@ -504,15 +504,229 @@ describe('BaileysTransport: mensagens recebidas', () => {
   });
 });
 
-describe('BaileysTransport: ações ainda não suportadas', () => {
-  it('sem capabilities declaradas, as ações lançam UnsupportedError', async () => {
+describe('BaileysTransport: capabilities', () => {
+  it('declara as capabilities iniciais do Baileys (plano §6.10): todas as do core', () => {
     const { transport } = setup();
-    expect(transport.capabilities.size).toBe(0);
-    await expect(transport.send('x@s.whatsapp.net', { type: 'text', text: 'oi' })).rejects.toThrow(
-      expect.objectContaining({ name: 'UnsupportedError', capability: 'send.text' }),
+    expect([...transport.capabilities].sort()).toEqual([...CAPABILITIES].sort());
+  });
+});
+
+describe('BaileysTransport: envio e ações', () => {
+  const GROUP = '120363000000000001@g.us';
+  const ALICE = '5511911110000@s.whatsapp.net';
+
+  async function open() {
+    const ctx = setup();
+    await ctx.transport.connect();
+    const socket = ctx.driver.last;
+    socket.user = { id: '5511999990000:7@s.whatsapp.net' };
+    socket.emit('connection.update', { connection: 'open' });
+    return { ...ctx, socket };
+  }
+
+  it('send devolve a chave da mensagem criada; em grupo o autor é a sessão', async () => {
+    const { transport, socket } = await open();
+
+    const dm = await transport.send(ALICE, { type: 'text', text: 'oi' });
+    const group = await transport.send(GROUP, { type: 'voice', media: Buffer.from('ogg') });
+
+    expect(dm).toEqual({ chatId: ALICE, id: 'SENT-1', fromMe: true, senderId: null });
+    expect(group).toEqual({
+      chatId: GROUP,
+      id: 'SENT-2',
+      fromMe: true,
+      senderId: '5511999990000@s.whatsapp.net',
+    });
+    expect(socket.sent.map((s) => [s.jid, s.content])).toEqual([
+      [ALICE, { text: 'oi' }],
+      [GROUP, { audio: Buffer.from('ogg'), ptt: true }],
+    ]);
+  });
+
+  it('citar uma mensagem recebida manda o proto original ao Baileys, com as menções', async () => {
+    const { transport, socket } = await open();
+    const received: Message[] = [];
+    transport.on('message', (m) => {
+      received.push(m);
+    });
+    const raw: WAMessage = {
+      key: { remoteJid: GROUP, id: 'IN1', fromMe: false, participant: ALICE },
+      message: { conversation: '!foto' },
+      messageTimestamp: 1_760_000_000,
+    };
+    socket.emit('messages.upsert', { type: 'notify', messages: [raw] });
+    await vi.waitFor(() => expect(received).toHaveLength(1));
+    const [message] = received;
+    if (!message) throw new Error('esperava mensagem');
+
+    await transport.send(
+      GROUP,
+      { type: 'text', text: '@alice' },
+      { quoted: message, mentions: [ALICE] },
     );
-    await expect(transport.getGroupMetadata('g@g.us')).rejects.toThrow(
-      expect.objectContaining({ capability: 'groups' }),
+
+    expect(socket.sent[0]).toEqual({
+      jid: GROUP,
+      content: { text: '@alice', mentions: [ALICE] },
+      options: { quoted: raw },
+    });
+  });
+
+  it('envio sem chave de volta falha em vez de devolver chave inventada', async () => {
+    const { transport, socket } = await open();
+    socket.sendMessage = async () => undefined;
+    await expect(transport.send(ALICE, { type: 'text', text: 'oi' })).rejects.toThrow(
+      'não devolveu a chave',
     );
+  });
+
+  it('react, edit e delete agem sobre a chave; reação null vira texto vazio', async () => {
+    const { transport, socket } = await open();
+    const key = { chatId: GROUP, id: 'M1', fromMe: false, senderId: ALICE };
+    const waKey = { remoteJid: GROUP, id: 'M1', fromMe: false, participant: ALICE };
+
+    await transport.react(key, '👍');
+    await transport.react(key, null);
+    await transport.edit({ ...key, fromMe: true, senderId: null }, 'corrigido');
+    await transport.delete(key);
+
+    expect(socket.sent.map((s) => s.content)).toEqual([
+      { react: { text: '👍', key: waKey } },
+      { react: { text: '', key: waKey } },
+      { text: 'corrigido', edit: { remoteJid: GROUP, id: 'M1', fromMe: true } },
+      { delete: waKey },
+    ]);
+    expect(socket.sent.every((s) => s.jid === GROUP)).toBe(true);
+  });
+
+  it('sendPresence repassa o estado para o chat', async () => {
+    const { transport, socket } = await open();
+    await transport.sendPresence(ALICE, 'composing');
+    expect(socket.presences).toEqual([{ type: 'composing', jid: ALICE }]);
+  });
+
+  it('sem conexão, as ações falham na hora', async () => {
+    const { transport } = setup();
+    await expect(transport.send(ALICE, { type: 'text', text: 'oi' })).rejects.toThrow(
+      'sem conexão',
+    );
+    await expect(transport.sendPresence(ALICE, 'paused')).rejects.toThrow('sem conexão');
+    await expect(transport.getGroupMetadata(GROUP)).rejects.toThrow('sem conexão');
+  });
+
+  it('updateGroupParticipants repassa a ação; recusa de algum participante lança', async () => {
+    const { transport, socket } = await open();
+    socket.participantStatus.set('2@s.whatsapp.net', '403');
+
+    await transport.updateGroupParticipants(GROUP, ['1@s.whatsapp.net'], 'promote');
+    await expect(
+      transport.updateGroupParticipants(GROUP, ['1@s.whatsapp.net', '2@s.whatsapp.net'], 'remove'),
+    ).rejects.toThrow('remove recusado para 2@s.whatsapp.net (403)');
+
+    expect(socket.groupUpdates).toEqual([
+      { jid: GROUP, participants: ['1@s.whatsapp.net'], action: 'promote' },
+      { jid: GROUP, participants: ['1@s.whatsapp.net', '2@s.whatsapp.net'], action: 'remove' },
+    ]);
+  });
+});
+
+describe('BaileysTransport: metadados de grupo (ADR 0046)', () => {
+  const GROUP = '120363000000000001@g.us';
+  const LID = '111@lid';
+
+  async function open() {
+    const ctx = setup();
+    await ctx.transport.connect();
+    const socket = ctx.driver.last;
+    socket.groups.set(GROUP, {
+      id: GROUP,
+      subject: 'Família',
+      owner: undefined,
+      participants: [{ id: LID, admin: 'admin' }],
+    });
+    socket.lids.set(LID, '5511911110000@s.whatsapp.net');
+    return { ...ctx, socket };
+  }
+
+  it('converte para o core com o telefone do LID e consulta o servidor uma vez', async () => {
+    const { transport, socket } = await open();
+
+    const [a, b] = await Promise.all([
+      transport.getGroupMetadata(GROUP),
+      transport.getGroupMetadata(GROUP),
+    ]);
+    await transport.getGroupMetadata(GROUP);
+
+    expect(a).toEqual({
+      id: GROUP,
+      subject: 'Família',
+      description: null,
+      ownerId: null,
+      participants: [
+        { id: LID, name: null, phone: '5511911110000', isAdmin: true, isSuperAdmin: false },
+      ],
+    });
+    expect(b).toEqual(a);
+    expect(socket.groupQueries).toEqual([GROUP]);
+  });
+
+  it('eventos de grupo do Baileys e a alteração de participantes invalidam o cache', async () => {
+    const { transport, socket } = await open();
+    await transport.getGroupMetadata(GROUP);
+
+    socket.emit('group-participants.update', {
+      id: GROUP,
+      author: LID,
+      participants: [],
+      action: 'add',
+    });
+    await transport.getGroupMetadata(GROUP);
+    socket.emit('groups.update', [{ id: GROUP, subject: 'Novo' }]);
+    await transport.getGroupMetadata(GROUP);
+    await transport.updateGroupParticipants(GROUP, ['2@s.whatsapp.net'], 'add');
+    await transport.getGroupMetadata(GROUP);
+
+    expect(socket.groupQueries).toHaveLength(4);
+  });
+
+  it('reconexão começa sem cache', async () => {
+    const { transport, driver } = await open();
+    await transport.getGroupMetadata(GROUP);
+
+    await transport.connect();
+    driver.last.groups.set(GROUP, {
+      id: GROUP,
+      subject: 'Outro',
+      owner: undefined,
+      participants: [],
+    });
+
+    expect(await transport.getGroupMetadata(GROUP)).toMatchObject({ subject: 'Outro' });
+  });
+
+  it('falha na consulta não fica no cache', async () => {
+    const { transport, socket } = await open();
+    await expect(transport.getGroupMetadata('outro@g.us')).rejects.toThrow('item-not-found');
+    socket.groups.set('outro@g.us', {
+      id: 'outro@g.us',
+      subject: 'Agora existe',
+      owner: undefined,
+      participants: [],
+    });
+
+    expect(await transport.getGroupMetadata('outro@g.us')).toMatchObject({
+      subject: 'Agora existe',
+    });
+  });
+
+  it('o envio em grupo usa o que já está no cache, sem disparar consulta', async () => {
+    const { transport, socket } = await open();
+    const cached = socket.config.cachedGroupMetadata;
+
+    expect(await cached(GROUP)).toBeUndefined();
+    expect(socket.groupQueries).toEqual([]);
+
+    await transport.getGroupMetadata(GROUP);
+    expect(await cached(GROUP)).toMatchObject({ id: GROUP, subject: 'Família' });
   });
 });

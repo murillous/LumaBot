@@ -122,12 +122,12 @@ async function build(
   const base: Base = {
     id,
     chat: { id: chatId, isGroup },
-    sender: await contact(env, author, alt, raw.pushName ?? null),
+    sender: await resolveContact(env, author, alt, raw.pushName ?? null),
     timestamp,
     fromMe,
     quoted: context ? await quoted(context, chatId, env, timestamp) : null,
     mentions: await Promise.all(
-      (context?.mentionedJid ?? []).map((jid) => contact(env, jid, undefined, null)),
+      (context?.mentionedJid ?? []).map((jid) => resolveContact(env, jid, undefined, null)),
     ),
     isForwarded: context?.isForwarded === true,
     isViewOnce: viewOnce || raw.key.isViewOnce === true || flag(node, 'viewOnce'),
@@ -141,7 +141,20 @@ async function build(
     stream: () => env.stream(unwrapped),
   });
 
-  return createMessage(init(key, content, base, media));
+  const message = createMessage(init(key, content, base, media));
+  natives.set(message, raw);
+  return message;
+}
+
+/**
+ * Mensagem do Baileys de onde cada `Message` saiu. Citar no envio precisa do proto original
+ * (`quoted` do `sendMessage`); o `WeakMap` some com a `Message`, sem cache para limpar.
+ */
+const natives = new WeakMap<Message, WAMessage>();
+
+/** O `WAMessage` que originou a mensagem, se ela foi normalizada por este transport. */
+export function nativeOf(message: Message): WAMessage | undefined {
+  return natives.get(message);
 }
 
 type Base = Omit<Extract<MessageInit, { type: 'unknown' }>, 'type' | 'text'>;
@@ -280,8 +293,8 @@ function quoted(
  * Contato com o telefone resolvido: do próprio JID de telefone, do JID alternativo que o
  * Baileys manda junto com um LID ou do mapeamento LID ↔ telefone da sessão.
  */
-async function contact(
-  env: NormalizeEnv,
+export async function resolveContact(
+  env: Pick<NormalizeEnv, 'pnForLid'>,
   jid: string,
   alt: string | null | undefined,
   name: string | null,
@@ -292,7 +305,7 @@ async function contact(
 }
 
 async function phoneOf(
-  env: NormalizeEnv,
+  env: Pick<NormalizeEnv, 'pnForLid'>,
   id: string,
   alt: string | null | undefined,
 ): Promise<string | null> {

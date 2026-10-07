@@ -132,4 +132,47 @@ describe('BaileysTransport no Bot', () => {
 
     await vi.waitFor(() => expect(ran).toEqual(['111@lid']));
   });
+
+  it('admin com LID passa no group-admin pela metadata do transport e a resposta cita', async () => {
+    const GROUP = '120363000000000001@g.us';
+    const kick = definePlugin({
+      name: 'kick',
+      version: '1.0.0',
+      engine: '>=0.0.0',
+      setup: (ctx) => {
+        ctx.commands.add(
+          command({ name: 'kick', role: 'group-admin', run: (c) => c.reply('feito') }),
+        );
+      },
+    });
+    const { driver, bot } = start({
+      prefix: '!',
+      plugins: [kick],
+      outbound: { globalIntervalMs: 0, chatIntervalMs: 0 },
+    });
+    await bot.start();
+    driver.last.emit('connection.update', { connection: 'open' });
+    driver.last.groups.set(GROUP, {
+      id: GROUP,
+      subject: 'Família',
+      owner: undefined,
+      // O participante vem com o JID de telefone e a mensagem com o LID: casa pelo `phone`.
+      participants: [{ id: '5511911110000@s.whatsapp.net', admin: 'admin' }],
+    });
+    driver.last.lids.set('111@lid', '5511911110000@s.whatsapp.net');
+
+    const raw = {
+      key: { remoteJid: GROUP, id: 'M1', fromMe: false, participant: '111@lid' },
+      message: { conversation: '!kick' },
+      messageTimestamp: 1_760_000_000,
+    };
+    driver.last.emit('messages.upsert', { type: 'notify', messages: [raw] });
+
+    await vi.waitFor(() => expect(driver.last.sent).toHaveLength(1));
+    expect(driver.last.sent[0]).toEqual({
+      jid: GROUP,
+      content: { text: 'feito' },
+      options: { quoted: raw },
+    });
+  });
 });

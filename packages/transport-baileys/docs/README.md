@@ -4,9 +4,9 @@ Transport do WhatsApp sobre o [Baileys](https://github.com/WhiskeySockets/Bailey
 contrato `Transport` do core ([Transport](../../core/docs/transport.md)). O porquê das decisões
 está nos [ADRs](../../../docs/adr/README.md).
 
-> Em construção (M2-1). Por enquanto o pacote conecta, pareia, informa as quedas e entrega as
-> mensagens recebidas. Envio, capabilities e eventos de grupo, contato, reação e edição chegam nas
-> próximas sub-issues; até lá `capabilities` vem vazio e toda ação lança `UnsupportedError`.
+> Em construção (M2-1). O pacote conecta, pareia, informa as quedas, entrega as mensagens
+> recebidas, envia e age sobre mensagens e grupos. Os eventos de grupo, contato, reação, edição e
+> apagamento chegam no M2-1.6.
 
 ## Uso
 
@@ -126,6 +126,64 @@ privada, o remetente de uma mensagem da própria sessão é a sessão.
 `quoted` é uma `Message` montada do `contextInfo`, com as mesmas regras (envelopes, tipos,
 telefone). O proto da citada não traz horário nem nome do autor: `timestamp` é o da mensagem que
 cita e `sender.name` é `null`. `fromMe` vale quando o autor é a sessão (por telefone ou LID).
+
+## Capabilities
+
+O transport declara todas as capabilities do core (plano §6.10): `groups`, `groups.admin`,
+`mentions`, `reactions`, `presence`, `send.text`, `send.image`, `send.video`, `send.audio`,
+`send.voice`, `send.sticker`, `send.document`, `media.download`, `message.edit`,
+`message.delete`, `polls` e `quoted`. Todo plugin que declara `requires` com elas carrega.
+
+## Envio e ações
+
+O kernel chama o transport pela fila de saída (`ctx.reply`, `ctx.send`, `ctx.groups`); o plugin
+não fala com ele direto. Sem conexão aberta, toda ação falha na hora com `baileys: sem conexão`,
+mas a fila do bot já pausa nas quedas, então isso só aparece se alguém chamar o transport por
+fora.
+
+| Conteúdo do core | No Baileys |
+| --- | --- |
+| `text` | `{ text }` |
+| `image`, `video` | `{ image }`/`{ video }`, com `caption` e `mimetype` |
+| `audio` | `{ audio, ptt: false }` |
+| `voice` | `{ audio, ptt: true }`; sem `mimetype`, o Baileys usa `audio/ogg; codecs=opus` |
+| `sticker` | `{ sticker }` |
+| `document` | `{ document, fileName, mimetype, caption }` |
+| `poll` | `{ poll: { name, values, selectableCount } }`, com `selectableCount` padrão 1 |
+
+A mídia vai como `Buffer` ou `{ url }`, que o Baileys baixa. `mentions` entra em qualquer tipo.
+
+- **Citação**: citar uma mensagem recebida por este transport (o `ctx.reply` cita por padrão)
+  manda ao Baileys o proto original, então a citada aparece com mídia e legenda. Uma `Message`
+  montada fora dele (testes, storage) vai só com a chave e o texto.
+- **Chave**: `send` devolve a `MessageKey` da mensagem criada (`fromMe: true`; em grupo,
+  `senderId` é a sessão), pronta para `react`, `edit` e `delete`.
+- **Reação**: `react(key, null)` remove a reação (texto vazio para o WhatsApp).
+- **Edição e apagamento**: `edit` troca o texto (ou a legenda) de uma mensagem da sessão; `delete`
+  apaga para todos, de uma mensagem da sessão ou, em grupo onde o bot é admin, de qualquer um.
+- **Presença**: `sendPresence(chatId, 'composing' | 'recording' | 'paused' | 'available' |
+  'unavailable')`.
+
+## Grupos
+
+`getGroupMetadata` traz assunto, descrição, dono e participantes com `isAdmin`/`isSuperAdmin` e o
+`phone` resolvido como nas mensagens (o `phoneNumber` que o WhatsApp manda junto com um LID ou o
+mapeamento da sessão). É o que o kernel consulta no `role: 'group-admin'`.
+
+Os metadados ficam em cache por grupo, porque o kernel os pede a cada comando de admin
+([ADR 0046](../../../docs/adr/0046-ids-de-contato-e-metadata-de-grupo.md)). O cache cai:
+
+- nos eventos `groups.update` e `group-participants.update` do Baileys;
+- depois de `updateGroupParticipants`, sem esperar o evento;
+- a cada conexão, porque a queda pode ter perdido algum evento.
+
+Consultas simultâneas ao mesmo grupo viram uma só, e uma consulta que falhou não fica no cache. O
+envio em grupo reaproveita o cache (`cachedGroupMetadata` do Baileys) sem disparar consulta.
+
+`updateGroupParticipants` (`add`, `remove`, `promote`, `demote`) exige que o bot seja admin. O
+WhatsApp responde por participante; se algum não sair com 200, a chamada lança com o id e o
+status de cada um que falhou (ex.: `remove recusado para 5511…@s.whatsapp.net (403)`), mesmo que
+os outros tenham passado.
 
 ## Credenciais
 

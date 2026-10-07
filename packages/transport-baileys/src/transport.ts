@@ -1,24 +1,23 @@
 // Transport do WhatsApp sobre o Baileys (M2-1). Este módulo cuida da conexão: socket, QR ou
 // código de pareamento, credenciais no storage do bot e o motivo de cada queda. Quem decide
 // reconectar é o `Bot`, pela `ReconnectionPolicy` (ADR 0048). As mensagens recebidas passam
-// pela normalização (`normalize.ts`) antes de virar o evento `message`.
+// pela normalização (`normalize.ts`) antes de virar o evento `message`; o envio e as demais
+// ações traduzem o formato do core em `outgoing.ts`.
 
 import { Readable } from 'node:stream';
-import {
-  type Capability,
-  type Contact,
-  type GroupMetadata,
-  type GroupParticipantAction,
-  type Logger,
-  type MessageKey,
-  type OutgoingContent,
-  type Presence,
-  type SendOptions,
-  type Unsubscribe,
-  UnsupportedError,
+import type {
+  Capability,
+  Contact,
+  GroupMetadata,
+  GroupParticipantAction,
+  Logger,
+  MessageKey,
+  OutgoingContent,
+  Presence,
+  SendOptions,
+  Unsubscribe,
 } from '@zapforge/core';
 import {
-  capabilitiesForSend,
   type Transport,
   type TransportDeps,
   type TransportEventHandler,
@@ -27,20 +26,27 @@ import {
   TypedEmitter,
 } from '@zapforge/core/adapter';
 import {
+  type AnyMessageContent,
   type AuthenticationState,
   type Contact as BaileysContact,
   type BaileysEventMap,
+  type GroupMetadata as BaileysGroupMetadata,
   downloadMediaMessage,
+  isJidGroup,
   isJidStatusBroadcast,
   jidDecode,
   jidNormalizedUser,
+  type MiscMessageGenerationOptions,
+  type ParticipantAction,
   type WAMessage,
+  type WAPresence,
   type WAVersion,
 } from 'baileys';
 import { loadAuthState } from './auth-state.ts';
 import { toDisconnectReason } from './disconnect-reason.ts';
 import { type ILogger, toBaileysLogger } from './logger.ts';
 import { type NormalizeEnv, toMessage } from './normalize.ts';
+import { toContent, toGroupMetadata, toQuoted, toWAKey } from './outgoing.ts';
 
 /** Como parear uma sessão sem credenciais: escaneando o QR ou digitando um código no aparelho. */
 export type BaileysPairing = 'qr' | { readonly phone: string };
@@ -62,12 +68,26 @@ export interface BaileysSocket {
   requestPairingCode(phoneNumber: string): Promise<string>;
   /** Pede ao aparelho que reenvie uma mídia cujo link expirou. */
   updateMediaMessage(message: WAMessage): Promise<WAMessage>;
+  sendMessage(
+    jid: string,
+    content: AnyMessageContent,
+    options?: MiscMessageGenerationOptions,
+  ): Promise<WAMessage | undefined>;
+  sendPresenceUpdate(type: WAPresence, toJid?: string): Promise<void>;
+  groupMetadata(jid: string): Promise<BaileysGroupMetadata>;
+  groupParticipantsUpdate(
+    jid: string,
+    participants: string[],
+    action: ParticipantAction,
+  ): Promise<readonly { readonly status: string; readonly jid: string | undefined }[]>;
 }
 
 export interface SocketConfig {
   readonly auth: AuthenticationState;
   readonly logger: ILogger;
   readonly version: WAVersion;
+  /** Metadados de grupo já conhecidos: o envio em grupo não consulta o servidor de novo. */
+  readonly cachedGroupMetadata: (jid: string) => Promise<BaileysGroupMetadata | undefined>;
 }
 
 /** Acesso ao Baileys que tem efeito fora do processo; os testes trocam pelos falsos. */
@@ -84,8 +104,26 @@ export interface BaileysTransportOptions {
 
 export class BaileysTransport implements Transport {
   readonly name = 'baileys';
-  // O envio e as demais ações vêm no M2-1.3/M2-1.4; até lá, todas lançam `UnsupportedError`.
-  readonly capabilities: ReadonlySet<Capability> = new Set<Capability>();
+  /** As capabilities iniciais do Baileys (plano §6.10): todas as do core. */
+  readonly capabilities: ReadonlySet<Capability> = new Set<Capability>([
+    'groups',
+    'groups.admin',
+    'mentions',
+    'reactions',
+    'presence',
+    'send.text',
+    'send.image',
+    'send.video',
+    'send.audio',
+    'send.voice',
+    'send.sticker',
+    'send.document',
+    'media.download',
+    'message.edit',
+    'message.delete',
+    'polls',
+    'quoted',
+  ]);
 
   readonly #pairing: BaileysPairing;
   readonly #driver: BaileysDriver;
@@ -95,6 +133,11 @@ export class BaileysTransport implements Transport {
   #self: Contact | null = null;
   /** Sobe a cada `connect()`/`disconnect()`: invalida a tentativa que ainda estava começando. */
   #attempt = 0;
+  /**
+   * Metadados por grupo (ADR 0046): o kernel os pede a cada comando `group-admin`. Invalidado
+   * pelos eventos de grupo do Baileys e a cada conexão, porque a queda pode ter perdido algum.
+   */
+  readonly #groups = new Map<string, Promise<BaileysGroupMetadata>>();
 
   constructor(options: BaileysTransportOptions, deps: TransportDeps) {
     this.#pairing = options.pairing;
@@ -133,7 +176,13 @@ export class BaileysTransport implements Transport {
     // `disconnect()` ou outro `connect()` enquanto as credenciais carregavam.
     if (attempt !== this.#attempt) return;
 
-    const socket = this.#driver.makeSocket({ auth: state, logger, version });
+    this.#groups.clear();
+    const socket = this.#driver.makeSocket({
+      auth: state,
+      logger,
+      version,
+      cachedGroupMetadata: (jid) => this.#cachedGroup(jid),
+    });
     this.#socket = socket;
     const current = (): boolean => this.#socket === socket;
     // Gravações em fila: uma `creds.update` não pode sobrescrever a seguinte fora de ordem.
@@ -174,6 +223,15 @@ export class BaileysTransport implements Transport {
             },
           );
       }
+    });
+
+    socket.ev.on('groups.update', (updates) => {
+      if (!current()) return;
+      for (const { id } of updates) if (id) this.#groups.delete(id);
+    });
+    socket.ev.on('group-participants.update', ({ id }) => {
+      if (!current()) return;
+      this.#groups.delete(id);
     });
 
     socket.ev.on('connection.update', ({ connection, lastDisconnect, qr }) => {
@@ -232,18 +290,21 @@ export class BaileysTransport implements Transport {
         const me = state.creds.me;
         return [me?.id, me?.lid].flatMap((id) => (id ? [jidNormalizedUser(id)] : []));
       },
-      pnForLid: (lid) =>
-        socket.signalRepository.lidMapping.getPNForLID(lid).catch((error: unknown) => {
-          // Sem o par, o contato segue com `phone: null`: os papéis falham fechados (ADR 0046).
-          this.#log.warn('falha ao resolver o telefone de um LID', { err: error, lid });
-          return null;
-        }),
+      pnForLid: (lid) => this.#pnForLid(socket, lid),
       download: (raw) => downloadMediaMessage(raw, 'buffer', {}, media),
       stream: async (raw) =>
         Readable.toWeb(
           await downloadMediaMessage(raw, 'stream', {}, media),
         ) as ReadableStream<Uint8Array>,
     };
+  }
+
+  #pnForLid(socket: BaileysSocket, lid: string): Promise<string | null> {
+    return socket.signalRepository.lidMapping.getPNForLID(lid).catch((error: unknown) => {
+      // Sem o par, o contato segue com `phone: null`: os papéis falham fechados (ADR 0046).
+      this.#log.warn('falha ao resolver o telefone de um LID', { err: error, lid });
+      return null;
+    });
   }
 
   #requestPairingCode(socket: BaileysSocket, phone: string): void {
@@ -258,40 +319,89 @@ export class BaileysTransport implements Transport {
     );
   }
 
-  async send(
-    _chatId: string,
-    content: OutgoingContent,
-    _options?: SendOptions,
-  ): Promise<MessageKey> {
-    throw new UnsupportedError(capabilitiesForSend(content)[0] ?? 'send.text', this.name);
+  async send(chatId: string, content: OutgoingContent, options?: SendOptions): Promise<MessageKey> {
+    const sent = await this.#connected().sendMessage(
+      chatId,
+      toContent(content, options),
+      options?.quoted ? { quoted: toQuoted(options.quoted) } : undefined,
+    );
+    const id = sent?.key.id;
+    // O Baileys só devolve `undefined` para conteúdo que não vira mensagem (ex.: apagar); sem a
+    // chave, não daria para reagir, editar nem apagar depois.
+    if (!id) throw new Error('baileys: o envio não devolveu a chave da mensagem');
+    return {
+      chatId,
+      id,
+      fromMe: true,
+      senderId: isJidGroup(chatId) ? (this.#self?.id ?? null) : null,
+    };
   }
 
-  async react(_key: MessageKey, _emoji: string | null): Promise<void> {
-    throw new UnsupportedError('reactions', this.name);
+  async react(key: MessageKey, emoji: string | null): Promise<void> {
+    // Texto vazio é como o WhatsApp remove a reação.
+    await this.#connected().sendMessage(key.chatId, {
+      react: { text: emoji ?? '', key: toWAKey(key) },
+    });
   }
 
-  async edit(_key: MessageKey, _text: string): Promise<void> {
-    throw new UnsupportedError('message.edit', this.name);
+  async edit(key: MessageKey, text: string): Promise<void> {
+    await this.#connected().sendMessage(key.chatId, { text, edit: toWAKey(key) });
   }
 
-  async delete(_key: MessageKey): Promise<void> {
-    throw new UnsupportedError('message.delete', this.name);
+  async delete(key: MessageKey): Promise<void> {
+    await this.#connected().sendMessage(key.chatId, { delete: toWAKey(key) });
   }
 
-  async sendPresence(_chatId: string, _presence: Presence): Promise<void> {
-    throw new UnsupportedError('presence', this.name);
+  async sendPresence(chatId: string, presence: Presence): Promise<void> {
+    await this.#connected().sendPresenceUpdate(presence, chatId);
   }
 
-  async getGroupMetadata(_groupId: string): Promise<GroupMetadata> {
-    throw new UnsupportedError('groups', this.name);
+  async getGroupMetadata(groupId: string): Promise<GroupMetadata> {
+    const socket = this.#connected();
+    let native = this.#groups.get(groupId);
+    if (native === undefined) {
+      const fetching = socket.groupMetadata(groupId);
+      native = fetching;
+      this.#groups.set(groupId, fetching);
+      // Falha não fica no cache: a próxima chamada consulta de novo. O erro chega ao chamador
+      // pela própria promise; este handler só limpa a entrada.
+      fetching.catch(() => {
+        if (this.#groups.get(groupId) === fetching) this.#groups.delete(groupId);
+      });
+    }
+    return toGroupMetadata(await native, { pnForLid: (lid) => this.#pnForLid(socket, lid) });
   }
 
   async updateGroupParticipants(
-    _groupId: string,
-    _participantIds: readonly string[],
-    _action: GroupParticipantAction,
+    groupId: string,
+    participantIds: readonly string[],
+    action: GroupParticipantAction,
   ): Promise<void> {
-    throw new UnsupportedError('groups.admin', this.name);
+    const results = await this.#connected().groupParticipantsUpdate(
+      groupId,
+      [...participantIds],
+      action,
+    );
+    // Os participantes mudaram mesmo que o evento do Baileys ainda não tenha chegado.
+    this.#groups.delete(groupId);
+    // O servidor responde por participante; fora do 200, aquele falhou (ex.: 403 sem ser admin,
+    // 409 já no grupo). Falha parcial também lança: quem chamou precisa saber.
+    const failed = results.filter((r) => r.status !== '200');
+    if (failed.length > 0) {
+      const list = failed.map((r) => `${r.jid ?? '?'} (${r.status})`).join(', ');
+      throw new Error(`baileys: ${action} recusado para ${list}`);
+    }
+  }
+
+  /** Socket da conexão atual; sem ele, a ação falha na hora em vez de esperar. */
+  #connected(): BaileysSocket {
+    if (this.#socket === null) throw new Error('baileys: sem conexão');
+    return this.#socket;
+  }
+
+  /** Para o envio em grupo: usa a consulta que já existe, sem disparar outra. */
+  async #cachedGroup(jid: string): Promise<BaileysGroupMetadata | undefined> {
+    return this.#groups.get(jid)?.catch(() => undefined);
   }
 }
 
