@@ -145,30 +145,62 @@ export function isThenable(value: unknown): value is PromiseLike<unknown> {
 }
 
 /**
+ * Prazos armados de um bot, cada um pela função que o desarma. O JS não mata o handler preso,
+ * mas o timer do prazo dele não pode sobreviver ao `stop()`: o shutdown chama `disarmAll`.
+ */
+export class ArmedTimers {
+  readonly #disarms = new Set<() => void>();
+
+  add(disarm: () => void): void {
+    this.#disarms.add(disarm);
+  }
+
+  delete(disarm: () => void): void {
+    this.#disarms.delete(disarm);
+  }
+
+  /**
+   * Desarma todos. A execução abandonada não assenta: rejeitar viraria `plugin.error` e novos
+   * listeners com prazo no meio do shutdown, e ninguém mais espera por ela (a fila de entrada já
+   * foi abandonada). O `Deadline` dela já expirou com o descarte do plugin.
+   */
+  disarmAll(): void {
+    for (const disarm of this.#disarms) disarm();
+    this.#disarms.clear();
+  }
+}
+
+/**
  * Corre `result` contra um prazo de `timeoutMs`. Estourado, rejeita com o erro de `onTimeout`
  * (que também é a hora de expirar o `Deadline` da execução); o trabalho não tem como ser
  * cancelado e segue em segundo plano, e uma rejeição dele depois do prazo vai para `onLate`,
  * nunca vira rejeição não tratada. Resultado síncrono passa direto, sem timer: o caminho quente
- * não paga nada (plano §7).
+ * não paga nada (plano §7). O timer fica em `armed` enquanto corre, para o shutdown desarmá-lo.
  */
 export function settleWithin(
   result: unknown,
   timeoutMs: number,
   onTimeout: () => Error,
   onLate: (error: unknown) => void,
+  armed: ArmedTimers,
 ): unknown {
   if (!isThenable(result)) return result;
   return new Promise((resolve, reject) => {
     let settled = false;
-    const timer = setTimeout(() => {
+    const disarm = (): void => {
       settled = true;
+      clearTimeout(timer);
+      armed.delete(disarm);
+    };
+    const timer = setTimeout(() => {
+      disarm();
       reject(onTimeout());
     }, timeoutMs);
+    armed.add(disarm);
     result.then(
       (value) => {
         if (settled) return;
-        settled = true;
-        clearTimeout(timer);
+        disarm();
         resolve(value);
       },
       (error: unknown) => {
@@ -176,8 +208,7 @@ export function settleWithin(
           onLate(error);
           return;
         }
-        settled = true;
-        clearTimeout(timer);
+        disarm();
         reject(error);
       },
     );

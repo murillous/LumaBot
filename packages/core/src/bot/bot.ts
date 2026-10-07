@@ -9,7 +9,7 @@ import {
   type PluginConfigs,
 } from '#config/plugin-configs.ts';
 import type { BotMessageContext } from '#context.ts';
-import { ContextExpiredError, settleWithin } from '#deadline.ts';
+import { ArmedTimers, ContextExpiredError, settleWithin } from '#deadline.ts';
 import { createEventBus, type EmittableEventName } from '#events/bus.ts';
 import type { BotEvents, ListenerExtras, PluginErrorEvent } from '#events/types.ts';
 import { createGroups } from '#groups/groups.ts';
@@ -311,16 +311,23 @@ export function createBot(config: BotConfig): Bot {
   const timeouts = config.timeouts ?? {};
   const commandTimeoutMs = timeouts.commandMs ?? DEFAULT_COMMAND_TIMEOUT_MS;
 
+  // Prazos de comando, papel, consulta de admin e listener: o shutdown desarma os de handlers
+  // presos (`abandonInternals`).
+  const armed = new ArmedTimers();
   const bus = createEventBus({
     listenerTimeoutMs: timeouts.listenerMs,
+    armed,
     onError: (event) => logPluginError(event),
   });
   const services = createServiceRegistry();
   const router = createCommandRouter({
     prefix: config.prefix,
     owners: normalizeOwners(config.owners ?? []),
-    isGroupAdmin: groupAdminPort(transport, commandTimeoutMs, (error) =>
-      log.warn('consulta de admin do grupo falhou depois do prazo', { err: error }),
+    isGroupAdmin: groupAdminPort(
+      transport,
+      commandTimeoutMs,
+      (error) => log.warn('consulta de admin do grupo falhou depois do prazo', { err: error }),
+      armed,
     ),
     // O comando é recusado de todo jeito (fail-closed); o log diz ao autor o que falta.
     onUnknownRole: (role, command) =>
@@ -613,6 +620,9 @@ export function createBot(config: BotConfig): Bot {
     await scheduler.stop(aborted);
     // Teardown pulado ou abandonado vira falha que o host loga; o `dispose` roda para todos.
     await host?.stop(aborted);
+    // Depois do descarte dos plugins, que já expirou o `Deadline` dos handlers presos (o
+    // `signal` aborta, o `reply` é recusado): sobra só o timer do prazo de cada um.
+    armed.disarmAll();
     void outbound.close({ drain: false });
   }
 
@@ -649,6 +659,7 @@ export function createBot(config: BotConfig): Bot {
       },
       unsafe: createUnsafeAccess({ transport, log }),
       commandTimeoutMs,
+      armed,
       onRoleError: (event) => {
         logPluginError(event);
         void bus.emit('plugin.error', event);
@@ -945,6 +956,7 @@ function groupAdminPort(
   transport: Transport,
   timeoutMs: number,
   onLate: (error: unknown) => void,
+  armed: ArmedTimers,
 ): IsGroupAdmin | undefined {
   if (!hasCapability(transport, 'groups')) return undefined;
   return async (chatId, senderId) => {
@@ -953,6 +965,7 @@ function groupAdminPort(
       timeoutMs,
       () => new GroupAdminTimeoutError(chatId, timeoutMs),
       onLate,
+      armed,
     )) as Awaited<ReturnType<Transport['getGroupMetadata']>>;
     return metadata.participants.some(
       (participant) => participant.id === senderId && participant.isAdmin,

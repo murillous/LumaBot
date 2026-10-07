@@ -1,4 +1,5 @@
 import {
+  ArmedTimers,
   ContextExpiredError,
   DEADLINE,
   Deadline,
@@ -48,6 +49,8 @@ export interface EventBusOptions {
    * prazo. Não deve lançar.
    */
   readonly onError: (error: PluginErrorEvent) => void;
+  /** Onde ficam os prazos armados dos listeners, para o shutdown do `Bot` desarmá-los. */
+  readonly armed?: ArmedTimers;
 }
 
 /** Deriva o contexto que um listener recebe a partir do contexto da emissão. */
@@ -138,6 +141,7 @@ function validTimeout(value: number): number {
 export function createEventBus(options: EventBusOptions): EventBus {
   const defaultTimeoutMs = validTimeout(options.listenerTimeoutMs ?? DEFAULT_LISTENER_TIMEOUT_MS);
   const onError = options.onError;
+  const armed = options.armed ?? new ArmedTimers();
   // Arrays imutáveis (copy-on-write): a emissão percorre o array da vez sem copiar, e quem
   // (des)assina durante uma emissão não afeta a rodada em andamento.
   const byEvent = new Map<string, readonly Entry[]>();
@@ -226,18 +230,23 @@ export function createEventBus(options: EventBusOptions): EventBus {
   ): Promise<boolean> {
     return new Promise<boolean>((resolve) => {
       let settled = false;
-      const timer = setTimeout(() => {
+      const disarm = (): void => {
         settled = true;
+        clearTimeout(timer);
+        armed.delete(disarm);
+      };
+      const timer = setTimeout(() => {
+        disarm();
         const error = new ListenerTimeoutError(entry.plugin, event, entry.timeoutMs);
         deadline.expire(error);
         fail(entry, event, error, true);
         resolve(true);
       }, entry.timeoutMs);
+      armed.add(disarm);
       result.then(
         () => {
           if (settled) return;
-          settled = true;
-          clearTimeout(timer);
+          disarm();
           resolve(false);
         },
         (error: unknown) => {
@@ -249,8 +258,7 @@ export function createEventBus(options: EventBusOptions): EventBus {
             }
             return;
           }
-          settled = true;
-          clearTimeout(timer);
+          disarm();
           fail(entry, event, error, false);
           resolve(true);
         },
