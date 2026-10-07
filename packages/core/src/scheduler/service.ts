@@ -14,6 +14,10 @@ import type { JobContext, JobHandler, Scheduler } from './types.ts';
 
 export const DEFAULT_JOB_TIMEOUT_MS = 30_000;
 export const DEFAULT_STORAGE_RETRY_MS = 5000;
+export const DEFAULT_MAX_CONCURRENT_JOBS = 10;
+
+/** Vencidos lidos por consulta: a leitura é paginada, nunca a coleção inteira na memória. */
+const DUE_PAGE_SIZE = 100;
 
 /**
  * Maior atraso que o `setTimeout` aceita (~24,8 dias). Acima disso o Node dispara em 1 ms; job
@@ -55,6 +59,12 @@ export interface SchedulerServiceOptions {
   readonly jobTimeoutMs?: number;
   /** Espera antes de reconsultar o storage depois de uma falha, em ms. Padrão: 5000. */
   readonly storageRetryMs?: number;
+  /**
+   * Máximo de handlers rodando ao mesmo tempo, somando todos os plugins. Os vencidos além dele
+   * esperam vaga, em ordem de `fireAt` (depois de um downtime longo, nada de milhares de handlers
+   * de uma vez). Padrão: 10.
+   */
+  readonly maxConcurrentJobs?: number;
 }
 
 export interface SchedulerService {
@@ -157,6 +167,10 @@ export function createSchedulerService(options: SchedulerServiceOptions): Schedu
     'storageRetryMs',
     options.storageRetryMs ?? DEFAULT_STORAGE_RETRY_MS,
   );
+  const maxConcurrent = options.maxConcurrentJobs ?? DEFAULT_MAX_CONCURRENT_JOBS;
+  if (!Number.isInteger(maxConcurrent) || maxConcurrent < 1) {
+    throw new RangeError(`maxConcurrentJobs inválido: ${maxConcurrent}`);
+  }
   const jobs: Collection<JobDocument> = kernelStorage(options.storage, 'scheduler').collection(
     'jobs',
     { indexes: ['fireAt'] },
@@ -176,6 +190,10 @@ export function createSchedulerService(options: SchedulerServiceOptions): Schedu
   // Volta do loop em andamento; `rerun` pede outra volta quando algo mudou durante a atual.
   let loop: Promise<void> | undefined;
   let rerun = false;
+  // A última volta parou por falta de vaga: quando um handler termina, o loop roda de novo.
+  let backlog = false;
+  // Uma remoção falhou: a volta nesse horário reentrega o job (pelo menos uma vez).
+  let retryAt: number | undefined;
 
   // Exclusão mútua entre "ler os vencidos e despachar" e `cancel`: sem ela, um `cancel` poderia
   // apagar o job depois da leitura e antes do despacho, devolver `true` e o job disparar mesmo
@@ -224,12 +242,11 @@ export function createSchedulerService(options: SchedulerServiceOptions): Schedu
 
   async function tick(): Promise<void> {
     const now = Date.now();
+    // Esta volta já reentrega o que a remoção não tirou do storage.
+    retryAt = undefined;
     let next: number | undefined;
     try {
-      await exclusive(async () => {
-        const due = await jobs.find({ where: { fireAt: { lte: now } }, orderBy: 'fireAt' });
-        for (const doc of due) if (started) dispatch(doc);
-      });
+      await exclusive(() => dispatchDue(now));
       // Job vencido sem handler não arma timer: espera o `on` do plugin, que acorda o loop.
       const [upcoming] = await jobs.find({
         where: { fireAt: { gt: now } },
@@ -241,7 +258,35 @@ export function createSchedulerService(options: SchedulerServiceOptions): Schedu
       onStorageError(error);
       next = Date.now() + retryMs;
     }
+    if (retryAt !== undefined && (next === undefined || retryAt < next)) next = retryAt;
     if (started && !rerun && next !== undefined) arm(next);
+  }
+
+  /**
+   * Despacha os vencidos em ordem de `fireAt` até acabarem as vagas, lendo uma página por vez.
+   * Os que estão em andamento ou sem handler não ocupam vaga e são pulados pelo `offset`, para
+   * não travarem os de trás. Se um handler terminar no meio da varredura e o `offset` pular um
+   * vencido, a volta extra que esse término pede (`wake`) o encontra.
+   */
+  async function dispatchDue(now: number): Promise<void> {
+    backlog = false;
+    for (let offset = 0; started; offset += DUE_PAGE_SIZE) {
+      const page = await jobs.find({
+        where: { fireAt: { lte: now } },
+        orderBy: 'fireAt',
+        limit: DUE_PAGE_SIZE,
+        offset,
+      });
+      for (const doc of page) {
+        if (!started) return;
+        if (inFlight.size >= maxConcurrent) {
+          backlog = true;
+          return;
+        }
+        dispatch(doc);
+      }
+      if (page.length < DUE_PAGE_SIZE) return;
+    }
   }
 
   function dispatch(doc: StoredJob): void {
@@ -251,14 +296,27 @@ export function createSchedulerService(options: SchedulerServiceOptions): Schedu
     if (handler === undefined) return;
     const done = run(doc, handler)
       // Abandonado no shutdown, o job não terminou: fica no storage para a próxima subida.
-      .then((finished) => (finished ? jobs.delete(doc.id) : undefined))
+      .then(async (finished) => {
+        if (finished) await jobs.delete(doc.id);
+        return finished;
+      })
       .then(
-        () => undefined,
-        // O job fica no storage e é entregue de novo na próxima volta (pelo menos uma vez).
-        (error: unknown) => onStorageError(error),
+        (removed) => removed,
+        (error: unknown) => {
+          onStorageError(error);
+          // O job ficou no storage: uma volta depois do retry o entrega de novo, mesmo sem outro
+          // evento que acorde o loop. Uma volta em curso também respeita `retryAt` ao rearmar.
+          const at = Date.now() + retryMs;
+          retryAt = Math.min(retryAt ?? at, at);
+          if (started && (armedAt === undefined || at < armedAt)) arm(at);
+          return false;
+        },
       )
-      .finally(() => {
+      .then((removed) => {
         inFlight.delete(doc.id);
+        // Vaga liberada com vencidos esperando, ou varredura em curso que pode ter pulado um
+        // (o `offset` anda, e a remoção puxou a fila uma posição).
+        if (removed && (backlog || loop !== undefined)) wake();
       });
     inFlight.set(doc.id, done);
   }

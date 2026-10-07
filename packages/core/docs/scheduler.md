@@ -92,6 +92,7 @@ const scheduler = createSchedulerService({
   onStorageError: (error) => { /* log */ },
   jobTimeoutMs: 30_000, // opcional
   storageRetryMs: 5000, // opcional
+  maxConcurrentJobs: 10, // opcional
 });
 
 ctx.scheduler = scheduler.forPlugin(plugin.name); // ao montar o PluginContext
@@ -118,8 +119,15 @@ await scheduler.stop();                           // gancho de parada
 - **`removePlugin(nome)`** tira os handlers do plugin, mas **não** apaga os jobs persistidos.
 - **Falhas.** Falha de handler vai ao `onError` como `PluginErrorEvent`. Falha do storage (a
   consulta do loop ou a remoção depois do handler) vai ao `onStorageError`, e o loop tenta de
-  novo depois de `storageRetryMs`. Se a remoção falhar, o job continua no storage e é entregue
-  de novo (pelo menos uma vez). Os callbacks não devem lançar.
+  novo depois de `storageRetryMs`. Se a remoção falhar, o job continua no storage e o loop se
+  rearma para entregá-lo de novo depois de `storageRetryMs` (pelo menos uma vez). Os callbacks
+  não devem lançar.
+- **Concorrência limitada.** No máximo `maxConcurrentJobs` handlers (padrão 10, somando todos os
+  plugins) rodam ao mesmo tempo. Depois de um downtime longo, ou com muitos jobs no mesmo
+  horário, os vencidos esperam vaga em ordem de `fireAt` (FIFO, sem cota por plugin), e o fim de
+  cada handler puxa o próximo. A leitura dos vencidos é paginada (100 por consulta), então a
+  coleção nunca vem inteira para a memória. Vencidos sem handler (plugin desligado ou no setup)
+  não ocupam vaga nem travam os de trás.
 - **Rejeição depois do prazo.** O job já saiu como timeout no `onError`; a rejeição que chega
   depois vai ao `onLateError` (padrão: o próprio `onError`). O `Bot` a liga só ao log, para ela
   não virar um segundo `plugin.error`. Uma `ContextExpiredError` tardia não é repassada: a recusa
