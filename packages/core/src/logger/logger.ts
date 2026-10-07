@@ -2,6 +2,7 @@
 // `Logger`/`LoggerOptions`, para trocar a implementação sem quebrar plugins.
 
 import { type Logger as PinoLogger, pino, stdSerializers } from 'pino';
+import type { SecretSource } from './secrets.ts';
 import type { LogFields, Logger, LogLevel } from './types.ts';
 
 /** Para onde vão as linhas JSON (uma por chamada, terminada em `\n`). */
@@ -25,9 +26,11 @@ export interface LoggerOptions {
   /**
    * Valores secretos (ex.: campos `secret` da config) trocados por `[REDACTED]` em qualquer
    * lugar da linha: mensagem, campos, bindings, `err.message`/`err.stack`. Pega o valor, sob
-   * qualquer nome de campo. Strings vazias são ignoradas.
+   * qualquer nome de campo. Strings vazias são ignoradas. Uma `SecretSource` (ex.:
+   * `createSecretSet()`) é consultada a cada linha: segredos descobertos depois da criação do
+   * logger — como os da config de plugin, resolvida no setup e no reload — também são censurados.
    */
-  readonly secrets?: readonly string[];
+  readonly secrets?: readonly string[] | SecretSource;
 }
 
 const CENSOR = '[REDACTED]';
@@ -58,24 +61,39 @@ export function createLogger(options: LoggerOptions = {}): Logger {
 // Custo só em linha emitida, e só quando há segredo configurado.
 function withSecretsCensored(
   destination: LogDestination | undefined,
-  secrets: readonly string[] | undefined,
+  secrets: readonly string[] | SecretSource | undefined,
 ): LogDestination | undefined {
-  // O segredo aparece na linha na forma escapada do JSON; o mais longo primeiro, para um segredo
-  // que contém outro ser trocado inteiro.
-  const needles = (secrets ?? [])
-    .filter((secret) => secret.length > 0)
-    .map((secret) => JSON.stringify(secret).slice(1, -1))
-    .sort((a, b) => b.length - a.length);
-  if (needles.length === 0) return destination;
+  if (secrets === undefined) return destination;
+  let source: SecretSource | undefined;
+  let needles: string[] = [];
+  if ('version' in secrets) source = secrets;
+  else needles = toNeedles(secrets);
+  // Lista fixa e vazia: nada a censurar, nem precisa embrulhar o destino. Com fonte viva, sempre
+  // embrulha, porque um segredo pode aparecer depois.
+  if (!source && needles.length === 0) return destination;
+  let seen = -1;
   // Sem destino explícito, o padrão é o mesmo do pino: stdout.
   const target = destination ?? pino.destination(1);
   return {
     write(line: string): void {
+      if (source && source.version !== seen) {
+        seen = source.version;
+        needles = toNeedles(source.values());
+      }
       let censored = line;
       for (const needle of needles) censored = censored.replaceAll(needle, CENSOR);
       target.write(censored);
     },
   };
+}
+
+// O segredo aparece na linha na forma escapada do JSON; o mais longo primeiro, para um segredo
+// que contém outro ser trocado inteiro.
+function toNeedles(secrets: readonly string[]): string[] {
+  return secrets
+    .filter((secret) => secret.length > 0)
+    .map((secret) => JSON.stringify(secret).slice(1, -1))
+    .sort((a, b) => b.length - a.length);
 }
 
 function wrap(log: PinoLogger): Logger {

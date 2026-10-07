@@ -24,6 +24,24 @@ export type {
   MatchedCommand,
 } from '#commands/router.ts';
 export { createCommandRouter } from '#commands/router.ts';
+export { type ConfigEnv, envName } from '#config/env.ts';
+export {
+  type ConfigSource,
+  PluginConfigError,
+  type PluginConfigIssue,
+} from '#config/errors.ts';
+export { BotConfigError, normalizeOwners, normalizePhone } from '#config/owners.ts';
+export {
+  createPluginConfigs,
+  type PluginConfigEntry,
+  type PluginConfigFile,
+  type PluginConfigJsonSchema,
+  type PluginConfigs,
+  type PluginConfigsOptions,
+  type PluginConfigView,
+  type ResolvedPluginConfig,
+} from '#config/plugin-configs.ts';
+export { isSecretSchema, SECRET_MASK, secret } from '#config/schema.ts';
 export type { MessageContext } from '#context.ts';
 export {
   createEventBus,
@@ -54,6 +72,7 @@ export {
   type LogDestination,
   type LoggerOptions,
 } from '#logger/logger.ts';
+export { createSecretSet, type SecretSet, type SecretSource } from '#logger/secrets.ts';
 export type { LogFields, Logger, LogLevel } from '#logger/types.ts';
 export { createMessage, type MessageInit } from '#message/create.ts';
 export { createMedia, type MediaSource } from '#message/media.ts';

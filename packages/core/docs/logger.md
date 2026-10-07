@@ -24,7 +24,7 @@ de `level`, `time`, `pid`, `hostname` e `msg`.
 | `destination` | stdout | Qualquer `{ write(line: string): void }` — recebe cada linha JSON com `\n` |
 | `bindings` | — | Campos presentes em toda linha deste logger e dos filhos |
 | `redact` | — | Caminhos de campos trocados por `[REDACTED]` (sintaxe do pino) |
-| `secrets` | — | Valores trocados por `[REDACTED]` em qualquer lugar da linha |
+| `secrets` | — | Valores trocados por `[REDACTED]` em qualquer lugar da linha: lista fixa ou `SecretSet` (fonte viva) |
 
 O core não lê variável de ambiente: o nível vem de quem cria o logger (config do bot / app).
 
@@ -69,8 +69,20 @@ Duas camadas, combináveis:
 createLogger({ secrets: [config.openai.apiKey], redact: ['*.token'] });
 ```
 
-Limites: os segredos são fixados na criação (filhos herdam); um segredo muito curto ou comum
-censura também o texto que coincidir com ele. String vazia é ignorada.
+Segredos descobertos depois da criação do logger — a config de plugin é resolvida no setup e
+muda no reload — entram por uma fonte viva: passe um `SecretSet` em vez da lista. O logger (e
+todos os filhos) relê os valores quando o conjunto muda; a config de plugin escreve nele
+([Config](config.md#segredos)).
+
+```ts
+const secrets = createSecretSet();
+const log = createLogger({ secrets });
+secrets.set('plugin:ai', [apiKey]);   // a partir daqui, apiKey sai como [REDACTED]
+secrets.delete('plugin:ai');
+```
+
+Limites: com lista fixa, os segredos são fixados na criação (filhos herdam); um segredo muito
+curto ou comum censura também o texto que coincidir com ele. String vazia é ignorada.
 
 ## Logger silencioso
 
@@ -80,7 +92,8 @@ quando ninguém passou logger. `child()` devolve o próprio no-op.
 ## Desempenho
 
 Em nível desabilitado o pino não serializa nada; os campos só são lidos quando a linha sai. A
-censura por `secrets` roda só nas linhas emitidas e só quando há segredo configurado.
+censura por `secrets` roda só nas linhas emitidas e só quando há segredo configurado (com
+`SecretSet`, a lista é recalculada só quando o conjunto muda).
 
 ## Saída legível em dev
 

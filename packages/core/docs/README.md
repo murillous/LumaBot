@@ -17,3 +17,4 @@ Como usar o kernel. O porquê das decisões está nos [ADRs](../../../docs/adr/R
 | [Services](services.md) | `ctx.services`: `provide`/`get` tipados por declaration merging, erros, registry |
 | [Logger](logger.md) | `createLogger`, níveis, contexto `plugin`/`chatId`, `err`, redação de segredos |
 | [Escape hatch](unsafe.md) | `ctx.unsafe.native`, aviso no log e `transports` no manifesto |
+| [Config](config.md) | Config por plugin com Zod: precedência env > arquivo > overrides > default, `secret`, `messages`, reload, `owners` |
