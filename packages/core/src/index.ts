@@ -25,6 +25,15 @@ export type {
 } from '#commands/router.ts';
 export { createCommandRouter } from '#commands/router.ts';
 export type { MessageContext } from '#context.ts';
+export {
+  createEventBus,
+  DEFAULT_LISTENER_TIMEOUT_MS,
+  type EmitExtras,
+  type EmitResult,
+  type EmittableEventName,
+  type EventBus,
+  type EventBusOptions,
+} from '#events/bus.ts';
 // Contratos do M1-7 a M1-15 (implementações nos PRs de cada item).
 export type {
   BotEventName,
@@ -32,9 +41,12 @@ export type {
   EventSubscriber,
   Listener,
   ListenerContext,
+  ListenerExtras,
   ListenerOptions,
+  MessageFilter,
   MessageTypeEvents,
   PluginErrorEvent,
+  SubscribeOptions,
 } from '#events/types.ts';
 export type { LogFields, Logger, LogLevel } from '#logger/types.ts';
 export { createMessage, type MessageInit } from '#message/create.ts';
