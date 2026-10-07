@@ -238,6 +238,67 @@ describe('Bot: fluxo da mensagem (§5.3)', () => {
     await vi.waitFor(() => expect(sentTexts(transport)).toEqual(['banido', 'só admin']));
   });
 
+  it("role 'group-admin' reconhece pelo telefone o admin cujo id vem em outro espaço (#238)", async () => {
+    // No WhatsApp, o remetente pode chegar como LID e o participante como JID de telefone (ou
+    // o contrário): o id não bate, mas os dois lados resolvem o mesmo número.
+    class MixedIds extends RecordingTransport {
+      override async getGroupMetadata(groupId: string) {
+        const metadata = await super.getGroupMetadata(groupId);
+        return {
+          ...metadata,
+          participants: [
+            ...metadata.participants,
+            {
+              id: '5511999990000@s.whatsapp.net',
+              name: null,
+              phone: '5511999990000',
+              isAdmin: true,
+              isSuperAdmin: false,
+            },
+            {
+              id: '5511999991111@s.whatsapp.net',
+              name: null,
+              phone: '5511999991111',
+              isAdmin: false,
+              isSuperAdmin: false,
+            },
+          ],
+        };
+      }
+    }
+    const transport = new MixedIds(['send.text', 'quoted', 'groups']);
+    const admin = definePlugin({
+      name: 'admin',
+      version: '1.0.0',
+      engine: ENGINE,
+      setup: (ctx) =>
+        ctx.commands.add(
+          command({
+            name: 'ban',
+            role: 'group-admin',
+            onReject: () => 'só admin',
+            run: (c) => c.reply('banido'),
+          }),
+        ),
+    });
+    const b = bot({ transport, plugins: [admin] });
+    await b.start();
+    const group = { id: 'g@test', isGroup: true };
+    const viaLid = (lid: string, phone: string | null) => ({
+      ...message('!ban'),
+      chat: group,
+      sender: { id: lid, name: null, phone },
+    });
+
+    transport.emit('message', viaLid('111@lid', '5511999990000')); // admin: passa
+    transport.emit('message', viaLid('222@lid', '5511999991111')); // membro comum
+    transport.emit('message', viaLid('333@lid', null)); // telefone desconhecido: fail-closed
+
+    await vi.waitFor(() =>
+      expect(sentTexts(transport)).toEqual(['banido', 'só admin', 'só admin']),
+    );
+  });
+
   it("role 'owner' funciona com owners no formato da config; recusa sai pelo reply", async () => {
     const transport = new RecordingTransport();
     const b = bot({

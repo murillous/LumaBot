@@ -984,7 +984,7 @@ function groupAdminPort(
   armed: ArmedTimers,
 ): IsGroupAdmin | undefined {
   if (!hasCapability(transport, 'groups')) return undefined;
-  return async (chatId, senderId) => {
+  return async (chatId, sender) => {
     const metadata = (await settleWithin(
       transport.getGroupMetadata(chatId),
       timeoutMs,
@@ -992,8 +992,14 @@ function groupAdminPort(
       onLate,
       armed,
     )) as Awaited<ReturnType<Transport['getGroupMetadata']>>;
+    // Casa por id ou, quando os dois lados o têm, por telefone: o remetente pode vir como LID e
+    // o participante como JID de telefone, ou o contrário (ADR 0046). Sem telefone de um lado,
+    // só o id decide (fail-closed).
     return metadata.participants.some(
-      (participant) => participant.id === senderId && participant.isAdmin,
+      (participant) =>
+        participant.isAdmin &&
+        (participant.id === sender.id ||
+          (sender.phone !== null && participant.phone === sender.phone)),
     );
   };
 }

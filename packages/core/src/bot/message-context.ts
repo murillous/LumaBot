@@ -123,7 +123,7 @@ type Refuse = (operation: string) => Promise<never>;
 /**
  * `reply` que confere o prazo a cada chamada — não só na leitura de `ctx.reply`: quem guardou a
  * função antes do prazo (`const r = ctx.reply`) também é recusado depois dele. No prazo, o envio
- * pausa o relógio até assentar (ADR 0045).
+ * pausa o relógio até assentar (ADR 0047).
  */
 function expiringReply(reply: Reply, deadline: Deadline, refuse: Refuse): Reply {
   const guard =

@@ -1,4 +1,4 @@
-# ADR 0046 — A espera na fila de saída não conta no prazo do handler
+# ADR 0047 — A espera na fila de saída não conta no prazo do handler
 
 **Status:** Aceito (2026-10-07) · Detalha **D33** ([ADR 0033](0033-cancelamento-cooperativo.md)),
 **D42** ([ADR 0042](0042-handler-lento-segura-o-chat.md)) e **D19**

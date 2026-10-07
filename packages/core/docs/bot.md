@@ -310,7 +310,7 @@ oferece **cancelamento cooperativo** ([ADR 0033](../../../docs/adr/0033-cancelam
 
 O prazo mede o tempo **do plugin**. Enquanto um `reply` ou `react` do contexto de um comando ou
 listener aguarda a fila de saída, o relógio do prazo para, e volta com o que sobrou quando o envio
-assenta ([ADR 0046](../../../docs/adr/0046-espera-na-fila-de-saida-fora-do-prazo.md)). A espera
+assenta ([ADR 0047](../../../docs/adr/0047-espera-na-fila-de-saida-fora-do-prazo.md)). A espera
 pela taxa anti-ban, o "digitando" da humanização, as re-tentativas e a chamada ao transport não
 contam: uma rajada em muitos chats não vira `timedOut` de comando que funcionou. O `ctx.send` do
 plugin, `ctx.groups` e os jobs continuam contando, porque não pertencem a uma execução.

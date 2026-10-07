@@ -20,7 +20,7 @@ export class Deadline {
   // `AbortController` é a parte cara (EventTarget) no caminho quente de cada mensagem.
   #controller: AbortController | undefined;
   #signal: AbortSignal | undefined;
-  // Envios da execução aguardando a fila de saída: enquanto houver um, o prazo não corre (ADR 0045).
+  // Envios da execução aguardando a fila de saída: enquanto houver um, o prazo não corre (ADR 0047).
   #holds = 0;
   #onHold: ((held: boolean) => void) | undefined;
 
@@ -54,7 +54,7 @@ export class Deadline {
   /**
    * Pausa o prazo enquanto `operation` (um envio pela fila de saída) não assenta: a espera pela
    * taxa anti-ban, o "digitando" e as re-tentativas são do kernel, não do plugin, e a fila tem
-   * tetos próprios (ADR 0045). Devolve uma promise nova, que assenta como `operation`: uma
+   * tetos próprios (ADR 0047). Devolve uma promise nova, que assenta como `operation`: uma
    * rejeição que o plugin ignore continua não tratada, como sem a pausa.
    */
   hold<T>(operation: Promise<T>): Promise<T> {

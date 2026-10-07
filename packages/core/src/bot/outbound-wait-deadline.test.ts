@@ -1,4 +1,4 @@
-// A espera do `reply` na fila de saída não conta no prazo do handler (ADR 0045): a taxa global
+// A espera do `reply` na fila de saída não conta no prazo do handler (ADR 0047): a taxa global
 // anti-ban é do kernel, e uma rajada em chats diferentes não pode virar timeout de quem funcionou.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';

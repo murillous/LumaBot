@@ -1,5 +1,5 @@
 // `Deadline` com pai (#200): a execução expira também quando o contexto do plugin é descartado.
-// Pausa do prazo (ADR 0045): o tempo de envio na fila de saída não conta.
+// Pausa do prazo (ADR 0047): o tempo de envio na fila de saída não conta.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Deadline } from './deadline.ts';

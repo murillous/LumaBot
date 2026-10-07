@@ -253,7 +253,7 @@ export function createEventBus(options: EventBusOptions): EventBus {
         armed.delete(disarm);
         settle();
       };
-      // Pausa enquanto o `reply` do listener aguarda a fila de saída (ADR 0045).
+      // Pausa enquanto o `reply` do listener aguarda a fila de saída (ADR 0047).
       const cancel = deadline.armTimer(entry.timeoutMs, () => {
         disarm();
         const error = new ListenerTimeoutError(entry.plugin, event, entry.timeoutMs);

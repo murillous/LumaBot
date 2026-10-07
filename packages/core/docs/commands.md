@@ -124,10 +124,14 @@ citada.
 | --- | --- |
 | `everyone` (padrão) | Todo mundo |
 | `owner` | Remetente cujo `sender.phone` está em `owners` |
-| `group-admin` | Admin do grupo, segundo a porta `isGroupAdmin(chatId, senderId)` |
+| `group-admin` | Admin do grupo, segundo a porta `isGroupAdmin(chatId, sender)` |
 
 - Owner passa também em `group-admin`.
 - `group-admin` fora de grupo é recusado (não há grupo a que o papel se refira).
+- No bot, o remetente é admin se um participante admin do `getGroupMetadata` tem o mesmo `id`
+  ou, quando os dois lados o têm, o mesmo `phone`: no WhatsApp o remetente pode vir como LID e o
+  participante como JID de telefone. Sem telefone de um lado, só o `id` decide
+  ([ADR 0046](../../../docs/adr/0046-ids-de-contato-e-metadata-de-grupo.md)).
 - Sem `isGroupAdmin` (transport sem a capability `groups`), `group-admin` recusa todo mundo
   exceto owners: falha fechada, nunca libera por falta de informação.
 - `owners` são telefones só com dígitos e DDI (`'5511999999999'`), comparados por igualdade com

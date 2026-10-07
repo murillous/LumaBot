@@ -67,7 +67,7 @@ Os padrões são conservadores (≈3 msg/s no total, 1 msg/s por chat). A latên
 por design: é o preço de não tomar ban.
 
 A espera aqui não conta no prazo do comando ou listener que chamou `ctx.reply`/`ctx.react`: o
-prazo pausa até o envio assentar ([ADR 0046](../../../docs/adr/0046-espera-na-fila-de-saida-fora-do-prazo.md)).
+prazo pausa até o envio assentar ([ADR 0047](../../../docs/adr/0047-espera-na-fila-de-saida-fora-do-prazo.md)).
 Benchmark de vazão do kernel roda com `globalIntervalMs` e `chatIntervalMs` em 0, senão a taxa
 domina a medição.
 
