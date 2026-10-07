@@ -137,6 +137,22 @@ nenhum plugin alcança os dados internos, seja qual for o nome dele. Componentes
 `kernelStorage(port, 'scheduler')` (namespace `$scheduler`), `kernelStorage(port, 'config')`
 etc. `isReservedNamespace(name)` serve para validar nomes cedo (manifesto, M1-8).
 
+### Escopo de sessão
+
+O `Bot` não passa o `storage` direto para scheduler, config e plugins: passa
+`sessionStorage(port, session)` ([ADR 0036](../../../docs/adr/0036-escopo-de-sessao.md)), uma
+visão que prefixa todo namespace com a sessão. O `StoragePort` e os adapters não mudam.
+
+| Sessão | Plugin `sticker` | Scheduler | Overrides de config |
+| --- | --- | --- | --- |
+| `'default'` | `sticker` | `$scheduler` | `$config` |
+| `'vendas'` | `vendas:sticker` | `vendas:$scheduler` | `vendas:$config` |
+
+O nome da sessão é kebab-case (sem `:`), e `pluginStorage` também recusa `:` no nome do plugin
+(`ReservedNamespaceError`): nenhum plugin forja o namespace de outra sessão, nem na `'default'`,
+que fica sem prefixo para manter o formato de quem não passa `session`. `authState(session)` e
+`close()` passam direto: o auth state já é separado por sessão.
+
 ## Auth state (para transports)
 
 `port.authState(session)` guarda a sessão do transport no mesmo storage (substitui o

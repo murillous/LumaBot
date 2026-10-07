@@ -15,7 +15,12 @@ export type ReconnectionDecision =
       readonly action: 'clean-session';
       readonly delayMs: number;
       readonly cause: 'logged-out' | 'auth-failed' | 'qr-limit' | 'reconnect-limit';
-    };
+    }
+  /**
+   * Não reconectar: o bot para. Hoje só para `'replaced'` — reconectar derrubaria a outra
+   * conexão da mesma sessão, e as duas se derrubariam em laço (ADR 0036).
+   */
+  | { readonly action: 'stop'; readonly cause: 'replaced' };
 
 export interface ReconnectionState {
   /** Reconexões com backoff desde a última conexão aberta. */
@@ -97,6 +102,8 @@ export class ReconnectionPolicy {
       case 'logged-out':
       case 'auth-failed':
         return this.#clean(reason);
+      case 'replaced':
+        return { action: 'stop', cause: 'replaced' };
       case 'server-error':
         return { action: 'reconnect', delayMs: this.#serverErrorDelayMs };
       case 'connection-lost':

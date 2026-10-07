@@ -1,5 +1,6 @@
 // Executor da `ReconnectionPolicy` (M1-16.3). A política só decide; aqui o bot aguarda o atraso,
-// limpa a sessão quando é o caso e reconecta. Um timer por vez, e nenhum depois do `stop()`.
+// limpa a sessão quando é o caso e reconecta, ou desiste e para. Um timer por vez, e nenhum
+// depois do `stop()`.
 
 import type { Logger } from '#logger/types.ts';
 import {
@@ -33,9 +34,12 @@ export interface ReconnectorOptions {
   readonly transport: Pick<Transport, 'connect'>;
   readonly log: () => Logger;
   readonly options: BotReconnectionOptions;
-  /** Chamado quando não há como seguir (`clean-session` sem `clearSession`). */
+  /** Chamado quando não há como seguir (`stop`, ou `clean-session` sem `clearSession`). */
   readonly giveUp: (decision: ReconnectionDecision) => void;
 }
+
+/** Decisão que o executor agenda: reconectar, com ou sem limpar a sessão antes. */
+type Retry = Exclude<ReconnectionDecision, { action: 'stop' }>;
 
 export function createReconnector({
   transport,
@@ -50,7 +54,7 @@ export function createReconnector({
   let timer: NodeJS.Timeout | undefined;
   let inFlight: Promise<void> | undefined;
 
-  function schedule(decision: ReconnectionDecision): void {
+  function schedule(decision: Retry): void {
     timer = setTimeout(() => {
       timer = undefined;
       inFlight = execute(decision).then((failed) => {
@@ -62,7 +66,7 @@ export function createReconnector({
   }
 
   /** Executa a decisão; `true` se falhou (o erro já foi logado). Nunca rejeita. */
-  async function execute(decision: ReconnectionDecision): Promise<boolean> {
+  async function execute(decision: Retry): Promise<boolean> {
     if (stopped) return false;
     try {
       if (decision.action === 'clean-session') await clearSession?.();
@@ -81,6 +85,15 @@ export function createReconnector({
     if (timer !== undefined || inFlight !== undefined) return;
     const decision = policy.decide(status.reason);
     const fields = { reason: status.reason, err: status.error, ...decision, ...policy.state };
+    if (decision.action === 'stop') {
+      log().error(
+        `conexão encerrada (${status.reason}): outra conexão assumiu esta sessão (o mesmo ` +
+          'número rodando em outro processo?); o bot vai parar em vez de derrubá-la',
+        fields,
+      );
+      giveUp(decision);
+      return;
+    }
     if (decision.action === 'clean-session' && clearSession === undefined) {
       log().error(
         `conexão encerrada (${status.reason}): a sessão precisa ser pareada de novo e não há ` +

@@ -140,8 +140,9 @@ boot o plugin cujo `requires` não fecha; o erro em runtime é a rede de seguran
 atraso, e quem a chama aguarda, limpa a sessão e reconecta. No bot isso já está ligado
 (`createBot({ reconnection })`, ver [Bot → Reconexão](bot.md#reconexão)); o exemplo abaixo é para
 quem usa o transport sem o bot. O adapter mapeia o código nativo
-para um `DisconnectReason` (`qr-timeout`, `logged-out`, `auth-failed`, `server-error`,
-`connection-lost`, `unknown`).
+para um `DisconnectReason` (`qr-timeout`, `logged-out`, `auth-failed`, `replaced`,
+`server-error`, `connection-lost`, `unknown`). `replaced` é a conexão derrubada por outra da
+mesma sessão (no Baileys, `DisconnectReason.connectionReplaced`).
 
 ```ts
 import { ReconnectionPolicy } from '@zapforge/core/adapter';
@@ -156,6 +157,7 @@ transport.on('connection.status', async (s) => {
   if (s.status === 'open') return policy.connected();
   if (s.status !== 'closed') return;
   const decision = policy.decide(s.reason);
+  if (decision.action === 'stop') return encerrar(); // outra conexão assumiu a sessão
   await sleep(decision.delayMs);
   if (decision.action === 'clean-session') await authState.clear();
   await transport.connect();
@@ -168,6 +170,7 @@ transport.on('connection.status', async (s) => {
 | `server-error` | `reconnect` com atraso fixo (`serverErrorDelayMs`), sem gastar tentativa |
 | `qr-timeout` | `reconnect` (novo QR); após `maxQrCount` QRs, `clean-session` (`qr-limit`) |
 | `logged-out`, `auth-failed` | `clean-session` |
+| `replaced` | `stop`: não reconectar. Duas conexões do mesmo número se derrubariam em laço ([ADR 0036](../../../docs/adr/0036-escopo-de-sessao.md)) |
 
 `decide()` assume que a decisão será executada e avança o estado. Uma limpeza que viria antes
 de `minCleanIntervalMs` da anterior é adiada (o `delayMs` cresce), evitando loop de limpeza.

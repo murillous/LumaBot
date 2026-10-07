@@ -105,6 +105,24 @@ describe('Bot: reconexão', () => {
     expect(logger.lines.find((line) => line.level === 'error')?.message).toMatch(/pareada de novo/);
   });
 
+  it("'replaced' não reconecta nem limpa a sessão: loga e para o bot (ADR 0036)", async () => {
+    const transport = new RecordingTransport();
+    const logger = recordingLogger();
+    const clearSession = vi.fn(async () => undefined);
+    const b = bot({ transport, logger, reconnection: { clearSession } });
+    await b.start();
+
+    transport.emit('connection.status', { status: 'closed', reason: 'replaced', error: null });
+    await vi.waitFor(() => expect(b.state).toBe('stopped'));
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(transport.calls).toEqual(['connect', 'disconnect']);
+    expect(clearSession).not.toHaveBeenCalled();
+    expect(logger.lines.find((line) => line.level === 'error')?.message).toMatch(
+      /outra conexão assumiu esta sessão/,
+    );
+  });
+
   it('logged-out com clearSession: limpa a sessão e reconecta após o atraso', async () => {
     const transport = new RecordingTransport();
     const clearSession = vi.fn(async () => {

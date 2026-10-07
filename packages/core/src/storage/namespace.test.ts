@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ReservedNamespaceError } from './errors.ts';
 import { createMemoryStorage } from './memory.ts';
-import { isReservedNamespace, kernelStorage, pluginStorage } from './namespace.ts';
+import { isReservedNamespace, kernelStorage, pluginStorage, sessionStorage } from './namespace.ts';
 
 describe('namespaces de storage', () => {
   it('prefixo "$" é do kernel', () => {
@@ -35,5 +35,28 @@ describe('namespaces de storage', () => {
     const port = createMemoryStorage();
     await kernelStorage(port, 'config').kv.set('overrides', { a: 1 });
     expect(await pluginStorage(port, 'config').kv.get('overrides')).toBeUndefined();
+  });
+
+  it("sessionStorage prefixa os namespaces com a sessão; 'default' fica sem prefixo", () => {
+    const port = createMemoryStorage();
+    const spy = vi.spyOn(port, 'forNamespace');
+    pluginStorage(sessionStorage(port, 'vendas'), 'sticker');
+    kernelStorage(sessionStorage(port, 'vendas'), 'scheduler');
+    expect(sessionStorage(port, 'default')).toBe(port);
+    expect(spy.mock.calls).toEqual([['vendas:sticker'], ['vendas:$scheduler']]);
+  });
+
+  it('plugin não alcança outra sessão nem o kernel da própria', async () => {
+    const port = createMemoryStorage();
+    const vendas = sessionStorage(port, 'vendas');
+    const suporte = sessionStorage(port, 'suporte');
+    await pluginStorage(suporte, 'sticker').kv.set('k', 'suporte');
+    await pluginStorage(port, 'sticker').kv.set('k', 'default');
+    await kernelStorage(vendas, 'config').kv.set('k', 'kernel');
+
+    expect(await pluginStorage(vendas, 'sticker').kv.get('k')).toBeUndefined();
+    // ":" e "$" seriam o caminho para o namespace de outra sessão ou do kernel.
+    expect(() => pluginStorage(port, 'suporte:sticker')).toThrow(ReservedNamespaceError);
+    expect(() => pluginStorage(vendas, '$config')).toThrow(ReservedNamespaceError);
   });
 });
