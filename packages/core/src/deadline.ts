@@ -120,3 +120,51 @@ export interface WithDeadline {
 export function deadlineOf(ctx: object): Deadline | undefined {
   return (ctx as WithDeadline)[DEADLINE];
 }
+
+function isThenable(value: unknown): value is PromiseLike<unknown> {
+  return (
+    value !== null &&
+    (typeof value === 'object' || typeof value === 'function') &&
+    typeof (value as PromiseLike<unknown>).then === 'function'
+  );
+}
+
+/**
+ * Corre `result` contra um prazo de `timeoutMs`. Estourado, rejeita com o erro de `onTimeout`
+ * (que também é a hora de expirar o `Deadline` da execução); o trabalho não tem como ser
+ * cancelado e segue em segundo plano, e uma rejeição dele depois do prazo vai para `onLate`,
+ * nunca vira rejeição não tratada. Resultado síncrono passa direto, sem timer: o caminho quente
+ * não paga nada (plano §7).
+ */
+export function settleWithin(
+  result: unknown,
+  timeoutMs: number,
+  onTimeout: () => Error,
+  onLate: (error: unknown) => void,
+): unknown {
+  if (!isThenable(result)) return result;
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const timer = setTimeout(() => {
+      settled = true;
+      reject(onTimeout());
+    }, timeoutMs);
+    result.then(
+      (value) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error: unknown) => {
+        if (settled) {
+          onLate(error);
+          return;
+        }
+        settled = true;
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}

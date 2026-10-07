@@ -5,7 +5,7 @@
 import type { CommandDefinition } from '#commands/command.ts';
 import type { CommandRouter } from '#commands/router.ts';
 import type { PluginConfigs } from '#config/plugin-configs.ts';
-import { ContextExpiredError, Deadline, ExecutionTimeoutError } from '#deadline.ts';
+import { ContextExpiredError, Deadline, ExecutionTimeoutError, settleWithin } from '#deadline.ts';
 import type { EventBus } from '#events/bus.ts';
 import type { BotEventName, EventSubscriber } from '#events/types.ts';
 import type { Logger } from '#logger/types.ts';
@@ -39,20 +39,32 @@ export interface PluginContextDeps {
   readonly scheduler: SchedulerService;
   readonly send: Sender;
   readonly unsafe: UnsafeAccess;
-  /** Prazo do `run` de cada comando, em ms (ADR 0005). */
+  /** Prazo do `run` e do `onReject` de cada comando, em ms (ADR 0005). */
   readonly commandTimeoutMs: number;
   /** Destino da rejeição de um `run` que chegou depois do prazo (já reportado como timeout). */
   readonly onLateCommandError: (plugin: string, command: string, error: unknown) => void;
 }
 
-/** O `run` de um comando estourou o prazo. Vai em `plugin.error` com `timedOut: true`. */
+/** Parte do comando que roda código de plugin com prazo. */
+export type CommandStage = 'run' | 'onReject';
+
+/**
+ * O `run` ou o `onReject` de um comando estourou o prazo. Vai em `plugin.error` com
+ * `timedOut: true`.
+ */
 export class CommandTimeoutError extends ExecutionTimeoutError {
   override readonly name: string = 'CommandTimeoutError';
   readonly command: string;
+  readonly stage: CommandStage;
 
-  constructor(plugin: string, command: string, timeoutMs: number) {
-    super(plugin, `comando "${command}"`, timeoutMs);
+  constructor(plugin: string, command: string, timeoutMs: number, stage: CommandStage = 'run') {
+    super(
+      plugin,
+      stage === 'run' ? `comando "${command}"` : `onReject do comando "${command}"`,
+      timeoutMs,
+    );
     this.command = command;
+    this.stage = stage;
   }
 }
 
@@ -214,8 +226,9 @@ function liveStorage(storage: PluginStorage, live: Live): PluginStorage {
 type AnySubscribe = (event: BotEventName, first: unknown, second: unknown) => Unsubscribe;
 
 /**
- * Comando com o `log` do plugin dono no contexto de `run` e `onReject`, e `run` com prazo: um
- * `run` preso seguraria o chat na fila de entrada para sempre (ADR 0005).
+ * Comando com o `log` do plugin dono no contexto de `run` e `onReject`, e os dois com prazo: um
+ * deles preso seguraria o chat na fila de entrada para sempre (ADR 0005). Cada um tem o próprio
+ * `Deadline`, que dá o `signal` e prende o `reply` (ADR 0033).
  */
 function wrapCommand(
   plugin: string,
@@ -224,71 +237,25 @@ function wrapCommand(
   deps: Pick<PluginContextDeps, 'commandTimeoutMs' | 'onLateCommandError'>,
 ): CommandDefinition {
   const { run, onReject, name } = definition;
+  const timed = <R>(stage: CommandStage, execute: (deadline: Deadline) => R): R => {
+    const deadline = new Deadline();
+    return settleWithin(
+      execute(deadline),
+      deps.commandTimeoutMs,
+      () => {
+        const error = new CommandTimeoutError(plugin, name, deps.commandTimeoutMs, stage);
+        deadline.expire(error);
+        return error;
+      },
+      (error) => deps.onLateCommandError(plugin, name, error),
+    ) as R;
+  };
   return {
     ...definition,
-    run: (ctx) => {
-      const deadline = new Deadline();
-      const result = run(views.run(ctx, deadline));
-      return withDeadline(
-        result,
-        deadline,
-        deps.commandTimeoutMs,
-        plugin,
-        name,
-        deps.onLateCommandError,
-      );
-    },
-    ...(onReject && { onReject: (ctx, rejection) => onReject(views.reject(ctx), rejection) }),
+    run: (ctx) => timed('run', (deadline) => run(views.run(ctx, deadline))),
+    ...(onReject && {
+      onReject: (ctx, rejection) =>
+        timed('onReject', (deadline) => onReject(views.run(ctx, deadline), rejection)),
+    }),
   };
-}
-
-function isThenable(value: unknown): value is PromiseLike<unknown> {
-  return (
-    value !== null &&
-    (typeof value === 'object' || typeof value === 'function') &&
-    typeof (value as PromiseLike<unknown>).then === 'function'
-  );
-}
-
-/**
- * Corre o resultado do `run` contra o prazo. O `run` não tem como ser cancelado e segue em
- * segundo plano; o chat é liberado, o `signal` do comando aborta e o `reply` dele passa a ser
- * recusado (ADR 0033). Uma rejeição depois do prazo vai para `onLate`, nunca vira rejeição não
- * tratada. `run` síncrono passa direto, sem timer.
- */
-function withDeadline(
-  result: unknown,
-  deadline: Deadline,
-  timeoutMs: number,
-  plugin: string,
-  command: string,
-  onLate: PluginContextDeps['onLateCommandError'],
-): unknown {
-  if (!isThenable(result)) return result;
-  return new Promise((resolve, reject) => {
-    let settled = false;
-    const timer = setTimeout(() => {
-      settled = true;
-      const error = new CommandTimeoutError(plugin, command, timeoutMs);
-      deadline.expire(error);
-      reject(error);
-    }, timeoutMs);
-    result.then(
-      (value) => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(timer);
-        resolve(value);
-      },
-      (error: unknown) => {
-        if (settled) {
-          onLate(plugin, command, error);
-          return;
-        }
-        settled = true;
-        clearTimeout(timer);
-        reject(error);
-      },
-    );
-  });
 }

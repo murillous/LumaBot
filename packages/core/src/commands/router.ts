@@ -58,7 +58,10 @@ export type DispatchResult =
       readonly consumed: true;
       readonly status: 'failed';
       readonly command: MatchedCommand;
-      /** Erro de `run`, `onReject` ou `isGroupAdmin`; quem chamou registra/reporta. */
+      /**
+       * Erro de `run`, `onReject` ou `isGroupAdmin` (no bot, também o prazo estourado de cada
+       * um); quem chamou registra/reporta.
+       */
       readonly error: unknown;
     };
 
@@ -80,6 +83,9 @@ export interface CommandMatch {
 }
 
 const FIRST_WHITESPACE = /\s/;
+
+/** O contexto recebido, com o `signal` que o Bot (ou quem chama `dispatch`) fornece. */
+type SignalContext = BotMessageContext & Pick<RejectContext, 'signal'>;
 
 function mediaOf(message: Message | null): Media | null {
   return message !== null && 'media' in message ? message.media : null;
@@ -161,8 +167,9 @@ export function createCommandRouter(options: CommandRouterOptions = {}): Command
       try {
         // Herda do contexto recebido em vez de copiar: preserva métodos e getters que os
         // estágios anteriores (ou o Bot) tenham colocado nele.
-        // `reply`/`log` vêm do contexto do Bot pela cadeia de protótipos (ver `CommandContext`).
-        const base: RejectContext = Object.assign(Object.create(ctx) as BotMessageContext, {
+        // `reply`/`log` vêm do contexto do Bot pela cadeia de protótipos, e o `signal`, da visão
+        // que o Bot monta para `run` e `onReject` (ver `CommandContext`).
+        const base: RejectContext = Object.assign(Object.create(ctx) as SignalContext, {
           text,
           command: definition.name,
           invokedAs,

@@ -1,10 +1,11 @@
 // Prazo do `run` de comando (ADR 0005): um comando preso não pode segurar o chat para sempre.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { command } from '#commands/command.ts';
+import { type CommandRejection, command, type RejectContext } from '#commands/command.ts';
+import { ContextExpiredError } from '#deadline.ts';
 import type { PluginErrorEvent } from '#events/types.ts';
 import { definePlugin } from '#plugin/define.ts';
-import { type Bot, createBot } from './bot.ts';
+import { type Bot, createBot, GroupAdminTimeoutError } from './bot.ts';
 import { message, RecordingTransport, recordingLogger, sentTexts } from './harness.test-support.ts';
 import { CommandTimeoutError } from './plugin-context.ts';
 
@@ -118,5 +119,146 @@ describe('Bot: prazo de comando', () => {
 
     expect(sentTexts(transport)).toEqual(['feito']);
     expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('onReject preso estoura o prazo, aborta o signal e libera o chat', async () => {
+    const transport = new RecordingTransport();
+    const errors: PluginErrorEvent[] = [];
+    let rejectCtx: RejectContext | undefined;
+    const plugin = definePlugin({
+      name: 'recusa',
+      version: '1.0.0',
+      engine: '>=0.0.0',
+      setup(ctx) {
+        ctx.commands.add(
+          command({
+            name: 'dono',
+            role: 'owner',
+            onReject: (c: RejectContext, _rejection: CommandRejection) => {
+              rejectCtx = c;
+              return new Promise<string>(() => undefined);
+            },
+            run: () => undefined,
+          }),
+        );
+        ctx.commands.add(command({ name: 'ping', run: (c) => c.reply('pong') }));
+        ctx.events.on('plugin.error', (e) => {
+          errors.push(e.payload);
+        });
+      },
+    });
+    const bot = createBot({
+      transport,
+      logger: recordingLogger(),
+      env: {},
+      plugins: [plugin],
+      outbound: { globalIntervalMs: 0, chatIntervalMs: 0 },
+      timeouts: { commandMs: 50 },
+    });
+    bots.push(bot);
+    await bot.start();
+
+    transport.emit('message', message('!dono'));
+    transport.emit('message', message('!ping')); // mesmo chat: espera o !dono
+    await vi.advanceTimersByTimeAsync(49);
+    expect(sentTexts(transport)).toEqual([]);
+    expect(rejectCtx?.signal.aborted).toBe(false);
+
+    await vi.advanceTimersByTimeAsync(1);
+    expect(sentTexts(transport)).toEqual(['pong']);
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toMatchObject({
+      plugin: 'recusa',
+      phase: 'command',
+      event: 'dono',
+      timedOut: true,
+    });
+    expect(errors[0]?.error).toBeInstanceOf(CommandTimeoutError);
+    expect(rejectCtx?.signal.aborted).toBe(true);
+    expect(rejectCtx?.signal.reason).toBe(errors[0]?.error);
+    // Depois do prazo, o reply do onReject é recusado sem chegar ao transport.
+    await expect(rejectCtx?.reply('tarde')).rejects.toBeInstanceOf(ContextExpiredError);
+    expect(sentTexts(transport)).toEqual(['pong']);
+  });
+
+  it('onReject que responde no prazo não deixa timer vivo', async () => {
+    const transport = new RecordingTransport();
+    const plugin = definePlugin({
+      name: 'recusa-rapida',
+      version: '1.0.0',
+      engine: '>=0.0.0',
+      setup: (ctx) =>
+        ctx.commands.add(
+          command({
+            name: 'dono',
+            role: 'owner',
+            onReject: async () => 'só o dono',
+            run: () => undefined,
+          }),
+        ),
+    });
+    const bot = createBot({
+      transport,
+      logger: recordingLogger(),
+      env: {},
+      plugins: [plugin],
+      outbound: { globalIntervalMs: 0, chatIntervalMs: 0 },
+    });
+    bots.push(bot);
+    await bot.start();
+
+    transport.emit('message', message('!dono'));
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(sentTexts(transport)).toEqual(['só o dono']);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('consulta de admin presa estoura o prazo e libera o chat', async () => {
+    const transport = new RecordingTransport(['send.text', 'quoted', 'groups']);
+    transport.getGroupMetadata = () => new Promise(() => undefined);
+    const errors: PluginErrorEvent[] = [];
+    const ran = vi.fn();
+    const plugin = definePlugin({
+      name: 'admin',
+      version: '1.0.0',
+      engine: '>=0.0.0',
+      setup(ctx) {
+        ctx.commands.add(command({ name: 'ban', role: 'group-admin', run: ran }));
+        ctx.commands.add(command({ name: 'ping', run: (c) => c.reply('pong') }));
+        ctx.events.on('plugin.error', (e) => {
+          errors.push(e.payload);
+        });
+      },
+    });
+    const bot = createBot({
+      transport,
+      logger: recordingLogger(),
+      env: {},
+      plugins: [plugin],
+      outbound: { globalIntervalMs: 0, chatIntervalMs: 0 },
+      timeouts: { commandMs: 50 },
+    });
+    bots.push(bot);
+    await bot.start();
+    const group = { id: 'g@test', isGroup: true };
+
+    transport.emit('message', { ...message('!ban'), chat: group });
+    transport.emit('message', { ...message('!ping'), chat: group });
+    await vi.advanceTimersByTimeAsync(49);
+    expect(sentTexts(transport)).toEqual([]);
+
+    await vi.advanceTimersByTimeAsync(1);
+    expect(sentTexts(transport)).toEqual(['pong']);
+    expect(ran).not.toHaveBeenCalled();
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toMatchObject({
+      plugin: 'admin',
+      phase: 'command',
+      event: 'ban',
+      timedOut: true,
+    });
+    expect(errors[0]?.error).toBeInstanceOf(GroupAdminTimeoutError);
+    expect(errors[0]?.error).toMatchObject({ chatId: 'g@test', timeoutMs: 50 });
   });
 });

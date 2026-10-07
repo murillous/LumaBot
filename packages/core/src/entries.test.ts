@@ -22,6 +22,7 @@ const entries: Record<string, { file: string; load: () => Promise<object> } & En
       'CommandTimeoutError',
       'ContextExpiredError',
       'ExecutionTimeoutError',
+      'GroupAdminTimeoutError',
       'JobHandlerConflictError',
       'JobTimeoutError',
       'ListenerTimeoutError',

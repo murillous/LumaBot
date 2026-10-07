@@ -1,4 +1,4 @@
-import type { CommandDefinition } from './command.ts';
+import { assertCommandTokens, type CommandDefinition } from './command.ts';
 
 /** Comando registrado com o plugin que o declarou. */
 export interface RegisteredCommand {
@@ -28,9 +28,9 @@ export class CommandConflictError extends Error {
 
 export interface CommandRegistry {
   /**
-   * Registra o comando em nome do plugin. Lança `CommandConflictError` se o nome ou algum
-   * alias já pertencer a outro comando (de qualquer plugin, inclusive o mesmo); nesse caso
-   * nada do comando é registrado.
+   * Registra o comando em nome do plugin. Lança `TypeError` se o nome ou algum alias for
+   * inválido (como `command()`) e `CommandConflictError` se algum já pertencer a outro comando
+   * (de qualquer plugin, inclusive o mesmo); nos dois casos nada do comando é registrado.
    */
   add(plugin: string, definition: CommandDefinition): void;
   /** Remove todos os comandos do plugin (teardown e reload). */
@@ -54,6 +54,9 @@ export function createCommandRegistry(): CommandRegistry {
 
   return {
     add(plugin, definition) {
+      // Quem registra sem passar por `command()` (o `ctx.commands.add` aceita a definição
+      // literal) também falha no boot, e não com um comando que nunca casa.
+      assertCommandTokens(definition);
       const entry: RegisteredCommand = { plugin, definition };
       const tokens = tokensOf(definition);
       // Valida tudo antes de gravar: um conflito no 2º alias não pode deixar o 1º registrado.

@@ -176,18 +176,18 @@ const signalDescriptor: PropertyDescriptor = {
 };
 
 export interface CommandViews {
-  /** Contexto do `run`: `log` do plugin, `signal` e `reply` presos ao `deadline` do comando. */
+  /**
+   * Contexto do `run` e do `onReject`: `log` do plugin, `signal` e `reply` presos ao `deadline`
+   * da execução.
+   */
   run<C extends object>(ctx: C, deadline: Deadline): C;
-  /** Contexto do `onReject`: só o `log` do plugin (sem prazo). */
-  reject<C extends object>(ctx: C): C;
 }
 
 /** Deriva os contextos de comando de um plugin. */
 export function commandViewFactory(plugin: string, pluginLog: Logger): CommandViews {
   type View = ExpiringView & { readonly command: string };
-  const log = pluginLogDescriptor(pluginLog);
   const runDescriptors: PropertyDescriptorMap = {
-    log,
+    log: pluginLogDescriptor(pluginLog),
     signal: signalDescriptor,
     reply: expiringReplyDescriptor<View>(
       plugin,
@@ -196,14 +196,12 @@ export function commandViewFactory(plugin: string, pluginLog: Logger): CommandVi
       (view) => ({ label: `comando "${view.command}"`, fields: { command: view.command } }),
     ),
   };
-  const rejectDescriptors: PropertyDescriptorMap = { log };
   return {
     run(ctx, deadline) {
       const view = Object.create(ctx, runDescriptors) as { [DEADLINE]?: Deadline };
       view[DEADLINE] = deadline;
       return view as typeof ctx;
     },
-    reject: (ctx) => Object.create(ctx, rejectDescriptors),
   };
 }
 

@@ -31,8 +31,8 @@ export interface CommandContext extends BotMessageContext {
   /** Texto após o comando, sem o espaço inicial e com quebras de linha preservadas. */
   readonly rawArgs: string;
   /**
-   * Aborta quando o `run` estoura o prazo (`timeouts.commandMs`), com `reason` =
-   * `CommandTimeoutError`. Repasse a `fetch`/SDKs para parar o trabalho a tempo (ADR 0033);
+   * Aborta quando o `run` (ou o `onReject`) estoura o prazo (`timeouts.commandMs`), com
+   * `reason` = `CommandTimeoutError`. Repasse a `fetch`/SDKs para parar o trabalho a tempo (ADR 0033);
    * depois do prazo, o `reply` deste contexto rejeita com `ContextExpiredError`. Montado pelo
    * `Bot`: quem usa o roteador solto o fornece no contexto passado a `dispatch`.
    */
@@ -51,8 +51,11 @@ export type CommandRejection =
   | { readonly reason: 'role'; readonly required: CommandRole }
   | { readonly reason: 'accepts'; readonly accepts: readonly AcceptSpec[] };
 
-/** Contexto de `onReject`: ainda não há mídia resolvida nem `accepted`, e não há prazo. */
-export type RejectContext = Omit<CommandContext, 'accepted' | 'media' | 'signal'>;
+/**
+ * Contexto de `onReject`: ainda não há mídia resolvida nem `accepted`. No bot, o `onReject` tem
+ * o mesmo prazo do `run`, e o `signal` aborta quando ele estoura.
+ */
+export type RejectContext = Omit<CommandContext, 'accepted' | 'media'>;
 
 export interface CommandDefinition {
   /** Nome sem o prefixo (`'sticker'`, não `'!sticker'`). Casado sem diferenciar caixa. */
@@ -84,12 +87,17 @@ function assertToken(token: string, what: string): void {
   }
 }
 
+/** Lança `TypeError` se o nome ou algum alias for vazio ou tiver espaço: nunca casaria. */
+export function assertCommandTokens(definition: CommandDefinition): void {
+  assertToken(definition.name, 'Nome');
+  for (const alias of definition.aliases ?? []) assertToken(alias, 'Alias');
+}
+
 /**
  * Define um comando. Valida nome e aliases na definição, para o erro apontar o plugin que
  * declarou e não aparecer só quando alguém digitar o comando.
  */
 export function command(definition: CommandDefinition): CommandDefinition {
-  assertToken(definition.name, 'Nome');
-  for (const alias of definition.aliases ?? []) assertToken(alias, 'Alias');
+  assertCommandTokens(definition);
   return definition;
 }

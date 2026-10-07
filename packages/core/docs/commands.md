@@ -24,6 +24,8 @@ const sticker = command({
 ```
 
 `command()` valida nome e aliases na hora (não vazios, sem espaço) e devolve a definição.
+`registry.add` (e o `ctx.commands.add` do plugin) repete a validação, então uma definição literal
+que não passou por `command()` também falha no boot com `TypeError`, em vez de nunca casar.
 O nome vai **sem** o prefixo.
 
 ## No bot
@@ -154,15 +156,18 @@ mensagem.
 | `no-match` | `false` | — |
 | `ran` | `true` | `command` |
 | `rejected` | `true` | `command`, `rejection`, `reply` |
-| `failed` | `true` | `command`, `error` (de `run`, `onReject` ou `isGroupAdmin`) |
+| `failed` | `true` | `command`, `error` (de `run`, `onReject` ou `isGroupAdmin`, ou o prazo de um deles no bot) |
 
 `command` é `{ plugin, name, invokedAs }`. Quem chama decide o destino do erro de `failed`; no
 bot, vira `plugin.error` (`phase: 'command'`) e log em `error`.
 
-O roteador em si não tem prazo. No bot, o `run` de cada comando tem prazo de
-`timeouts.commandMs` (padrão 30 s): estourado, `dispatch` devolve `failed` com um
-`CommandTimeoutError`, o `plugin.error` sai com `timedOut: true` e o chat é liberado. O `run`
-segue em segundo plano; uma rejeição tardia vai só para o log ([Bot](bot.md#fluxo-de-uma-mensagem)).
+O roteador em si não tem prazo. No bot, o `run` e o `onReject` de cada comando têm prazo de
+`timeouts.commandMs` (padrão 30 s), contado à parte para cada um: estourado, `dispatch` devolve
+`failed` com um `CommandTimeoutError` (`stage: 'run'` ou `'onReject'`), o `plugin.error` sai com
+`timedOut: true` e o chat é liberado. O código segue em segundo plano; uma rejeição tardia vai
+só para o log ([Bot](bot.md#fluxo-de-uma-mensagem)). A porta `isGroupAdmin` que o bot liga ao
+transport tem o mesmo prazo e, estourada, rejeita com `GroupAdminTimeoutError`: o comando não
+roda (`failed`), nunca é liberado por falta de resposta.
 
 ### `ctx.signal` e o que acontece depois do prazo
 
@@ -186,8 +191,9 @@ Depois do prazo, `c.reply(...)` (e `c.reply.image(...)` etc., mesmo guardado ant
 `c.signal.aborted` (ou `c.signal.throwIfAborted()`) antes de efeitos que não recebem o `signal`.
 Código síncrono travado bloqueia o processo inteiro, e nenhum prazo resolve isso.
 
-`onReject` não tem prazo nem `signal` (`RejectContext` não tem o campo). Fora do bot, o roteador
-não cria `signal`: quem chama `dispatch` o fornece no contexto, como `reply` e `log`.
+O `onReject` recebe o próprio `signal`, que aborta quando o prazo dele estoura, e o `reply` dele
+segue a mesma regra. Fora do bot, o roteador não cria `signal`: quem chama `dispatch` o fornece
+no contexto, como `reply` e `log`.
 
 ## Conflitos
 
