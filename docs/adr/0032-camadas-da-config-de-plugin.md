@@ -1,6 +1,6 @@
 # ADR 0032 — Camadas e convenções da config de plugin
 
-**Status:** Aceito (2026-10-06) · Detalha a decisão **D17** ([ADR 0017](0017-config-por-plugin-zod.md))
+**Status:** Proposto (2026-10-06) · Detalha a decisão **D17** ([ADR 0017](0017-config-por-plugin-zod.md))
 
 ## Contexto
 
