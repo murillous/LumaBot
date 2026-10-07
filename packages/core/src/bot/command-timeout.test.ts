@@ -261,4 +261,66 @@ describe('Bot: prazo de comando', () => {
     expect(errors[0]?.error).toBeInstanceOf(GroupAdminTimeoutError);
     expect(errors[0]?.error).toMatchObject({ chatId: 'g@test', timeoutMs: 50 });
   });
+
+  it('timeoutMs do comando sobrescreve o commandMs só para ele', async () => {
+    const transport = new RecordingTransport();
+    const errors: PluginErrorEvent[] = [];
+    const plugin = definePlugin({
+      name: 'midia',
+      version: '1.0.0',
+      engine: '>=0.0.0',
+      setup(ctx) {
+        ctx.commands.add(
+          command({
+            name: 'baixar',
+            timeoutMs: 5000,
+            run: async (c) => {
+              await new Promise((resolve) => setTimeout(resolve, 3000));
+              await c.reply('baixado');
+            },
+          }),
+        );
+        ctx.commands.add(
+          command({
+            name: 'curto',
+            timeoutMs: 100,
+            run: () => new Promise<void>(() => undefined),
+          }),
+        );
+        ctx.commands.add(
+          command({ name: 'padrao', run: () => new Promise<void>(() => undefined) }),
+        );
+        ctx.events.on('plugin.error', (e) => {
+          errors.push(e.payload);
+        });
+      },
+    });
+    const bot = createBot({
+      transport,
+      logger: recordingLogger(),
+      env: {},
+      plugins: [plugin],
+      outbound: { globalIntervalMs: 0, chatIntervalMs: 0 },
+      timeouts: { commandMs: 1000 },
+    });
+    bots.push(bot);
+    await bot.start();
+
+    // Chats distintos: cada comando corre o próprio prazo ao mesmo tempo.
+    transport.emit('message', message('!baixar', { chatId: 'a@test' }));
+    transport.emit('message', message('!curto', { chatId: 'b@test' }));
+    transport.emit('message', message('!padrao', { chatId: 'c@test' }));
+
+    await vi.advanceTimersByTimeAsync(100);
+    expect(errors.map((e) => e.event)).toEqual(['curto']);
+    expect(errors[0]?.error).toMatchObject({ command: 'curto', timeoutMs: 100 });
+
+    await vi.advanceTimersByTimeAsync(900);
+    expect(errors.map((e) => e.event)).toEqual(['curto', 'padrao']);
+    expect(errors[1]?.error).toMatchObject({ command: 'padrao', timeoutMs: 1000 });
+
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(sentTexts(transport)).toEqual(['baixado']);
+    expect(errors).toHaveLength(2);
+  });
 });

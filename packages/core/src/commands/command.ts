@@ -35,7 +35,8 @@ export interface CommandContext extends BotMessageContext {
   /** Texto após o comando, sem o espaço inicial e com quebras de linha preservadas. */
   readonly rawArgs: string;
   /**
-   * Aborta quando o `run` (ou o `onReject`) estoura o prazo (`timeouts.commandMs`), com
+   * Aborta quando o `run` (ou o `onReject`) estoura o prazo (`timeoutMs` do comando ou
+   * `timeouts.commandMs`), com
    * `reason` = `CommandTimeoutError`. Repasse a `fetch`/SDKs para parar o trabalho a tempo (ADR 0033);
    * depois do prazo, o `reply` deste contexto rejeita com `ContextExpiredError`. Montado pelo
    * `Bot`: quem usa o roteador solto o fornece no contexto passado a `dispatch`.
@@ -79,6 +80,12 @@ export interface CommandDefinition {
     rejection: CommandRejection,
   ) => string | null | undefined | Promise<string | null | undefined>;
   readonly run: (ctx: CommandContext) => unknown;
+  /**
+   * Prazo do `run` e do `onReject` no bot, em ms. Padrão: `timeouts.commandMs` do bot. Para o
+   * comando que legitimamente demora (download, conversão): enquanto roda, ele segura o chat
+   * (ADR 0042), então o prazo maior vale só para ele.
+   */
+  readonly timeoutMs?: number;
 }
 
 /** Comando como os plugins o veem em `ctx.commands.list()` (ADR 0040): sem `run` nem `onReject`. */
@@ -101,17 +108,25 @@ function assertToken(token: string, what: string): void {
   }
 }
 
-/** Lança `TypeError` se o nome ou algum alias for vazio ou tiver espaço: nunca casaria. */
-export function assertCommandTokens(definition: CommandDefinition): void {
+/**
+ * Lança `TypeError` se o nome ou algum alias for vazio ou tiver espaço (nunca casaria) e
+ * `RangeError` se `timeoutMs` não for finito e > 0 (o `setTimeout` trataria `Infinity`/`NaN`
+ * como 1 ms e o comando estouraria na hora).
+ */
+export function assertCommandDefinition(definition: CommandDefinition): void {
   assertToken(definition.name, 'Nome');
   for (const alias of definition.aliases ?? []) assertToken(alias, 'Alias');
+  const { timeoutMs } = definition;
+  if (timeoutMs !== undefined && !(Number.isFinite(timeoutMs) && timeoutMs > 0)) {
+    throw new RangeError(`Prazo do comando "${definition.name}" inválido: ${timeoutMs}`);
+  }
 }
 
 /**
- * Define um comando. Valida nome e aliases na definição, para o erro apontar o plugin que
+ * Define um comando. Valida nome, aliases e prazo na definição, para o erro apontar o plugin que
  * declarou e não aparecer só quando alguém digitar o comando.
  */
 export function command(definition: CommandDefinition): CommandDefinition {
-  assertCommandTokens(definition);
+  assertCommandDefinition(definition);
   return definition;
 }

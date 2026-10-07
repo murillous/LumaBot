@@ -122,7 +122,8 @@ ctx.reply()/ctx.send → fila de saída → transport
 - **Comando que casa consome** a mensagem, mesmo recusado (papel, `accepts`) ou com erro. A
   resposta de `onReject` sai pelo `ctx.reply`. Comando que lança vira `plugin.error`
   (`phase: 'command'`, `event` = nome do comando) e uma linha de log em `error`; o chat segue.
-- **Prazo de comando** (`timeouts.commandMs`, padrão 30 s, [ADR 0005](../../../docs/adr/0005-plugins-no-mesmo-processo.md)):
+- **Prazo de comando** (`timeouts.commandMs`, padrão 30 s, [ADR 0005](../../../docs/adr/0005-plugins-no-mesmo-processo.md);
+  o `timeoutMs` de um comando sobrescreve só para ele, ver [Comandos](commands.md#resultado-de-dispatch)):
   um `run` que não termina no prazo vira `plugin.error` com `timedOut: true` e erro
   `CommandTimeoutError` (`plugin`, `command`, `timeoutMs`, `stage: 'run'`), e o chat passa para
   a próxima mensagem. O `run` não é cancelado (não há como) e segue em segundo plano; se ele
@@ -251,7 +252,7 @@ oferece **cancelamento cooperativo** ([ADR 0033](../../../docs/adr/0033-cancelam
 
 | Onde | `signal` | Aborta quando | `reason` |
 | --- | --- | --- | --- |
-| Comando (`run` e `onReject`) | `c.signal` | `timeouts.commandMs` estoura (cada um conta o seu), ou o plugin é descartado | `CommandTimeoutError`, ou o motivo do descarte |
+| Comando (`run` e `onReject`) | `c.signal` | o `timeoutMs` do comando (ou `timeouts.commandMs`) estoura (cada um conta o seu), ou o plugin é descartado | `CommandTimeoutError`, ou o motivo do descarte |
 | Papel custom (`check`) | `c.signal` | `timeouts.commandMs` estoura, ou o plugin dono do papel é descartado | `RoleTimeoutError`, ou o motivo do descarte |
 | Listener (todo evento) | `e.signal` | o prazo **deste** listener estoura, ou o plugin é descartado | `ListenerTimeoutError`, ou o motivo do descarte |
 | Job do scheduler | `handler(payload, { signal })` | `timeouts.jobMs` estoura, ou o plugin é descartado | `JobTimeoutError`, ou o motivo do descarte |

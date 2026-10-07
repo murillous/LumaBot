@@ -15,6 +15,13 @@ describe('command', () => {
     expect(() => command({ name: 'luma stats', run: noop })).toThrow(/luma stats/);
     expect(() => command({ name: 'ok', aliases: ['a b'], run: noop })).toThrow(/Alias/);
   });
+
+  it('recusa timeoutMs que não seja finito e > 0', () => {
+    for (const timeoutMs of [0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(() => command({ name: 'baixar', timeoutMs, run: noop })).toThrow(RangeError);
+    }
+    expect(command({ name: 'baixar', timeoutMs: 300_000, run: noop }).timeoutMs).toBe(300_000);
+  });
 });
 
 describe('createCommandRegistry', () => {
@@ -86,6 +93,12 @@ describe('createCommandRegistry', () => {
     expect(() => registry.add('p', { name: '', run: noop })).toThrow(TypeError);
     expect(() => registry.add('p', { name: 'ok', aliases: ['x y'], run: noop })).toThrow(TypeError);
     expect(registry.find('ok')).toBeUndefined();
+    expect(registry.list()).toEqual([]);
+  });
+
+  it('valida timeoutMs mesmo sem passar por command()', () => {
+    const registry = createCommandRegistry();
+    expect(() => registry.add('p', { name: 'ok', timeoutMs: 0, run: noop })).toThrow(RangeError);
     expect(registry.list()).toEqual([]);
   });
 

@@ -25,7 +25,8 @@ const sticker = command({
 
 `command()` valida nome e aliases na hora (não vazios, sem espaço) e devolve a definição.
 `registry.add` (e o `ctx.commands.add` do plugin) repete a validação, então uma definição literal
-que não passou por `command()` também falha no boot com `TypeError`, em vez de nunca casar.
+que não passou por `command()` também falha no boot com `TypeError`, em vez de nunca casar. Um
+`timeoutMs` que não seja finito e > 0 falha do mesmo jeito, com `RangeError`.
 O nome vai **sem** o prefixo.
 
 ## No bot
@@ -205,6 +206,26 @@ O roteador em si não tem prazo. No bot, o `run` e o `onReject` de cada comando 
 só para o log ([Bot](bot.md#fluxo-de-uma-mensagem)). A porta `isGroupAdmin` que o bot liga ao
 transport tem o mesmo prazo e, estourada, rejeita com `GroupAdminTimeoutError`: o comando não
 roda (`failed`), nunca é liberado por falta de resposta.
+
+O comando que legitimamente demora (download, conversão) declara o próprio prazo com `timeoutMs`,
+que vale para o `run` e o `onReject` dele. Sem `timeoutMs`, vale o `commandMs` do bot:
+
+```ts
+command({
+  name: 'download',
+  timeoutMs: 300_000, // yt-dlp + upload; os outros comandos seguem com o padrão
+  run: async (c) => {
+    const video = await baixar(c.rawArgs, { signal: c.signal });
+    await c.reply.video(video);
+  },
+});
+```
+
+Enquanto roda, o comando segura o chat dele ([ADR 0042](../../../docs/adr/0042-handler-lento-segura-o-chat.md)):
+um prazo de 5 min deixa as mensagens seguintes daquele chat esperando até 5 min. Se o grupo não
+deve esperar, responda "baixando…" e solte o trabalho do `run`, como no
+[padrão dos listeners](events.md#trabalho-longo-solte-o-chat). A consulta de admin e os papéis
+custom seguem com o `commandMs`.
 
 ### `ctx.signal` e o que acontece depois do prazo
 

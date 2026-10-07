@@ -95,7 +95,10 @@ export interface BotTimeouts {
   readonly setupMs?: number;
   /** `teardown` e limpeza de cada plugin. Padrão: 5000. */
   readonly teardownMs?: number;
-  /** `run` de cada comando; estourado, o chat é liberado e sai `plugin.error`. Padrão: 30000. */
+  /**
+   * `run` de cada comando; estourado, o chat é liberado e sai `plugin.error`. Padrão: 30000.
+   * O `timeoutMs` de um comando sobrescreve só para ele.
+   */
   readonly commandMs?: number;
   /** Cada listener de evento. Padrão: 30000. */
   readonly listenerMs?: number;

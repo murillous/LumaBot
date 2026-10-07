@@ -306,13 +306,14 @@ function wrapCommand(
   deps: Pick<PluginContextDeps, 'commandTimeoutMs' | 'onLateCommandError'>,
 ): CommandDefinition {
   const { run, onReject, name } = definition;
+  const timeoutMs = definition.timeoutMs ?? deps.commandTimeoutMs;
   const timed = <R>(stage: CommandStage, execute: (deadline: Deadline) => R): R => {
     const deadline = new Deadline(lifetime);
     return settleWithin(
       execute(deadline),
-      deps.commandTimeoutMs,
+      timeoutMs,
       () => {
-        const error = new CommandTimeoutError(plugin, name, deps.commandTimeoutMs, stage);
+        const error = new CommandTimeoutError(plugin, name, timeoutMs, stage);
         deadline.expire(error);
         return error;
       },
