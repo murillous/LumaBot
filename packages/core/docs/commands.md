@@ -162,6 +162,31 @@ O roteador em si não tem prazo. No bot, o `run` de cada comando tem prazo de
 `CommandTimeoutError`, o `plugin.error` sai com `timedOut: true` e o chat é liberado. O `run`
 segue em segundo plano; uma rejeição tardia vai só para o log ([Bot](bot.md#fluxo-de-uma-mensagem)).
 
+### `ctx.signal` e o que acontece depois do prazo
+
+No bot, o contexto do `run` traz `signal: AbortSignal`, que aborta quando o prazo estoura
+(`reason` = o `CommandTimeoutError`). Repasse-o a `fetch` e SDKs, para o trabalho parar junto
+([ADR 0033](../../../docs/adr/0033-cancelamento-cooperativo.md)):
+
+```ts
+command({
+  name: 'resumo',
+  run: async (c) => {
+    const texto = await ia.resumir(c.rawArgs, { signal: c.signal });
+    await c.reply(texto);
+  },
+});
+```
+
+Depois do prazo, `c.reply(...)` (e `c.reply.image(...)` etc., mesmo guardado antes) rejeita com
+`ContextExpiredError` sem chegar ao transport, com uma linha `warn` (plugin e comando). O
+`ctx.send`/`ctx.storage` do `setup` são do plugin e não sabem do prazo do comando: confira
+`c.signal.aborted` (ou `c.signal.throwIfAborted()`) antes de efeitos que não recebem o `signal`.
+Código síncrono travado bloqueia o processo inteiro, e nenhum prazo resolve isso.
+
+`onReject` não tem prazo nem `signal` (`RejectContext` não tem o campo). Fora do bot, o roteador
+não cria `signal`: quem chama `dispatch` o fornece no contexto, como `reply` e `log`.
+
 ## Conflitos
 
 Nome e aliases são únicos no bot inteiro, sem diferenciar caixa. `registry.add` lança

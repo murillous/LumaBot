@@ -5,10 +5,11 @@
 import type { CommandDefinition } from '#commands/command.ts';
 import type { CommandRouter } from '#commands/router.ts';
 import type { PluginConfigs } from '#config/plugin-configs.ts';
+import { ContextExpiredError, Deadline } from '#deadline.ts';
 import type { EventBus } from '#events/bus.ts';
 import type { BotEventName, EventSubscriber } from '#events/types.ts';
 import type { Logger } from '#logger/types.ts';
-import type { Sender } from '#outbound/types.ts';
+import type { OutboundSendOptions, Sender } from '#outbound/types.ts';
 import { type PluginContextFactory, PluginHostStateError } from '#plugin/host.ts';
 import type { PluginContext } from '#plugin/types.ts';
 import type { SchedulerService } from '#scheduler/service.ts';
@@ -16,10 +17,17 @@ import type { Scheduler } from '#scheduler/types.ts';
 import type { ServiceRegistry } from '#services/registry.ts';
 import type { ServiceAccess } from '#services/types.ts';
 import { pluginStorage } from '#storage/namespace.ts';
-import type { StoragePort } from '#storage/types.ts';
-import type { Unsubscribe } from '#transport/types.ts';
+import type {
+  Collection,
+  CollectionOptions,
+  JsonValue,
+  KeyValueStore,
+  PluginStorage,
+  StoragePort,
+} from '#storage/types.ts';
+import type { OutgoingContent, Unsubscribe } from '#transport/types.ts';
 import type { UnsafeAccess } from '#unsafe/access.ts';
-import { commandViewFactory, listenerViewFactory } from './message-context.ts';
+import { type CommandViews, commandViewFactory, listenerViewFactory } from './message-context.ts';
 
 export interface PluginContextDeps {
   readonly configs: PluginConfigs;
@@ -65,20 +73,39 @@ export function createPluginContextFactory(deps: PluginContextDeps): PluginConte
     const log = deps.log.child({ plugin: name });
 
     // Um `setup` que estourou o prazo segue rodando em segundo plano (não há como abortá-lo).
-    // Depois do `dispose`, tudo o que ele registrar ficaria órfão: o contexto recusa.
-    let disposed = false;
+    // Depois do `dispose`, tudo o que ele registrar ficaria órfão e todo efeito (envio,
+    // storage, agendamento) viria de um plugin que já desceu: o contexto recusa, e o `signal`
+    // dele aborta (ADR 0033).
+    const lifetime = new Deadline();
     const guard = (what: string): void => {
-      if (disposed) {
+      if (lifetime.expired) {
         throw new PluginHostStateError(
           `plugin "${name}": ${what} depois que o contexto foi descartado (setup que estourou ` +
             'o prazo, ou registro depois do teardown)',
         );
       }
     };
+    /** Rejeição (com log) de uma operação assíncrona do contexto descartado. */
+    const refuse = (operation: string): Promise<never> => {
+      const error = new ContextExpiredError(name, operation, 'contexto do plugin', lifetime.reason);
+      log.warn(`${operation} recusado: contexto do plugin já foi descartado`, {
+        operation,
+        err: error,
+      });
+      return Promise.reject(error);
+    };
+    const live: Live =
+      (operation, fn) =>
+      (...args) =>
+        lifetime.expired ? refuse(operation) : fn(...args);
 
-    const commandView = commandViewFactory(log);
-    const listenerView = listenerViewFactory(log);
-    const events = deps.bus.forPlugin(name);
+    const commandViews = commandViewFactory(name, log);
+    const listenerView = listenerViewFactory(name, log);
+    // Nos eventos de mensagem, cada listener recebe a visão com `message`/`text`/`reply`/`log`
+    // do plugin; o barramento a cria (uma por listener) e pendura nela o `Deadline`.
+    const events = deps.bus.forPlugin(name, {
+      view: (event) => (isMessageEvent(event) ? listenerView : undefined),
+    });
     const services = deps.services.forPlugin(name);
     const scheduler = deps.scheduler.forPlugin(name);
 
@@ -86,23 +113,19 @@ export function createPluginContextFactory(deps: PluginContextDeps): PluginConte
       plugin: { name, version: plugin.version, messages },
       config,
       log,
+      get signal(): AbortSignal {
+        return lifetime.signal;
+      },
       commands: {
         add(definition: CommandDefinition): void {
           guard('commands.add');
-          deps.router.registry.add(name, wrapCommand(name, definition, commandView, deps));
+          deps.router.registry.add(name, wrapCommand(name, definition, commandViews, deps));
         },
       },
       events: {
         on(event: BotEventName, first: unknown, second?: unknown): Unsubscribe {
           guard('events.on');
-          if (!isMessageEvent(event)) return (events.on as AnySubscribe)(event, first, second);
-          // O contexto do barramento é um só por emissão; o `log` com o nome do plugin precisa
-          // de uma visão por listener.
-          const wrap = (value: unknown): unknown =>
-            typeof value === 'function'
-              ? (ctx: object) => (value as (ctx: object) => unknown)(listenerView(ctx))
-              : value;
-          return (events.on as AnySubscribe)(event, wrap(first), wrap(second));
+          return (events.on as AnySubscribe)(event, first, second);
         },
       } as EventSubscriber,
       services: {
@@ -113,29 +136,82 @@ export function createPluginContextFactory(deps: PluginContextDeps): PluginConte
         get: (service) => services.get(service),
         has: (service) => services.has(service),
       } satisfies ServiceAccess,
-      storage: pluginStorage(deps.storage, name),
+      storage: liveStorage(pluginStorage(deps.storage, name), live),
       scheduler: {
-        at: (when, job, payload) => scheduler.at(when, job, payload),
-        cancel: (id) => scheduler.cancel(id),
+        at: live('scheduler.at', (when: Date | number, job: string, payload?: JsonValue) =>
+          scheduler.at(when, job, payload),
+        ),
+        cancel: live('scheduler.cancel', (id: string) => scheduler.cancel(id)),
         on(job, handler) {
           guard('scheduler.on');
           return scheduler.on(job, handler);
         },
       } satisfies Scheduler,
-      send: deps.send,
+      send: {
+        send: live(
+          'send',
+          (chatId: string, content: OutgoingContent, options?: OutboundSendOptions) =>
+            deps.send.send(chatId, content, options),
+        ),
+      },
       unsafe: deps.unsafe.forPlugin(plugin),
     };
 
     return {
       context,
-      dispose(): void {
-        disposed = true;
+      dispose(reason?: unknown): void {
+        lifetime.expire(
+          reason ?? new PluginHostStateError(`plugin "${name}": contexto descartado`),
+        );
         deps.router.registry.removePlugin(name);
         deps.bus.removePlugin(name);
         deps.services.removePlugin(name);
         deps.scheduler.removePlugin(name);
       },
     };
+  };
+}
+
+/** Embrulha uma operação assíncrona para rejeitar com `ContextExpiredError` após o `dispose`. */
+type Live = <A extends unknown[], R>(
+  operation: string,
+  fn: (...args: A) => Promise<R>,
+) => (...args: A) => Promise<R>;
+
+/**
+ * Storage do plugin com cada operação (KV e coleções) recusada depois do `dispose`. A checagem é
+ * na chamada: uma coleção obtida antes do descarte também passa a recusar.
+ */
+function liveStorage(storage: PluginStorage, live: Live): PluginStorage {
+  const { kv } = storage;
+  const liveKv: KeyValueStore = {
+    get: live('storage.kv.get', (key: string) => kv.get(key)) as KeyValueStore['get'],
+    set: live('storage.kv.set', (key: string, value: JsonValue) => kv.set(key, value)),
+    delete: live('storage.kv.delete', (key: string) => kv.delete(key)),
+  };
+  return {
+    kv: liveKv,
+    collection<T extends { readonly [key: string]: JsonValue }>(
+      collectionName: string,
+      options?: CollectionOptions,
+    ): Collection<T> {
+      const collection = storage.collection<T>(collectionName, options);
+      const op = (method: string): string => `storage.collection("${collectionName}").${method}`;
+      type C = Collection<T>;
+      return {
+        insert: live(op('insert'), (document: T) => collection.insert(document)),
+        get: live(op('get'), (id: string) => collection.get(id)),
+        find: live(op('find'), (query?: Parameters<C['find']>[0]) => collection.find(query)),
+        update: live(
+          op('update'),
+          (target: Parameters<C['update']>[0], patch: Parameters<C['update']>[1]) =>
+            collection.update(target, patch),
+        ),
+        delete: live(op('delete'), (target: Parameters<C['delete']>[0]) =>
+          collection.delete(target),
+        ),
+      };
+    },
   };
 }
 
@@ -148,15 +224,25 @@ type AnySubscribe = (event: BotEventName, first: unknown, second: unknown) => Un
 function wrapCommand(
   plugin: string,
   definition: CommandDefinition,
-  view: <C extends object>(ctx: C) => C,
+  views: CommandViews,
   deps: Pick<PluginContextDeps, 'commandTimeoutMs' | 'onLateCommandError'>,
 ): CommandDefinition {
   const { run, onReject, name } = definition;
   return {
     ...definition,
-    run: (ctx) =>
-      withDeadline(run(view(ctx)), deps.commandTimeoutMs, plugin, name, deps.onLateCommandError),
-    ...(onReject && { onReject: (ctx, rejection) => onReject(view(ctx), rejection) }),
+    run: (ctx) => {
+      const deadline = new Deadline();
+      const result = run(views.run(ctx, deadline));
+      return withDeadline(
+        result,
+        deadline,
+        deps.commandTimeoutMs,
+        plugin,
+        name,
+        deps.onLateCommandError,
+      );
+    },
+    ...(onReject && { onReject: (ctx, rejection) => onReject(views.reject(ctx), rejection) }),
   };
 }
 
@@ -170,11 +256,13 @@ function isThenable(value: unknown): value is PromiseLike<unknown> {
 
 /**
  * Corre o resultado do `run` contra o prazo. O `run` não tem como ser cancelado e segue em
- * segundo plano; o chat é liberado. Uma rejeição depois do prazo vai para `onLate`, nunca vira
- * rejeição não tratada. `run` síncrono passa direto, sem timer.
+ * segundo plano; o chat é liberado, o `signal` do comando aborta e o `reply` dele passa a ser
+ * recusado (ADR 0033). Uma rejeição depois do prazo vai para `onLate`, nunca vira rejeição não
+ * tratada. `run` síncrono passa direto, sem timer.
  */
 function withDeadline(
   result: unknown,
+  deadline: Deadline,
   timeoutMs: number,
   plugin: string,
   command: string,
@@ -185,7 +273,9 @@ function withDeadline(
     let settled = false;
     const timer = setTimeout(() => {
       settled = true;
-      reject(new CommandTimeoutError(plugin, command, timeoutMs));
+      const error = new CommandTimeoutError(plugin, command, timeoutMs);
+      deadline.expire(error);
+      reject(error);
     }, timeoutMs);
     result.then(
       (value) => {

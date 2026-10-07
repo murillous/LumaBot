@@ -53,6 +53,7 @@ export {
 } from '#config/plugin-configs.ts';
 export { isSecretSchema, SECRET_MASK, secret } from '#config/schema.ts';
 export type { BotMessageContext, MessageContext } from '#context.ts';
+export { ContextExpiredError } from '#deadline.ts';
 export {
   createEventBus,
   DEFAULT_LISTENER_TIMEOUT_MS,
@@ -209,7 +210,7 @@ export {
   type SchedulerService,
   type SchedulerServiceOptions,
 } from '#scheduler/service.ts';
-export type { JobHandler, Scheduler } from '#scheduler/types.ts';
+export type { JobContext, JobHandler, Scheduler } from '#scheduler/types.ts';
 export type { ProvidedService, ServiceRegistry } from '#services/registry.ts';
 export {
   createServiceRegistry,

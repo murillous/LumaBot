@@ -5,11 +5,12 @@
 // Entrega "pelo menos uma vez": o documento só sai do storage depois que o handler termina.
 // Se o processo cair no meio, o job continua lá e dispara de novo ao subir.
 
+import { Deadline } from '#deadline.ts';
 import type { PluginErrorEvent } from '#events/types.ts';
 import { kernelStorage } from '#storage/namespace.ts';
 import type { Collection, JsonValue, StoragePort, WithId } from '#storage/types.ts';
 import type { Unsubscribe } from '#transport/types.ts';
-import type { JobHandler, Scheduler } from './types.ts';
+import type { JobContext, JobHandler, Scheduler } from './types.ts';
 
 export const DEFAULT_JOB_TIMEOUT_MS = 30_000;
 export const DEFAULT_STORAGE_RETRY_MS = 5000;
@@ -254,11 +255,20 @@ export function createSchedulerService(options: SchedulerServiceOptions): Schedu
     onError({ plugin: doc.plugin, phase: 'scheduler', event: doc.job, error, timedOut });
   }
 
-  /** Roda o handler contra o prazo. Nunca rejeita: toda falha já foi entregue ao `onError`. */
+  /**
+   * Roda o handler contra o prazo. Nunca rejeita: toda falha já foi entregue ao `onError`.
+   * Estourado o prazo, o `signal` do job aborta (ADR 0033).
+   */
   function run(doc: StoredJob, handler: JobHandler): Promise<void> {
+    const deadline = new Deadline();
+    const job: JobContext = {
+      get signal(): AbortSignal {
+        return deadline.signal;
+      },
+    };
     let result: unknown;
     try {
-      result = handler(doc.payload);
+      result = handler(doc.payload, job);
     } catch (error) {
       fail(doc, error, false);
       return Promise.resolve();
@@ -271,6 +281,7 @@ export function createSchedulerService(options: SchedulerServiceOptions): Schedu
         const error = new Error(
           `job "${doc.job}" do plugin "${doc.plugin}" excedeu ${jobTimeoutMs} ms`,
         );
+        deadline.expire(error);
         fail(doc, error, true);
         resolve();
       }, jobTimeoutMs);

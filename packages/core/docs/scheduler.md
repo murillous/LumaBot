@@ -24,7 +24,7 @@ setup(ctx) {
 | Método | O que faz |
 | --- | --- |
 | `at(when, job, payload?)` | Persiste o job e devolve o id. `when` é `Date` ou epoch ms |
-| `on(job, handler)` | Registra o handler do job; devolve a função que o remove |
+| `on(job, handler)` | Registra o handler do job; devolve a função que o remove. O handler recebe `(payload, { signal })` |
 | `cancel(id)` | `true` se o job existia e ainda não tinha disparado |
 
 - **Namespace por plugin.** Dois plugins podem usar o mesmo nome de job sem colidir. Um plugin
@@ -57,6 +57,25 @@ envio que falha por motivo permanente seria pior que perder um lembrete. Quem pr
 retentativa trata o erro no handler e chama `at` de novo com o atraso que quiser.
 
 Jobs vencidos disparam em ordem de horário e sem esperar um pelo outro.
+
+### Prazo e `signal`
+
+O segundo argumento do handler (`JobContext`) traz `signal: AbortSignal`, que aborta quando o
+handler estoura o prazo (`timeouts.jobMs`, padrão 30 s), com `reason` = o erro de timeout.
+Handlers de um parâmetro só continuam valendo. Repasse o `signal` a `fetch`/SDKs e confira
+`signal.aborted` antes de efeitos que não o recebem: o `ctx.send`/`ctx.storage` do `setup` são do
+plugin e não sabem do prazo do job ([ADR 0033](../../../docs/adr/0033-cancelamento-cooperativo.md)).
+
+```ts
+ctx.scheduler.on('relatorio', async (payload, { signal }) => {
+  const dados = await fetch(api, { signal }).then((r) => r.json());
+  signal.throwIfAborted();
+  await ctx.send.send(chatId, { type: 'text', text: resumo(dados) });
+});
+```
+
+Depois do descarte do plugin (teardown, reload), `ctx.scheduler.at`/`cancel` rejeitam com
+`ContextExpiredError`. Código síncrono travado bloqueia o processo inteiro.
 
 ## Para o kernel
 

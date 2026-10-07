@@ -59,6 +59,13 @@ export interface BaseListenerContext<E extends BotEventName> {
   readonly claimed: boolean;
   /** Sinaliza aos listeners de prioridade menor que o evento já foi tratado. */
   claim(): void;
+  /**
+   * Aborta quando **este** listener estoura o prazo (`reason` = o erro de timeout). É por
+   * listener: o de outro listener da mesma emissão não muda. Repasse a `fetch`/SDKs para parar
+   * o trabalho a tempo (ADR 0033); depois do prazo, o `reply` deste contexto é recusado com
+   * `ContextExpiredError`.
+   */
+  readonly signal: AbortSignal;
 }
 
 /**
@@ -84,13 +91,14 @@ export type ListenerContext<E extends BotEventName> = BaseListenerContext<E> &
   (BotEvents[E] extends Message ? MessageListenerFields<BotEvents[E]> : unknown);
 
 /**
- * Campos do contexto além do que o barramento monta (`event`, `payload`, `claimed`, `claim`).
+ * Campos do contexto além do que o barramento monta (`event`, `payload`, `claimed`, `claim`,
+ * `signal`).
  * Quem emite os fornece — nos eventos de mensagem, o `Bot` entrega `MessageListenerFields` —
  * sem que o barramento precise conhecer a fila de saída.
  */
 export type ListenerExtras<E extends BotEventName> = Omit<
   ListenerContext<E>,
-  'event' | 'payload' | 'claimed' | 'claim'
+  'event' | 'payload' | 'claimed' | 'claim' | 'signal'
 >;
 
 export type Listener<E extends BotEventName> = (ctx: ListenerContext<E>) => unknown;

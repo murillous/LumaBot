@@ -4,8 +4,20 @@
 import type { JsonValue } from '#storage/types.ts';
 import type { Unsubscribe } from '#transport/types.ts';
 
-/** Recebe o payload agendado (`null` quando `at` não recebeu payload). */
-export type JobHandler = (payload: JsonValue) => unknown;
+/** Segundo argumento do handler de job. */
+export interface JobContext {
+  /**
+   * Aborta quando o handler estoura o prazo (`timeouts.jobMs`), com `reason` = o erro de
+   * timeout. Repasse a `fetch`/SDKs para parar o trabalho a tempo (ADR 0033).
+   */
+  readonly signal: AbortSignal;
+}
+
+/**
+ * Recebe o payload agendado (`null` quando `at` não recebeu payload) e o `JobContext`. Handler
+ * de um parâmetro só segue valendo.
+ */
+export type JobHandler = (payload: JsonValue, job: JobContext) => unknown;
 
 /** Agendamento visto pelo plugin (`ctx.scheduler`); jobs ficam no namespace do plugin. */
 export interface Scheduler {

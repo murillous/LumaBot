@@ -92,9 +92,11 @@ ctx.reply()/ctx.send → fila de saída → transport
   um `run` que não termina no prazo vira `plugin.error` com `timedOut: true` e erro
   `CommandTimeoutError` (`plugin`, `command`, `timeoutMs`), e o chat passa para a próxima
   mensagem. O `run` não é cancelado (não há como) e segue em segundo plano; se ele rejeitar
-  depois, o erro vai só para o log. O prazo vale para o `run`, não para `onReject`.
-- **Listeners** de eventos de mensagem recebem, além de `payload`/`claimed`/`claim()`, os campos
-  `message`, `text`, `reply` e `log` (este com `plugin` e `chatId`).
+  depois, o erro vai só para o log. O prazo vale para o `run`, não para `onReject`. O
+  `ctx.signal` do comando aborta nesse momento e o `reply` dele passa a ser recusado (ver
+  [Prazos e cancelamento](#prazos-e-cancelamento-ctxsignal)).
+- **Listeners** de eventos de mensagem recebem, além de `payload`/`claimed`/`claim()`/`signal`,
+  os campos `message`, `text`, `reply` e `log` (este com `plugin` e `chatId`).
 - `message.edited` vai direto aos listeners (com os mesmos campos), sem middlewares nem comandos.
   Os demais eventos do transport (reações, grupos, conexão) também vão direto ao barramento.
 - Erro de middleware (ou do próprio roteador) vai para o log em `error`, com o `chatId`; o chat
@@ -142,6 +144,7 @@ instância, sempre em nome do plugin:
 | `plugin` | `name`, `version` e `messages` já mesclados com a config |
 | `config` | config validada (`PluginConfigError` ignora o plugin, ADR 0032) |
 | `log` | logger do bot com `{ plugin }` |
+| `signal` | aborta no descarte do contexto (teardown, reload, `setup` que falhou ou estourou o prazo) |
 | `commands.add` | roteador do bot; o `run`/`onReject` recebem `log` com `plugin` e `chatId` |
 | `events` | barramento do bot |
 | `services` | registry do bot |
@@ -153,7 +156,9 @@ instância, sempre em nome do plugin:
 No `teardown`/reload o bot remove tudo o que o plugin registrou (comandos, listeners, serviços,
 handlers de job). Um `setup` que estoura o prazo continua rodando em segundo plano; depois do
 descarte, o contexto **recusa** `commands.add`, `events.on`, `services.provide` e
-`scheduler.on` com `PluginHostStateError`, para nada ficar órfão.
+`scheduler.on` (lançam `PluginHostStateError`), para nada ficar órfão, e `send`, `storage` (KV e
+coleções) e `scheduler.at`/`cancel` (rejeitam com `ContextExpiredError`), para nenhum efeito sair
+de um plugin que já desceu. O `ctx.signal` do plugin aborta no descarte.
 
 Destino dos erros de plugin — todos viram `plugin.error` no barramento e linha de log:
 
@@ -168,6 +173,53 @@ Destino dos erros de plugin — todos viram `plugin.error` no barramento e linha
 **Conflito de comando derruba o boot** ([ADR 0007](../../../docs/adr/0007-plugins-via-npm-e-pasta.md)):
 se o `setup` de um plugin falha com `CommandConflictError`, o `start()` encerra o que subiu e
 rejeita com esse erro. Os demais erros de `setup` só ignoram o plugin.
+
+## Prazos e cancelamento (`ctx.signal`)
+
+O JS não mata uma promise: um comando, listener, job ou `setup` que estoura o prazo segue rodando
+em segundo plano ([ADR 0005](../../../docs/adr/0005-plugins-no-mesmo-processo.md)). O kernel
+oferece **cancelamento cooperativo** ([ADR 0033](../../../docs/adr/0033-cancelamento-cooperativo.md)):
+
+| Onde | `signal` | Aborta quando | `reason` |
+| --- | --- | --- | --- |
+| Comando (`run`) | `c.signal` | `timeouts.commandMs` estoura | `CommandTimeoutError` |
+| Listener (todo evento) | `e.signal` | o prazo **deste** listener estoura | `Error` de timeout |
+| Job do scheduler | `handler(payload, { signal })` | `timeouts.jobMs` estoura | `Error` de timeout |
+| Plugin (`setup`) | `ctx.signal` | o contexto é descartado (teardown, reload, `setup` que falhou/estourou) | erro do `setup`, ou `PluginHostStateError` no descarte normal |
+
+Depois do prazo, o que o contexto expirado tentar fazer é **recusado**, em vez de executar:
+
+- `reply` de um comando ou listener expirado rejeita com `ContextExpiredError` (`plugin`,
+  `operation`, `scope`, `cause` = o erro de timeout) e sai uma linha `warn` com o plugin e o
+  comando/evento. Vale também para o `reply` guardado antes do prazo (`const r = c.reply`).
+- `send`, `storage` e `scheduler.at`/`cancel` do `PluginContext` descartado rejeitam igual.
+- O prazo é **por listener**: um listener lento expirar não aborta o `signal` nem bloqueia o
+  `reply` de outro listener do mesmo evento que está no prazo.
+
+Repasse o `signal` ao trabalho assíncrono, para ele parar junto:
+
+```ts
+command({
+  name: 'clima',
+  run: async (c) => {
+    const res = await fetch(url, { signal: c.signal }); // aborta no prazo
+    c.signal.throwIfAborted(); // antes de um efeito que não aceita signal
+    await ctx.storage.kv.set('ultima', await res.text());
+    await c.reply('ok');
+  },
+});
+```
+
+Limites:
+
+- O `ctx.send`/`ctx.storage` que o comando usa pelo closure do `setup` são do **plugin**, não do
+  comando: o kernel não sabe de qual execução a chamada veio. Eles só são recusados depois do
+  descarte do plugin. Dentro de um comando, listener ou job, confira `signal.aborted` (ou
+  `throwIfAborted()`) antes de efeitos que não recebem o `signal`.
+- Código **síncrono** travado (laço infinito, CPU pesada) bloqueia o processo inteiro: o timer do
+  prazo nem chega a disparar, e nenhum prazo resolve isso.
+- O `signal` não tem timer próprio: é abortado pelos mesmos timers de prazo que já existiam. O
+  `AbortController` só é criado se alguém ler `signal`.
 
 ## Estados
 
@@ -189,26 +241,26 @@ idle ──start()──▶ starting ──boot ok──▶ running ──stop()
 
 ## Boot (`start`)
 
-Em ordem:
+Em ordem (plano §5.3):
 
 1. Cria o logger e (sem `storage`) avisa que os dados estão em memória.
 2. Assina os eventos do transport e empilha os ganchos de parada internos.
-3. Chama `transport.connect()` — **de forma síncrona, dentro do `start()`** — e, em paralelo,
-   carrega os plugins: coleta (`plugins` + `pluginDirs`) → config → `setup` de cada um → tabela
+3. Carrega os plugins: coleta (`plugins` + `pluginDirs`) → config → `setup` de cada um → tabela
    de boot no log → checagem de conflito de comando.
-4. Com os dois prontos: liga o scheduler (dispara os jobs vencidos no downtime) e passa a
-   `running`.
+4. **Só se o boot dos plugins deu certo**, chama `transport.connect()`; conectado, liga a
+   reconexão automática.
+5. Liga o scheduler (dispara os jobs vencidos no downtime) e passa a `running`.
 
-O handshake (QR, rede) leva segundos e não depende dos plugins, então corre junto do `setup`.
-Mensagens que chegam antes do fim do boot aguardam na fila de entrada e são processadas quando os
-plugins estão prontos; se o boot falha, são descartadas. Uma queda de conexão já é reconectada a
-partir do fim do `connect()`.
+Plugin quebrado (conflito de comando, manifesto inválido, ciclo, `pluginDirs` ilegível) derruba
+o boot **antes** de o transport abrir sessão: sem QR nem handshake à toa. Mensagens que chegam
+durante o handshake aguardam na fila de entrada e são processadas no fim do boot; se o boot
+falha, são descartadas.
 
-**Falha no boot** (connect, `pluginDirs` ilegível, manifesto inválido, ciclo, conflito de
-comando): o bot roda o shutdown completo — inclusive `disconnect()`, porque o transport pode ter
-conectado pela metade (o adapter precisa tolerar isso) — e termina em `stopped`. O `start()`
-rejeita com o erro do connect, ou, se o connect deu certo, com o erro dos plugins; se o
-encerramento também falhar, com um `AggregateError` cujo primeiro item é esse erro.
+**Falha no boot**: o bot roda o shutdown e termina em `stopped`. Se a falha foi dos plugins, o
+transport nunca conectou e o `disconnect()` não é chamado. Se foi do `connect()`, o shutdown
+inclui o `disconnect()`, porque o transport pode ter conectado pela metade (o adapter precisa
+tolerar isso). O `start()` rejeita com o erro do boot; se o encerramento também falhar, com um
+`AggregateError` cujo primeiro item é esse erro.
 
 **`stop()` durante o `start()`**: o `stop()` espera o boot assentar e então encerra; o `start()`
 pendente rejeita com `BotStateError`, porque o bot nunca chegou a `running`.
