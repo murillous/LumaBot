@@ -422,8 +422,9 @@ O transport avisa as quedas por `connection.status`; a `ReconnectionPolicy`
   de novo, com a tentativa seguinte do backoff.
 - Há no máximo um timer de reconexão por vez, e nenhum sobrevive ao `stop()`. O `closed` que o
   próprio `disconnect()` do shutdown gera não reconecta.
-- `connection.qr` conta para o limite de QRs da política, vai para o log em `info` (campo `qr`) e
-  para o barramento (um plugin pode desenhar o QR).
+- `connection.qr` conta para o limite de QRs da política e vai para o barramento (um plugin pode
+  desenhar o QR). O log em `info` só avisa que chegou um QR; o valor (campo `qr`) sai em `debug`,
+  porque quem lê o log (agregador, arquivo) pareia o número enquanto o QR vale.
 - `connection.status`/`connection.qr` também chegam aos listeners.
 - Do `closed` ao `open`, a fila de saída fica pausada: as respostas esperam a reconexão em vez de
   esgotar o retry, até `outbound.maxPauseMs` (padrão 60 s; depois, rejeitam com

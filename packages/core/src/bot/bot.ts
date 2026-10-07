@@ -527,7 +527,10 @@ export function createBot(config: BotConfig): Bot {
       }),
       transport.on('connection.qr', (payload) => {
         reconnector?.onQr();
-        log.info('QR de pareamento recebido', { qr: payload.qr });
+        // Quem lê o log em info (agregador, arquivo) pareia o número com o QR enquanto ele vale:
+        // o valor fica em debug e no barramento (`connection.qr`), para quem exibe a tela.
+        log.info('QR de pareamento recebido; exiba-o pelo evento connection.qr');
+        log.debug('valor do QR de pareamento', { qr: payload.qr });
         void bus.emit('connection.qr', payload);
       }),
     ];
