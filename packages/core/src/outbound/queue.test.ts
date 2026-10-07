@@ -404,6 +404,27 @@ describe('OutboundQueue: backlog, métricas e fechamento', () => {
     await Promise.all(all);
   });
 
+  it('aceita high com o backlog cheio de low, e o limite vale por prioridade', async () => {
+    const { queue, sends } = newQueue({ maxPending: 2 });
+    const low = ['a', 'b', 'c'].map((chat) =>
+      queue.send(chat, text(`low-${chat}`), { priority: 'low' }),
+    );
+    // `low-a` saiu na hora; `low-b` e `low-c` enchem o limite de `low`.
+    await expect(queue.send('d', text('low-d'), { priority: 'low' })).rejects.toMatchObject({
+      reason: 'full',
+    });
+    const high = queue.send('e', text('high-e'), { priority: 'high' });
+    expect(queue.stats().pending).toEqual({ high: 1, normal: 0, low: 2 });
+    await vi.runAllTimersAsync();
+    await Promise.all([...low, high]);
+    expect(sends.map((s) => [s.label, s.at])).toEqual([
+      ['low-a', 0],
+      ['high-e', 100],
+      ['low-b', 200],
+      ['low-c', 300],
+    ]);
+  });
+
   it('close() drena o que foi aceito e depois recusa novos envios', async () => {
     const { queue, sends } = newQueue();
     const all = [queue.send('a', text('1')), queue.send('a', text('2'))];

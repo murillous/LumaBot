@@ -43,7 +43,10 @@ export interface OutboundQueueOptions {
   readonly globalIntervalMs?: number;
   /** Intervalo mínimo entre dois envios ao mesmo chat, em ms. Padrão: 1000. */
   readonly chatIntervalMs?: number;
-  /** Máximo de mensagens aguardando, somando os chats. Padrão: 1000. `Infinity` desliga. */
+  /**
+   * Máximo de mensagens aguardando em cada prioridade, somando os chats. Padrão: 1000.
+   * `Infinity` desliga. Por prioridade para um broadcast que encheu a fila não recusar respostas.
+   */
   readonly maxPending?: number;
   readonly retry?: RetryOptions;
   /**
@@ -299,12 +302,13 @@ export class OutboundQueue implements Sender {
     } catch (error) {
       return Promise.reject(error);
     }
-    if (this.#totalPending() >= this.#maxPending) {
+    // Limite por prioridade: `low`/`normal` acumulados nunca tiram a vaga de uma `high`.
+    if (this.#pendingBy[priority] >= this.#maxPending) {
       this.#dropped++;
       return Promise.reject(
         new OutboundQueueError(
           'full',
-          `fila de saída cheia (${this.#maxPending} aguardando): envio para ${chatId} recusado`,
+          `fila de saída cheia (${this.#maxPending} aguardando com prioridade ${String(options?.priority ?? 'normal')}): envio para ${chatId} recusado`,
         ),
       );
     }
@@ -354,10 +358,6 @@ export class OutboundQueue implements Sender {
     this.#closed = true;
     if (options.drain === false) this.#discard();
     return this.onIdle();
-  }
-
-  #totalPending(): number {
-    return this.#pendingBy[0] + this.#pendingBy[1] + this.#pendingBy[2];
   }
 
   #chatFor(chatId: string): ChatState {

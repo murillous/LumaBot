@@ -12,7 +12,7 @@ const queue = new OutboundQueue({
   transport,
   globalIntervalMs: 300, // padrão
   chatIntervalMs: 1000, // padrão
-  maxPending: 1000, // padrão
+  maxPending: 1000, // padrão, por prioridade
   retry: { maxAttempts: 3, baseDelayMs: 1000, maxDelayMs: 30_000 }, // padrões
   humanize: false, // padrão
 });
@@ -46,6 +46,15 @@ pronto primeiro.
 - Uma mensagem em espera de re-tentativa sai antes das demais do chat, qualquer que seja a
   prioridade delas: o chat espera por ela, para não embaralhar.
 
+## Backlog
+
+`maxPending` (padrão `1000`) limita quantas mensagens **aguardam em cada prioridade**, somando os
+chats; as em andamento não contam e as em espera de re-tentativa contam na prioridade delas. Ao
+exceder, o novo envio rejeita com `OutboundQueueError` `'full'` e as já aceitas seguem.
+
+O limite é por prioridade de propósito: um broadcast `low` que encheu a fila não recusa uma
+resposta `high` a comando. No pior caso a fila guarda `3 × maxPending` mensagens.
+
 ## Erros e retry
 
 `send` resolve com a `MessageKey` ou rejeita com o erro final; nunca fica sem destino.
@@ -54,7 +63,7 @@ pronto primeiro.
 | --- | --- |
 | Transport sem a capability (`assertCanSend`) | Rejeita na hora com `UnsupportedError`, sem tentar |
 | `priority` inválida | Rejeita na hora com `TypeError` |
-| Backlog cheio (`maxPending`) | Rejeita com `OutboundQueueError`, `reason: 'full'` |
+| Backlog da prioridade cheio (`maxPending`) | Rejeita com `OutboundQueueError`, `reason: 'full'` |
 | Fila fechada | Rejeita com `OutboundQueueError`, `reason: 'closed'` |
 | Transport falhou | Re-tenta se transitória; senão rejeita com o erro dele |
 
