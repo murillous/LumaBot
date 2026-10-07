@@ -98,7 +98,28 @@ export {
   type SanitizeOptions,
   sanitize,
 } from '#middleware/sanitize.ts';
-export type { OutboundSendOptions, Sender, SendPriority } from '#outbound/types.ts';
+export {
+  type HumanizeOptions,
+  type OutboundCloseOptions,
+  OutboundQueue,
+  OutboundQueueError,
+  type OutboundQueueOptions,
+  type OutboundQueueStats,
+  type OutboundTransport,
+  type RetryOptions,
+} from '#outbound/queue.ts';
+export { type CreateReplyOptions, createReply } from '#outbound/reply.ts';
+export type {
+  OutboundSendOptions,
+  Reply,
+  ReplyAudioOptions,
+  ReplyDocumentOptions,
+  ReplyMediaOptions,
+  ReplyOptions,
+  ReplyPollOptions,
+  Sender,
+  SendPriority,
+} from '#outbound/types.ts';
 export type {
   PluginContext,
   PluginDefinition,
