@@ -135,7 +135,9 @@ boot o plugin cujo `requires` não fecha; o erro em runtime é a rede de seguran
 ## Política de reconexão
 
 `ReconnectionPolicy` decide o que fazer após uma desconexão, sem executar: devolve a ação e o
-atraso, e quem a chama aguarda, limpa a sessão e reconecta. O adapter mapeia o código nativo
+atraso, e quem a chama aguarda, limpa a sessão e reconecta. No bot isso já está ligado
+(`createBot({ reconnection })`, ver [Bot → Reconexão](bot.md#reconexão)); o exemplo abaixo é para
+quem usa o transport sem o bot. O adapter mapeia o código nativo
 para um `DisconnectReason` (`qr-timeout`, `logged-out`, `auth-failed`, `server-error`,
 `connection-lost`, `unknown`).
 

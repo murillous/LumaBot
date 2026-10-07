@@ -20,7 +20,10 @@ msg.quoted;                      // Message | null — mesmo tipo, recursivo
 if (msg.quoted?.is('sticker')) await msg.quoted.media.download();
 ```
 
-- `text` é o texto ou a legenda (`null` se não houver); em `TextMessage` é sempre `string`.
+- `text` é o texto ou a legenda (`null` se não houver); em `TextMessage` é sempre `string`. No
+  bot, prefira o texto de trabalho `ctx.text`, que reflete os middlewares (ex.: truncado).
+- `sender`/`mentions` são `Contact`: `id` (o ID nativo do transport), `name` e `phone` (ver
+  abaixo).
 - `mentions` (`Contact[]`) e as flags `isForwarded`, `isViewOnce`, `isEdited` estão em todos
   os tipos.
 - `MessageOf<'image' | 'video'>` dá o membro da union para um ou mais tipos;
@@ -40,6 +43,15 @@ if (msg.quoted?.is('sticker')) await msg.quoted.media.download();
   transport, sem carregar o arquivo inteiro em memória. Streams não são cacheados: cada
   chamada abre um novo. Para APIs do Node que pedem `Readable`, use `Readable.fromWeb(stream)`.
 
+## `Contact.phone`
+
+`phone` é o telefone só com dígitos e DDI (`'5511999999999'`), ou `null` se o transport não
+souber. Ele é separado de `id` porque o ID nativo nem sempre carrega o número — no WhatsApp,
+`sender.id` pode ser um LID — e só o transport sabe resolvê-lo. É por `phone` que o roteador
+reconhece os `owners` ([Comandos](commands.md#role)); `null` nunca é owner.
+
+O campo é obrigatório no tipo: o transport precisa decidir, e `null` é uma resposta explícita.
+
 ## Construindo mensagens (transports)
 
 O transport mapeia o formato nativo para `MessageInit` e chama `createMessage`:
@@ -53,7 +65,7 @@ const msg = createMessage({
   type: 'image',
   id: raw.key.id,
   chat: { id: jid, isGroup: jid.endsWith('@g.us') },
-  sender: { id: participant, name: pushName ?? null },
+  sender: { id: participant, name: pushName ?? null, phone: phoneOf(participant) }, // só dígitos ou null
   text: caption ?? null,
   timestamp: Number(raw.messageTimestamp) * 1000,
   fromMe: raw.key.fromMe,
@@ -68,6 +80,8 @@ const msg = createMessage({
 });
 ```
 
+- `phone` vai em todo `Contact` (remetente, menções, participantes): só dígitos com DDI, sem
+  `+`, ou `null`. O `createMessage` o propaga como veio.
 - O retorno é tipado pelo `type` informado (`ImageMessage` acima), e cada tipo exige os seus
   campos (`media`, `location`, `poll`...).
 - Padrões: `quoted: null`, `mentions: []`, flags `false` (inclusive para `undefined`

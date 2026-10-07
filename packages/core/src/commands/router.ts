@@ -1,4 +1,4 @@
-import type { MessageContext } from '#context.ts';
+import type { BotMessageContext, MessageContext } from '#context.ts';
 import type { Media, Message } from '#message/types.ts';
 import { parseArgs } from './args.ts';
 import type {
@@ -21,7 +21,10 @@ export type IsGroupAdmin = (chatId: string, senderId: string) => boolean | Promi
 export interface CommandRouterOptions {
   /** Padrão: `'!'`. Comparado sem diferenciar caixa. */
   readonly prefix?: string;
-  /** IDs de dono do bot, no mesmo formato de `message.sender.id`. */
+  /**
+   * Telefones dos donos do bot, só dígitos com DDI (`normalizeOwners`), comparados com
+   * `message.sender.phone`. Remetente sem telefone (`phone: null`) nunca é dono.
+   */
   readonly owners?: readonly string[];
   /** Sem a porta, `role: 'group-admin'` recusa todo mundo exceto owners (fail-closed). */
   readonly isGroupAdmin?: IsGroupAdmin;
@@ -61,8 +64,11 @@ export type DispatchResult =
 
 export interface CommandRouter {
   readonly registry: CommandRegistry;
-  /** Comando que a mensagem invoca, sem validar papel nem `accepts`. */
-  match(message: Message): CommandMatch | null;
+  /**
+   * Comando que a mensagem invoca, sem validar papel nem `accepts`. `text` é o texto de
+   * trabalho (`ctx.text`); padrão: `message.text`.
+   */
+  match(message: Message, text?: string | null): CommandMatch | null;
   /** Casa, valida papel e `accepts` e roda. Nunca rejeita: erros vêm em `status: 'failed'`. */
   dispatch(ctx: MessageContext): Promise<DispatchResult>;
 }
@@ -100,8 +106,8 @@ export function createCommandRouter(options: CommandRouterOptions = {}): Command
   const isGroupAdmin = options.isGroupAdmin;
   const registry = options.registry ?? createCommandRegistry();
 
-  function match(message: Message): CommandMatch | null {
-    const text = message.text?.trimStart();
+  function match(message: Message, workingText = message.text): CommandMatch | null {
+    const text = workingText?.trimStart();
     if (!text || text.slice(0, prefix.length).toLowerCase() !== prefix) return null;
 
     // Token = do fim do prefixo até o primeiro espaço em branco. Match exato no Map: o
@@ -119,8 +125,10 @@ export function createCommandRouter(options: CommandRouterOptions = {}): Command
 
   async function hasRole(role: CommandRole, message: Message): Promise<boolean> {
     if (role === 'everyone') return true;
-    // Dono é superusuário: passa também em `group-admin`.
-    if (owners.has(message.sender.id)) return true;
+    // Dono é superusuário: passa também em `group-admin`. Compara pelo telefone, não pelo
+    // `sender.id`: no WhatsApp o ID pode ser um LID, de onde não sai o número (M1-16.4).
+    const phone = message.sender.phone;
+    if (phone !== null && owners.has(phone)) return true;
     if (role === 'owner') return false;
     // `group-admin` fora de grupo não tem a quem se referir: recusa.
     if (!message.chat.isGroup || !isGroupAdmin) return false;
@@ -140,7 +148,9 @@ export function createCommandRouter(options: CommandRouterOptions = {}): Command
     match,
 
     async dispatch(ctx) {
-      const found = match(ctx.message);
+      // O texto de trabalho (M1-16.2) vem do contexto: um middleware pode tê-lo reescrito.
+      const text = ctx.text === undefined ? ctx.message.text : ctx.text;
+      const found = match(ctx.message, text);
       if (!found) return { consumed: false, status: 'no-match' };
 
       const { entry, invokedAs, rawArgs } = found;
@@ -151,7 +161,9 @@ export function createCommandRouter(options: CommandRouterOptions = {}): Command
       try {
         // Herda do contexto recebido em vez de copiar: preserva métodos e getters que os
         // estágios anteriores (ou o Bot) tenham colocado nele.
-        const base: RejectContext = Object.assign(Object.create(ctx) as MessageContext, {
+        // `reply`/`log` vêm do contexto do Bot pela cadeia de protótipos (ver `CommandContext`).
+        const base: RejectContext = Object.assign(Object.create(ctx) as BotMessageContext, {
+          text,
           command: definition.name,
           invokedAs,
           args: parseArgs(rawArgs),

@@ -51,3 +51,4 @@ o anterior, e o antigo passa a apontar para ele no Status.
 | [0029](0029-open-core-repo-privado.md) | D29 | Open core com repo privado | Aceito |
 | [0030](0030-metas-de-performance.md) | D30 | Metas de performance com benchmark no CI | Aceito |
 | [0031](0031-nome-zapforge.md) | D31 | Nome: ZapForge | Aceito |
+| [0032](0032-camadas-da-config-de-plugin.md) | — | Camadas e convenções da config de plugin (detalha D17) | Proposto |
