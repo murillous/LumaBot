@@ -170,6 +170,14 @@ export type {
   InboundTask,
 } from '#queue/inbound.ts';
 export { InboundQueue } from '#queue/inbound.ts';
+export {
+  createSchedulerService,
+  DEFAULT_JOB_TIMEOUT_MS,
+  DEFAULT_STORAGE_RETRY_MS,
+  JobHandlerConflictError,
+  type SchedulerService,
+  type SchedulerServiceOptions,
+} from '#scheduler/service.ts';
 export type { JobHandler, Scheduler } from '#scheduler/types.ts';
 export type { ProvidedService, ServiceRegistry } from '#services/registry.ts';
 export {
