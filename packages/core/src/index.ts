@@ -25,6 +25,15 @@ export type {
 } from '#commands/router.ts';
 export { createCommandRouter } from '#commands/router.ts';
 export type { MessageContext } from '#context.ts';
+export {
+  createEventBus,
+  DEFAULT_LISTENER_TIMEOUT_MS,
+  type EmitExtras,
+  type EmitResult,
+  type EmittableEventName,
+  type EventBus,
+  type EventBusOptions,
+} from '#events/bus.ts';
 // Contratos do M1-7 a M1-15 (implementações nos PRs de cada item).
 export type {
   BotEventName,
@@ -32,10 +41,19 @@ export type {
   EventSubscriber,
   Listener,
   ListenerContext,
+  ListenerExtras,
   ListenerOptions,
+  MessageFilter,
   MessageTypeEvents,
   PluginErrorEvent,
+  SubscribeOptions,
 } from '#events/types.ts';
+export {
+  createLogger,
+  createNoopLogger,
+  type LogDestination,
+  type LoggerOptions,
+} from '#logger/logger.ts';
 export type { LogFields, Logger, LogLevel } from '#logger/types.ts';
 export { createMessage, type MessageInit } from '#message/create.ts';
 export { createMedia, type MediaSource } from '#message/media.ts';
@@ -116,6 +134,12 @@ export type {
 } from '#queue/inbound.ts';
 export { InboundQueue } from '#queue/inbound.ts';
 export type { JobHandler, Scheduler } from '#scheduler/types.ts';
+export type { ProvidedService, ServiceRegistry } from '#services/registry.ts';
+export {
+  createServiceRegistry,
+  ServiceConflictError,
+  ServiceNotFoundError,
+} from '#services/registry.ts';
 export type { ServiceAccess, ServiceName, Services } from '#services/types.ts';
 export type {
   Collection,
@@ -162,4 +186,9 @@ export type {
   TransportEvents,
   Unsubscribe,
 } from '#transport/types.ts';
+export {
+  createUnsafeAccess,
+  type UnsafeAccess,
+  type UnsafeAccessOptions,
+} from '#unsafe/access.ts';
 export type { Unsafe } from '#unsafe/types.ts';
