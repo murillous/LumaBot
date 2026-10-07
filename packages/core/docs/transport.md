@@ -38,6 +38,19 @@ após um `connect()` que falhou ou que ainda não terminou, ou mais de uma vez. 
 Todo método existe em todo transport. O que o canal não suporta lança `UnsupportedError`;
 quem chama checa a capability antes (ver abaixo).
 
+## Ids de contato
+
+Os ids de contato (`sender.id`, `GroupParticipant.id`, `mentions`, os ids de
+`updateGroupParticipants`) podem vir em espaços diferentes. No WhatsApp, o mesmo contato aparece
+como LID (`123@lid`) num lugar e como JID de telefone (`5511999999999@s.whatsapp.net`) em outro,
+conforme o modo de endereçamento do grupo. O que liga os dois é o `phone`:
+
+- O adapter preenche `phone` (só dígitos, com DDI) no remetente, nos participantes e no
+  `transport.self` sempre que souber resolvê-lo; `null` só quando não souber.
+- Para saber se dois contatos são o mesmo, compare o `id` e, se os dois tiverem, o `phone`. É o
+  que o kernel faz no `role: 'group-admin'` e com os `owners`
+  ([ADR 0046](../../../docs/adr/0046-ids-de-contato-e-metadata-de-grupo.md)).
+
 ## Eventos
 
 Os eventos chegam já normalizados (`TransportEvents`):
@@ -135,6 +148,12 @@ await transport.react(messageKey(ctx.message), '👍');
 `getGroupMetadata(groupId)` traz `participants` com `isAdmin` (verdadeiro também para o
 criador) e `isSuperAdmin`. É o que o roteador usa para `role: 'group-admin'`; o próprio bot
 é `transport.self`.
+
+O kernel chama `getGroupMetadata` a cada comando `group-admin` de quem não é owner, e o plugin
+pode chamá-lo por `ctx.groups.metadata` quando quiser. Por isso ele precisa ser barato: o adapter
+mantém cache por grupo e o invalida em `group.participants` e `group.updated` (no Baileys,
+`cachedGroupMetadata`). O core não cacheia
+([ADR 0046](../../../docs/adr/0046-ids-de-contato-e-metadata-de-grupo.md)).
 
 ## Capabilities
 
