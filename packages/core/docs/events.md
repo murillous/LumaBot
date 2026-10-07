@@ -82,6 +82,7 @@ nenhum prazo resolve isso.
 | `group.updated` | `{ groupId }` + só os campos alterados |
 | `contact.updated` | `{ id }` + só os campos alterados (`name?`, `phone?`) |
 | `connection.status` / `connection.qr` | `ConnectionStatus` / `{ qr }` |
+| `command` | `CommandEvent`: `{ plugin, name, invokedAs, status, message }` ([abaixo](#comandos-command)) |
 | `plugin.error` | `PluginErrorEvent`: `{ plugin, phase, event, error, timedOut }` |
 
 ### Opções
@@ -93,6 +94,28 @@ nenhum prazo resolve isso.
 | `quoted` | — | Só em eventos de mensagem: um tipo ou lista de tipos que a mensagem precisa citar. |
 
 Prioridade não finita ou prazo que não seja um número finito > 0 lançam `RangeError` no `on()`.
+
+### Comandos (`command`)
+
+O comando que casa consome a mensagem: ela não chega a `message`. O evento `command` diz que ele
+rodou, e sai depois que ele termina, com `status` `ran`, `rejected` (papel ou `accepts`) ou
+`failed` (o erro vai em `plugin.error`)
+([ADR 0049](../../../docs/adr/0049-evento-de-comando.md)). É só observação: o contexto não tem
+`reply`; para falar no chat, use o `ctx.send` do plugin.
+
+Toda mensagem que passa pelos middlewares cai em exatamente um dos dois eventos. Para ver todas,
+assine os dois:
+
+```ts
+const conta = (chatId: string) => atividade.set(chatId, (atividade.get(chatId) ?? 0) + 1);
+ctx.events.on('message', (e) => conta(e.message.chat.id));
+ctx.events.on('command', (e) => {
+  conta(e.payload.message.chat.id);
+  if (e.payload.status === 'ran') metricas.incrementa(`${e.payload.plugin}:${e.payload.name}`);
+});
+```
+
+Como em `message`, o bot espera os listeners de `command`: um lento segura o chat.
 
 ## Paralelo e `claim()`
 

@@ -17,11 +17,26 @@ export interface PluginErrorEvent {
   readonly timedOut: boolean;
 }
 
+/**
+ * Comando que casou e consumiu a mensagem (ADR 0049). Só observação: a mensagem não vai a
+ * `message`, então quem precisa ver toda mensagem (atividade, métricas) assina os dois.
+ */
+export interface CommandEvent {
+  readonly plugin: string;
+  readonly name: string;
+  /** Token digitado, em minúsculas: o nome ou um dos aliases. */
+  readonly invokedAs: string;
+  /** `rejected`: papel ou `accepts` recusou. `failed`: o erro sai também em `plugin.error`. */
+  readonly status: 'ran' | 'rejected' | 'failed';
+  readonly message: Message;
+}
+
 /** `message:<type>`: a mesma mensagem de `message`, já estreitada pelo tipo. */
 export type MessageTypeEvents = { readonly [K in MessageType as `message:${K}`]: MessageOf<K> };
 
 /** Todos os eventos que plugins podem assinar. */
 export interface BotEvents extends TransportEvents, MessageTypeEvents {
+  command: CommandEvent;
   'plugin.error': PluginErrorEvent;
 }
 

@@ -162,6 +162,8 @@ ctx.reply()/ctx.send → fila de saída → transport
 - **Comando que casa consome** a mensagem, mesmo recusado (papel, `accepts`) ou com erro. A
   resposta de `onReject` sai pelo `ctx.reply`. Comando que lança vira `plugin.error`
   (`phase: 'command'`, `event` = nome do comando) e uma linha de log em `error`; o chat segue.
+  Depois do comando, rodado, recusado ou com erro, sai o evento `command` para quem observa
+  ([Eventos](events.md#comandos-command)).
 - **Prazo de comando** (`timeouts.commandMs`, padrão 30 s, [ADR 0005](../../../docs/adr/0005-plugins-no-mesmo-processo.md);
   o `timeoutMs` de um comando sobrescreve só para ele, ver [Comandos](commands.md#resultado-de-dispatch)):
   um `run` que não termina no prazo vira `plugin.error` com `timedOut: true` e erro

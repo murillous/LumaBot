@@ -2,7 +2,8 @@
 
 O roteador é o 2º estágio do pipeline ([ADR 0012](../../../docs/adr/0012-pipeline-de-3-estagios.md)):
 depois dos middlewares, antes dos listeners. Se a mensagem invoca um comando, ele valida papel e
-`accepts`, roda o comando e **consome** a mensagem — ela não chega aos listeners.
+`accepts`, roda o comando e **consome** a mensagem — ela não chega aos listeners de `message`. No
+bot, quem precisa saber que um comando rodou assina o evento [`command`](events.md#comandos-command).
 
 ## Declarar um comando
 

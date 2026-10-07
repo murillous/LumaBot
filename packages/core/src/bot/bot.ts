@@ -489,6 +489,9 @@ export function createBot(config: BotConfig): Bot {
       logPluginError(event);
       void bus.emit('plugin.error', event);
     }
+    // Com await, como o `message`: o observador segura o chat e entra no `settled()` (ADR 0049).
+    const { plugin, name, invokedAs } = result.command;
+    await bus.emit('command', { plugin, name, invokedAs, status: result.status, message });
   }
 
   /** Extras dos eventos de mensagem: os campos chegam aos listeners pela visão de cada plugin. */

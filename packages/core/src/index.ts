@@ -57,6 +57,7 @@ export type {
   BaseListenerContext,
   BotEventName,
   BotEvents,
+  CommandEvent,
   EventSubscriber,
   Listener,
   ListenerContext,
