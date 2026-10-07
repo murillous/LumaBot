@@ -1,5 +1,14 @@
-export type { Bot, BotConfig, BotState } from '#bot/bot.ts';
+export type {
+  Bot,
+  BotConfig,
+  BotMiddlewareEntry,
+  BotMiddlewaresConfig,
+  BotPluginConfigs,
+  BotState,
+  BotTimeouts,
+} from '#bot/bot.ts';
 export { BotStateError, createBot } from '#bot/bot.ts';
+export type { BotReconnectionOptions } from '#bot/reconnect.ts';
 export type { ShutdownOptions, StopHook, StopHookOptions } from '#bot/stop-hooks.ts';
 export { StopHookError } from '#bot/stop-hooks.ts';
 export { parseArgs } from '#commands/args.ts';
@@ -42,7 +51,7 @@ export {
   type ResolvedPluginConfig,
 } from '#config/plugin-configs.ts';
 export { isSecretSchema, SECRET_MASK, secret } from '#config/schema.ts';
-export type { MessageContext } from '#context.ts';
+export type { BotMessageContext, MessageContext } from '#context.ts';
 export {
   createEventBus,
   DEFAULT_LISTENER_TIMEOUT_MS,
@@ -54,6 +63,7 @@ export {
 } from '#events/bus.ts';
 // Contratos do M1-7 a M1-15 (implementações nos PRs de cada item).
 export type {
+  BaseListenerContext,
   BotEventName,
   BotEvents,
   EventSubscriber,
@@ -62,6 +72,7 @@ export type {
   ListenerExtras,
   ListenerOptions,
   MessageFilter,
+  MessageListenerFields,
   MessageTypeEvents,
   PluginErrorEvent,
   SubscribeOptions,

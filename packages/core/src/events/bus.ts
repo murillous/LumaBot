@@ -15,10 +15,13 @@ import type {
 /** Eventos que se emitem diretamente. `message:<type>` não entra: o bus o deriva de `message`. */
 export type EmittableEventName = Exclude<BotEventName, keyof MessageTypeEvents>;
 
-/** Extras do contexto: opcionais enquanto o `ListenerContext` do evento não exigir nenhum. */
-export type EmitExtras<E extends BotEventName> = keyof ListenerExtras<E> extends never
-  ? [extras?: ListenerExtras<E>]
-  : [extras: ListenerExtras<E>];
+/**
+ * Extras do contexto. Opcionais para o barramento: ele só os copia, sem conferir. Nos eventos de
+ * mensagem o `ListenerContext` declara `MessageListenerFields`, e quem garante que eles chegam é
+ * o `Bot`, que monta o contexto de cada plugin (M1-16); quem usa o barramento solto e emite
+ * mensagem sem extras entrega listeners sem esses campos.
+ */
+export type EmitExtras<E extends BotEventName> = [extras?: ListenerExtras<E>];
 
 export interface EmitResult {
   /** Listeners que rodaram (os barrados pelo filtro não contam). */

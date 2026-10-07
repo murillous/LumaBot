@@ -1,7 +1,9 @@
 // Contrato do barramento de eventos (M1-7, plano §6.4). O M1-7 completa este arquivo; os nomes
 // exportados aqui são usados por outros módulos e não mudam.
 
+import type { Logger } from '#logger/types.ts';
 import type { Message, MessageOf, MessageType } from '#message/types.ts';
+import type { Reply } from '#outbound/types.ts';
 import type { TransportEvents, Unsubscribe } from '#transport/types.ts';
 
 /** Falha isolada de um plugin; o kernel emite e segue rodando os demais (ADR 0005). */
@@ -43,10 +45,10 @@ export type SubscribeOptions<E extends BotEventName> = ListenerOptions &
   (BotEvents[E] extends Message ? MessageFilter : unknown);
 
 /**
- * O que um listener recebe. Todos os listeners de uma mesma emissão compartilham o mesmo
- * objeto: o `claim()` de um aparece no `claimed` dos demais.
+ * Base do que um listener recebe. Todos os listeners de uma mesma emissão compartilham o mesmo
+ * estado: o `claim()` de um aparece no `claimed` dos demais.
  */
-export interface ListenerContext<E extends BotEventName> {
+export interface BaseListenerContext<E extends BotEventName> {
   readonly event: E;
   readonly payload: BotEvents[E];
   /**
@@ -60,9 +62,31 @@ export interface ListenerContext<E extends BotEventName> {
 }
 
 /**
+ * Campos que o `Bot` acrescenta nos eventos cujo payload é uma `Message` (`message`,
+ * `message:<tipo>`, `message.edited`), os mesmos do contexto de comando.
+ */
+export interface MessageListenerFields<M extends Message = Message> {
+  /** A mesma mensagem de `payload`. */
+  readonly message: M;
+  /** Texto de trabalho (`ctx.text` depois dos middlewares; ver `BotMessageContext`). */
+  readonly text: string | null;
+  /** Responde no chat da mensagem, citando-a, pela fila de saída. */
+  readonly reply: Reply;
+  /** Logger com `plugin` e `chatId` no contexto. */
+  readonly log: Logger;
+}
+
+/**
+ * O que um listener recebe: a base e, nos eventos de mensagem, os campos de
+ * `MessageListenerFields`.
+ */
+export type ListenerContext<E extends BotEventName> = BaseListenerContext<E> &
+  (BotEvents[E] extends Message ? MessageListenerFields<BotEvents[E]> : unknown);
+
+/**
  * Campos do contexto além do que o barramento monta (`event`, `payload`, `claimed`, `claim`).
- * Quem emite os fornece; hoje é vazio, e o `Bot` (M1-16) acrescenta `reply` etc. ao
- * `ListenerContext` sem que o barramento precise conhecer a fila de saída.
+ * Quem emite os fornece — nos eventos de mensagem, o `Bot` entrega `MessageListenerFields` —
+ * sem que o barramento precise conhecer a fila de saída.
  */
 export type ListenerExtras<E extends BotEventName> = Omit<
   ListenerContext<E>,
