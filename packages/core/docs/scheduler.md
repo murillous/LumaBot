@@ -111,6 +111,10 @@ await scheduler.stop();                           // gancho de parada
 - **`stop()`** desarma o timer e espera os handlers em andamento. Cada handler já é limitado por
   `jobTimeoutMs`, então o `stop` termina em no máximo esse prazo. Depois dele não sobra timer
   vivo. Os jobs ficam no storage para o próximo `start`. É idempotente, e `start` de novo retoma.
+- **`stop(signal)`** faz o mesmo, mas, quando o `signal` aborta, abandona os handlers que ainda
+  rodam: o `signal` do job aborta, o prazo dele é desarmado e o job **fica no storage**, para
+  disparar de novo na próxima subida (pelo menos uma vez). O bot usa isso quando o gancho de
+  parada do scheduler estoura o prazo.
 - **`removePlugin(nome)`** tira os handlers do plugin, mas **não** apaga os jobs persistidos.
 - **Falhas.** Falha de handler vai ao `onError` como `PluginErrorEvent`. Falha do storage (a
   consulta do loop ou a remoção depois do handler) vai ao `onStorageError`, e o loop tenta de

@@ -69,9 +69,12 @@ export interface PluginHost {
   start(): Promise<PluginReportEntry[]>;
   /**
    * `teardown` e `dispose` dos carregados, na ordem inversa da carga. Nunca rejeita por falha
-   * de plugin: devolve as falhas (também logadas), e uma não impede o resto. Idempotente.
+   * de plugin: devolve as falhas (também logadas), e uma não impede o resto. Abortado o
+   * `signal`, o `teardown` em curso é abandonado e os seguintes não rodam (cada um vira falha
+   * com `timedOut`), mas o `dispose` de todos roda: o kernel desfaz o que o plugin registrou.
+   * Idempotente: só o `signal` da primeira chamada vale.
    */
-  stop(): Promise<PluginLifecycleError[]>;
+  stop(signal?: AbortSignal): Promise<PluginLifecycleError[]>;
   /**
    * Derruba e sobe de novo um plugin (`teardown` → `dispose` → novo contexto → `setup`), sem
    * tocar nos outros. É a primitiva do reload por mudança de config (ADR 0017): o contexto novo
@@ -116,22 +119,24 @@ interface Slot {
 /**
  * Roda `fn` com prazo e devolve a falha em vez de lançar. A promise de `fn` sempre ganha um
  * handler, então um `setup` que rejeita depois do timeout não vira rejeição não tratada.
+ * Abortado o `signal`, desiste na hora, como num timeout.
  */
 async function runPhase<T>(
   plugin: string,
   phase: PluginPhase,
   timeoutMs: number,
   fn: () => T | Promise<T>,
+  signal?: AbortSignal,
 ): Promise<{ ok: true; value: T } | { ok: false; error: PluginLifecycleError }> {
   let timer: NodeJS.Timeout | undefined;
+  let onAbort: (() => void) | undefined;
   type Outcome = { ok: true; value: T } | { ok: false; error: PluginLifecycleError };
   const timeout = new Promise<Outcome>((resolve) => {
-    timer = setTimeout(() => {
-      resolve({
-        ok: false,
-        error: new PluginLifecycleError(plugin, phase, `excedeu ${timeoutMs} ms`, true),
-      });
-    }, timeoutMs);
+    const give = (message: string) => () =>
+      resolve({ ok: false, error: new PluginLifecycleError(plugin, phase, message, true) });
+    timer = setTimeout(give(`excedeu ${timeoutMs} ms`), timeoutMs);
+    onAbort = give('abandonado: prazo de parada do bot esgotado');
+    signal?.addEventListener('abort', onAbort, { once: true });
   });
   // `then` captura também o throw síncrono.
   const run = Promise.resolve()
@@ -147,6 +152,7 @@ async function runPhase<T>(
     return await Promise.race([run, timeout]);
   } finally {
     clearTimeout(timer);
+    if (onAbort) signal?.removeEventListener('abort', onAbort);
   }
 }
 
@@ -239,16 +245,29 @@ export function createPluginHost(options: PluginHostOptions): PluginHost {
   }
 
   /** `teardown` (se houver) e `dispose`, sempre os dois; devolve as falhas. */
-  async function bringDown(slot: Slot): Promise<PluginLifecycleError[]> {
+  async function bringDown(slot: Slot, signal?: AbortSignal): Promise<PluginLifecycleError[]> {
     const { handle } = slot;
     if (!handle) return [];
     slot.handle = undefined;
     const { definition } = slot.entry;
     const errors: PluginLifecycleError[] = [];
-    if (definition.teardown) {
+    if (definition.teardown && signal?.aborted) {
+      errors.push(
+        new PluginLifecycleError(
+          definition.name,
+          'teardown',
+          'não executado: prazo de parada do bot esgotado',
+          true,
+        ),
+      );
+    } else if (definition.teardown) {
       const teardown = definition.teardown.bind(definition);
-      const result = await runPhase(definition.name, 'teardown', teardownTimeoutMs, () =>
-        teardown(handle.context),
+      const result = await runPhase(
+        definition.name,
+        'teardown',
+        teardownTimeoutMs,
+        () => teardown(handle.context),
+        signal,
       );
       if (!result.ok) errors.push(result.error);
     }
@@ -330,11 +349,11 @@ export function createPluginHost(options: PluginHostOptions): PluginHost {
     return table;
   }
 
-  async function runStop(): Promise<PluginLifecycleError[]> {
+  async function runStop(signal?: AbortSignal): Promise<PluginLifecycleError[]> {
     state = 'stopping';
     const errors: PluginLifecycleError[] = [];
     // Ordem inversa: quem subiu depois pode usar serviços de quem subiu antes.
-    for (const slot of slots.toReversed()) errors.push(...(await bringDown(slot)));
+    for (const slot of slots.toReversed()) errors.push(...(await bringDown(slot, signal)));
     state = 'stopped';
     return errors;
   }
@@ -377,12 +396,12 @@ export function createPluginHost(options: PluginHostOptions): PluginHost {
       return enqueue(runStart);
     },
 
-    stop(): Promise<PluginLifecycleError[]> {
+    stop(signal?: AbortSignal): Promise<PluginLifecycleError[]> {
       if (state === 'idle') {
         state = 'stopped';
         stopPromise = Promise.resolve([]);
       }
-      stopPromise ??= enqueue(runStop);
+      stopPromise ??= enqueue(() => runStop(signal));
       return stopPromise;
     },
 

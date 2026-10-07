@@ -423,6 +423,28 @@ describe('createPluginHost — setup/teardown com timeout', () => {
     expect(log.lines.filter((line) => line.level === 'error')).toHaveLength(2);
   });
 
+  it('stop abortado abandona o teardown em curso, pula os seguintes e faz dispose de todos', async () => {
+    const teardownA = vi.fn();
+    const { host: h, calls } = host(
+      [plugin('a', { teardown: teardownA }), plugin('b', { teardown: pending })],
+      { teardownTimeoutMs: 60_000 },
+    );
+    await h.start();
+    const controller = new AbortController();
+    const stopped = h.stop(controller.signal);
+    await vi.advanceTimersByTimeAsync(10);
+    controller.abort();
+    const errors = await stopped;
+
+    expect(errors.map((error) => [error.plugin, error.phase, error.timedOut])).toEqual([
+      ['b', 'teardown', true],
+      ['a', 'teardown', true],
+    ]);
+    expect(teardownA).not.toHaveBeenCalled();
+    expect(calls.filter((call) => call.startsWith('dispose'))).toEqual(['dispose:b', 'dispose:a']);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
   it('dispose que falha também volta no retorno', async () => {
     const { host: h } = host([plugin('ping')], {
       createContext: () => ({

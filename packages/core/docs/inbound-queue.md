@@ -74,6 +74,9 @@ limite (comportamento do legacy). O limite isola um chat em rajada: os outros se
 
 - `close()` para de aceitar tarefas (novas devolvem `'closed'`) e resolve quando as já
   aceitas terminarem. É idempotente; `closed` diz se já foi chamado.
+- `close({ drain: false })` descarta as tarefas que aguardam (contam em `dropped`) e resolve
+  quando as que já rodam terminarem. Chamado durante uma drenagem, aborta-a: é o que o bot faz
+  quando o gancho de parada da fila estoura o prazo.
 - `onIdle()` resolve quando não há nada rodando nem aguardando, sem fechar a fila.
 
 ## Memória
