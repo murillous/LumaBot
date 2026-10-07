@@ -135,4 +135,61 @@ describe('MiddlewarePipeline', () => {
     const pipeline = new MiddlewarePipeline();
     expect(() => pipeline.use(() => undefined, { priority: Number.NaN })).toThrow(RangeError);
   });
+
+  describe('terminal (#225)', () => {
+    it('roda no centro da cebola: a volta espera por ele', async () => {
+      const log: string[] = [];
+      const pipeline = new MiddlewarePipeline();
+      pipeline.use(tracer(log, 'a'));
+      pipeline.use(tracer(log, 'b'));
+
+      const passed = await pipeline.run(fakeContext(), async () => {
+        await Promise.resolve();
+        log.push('terminal');
+      });
+      expect(passed).toBe(true);
+      expect(log).toEqual(['a:in', 'b:in', 'terminal', 'b:out', 'a:out']);
+    });
+
+    it('não roda se um middleware interrompe', async () => {
+      const pipeline = new MiddlewarePipeline();
+      pipeline.use(() => undefined);
+      let ran = false;
+
+      await expect(
+        pipeline.run(fakeContext(), async () => {
+          ran = true;
+        }),
+      ).resolves.toBe(false);
+      expect(ran).toBe(false);
+    });
+
+    it('roda com o pipeline vazio, recebendo o contexto', async () => {
+      const ctx = fakeContext();
+      const got: unknown[] = [];
+
+      await expect(
+        new MiddlewarePipeline().run(ctx, async (received) => {
+          got.push(received);
+        }),
+      ).resolves.toBe(true);
+      expect(got).toEqual([ctx]);
+    });
+
+    it('erro do terminal chega ao try/catch do middleware de fora', async () => {
+      const pipeline = new MiddlewarePipeline();
+      const caught: unknown[] = [];
+      pipeline.use(async (_ctx, next) => {
+        try {
+          await next();
+        } catch (error) {
+          caught.push(error);
+        }
+      });
+      const boom = new Error('terminal');
+
+      await pipeline.run(fakeContext(), () => Promise.reject(boom));
+      expect(caught).toEqual([boom]);
+    });
+  });
 });

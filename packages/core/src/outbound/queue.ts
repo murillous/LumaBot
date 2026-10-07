@@ -260,6 +260,8 @@ export class OutboundQueue implements Sender {
   // Pausada além do teto: o que chega rejeita na hora, em vez de acumular sem previsão de saída.
   #offline = false;
   #pauseTimer: NodeJS.Timeout | undefined;
+  // Esperas de humanização em curso: o descarte as encerra para o envio não sair depois do close.
+  readonly #sleepers = new Set<() => void>();
   #inFlight = 0;
   #sent = 0;
   #failed = 0;
@@ -587,9 +589,17 @@ export class OutboundQueue implements Sender {
       if (this.#humanize !== null && job.content !== null) {
         await this.#simulate(chat.id, job.content, this.#humanize);
       }
-      const result = await this.#withTimeout(job.run(), job.what);
-      this.#sent++;
-      job.resolve(result);
+      // Descartada durante a presença ou o "digitando": o envio não chegou ao transport e não sai.
+      if (this.#discarding) {
+        this.#dropped++;
+        job.reject(
+          new OutboundQueueError('closed', 'fila de saída fechada sem drenar: envio descartado'),
+        );
+      } else {
+        const result = await this.#withTimeout(job.run(), job.what);
+        this.#sent++;
+        job.resolve(result);
+      }
     } catch (error) {
       this.#handleFailure(chat, job, error);
     }
@@ -684,13 +694,27 @@ export class OutboundQueue implements Sender {
       this.#onPresenceError?.(error, chatId);
       return;
     }
-    if (ms > 0) await new Promise((resolve) => setTimeout(resolve, ms));
+    if (ms > 0 && !this.#discarding) await this.#sleep(ms);
+  }
+
+  /** Espera `ms`, ou menos se a fila for descartada antes. */
+  #sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => {
+      const done = (): void => {
+        clearTimeout(timer);
+        this.#sleepers.delete(done);
+        resolve();
+      };
+      const timer = setTimeout(done, ms);
+      this.#sleepers.add(done);
+    });
   }
 
   #discard(): void {
     this.#discarding = true;
     clearTimeout(this.#pauseTimer);
     this.#pauseTimer = undefined;
+    for (const done of this.#sleepers) done();
     this.#rejectWaiting(
       () => new OutboundQueueError('closed', 'fila de saída fechada sem drenar: envio descartado'),
     );

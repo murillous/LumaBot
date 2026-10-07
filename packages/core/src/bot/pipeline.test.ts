@@ -6,10 +6,12 @@ import { z } from 'zod';
 import { command } from '#commands/command.ts';
 import { CommandConflictError } from '#commands/registry.ts';
 import { secret } from '#config/schema.ts';
+import type { BotMessageContext } from '#context.ts';
 import type { PluginErrorEvent } from '#events/types.ts';
 import { createLogger } from '#logger/logger.ts';
 import { createSecretSet } from '#logger/secrets.ts';
 import type { TextMessage } from '#message/types.ts';
+import type { Middleware } from '#middleware/pipeline.ts';
 import { definePlugin } from '#plugin/define.ts';
 import { PluginHostStateError } from '#plugin/host.ts';
 import { createMemoryStorage } from '#storage/memory.ts';
@@ -483,6 +485,85 @@ function payloads(chatId: string, fromMe = false) {
     updated: { groupId: chatId, subject: 'novo' },
   };
 }
+
+/** Middleware que registra a ida e a volta da cebola em `got`. */
+function emVolta(got: string[]): Middleware<BotMessageContext> {
+  return async (_ctx, next) => {
+    got.push('mw:antes');
+    await next();
+    got.push('mw:depois');
+  };
+}
+
+describe('Bot: middlewares envolvem comando e listeners (#225, ADR 0012)', () => {
+  it('a volta do next() roda depois do comando', async () => {
+    const transport = new RecordingTransport();
+    const got: string[] = [];
+    const b = bot({ transport, plugins: [registro(got)], middlewares: { use: [emVolta(got)] } });
+    await b.start();
+
+    transport.emit('message', message('!cmd'));
+
+    await vi.waitFor(() => expect(got).toEqual(['mw:antes', 'comando', 'mw:depois']));
+  });
+
+  it('a volta do next() espera os listeners terminarem', async () => {
+    const transport = new RecordingTransport();
+    const got: string[] = [];
+    const gate = deferred();
+    const b = bot({
+      transport,
+      plugins: [registro(got, { gate: gate.promise })],
+      middlewares: { use: [emVolta(got)] },
+    });
+    await b.start();
+
+    transport.emit('message', message('oi'));
+    await vi.waitFor(() => expect(got).toEqual(['mw:antes', 'message:oi']));
+    gate.resolve();
+
+    await vi.waitFor(() => expect(got).toEqual(['mw:antes', 'message:oi', 'mw:depois']));
+  });
+
+  it('na edição, a volta do next() roda depois dos listeners de message.edited', async () => {
+    const transport = new RecordingTransport();
+    const got: string[] = [];
+    const b = bot({ transport, plugins: [registro(got)], middlewares: { use: [emVolta(got)] } });
+    await b.start();
+
+    transport.emit('message.edited', edited('mudou'));
+
+    await vi.waitFor(() => expect(got).toEqual(['mw:antes', 'edited:mudou', 'mw:depois']));
+  });
+
+  it('erro na volta do middleware vai para o log, depois de o comando rodar', async () => {
+    const transport = new RecordingTransport();
+    const logger = recordingLogger();
+    const got: string[] = [];
+    const boom = new Error('volta');
+    const b = bot({
+      transport,
+      logger,
+      plugins: [registro(got)],
+      middlewares: {
+        use: [
+          async (_ctx, next) => {
+            await next();
+            throw boom;
+          },
+        ],
+      },
+    });
+    await b.start();
+
+    transport.emit('message', message('!cmd'));
+
+    await vi.waitFor(() =>
+      expect(logger.lines.some((line) => line.fields['err'] === boom)).toBe(true),
+    );
+    expect(got).toEqual(['comando']);
+  });
+});
 
 describe('Bot: eventos que não são mensagem (#219, ADR 0038)', () => {
   it('o chatFilter barra os eventos do chat bloqueado, menos a entrada e a saída do grupo', async () => {

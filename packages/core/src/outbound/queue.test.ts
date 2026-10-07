@@ -384,6 +384,55 @@ describe('OutboundQueue: humanização', () => {
     expect(sends).toHaveLength(1);
     expect(onPresenceError).toHaveBeenCalledWith(failure, 'a');
   });
+
+  describe('close({ drain: false }) com envio em andamento (#229)', () => {
+    it('durante o "digitando": não envia, rejeita closed e não deixa timer vivo', async () => {
+      const { queue, presences, sends } = newQueue({ humanize: true });
+      const sent = queue.send('a', text('oi'));
+      await vi.advanceTimersByTimeAsync(10);
+      expect(presences).toHaveLength(1);
+
+      await queue.close({ drain: false });
+
+      await expect(sent).rejects.toMatchObject({ name: 'OutboundQueueError', reason: 'closed' });
+      expect(vi.getTimerCount()).toBe(0);
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(sends).toEqual([]);
+      expect(queue.stats()).toMatchObject({ dropped: 1, failed: 0, inFlight: 0, activeChats: 0 });
+    });
+
+    it('com a presença ainda em andamento: ela termina e o envio não sai', async () => {
+      const { queue, transport, sends } = newQueue({ humanize: true });
+      let releasePresence!: () => void;
+      vi.mocked(transport.sendPresence).mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            releasePresence = () => resolve();
+          }),
+      );
+      const sent = queue.send('a', text('oi'));
+      await vi.advanceTimersByTimeAsync(0);
+      const closing = queue.close({ drain: false });
+      releasePresence();
+      await closing;
+
+      await expect(sent).rejects.toMatchObject({ reason: 'closed' });
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(sends).toEqual([]);
+    });
+
+    it('close() drenando ainda espera o "digitando" e envia', async () => {
+      const { queue, sends } = newQueue({ humanize: true });
+      const sent = queue.send('a', text('oi'));
+      await vi.advanceTimersByTimeAsync(10);
+      const closing = queue.close();
+      await vi.runAllTimersAsync();
+      await closing;
+
+      await expect(sent).resolves.toMatchObject({ chatId: 'a' });
+      expect(sends).toHaveLength(1);
+    });
+  });
 });
 
 describe('OutboundQueue: backlog, métricas e fechamento', () => {
