@@ -26,6 +26,7 @@ interface FakeMessage {
   type?: MessageType;
   text?: string | null;
   sender?: string;
+  phone?: string | null;
   chatId?: string;
   isGroup?: boolean;
   quoted?: Message | null;
@@ -36,6 +37,7 @@ function fakeMessage({
   type = 'text',
   text = null,
   sender = 'user',
+  phone = null,
   chatId = 'chat',
   isGroup = false,
   quoted = null,
@@ -44,7 +46,7 @@ function fakeMessage({
     type,
     id: 'm1',
     chat: { id: chatId, isGroup },
-    sender: { id: sender, name: null },
+    sender: { id: sender, name: null, phone },
     text,
     timestamp: 0,
     fromMe: false,
@@ -274,13 +276,17 @@ describe('roteador: role', () => {
   const group = { isGroup: true, chatId: 'grupo' };
 
   it('owner: só quem está na lista roda', async () => {
-    const router = createCommandRouter({ owners: ['dono'] });
+    const router = createCommandRouter({ owners: ['5511999999999'] });
     const onReject = vi.fn(() => 'Só o dono');
     const { def, calls } = spyCommand({ role: 'owner', onReject });
     router.registry.add('admin', def);
 
-    const denied = await router.dispatch(ctxOf({ text: '!s', sender: 'outro' }));
-    const allowed = await router.dispatch(ctxOf({ text: '!s', sender: 'dono' }));
+    const denied = await router.dispatch(
+      ctxOf({ text: '!s', sender: 'outro', phone: '5511888888888' }),
+    );
+    const allowed = await router.dispatch(
+      ctxOf({ text: '!s', sender: 'dono', phone: '5511999999999' }),
+    );
 
     expect(denied).toMatchObject({
       consumed: true,
@@ -332,10 +338,12 @@ describe('roteador: role', () => {
 
   it('group-admin: owner passa sem consultar a porta', async () => {
     const isGroupAdmin = vi.fn(() => false);
-    const router = createCommandRouter({ owners: ['dono'], isGroupAdmin });
+    const router = createCommandRouter({ owners: ['5511999999999'], isGroupAdmin });
     router.registry.add('group', spyCommand({ role: 'group-admin' }).def);
 
-    const result = await router.dispatch(ctxOf({ ...group, text: '!s', sender: 'dono' }));
+    const result = await router.dispatch(
+      ctxOf({ ...group, text: '!s', sender: 'dono', phone: '5511999999999' }),
+    );
 
     expect(result.status).toBe('ran');
     expect(isGroupAdmin).not.toHaveBeenCalled();
@@ -395,5 +403,64 @@ describe('roteador: erros', () => {
       status: 'failed',
       error: boom,
     });
+  });
+});
+
+describe('roteador: owners por telefone (M1-16.4)', () => {
+  it('compara owners com sender.phone, não com sender.id', async () => {
+    const router = createCommandRouter({ owners: ['5511999999999'] });
+    router.registry.add('admin', spyCommand({ role: 'owner' }).def);
+
+    const byPhone = await router.dispatch(
+      ctxOf({ text: '!s', sender: '123@lid', phone: '5511999999999' }),
+    );
+    const byId = await router.dispatch(
+      ctxOf({ text: '!s', sender: '5511999999999', phone: '5511888888888' }),
+    );
+
+    expect(byPhone.status).toBe('ran');
+    expect(byId.status).toBe('rejected');
+  });
+
+  it('remetente sem telefone (phone: null) nunca é owner', async () => {
+    const router = createCommandRouter({ owners: ['5511999999999'] });
+    router.registry.add('admin', spyCommand({ role: 'owner' }).def);
+
+    const result = await router.dispatch(ctxOf({ text: '!s', sender: 'dono', phone: null }));
+
+    expect(result).toMatchObject({ status: 'rejected', rejection: { reason: 'role' } });
+  });
+});
+
+describe('roteador: texto de trabalho ctx.text (M1-16.2)', () => {
+  it('casa pelo ctx.text quando presente, em vez de message.text', async () => {
+    const router = createCommandRouter();
+    const { def, calls } = spyCommand();
+    router.registry.add('media', def);
+
+    const ctx: MessageContext = { message: fakeMessage({ text: 'oi' }), text: '!s  a b' };
+    const result = await router.dispatch(ctx);
+
+    expect(result.status).toBe('ran');
+    expect(calls[0]).toMatchObject({ text: '!s  a b', args: ['a', 'b'] });
+  });
+
+  it('ctx.text null não casa, mesmo com message.text de comando', async () => {
+    const router = createCommandRouter();
+    router.registry.add('media', spyCommand().def);
+
+    const result = await router.dispatch({ message: fakeMessage({ text: '!s' }), text: null });
+
+    expect(result.status).toBe('no-match');
+  });
+
+  it('sem ctx.text, usa message.text e expõe-o como ctx.text no comando', async () => {
+    const router = createCommandRouter();
+    const { def, calls } = spyCommand();
+    router.registry.add('media', def);
+
+    await router.dispatch(ctxOf({ text: '!s x' }));
+
+    expect(calls[0]?.text).toBe('!s x');
   });
 });

@@ -54,7 +54,7 @@ describe('tipos de createMessage', () => {
   const base = {
     id: '1',
     chat: { id: 'c', isGroup: false },
-    sender: { id: 's', name: null },
+    sender: { id: 's', name: null, phone: null },
     timestamp: 0,
     fromMe: false,
   } as const;

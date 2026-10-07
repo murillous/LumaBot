@@ -27,7 +27,7 @@ export interface SentRecord {
 export class TestTransport implements Transport {
   readonly name = 'test';
   readonly capabilities: ReadonlySet<Capability>;
-  readonly self = { id: 'bot@test', name: 'Bot' };
+  readonly self = { id: 'bot@test', name: 'Bot', phone: null };
   readonly native: unknown = { kind: 'test-socket' };
   readonly sent: SentRecord[] = [];
   readonly errors: unknown[] = [];
@@ -98,8 +98,8 @@ export class TestTransport implements Transport {
       description: null,
       ownerId: 'owner@test',
       participants: [
-        { id: 'owner@test', name: 'Dona', isAdmin: true, isSuperAdmin: true },
-        { id: 'member@test', name: null, isAdmin: false, isSuperAdmin: false },
+        { id: 'owner@test', name: 'Dona', phone: null, isAdmin: true, isSuperAdmin: true },
+        { id: 'member@test', name: null, phone: null, isAdmin: false, isSuperAdmin: false },
       ],
     };
   }
@@ -118,7 +118,7 @@ export function textMessage(text: string, overrides: Partial<TextMessage> = {}):
     type: 'text',
     id: 'msg-1',
     chat: { id: 'chat@test', isGroup: false },
-    sender: { id: 'user@test', name: 'Usuária' },
+    sender: { id: 'user@test', name: 'Usuária', phone: null },
     text,
     timestamp: 0,
     fromMe: false,
