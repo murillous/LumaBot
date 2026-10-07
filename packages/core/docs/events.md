@@ -3,7 +3,8 @@
 O barramento é o 3º estágio do pipeline ([ADR 0012](../../../docs/adr/0012-pipeline-de-3-estagios.md)):
 a mensagem que nenhum comando consumiu chega aos listeners, que rodam em paralelo, cada um
 isolado por try/catch + timeout ([ADR 0005](../../../docs/adr/0005-plugins-no-mesmo-processo.md)).
-Os demais eventos do transport (grupos, reações, conexão) passam só por aqui.
+Os demais eventos do transport (grupos, reações, conexão) passam só por aqui, depois do
+`chatFilter` e do `ignoreSelf` do bot ([Bot](bot.md#eventos-que-não-são-mensagem)).
 
 ## Assinar (plugin)
 
@@ -74,8 +75,8 @@ nenhum prazo resolve isso.
 | `message` | `Message` (qualquer tipo) |
 | `message:<type>` | a mesma mensagem, estreitada (`message:image` → `ImageMessage`) |
 | `message.edited` | nova versão da `Message`, com `isEdited: true` |
-| `message.deleted` | `{ chat, messageId, deletedBy }` |
-| `reaction` | `{ chat, messageId, sender, emoji }` (`emoji: null` = removida) |
+| `message.deleted` | `{ chat, messageId, deletedBy, fromMe }` |
+| `reaction` | `{ chat, messageId, sender, emoji, fromMe }` (`emoji: null` = removida) |
 | `group.joined` / `group.left` | `{ groupId }` |
 | `group.participants` | `{ groupId, action, participants, actor }` |
 | `group.updated` | `{ groupId }` + só os campos alterados |

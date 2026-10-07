@@ -76,6 +76,8 @@ export interface TransportEvents {
     readonly chat: Chat;
     readonly messageId: string;
     readonly deletedBy: Contact | null;
+    /** Apagada pela própria sessão; o `ignoreSelf` a barra (ADR 0038). */
+    readonly fromMe: boolean;
   };
   reaction: {
     readonly chat: Chat;
@@ -83,6 +85,8 @@ export interface TransportEvents {
     readonly sender: Contact;
     /** `null` quando a reação foi removida. */
     readonly emoji: string | null;
+    /** Reação da própria sessão; o `ignoreSelf` a barra (ADR 0038). */
+    readonly fromMe: boolean;
   };
   /** O bot entrou num grupo. */
   'group.joined': { readonly groupId: string };

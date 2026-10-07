@@ -16,7 +16,7 @@ import { createLogger, createNoopLogger } from '#logger/logger.ts';
 import { createSecretSet, type SecretSet } from '#logger/secrets.ts';
 import type { Logger, LogLevel } from '#logger/types.ts';
 import type { Message } from '#message/types.ts';
-import { type ChatFilterOptions, chatFilter } from '#middleware/chat-filter.ts';
+import { type ChatFilterOptions, chatAllowed, chatFilter } from '#middleware/chat-filter.ts';
 import { ignoreSelf } from '#middleware/ignore-self.ts';
 import { type Middleware, MiddlewarePipeline } from '#middleware/pipeline.ts';
 import { type RateLimitOptions, rateLimit } from '#middleware/rate-limit.ts';
@@ -207,16 +207,36 @@ const STOP_TIMEOUTS = {
   outbound: 3000,
 } as const;
 
-/** Eventos do transport que vão direto ao barramento, sem tratamento do kernel. */
-const DIRECT_EVENTS = [
-  'message.deleted',
-  'reaction',
-  'group.joined',
-  'group.left',
-  'group.participants',
-  'group.updated',
-] as const satisfies readonly EmittableEventName[];
-type DirectEvent = (typeof DIRECT_EVENTS)[number];
+/** Eventos do transport que não são mensagem: vão ao barramento sem fila nem middlewares. */
+type DirectEvent = Extract<
+  EmittableEventName,
+  | 'message.deleted'
+  | 'reaction'
+  | 'group.joined'
+  | 'group.left'
+  | 'group.participants'
+  | 'group.updated'
+>;
+
+/** O que os filtros do ADR 0038 leem de um evento; `chatId: null` = não passa pelo `chatFilter`. */
+interface EventOrigin {
+  readonly chatId: string | null;
+  readonly fromMe: boolean;
+}
+
+const ALWAYS_PASSES: EventOrigin = { chatId: null, fromMe: false };
+
+/** Origem de cada evento direto, para o `chatFilter` e o `ignoreSelf` (ADR 0038). */
+const DIRECT_EVENTS: { readonly [E in DirectEvent]: (payload: BotEvents[E]) => EventOrigin } = {
+  'message.deleted': (payload) => ({ chatId: payload.chat.id, fromMe: payload.fromMe }),
+  reaction: (payload) => ({ chatId: payload.chat.id, fromMe: payload.fromMe }),
+  // Entrada e saída do grupo são o ciclo de vida do próprio bot: servem para o plugin limpar
+  // estado, então passam mesmo com o grupo bloqueado.
+  'group.joined': () => ALWAYS_PASSES,
+  'group.left': () => ALWAYS_PASSES,
+  'group.participants': (payload) => ({ chatId: payload.groupId, fromMe: false }),
+  'group.updated': (payload) => ({ chatId: payload.groupId, fromMe: false }),
+};
 
 const MIDDLEWARE_PRIORITY = { ignoreSelf: 1000, chatFilter: 900, rateLimit: 800, sanitize: 700 };
 
@@ -281,6 +301,10 @@ export function createBot(config: BotConfig): Bot {
       ),
   });
   const pipeline = createPipeline(config.middlewares ?? {}, getLog);
+  // Os mesmos filtros, para os eventos que não passam pelo pipeline (ADR 0038).
+  const chatFilterOptions = config.middlewares?.chatFilter;
+  const chatIsAllowed = chatFilterOptions ? chatAllowed(chatFilterOptions) : () => true;
+  const dropsSelf = config.middlewares?.ignoreSelf !== false;
   const inbound = new InboundQueue({
     maxPendingPerChat: config.inbound?.maxPendingPerChat,
     onError: (error, chatId) => log.error('falha ao processar mensagem', { chatId, err: error }),
@@ -437,11 +461,25 @@ export function createBot(config: BotConfig): Bot {
     }
   }
 
-  /** Repassa um evento do transport direto ao barramento. */
+  /**
+   * Repassa um evento que não é mensagem ao barramento, depois do `chatFilter` e do `ignoreSelf`
+   * (ADR 0038). Durante o boot, espera os plugins subirem; sem fila do chat.
+   */
   function forward<E extends DirectEvent>(event: E): () => void {
-    return transport.on(event, (payload) => {
+    const origin = DIRECT_EVENTS[event];
+    return transport.on(event, (transportPayload) => {
       // `BotEvents` estende `TransportEvents`: o payload é o mesmo tipo.
-      void bus.emit(event, payload as BotEvents[E]);
+      const payload = transportPayload as BotEvents[E];
+      const { chatId, fromMe } = origin(payload);
+      if ((fromMe && dropsSelf) || (chatId !== null && !chatIsAllowed(chatId))) return;
+      if (ready) {
+        void bus.emit(event, payload);
+        return;
+      }
+      // Boot abortado ou `stop()` antes do fim: o evento é descartado, como a mensagem.
+      void readyPromise.then((ok) => {
+        if (ok) void bus.emit(event, payload);
+      });
     });
   }
 
@@ -460,7 +498,7 @@ export function createBot(config: BotConfig): Bot {
         void bus.emit('connection.qr', payload);
       }),
     ];
-    for (const event of DIRECT_EVENTS) offs.push(forward(event));
+    for (const event of Object.keys(DIRECT_EVENTS) as DirectEvent[]) offs.push(forward(event));
     return () => {
       for (const off of offs.splice(0)) off();
     };

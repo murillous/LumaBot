@@ -42,6 +42,7 @@ describe('assinatura e emissão', () => {
       messageId: 'x',
       sender: base.sender,
       emoji: '👍',
+      fromMe: false,
     };
     await expect(bus.emit('reaction', payload)).resolves.toEqual({
       listeners: 1,

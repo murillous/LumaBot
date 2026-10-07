@@ -46,8 +46,8 @@ Os eventos chegam já normalizados (`TransportEvents`):
 | --- | --- |
 | `message` | `Message` |
 | `message.edited` | `Message` (nova versão, `isEdited: true`) |
-| `message.deleted` | `{ chat, messageId, deletedBy }` |
-| `reaction` | `{ chat, messageId, sender, emoji }` (`emoji: null` = removida) |
+| `message.deleted` | `{ chat, messageId, deletedBy, fromMe }` (`fromMe`: apagada pela própria sessão) |
+| `reaction` | `{ chat, messageId, sender, emoji, fromMe }` (`emoji: null` = removida; `fromMe`: reação da própria sessão) |
 | `group.joined` / `group.left` | `{ groupId }` (o bot entrou/saiu) |
 | `group.participants` | `{ groupId, action, participants, actor }` |
 | `group.updated` | `{ groupId, subject?, description?, announce?, restrict? }` |

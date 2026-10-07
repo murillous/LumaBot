@@ -110,8 +110,9 @@ ctx.reply()/ctx.send → fila de saída → transport
   `chatFilter` a barram, o `sanitize` trunca o `text` e o `rateLimit` a conta como uma mensagem.
   Edição não dispara comando: passou, vai aos listeners de `message.edited` (com os mesmos
   campos). Um middleware do app vê as edições também e as distingue por `ctx.message.isEdited`.
-- Os demais eventos do transport (reações, deleções, grupos, conexão) vão direto ao barramento,
-  sem fila nem middlewares: `chatFilter` e `ignoreSelf` não os barram.
+- Os demais eventos do transport vão ao barramento sem fila nem middlewares, mas com os filtros
+  da config de middlewares ([ADR 0038](../../../docs/adr/0038-filtro-de-eventos-no-kernel.md)).
+  Veja [Eventos que não são mensagem](#eventos-que-não-são-mensagem).
 - Erro de middleware (ou do próprio roteador) vai para o log em `error`, com o `chatId`; o chat
   segue para a próxima mensagem.
 - O chat só libera a próxima mensagem quando a atual termina (comando ou todos os listeners). A
@@ -141,6 +142,26 @@ createBot({
   },
 });
 ```
+
+#### Eventos que não são mensagem
+
+As opções `chatFilter` e `ignoreSelf` valem também para os eventos que não passam pelo pipeline
+([ADR 0038](../../../docs/adr/0038-filtro-de-eventos-no-kernel.md)). O kernel aplica as regras
+antes de repassá-los ao barramento:
+
+| Evento | `chatFilter` (por) | `ignoreSelf` |
+| --- | --- | --- |
+| `reaction` | `chat.id` | barra `fromMe: true` |
+| `message.deleted` | `chat.id` | barra `fromMe: true` |
+| `group.participants`, `group.updated` | `groupId` | — |
+| `group.joined`, `group.left` | sempre passam | — |
+| `connection.status`, `connection.qr` | — | — |
+
+`group.joined` e `group.left` passam mesmo com o grupo bloqueado: são o ciclo de vida do próprio
+bot no grupo e servem para o plugin limpar estado. Esses eventos esperam o fim do boot (um evento
+que chega durante o `setup` de um plugin não se perde), mas não entram na fila do chat: uma reação
+pode chegar aos listeners antes de a mensagem reagida terminar de ser processada. Middlewares do
+app não veem esses eventos.
 
 O padrão liga só o que não muda comportamento esperado: o bot não responde a si mesmo e texto
 gigante não chega aos plugins. Rate limit e filtro de chats dependem de números e listas que só o
