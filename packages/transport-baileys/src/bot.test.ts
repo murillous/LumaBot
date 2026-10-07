@@ -1,7 +1,15 @@
 // O transport dentro do `Bot`: o kernel executa a política de reconexão em cima dos motivos que
-// o adapter dá (ADR 0045/0048).
+// o adapter dá (ADR 0045/0048) e roteia as mensagens que ele normaliza.
 
-import { type Bot, createBot, createLogger, createMemoryStorage } from '@zapforge/core';
+import {
+  type Bot,
+  type BotConfig,
+  command,
+  createBot,
+  createLogger,
+  createMemoryStorage,
+  definePlugin,
+} from '@zapforge/core';
 import { DisconnectReason } from 'baileys';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { boom, FakeDriver } from './fake-socket.test-support.ts';
@@ -13,7 +21,7 @@ afterEach(async () => {
   for (const bot of bots.splice(0)) await bot.stop();
 });
 
-function start() {
+function start(config: Partial<BotConfig> = {}) {
   const driver = new FakeDriver();
   const storage = createMemoryStorage();
   const bot = createBot({
@@ -22,6 +30,7 @@ function start() {
     logger: createLogger({ level: 'silent' }),
     env: {},
     reconnection: { backoff: () => 0, cleanDelayMs: 0, minCleanIntervalMs: 0 },
+    ...config,
   });
   bots.push(bot);
   return { driver, bot, auth: storage.authState('default') };
@@ -84,5 +93,43 @@ describe('BaileysTransport no Bot', () => {
 
     await vi.waitFor(() => expect(bot.state).toBe('stopped'));
     expect(driver.sockets).toHaveLength(1);
+  });
+
+  it('owner com LID no grupo é reconhecido pelo telefone resolvido (M1-16.4)', async () => {
+    const ran: string[] = [];
+    const admin = definePlugin({
+      name: 'admin',
+      version: '1.0.0',
+      engine: '>=0.0.0',
+      setup: (ctx) => {
+        ctx.commands.add(
+          command({
+            name: 'ban',
+            role: 'owner',
+            run: (c) => {
+              ran.push(c.message.sender.id);
+            },
+          }),
+        );
+      },
+    });
+    const { driver, bot } = start({ prefix: '!', owners: ['5511911110000'], plugins: [admin] });
+    await bot.start();
+    driver.last.emit('connection.update', { connection: 'open' });
+    driver.last.lids.set('111@lid', '5511911110000@s.whatsapp.net');
+
+    const fromLid = (id: string, participant: string) => ({
+      key: { remoteJid: '120363000000000001@g.us', id, fromMe: false, participant },
+      message: { ephemeralMessage: { message: { conversation: '!ban' } } },
+      messageTimestamp: 1_760_000_000,
+    });
+    driver.last.emit('messages.upsert', {
+      type: 'notify',
+      // O sem par vem antes: a fila do chat é serial, então quando o owner roda o outro já foi
+      // recusado.
+      messages: [fromLid('M1', '222@lid'), fromLid('M2', '111@lid')],
+    });
+
+    await vi.waitFor(() => expect(ran).toEqual(['111@lid']));
   });
 });

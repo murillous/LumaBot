@@ -2,7 +2,7 @@
 // Baileys faria, sem rede.
 
 import { EventEmitter } from 'node:events';
-import type { Contact as BaileysContact, BaileysEventMap, WAVersion } from 'baileys';
+import type { Contact as BaileysContact, BaileysEventMap, WAMessage, WAVersion } from 'baileys';
 import type { BaileysDriver, BaileysSocket, SocketConfig } from './transport.ts';
 
 export class FakeSocket implements BaileysSocket {
@@ -11,6 +11,8 @@ export class FakeSocket implements BaileysSocket {
   user: BaileysContact | undefined;
   ended = false;
   pairingCode: Promise<string> = Promise.resolve('ABCD1234');
+  /** Pares LID → JID de telefone que a sessão "conhece". */
+  readonly lids: Map<string, string> = new Map();
   readonly #emitter = new EventEmitter();
 
   readonly ev = {
@@ -19,6 +21,12 @@ export class FakeSocket implements BaileysSocket {
       listener: (arg: BaileysEventMap[E]) => void,
     ): void => {
       this.#emitter.on(event, listener);
+    },
+  };
+
+  readonly signalRepository: BaileysSocket['signalRepository'] = {
+    lidMapping: {
+      getPNForLID: async (lid: string): Promise<string | null> => this.lids.get(lid) ?? null,
     },
   };
 
@@ -43,6 +51,10 @@ export class FakeSocket implements BaileysSocket {
   requestPairingCode(phoneNumber: string): Promise<string> {
     this.pairingRequests.push(phoneNumber);
     return this.pairingCode;
+  }
+
+  async updateMediaMessage(message: WAMessage): Promise<WAMessage> {
+    return message;
   }
 }
 

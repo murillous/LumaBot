@@ -4,8 +4,8 @@ Transport do WhatsApp sobre o [Baileys](https://github.com/WhiskeySockets/Bailey
 contrato `Transport` do core ([Transport](../../core/docs/transport.md)). O porquê das decisões
 está nos [ADRs](../../../docs/adr/README.md).
 
-> Em construção (M2-1). Por enquanto o pacote conecta, pareia e informa as quedas. Envio,
-> normalização das mensagens recebidas, capabilities e eventos de grupo/contato chegam nas
+> Em construção (M2-1). Por enquanto o pacote conecta, pareia, informa as quedas e entrega as
+> mensagens recebidas. Envio, capabilities e eventos de grupo, contato, reação e edição chegam nas
 > próximas sub-issues; até lá `capabilities` vem vazio e toda ação lança `UnsupportedError`.
 
 ## Uso
@@ -65,6 +65,67 @@ createBot({ transport: baileys({ pairing: { phone: '5511999999999' } }), storage
 // No setup do plugin que exibe o pareamento:
 ctx.events.on('connection.pairing-code', ({ payload }) => mostrarCodigo(payload.code));
 ```
+
+## Mensagens recebidas
+
+Cada mensagem nova do Baileys (`messages.upsert` do tipo `notify`) vira o evento `message` com a
+`Message` do core ([Modelo de mensagem](../../core/docs/message.md)). Ficam de fora:
+
+- `append`: histórico e cópias de sincronização, que não são mensagens novas;
+- status (`status@broadcast`), que não é conversa;
+- mensagens sem conteúdo (aviso de grupo, falha ao decifrar) ou só de controle (edição, reação,
+  apagamento, voto de enquete). Edição, reação e apagamento viram eventos próprios no M2-1.6.
+
+As mensagens saem na ordem em que chegaram, mesmo quando resolver o telefone de uma demora. Se a
+normalização de uma falhar, ela é descartada com log em `error` e as seguintes seguem.
+
+### Envelopes
+
+`ephemeralMessage`, `viewOnceMessage` (V1, V2 e V2Extension) e `documentWithCaptionMessage` são
+desembrulhados, aninhados em qualquer ordem. `isViewOnce` fica `true` quando havia um envelope de
+visualização única ou a mídia traz a flag `viewOnce`.
+
+### Tipos
+
+| Conteúdo do Baileys | `type` |
+| --- | --- |
+| `conversation`, `extendedTextMessage` | `text` |
+| `imageMessage` | `image` |
+| `videoMessage`, `ptvMessage` (vídeo redondo) | `video` |
+| `audioMessage` com `ptt` | `voice` |
+| `audioMessage` sem `ptt` | `audio` |
+| `stickerMessage` | `sticker` |
+| `documentMessage` (com ou sem legenda) | `document` |
+| `locationMessage`, `liveLocationMessage` | `location` |
+| `contactMessage`, `contactsArrayMessage` | `contact` |
+| `pollCreationMessage` (V1 a V5) | `poll` |
+| qualquer outro | `unknown` |
+
+`text` é o texto ou a legenda. A mídia não é baixada na chegada: `media.download()` e
+`media.stream()` chamam o `downloadMediaMessage` do Baileys, que pede ao aparelho o reenvio quando
+o link expirou.
+
+### Contatos e telefone
+
+`sender.id` e os ids de `mentions` são o JID nativo sem o aparelho, de telefone
+(`…@s.whatsapp.net`) ou LID (`…@lid`), como o WhatsApp mandou. `phone` é preenchido assim
+([ADR 0046](../../../docs/adr/0046-ids-de-contato-e-metadata-de-grupo.md)):
+
+1. JID de telefone: o número do próprio id;
+2. LID com o JID alternativo que o Baileys manda junto (`participantAlt`, `remoteJidAlt`): o
+   número dele;
+3. LID sem alternativo: o mapeamento LID ↔ telefone que o Baileys guarda na sessão;
+4. sem par conhecido (ou se a consulta falhar, com log em `warn`): `null`. Os papéis `owner` e
+   `group-admin` falham fechados nesse caso.
+
+`sender.name` é o `pushName`; menções e o autor da citada vêm com `name: null`. Na conversa
+privada, o remetente de uma mensagem da própria sessão é a sessão.
+
+### Citada
+
+`quoted` é uma `Message` montada do `contextInfo`, com as mesmas regras (envelopes, tipos,
+telefone). O proto da citada não traz horário nem nome do autor: `timestamp` é o da mensagem que
+cita e `sender.name` é `null`. `fromMe` vale quando o autor é a sessão (por telefone ou LID).
 
 ## Credenciais
 
