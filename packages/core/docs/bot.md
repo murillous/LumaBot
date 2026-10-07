@@ -73,11 +73,12 @@ const bot = createBot({
 Plano §5.3 e [ADR 0012](../../../docs/adr/0012-pipeline-de-3-estagios.md):
 
 ```
-transport 'message'
+transport 'message' ou 'message.edited'
   → fila de entrada (mesmo chat em série)
   → middlewares (onion, por prioridade)          interrompeu? fim
-  → roteador de comandos                         casou? roda o comando e consome: fim
-  → barramento: listeners de 'message' e 'message:<tipo>', em paralelo, com claim()
+  → roteador de comandos (só 'message')          casou? roda o comando e consome: fim
+  → barramento: listeners de 'message' e 'message:<tipo>' (ou de 'message.edited'),
+    em paralelo, com claim()
 ctx.reply()/ctx.send → fila de saída → transport
 ```
 
@@ -104,8 +105,13 @@ ctx.reply()/ctx.send → fila de saída → transport
   entrada; quem escreve middleware assíncrono responde por limitar o próprio I/O.
 - **Listeners** de eventos de mensagem recebem, além de `payload`/`claimed`/`claim()`/`signal`,
   os campos `message`, `text`, `reply` e `log` (este com `plugin` e `chatId`).
-- `message.edited` vai direto aos listeners (com os mesmos campos), sem middlewares nem comandos.
-  Os demais eventos do transport (reações, grupos, conexão) também vão direto ao barramento.
+- **`message.edited`** passa pelas mesmas barreiras da mensagem nova: entra na fila do chat
+  (em série com as mensagens dele), espera o fim do boot e roda os middlewares — `ignoreSelf` e
+  `chatFilter` a barram, o `sanitize` trunca o `text` e o `rateLimit` a conta como uma mensagem.
+  Edição não dispara comando: passou, vai aos listeners de `message.edited` (com os mesmos
+  campos). Um middleware do app vê as edições também e as distingue por `ctx.message.isEdited`.
+- Os demais eventos do transport (reações, deleções, grupos, conexão) vão direto ao barramento,
+  sem fila nem middlewares: `chatFilter` e `ignoreSelf` não os barram.
 - Erro de middleware (ou do próprio roteador) vai para o log em `error`, com o `chatId`; o chat
   segue para a próxima mensagem.
 - O chat só libera a próxima mensagem quando a atual termina (comando ou todos os listeners). A
