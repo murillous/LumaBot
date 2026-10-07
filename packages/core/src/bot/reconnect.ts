@@ -21,7 +21,10 @@ export interface BotReconnectionOptions extends ReconnectionPolicyOptions {
 }
 
 export interface Reconnector {
-  /** Trata `connection.status`. Só age depois de `activate()` e antes de `stop()`. */
+  /**
+   * Trata `connection.status`. Antes de `activate()`, ou com um `connect()` de reconexão em
+   * andamento, guarda o último `closed` e decide sobre ele quando puder (ADR 0048).
+   */
   onStatus(status: ConnectionStatus): void;
   /** Trata `connection.qr`. */
   onQr(): void;
@@ -39,6 +42,8 @@ export interface ReconnectorOptions {
   readonly giveUp: (decision: ReconnectionDecision) => void;
 }
 
+type ClosedStatus = Extract<ConnectionStatus, { status: 'closed' }>;
+
 /** Decisão que o executor agenda: reconectar, com ou sem limpar a sessão antes. */
 type Retry = Exclude<ReconnectionDecision, { action: 'stop' }>;
 
@@ -54,14 +59,23 @@ export function createReconnector({
   let stopped = false;
   let timer: NodeJS.Timeout | undefined;
   let inFlight: Promise<void> | undefined;
+  // Queda que chegou quando o executor não podia agir (antes do `activate()` ou durante um
+  // `connect()` de reconexão): o `connect()` resolve ao iniciar a tentativa, então o `closed`
+  // pode vir antes de ele terminar e não teria mais quem o tratasse (#253). Um `open` depois
+  // dela a anula.
+  let pending: ClosedStatus | undefined;
 
   function schedule(decision: Retry): void {
     timer = setTimeout(() => {
       timer = undefined;
       inFlight = execute(decision).then((failed) => {
         inFlight = undefined;
-        // Falha ao reconectar conta como queda: a política decide de novo (backoff, limite).
-        if (failed) handleClosed({ status: 'closed', reason: 'connection-lost', error: null });
+        // Falha ao reconectar conta como queda: a política decide de novo (backoff). O
+        // `closed` guardado tem o motivo do transport, mais preciso que o genérico.
+        const lost: ClosedStatus = { status: 'closed', reason: 'connection-lost', error: null };
+        const closed = pending ?? (failed ? lost : undefined);
+        pending = undefined;
+        if (closed) handleClosed(closed);
       });
     }, decision.delayMs);
   }
@@ -80,10 +94,15 @@ export function createReconnector({
     }
   }
 
-  function handleClosed(status: Extract<ConnectionStatus, { status: 'closed' }>): void {
-    if (!active || stopped) return;
-    // Já há reconexão agendada ou em andamento: ela própria reporta se falhar.
-    if (timer !== undefined || inFlight !== undefined) return;
+  function handleClosed(status: ClosedStatus): void {
+    if (stopped) return;
+    // Já há reconexão agendada: o `connect()` dela ainda não começou e cobre esta queda.
+    if (timer !== undefined) return;
+    // Sem poder agir agora: decide quando o `connect()` (inicial ou de reconexão) terminar.
+    if (!active || inFlight !== undefined) {
+      pending = status;
+      return;
+    }
     const decision = policy.decide(status.reason);
     const fields = { reason: status.reason, err: status.error, ...decision, ...policy.state };
     if (decision.action === 'stop') {
@@ -115,6 +134,7 @@ export function createReconnector({
     onStatus(status) {
       switch (status.status) {
         case 'open':
+          pending = undefined;
           policy.connected();
           log().info('conexão aberta');
           return;
@@ -133,6 +153,9 @@ export function createReconnector({
 
     activate() {
       active = true;
+      const closed = pending;
+      pending = undefined;
+      if (closed) handleClosed(closed);
     },
 
     async stop() {

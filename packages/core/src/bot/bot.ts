@@ -726,6 +726,10 @@ export function createBot(config: BotConfig): Bot {
       if (config.storage === undefined) {
         log.warn('sem storage configurado: usando memória, os dados somem ao reiniciar');
       }
+      // Sem conexão até o primeiro `open`: o `connect()` resolve ao iniciar a tentativa, e os
+      // envios do setup e dos jobs vencidos iriam para um socket ainda fechado (ADR 0048). O
+      // teto da pausa conta daqui.
+      outbound.pause();
       unsubscribe = subscribeTransport();
       registerInternalHooks();
     } catch (error) {

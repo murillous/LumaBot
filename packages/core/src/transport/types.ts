@@ -181,7 +181,12 @@ export interface Transport {
   /** Objeto nativo (ex.: socket do Baileys) para o escape hatch `ctx.unsafe.native` (ADR 0011). */
   readonly native: unknown;
 
-  /** Inicia a conexão; o andamento chega por `connection.status`. */
+  /**
+   * Inicia uma tentativa de conexão e resolve assim que ela começou (socket criado), sem esperar o
+   * `open`. Rejeita só se nem deu para começar. Daí em diante, o andamento e as falhas chegam por
+   * `connection.status`: o transport emite `open` quando dá para enviar e `closed` se a tentativa
+   * cair, mesmo antes de o `connect()` resolver (ADR 0048).
+   */
   connect(): Promise<void>;
   /**
    * Encerra a conexão. Deve ser seguro e idempotente: resolver sem lançar quando chamado sem

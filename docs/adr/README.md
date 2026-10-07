@@ -67,3 +67,4 @@ o anterior, e o antigo passa a apontar para ele no Status.
 | [0045](0045-queda-de-rede-nao-limpa-sessao.md) | D45 | Queda de rede nunca limpa a sessão (detalha D03/D37) | Aceito |
 | [0046](0046-ids-de-contato-e-metadata-de-grupo.md) | D46 | Ids de contato em espaços diferentes e custo do `getGroupMetadata` (detalha D03/D09) | Aceito |
 | [0047](0047-espera-na-fila-de-saida-fora-do-prazo.md) | D47 | A espera na fila de saída não conta no prazo do handler (detalha D19/D33/D42) | Aceito |
+| [0048](0048-connect-resolve-ao-iniciar.md) | D48 | `connect()` resolve ao iniciar a tentativa; queda antes do fim não se perde (detalha D03/D39/D45) | Aceito |

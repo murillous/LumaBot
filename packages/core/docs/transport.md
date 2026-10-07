@@ -31,6 +31,16 @@ interface Transport {
 }
 ```
 
+`connect()` inicia uma tentativa de conexão e resolve assim que ela começou (socket criado), sem
+esperar o `open`; rejeita só se nem deu para começar. O resto chega por `connection.status`
+([ADR 0048](../../../docs/adr/0048-connect-resolve-ao-iniciar.md)):
+
+- `open` quando dá para enviar. O `Bot` só despacha a fila de saída depois do primeiro `open`:
+  um transport que nunca o emite não envia nada.
+- `closed` se a tentativa cair, inclusive antes de o `connect()` resolver (no Baileys, o restart
+  pedido pelo servidor logo depois do pareamento). O `Bot` guarda essa queda e reconecta quando o
+  `connect()` termina, a menos que um `open` venha depois dela.
+
 `disconnect()` tem de ser seguro e idempotente: resolve sem lançar se chamado sem `connect()`,
 após um `connect()` que falhou ou que ainda não terminou, ou mais de uma vez. O shutdown do
 `Bot` conta com isso.

@@ -128,9 +128,11 @@ isso a fila pausa ([ADR 0039](../../../docs/adr/0039-fila-de-saida-e-conexao.md)
   até o `resume()`. `Infinity` desliga o teto. O prazo conta desde a pausa, não desde a chegada de
   cada mensagem.
 
-O `Bot` pausa no `connection.status` `closed` e retoma no `open`; a fila não conhece o estado da
-conexão por conta própria. Um envio que falhou bem na hora da queda pode ter sido entregue mesmo
-assim, e a re-tentativa depois da reconexão o duplica. É o mesmo risco de qualquer retry.
+O `Bot` pausa no `start()`, até o primeiro `open`
+([ADR 0048](../../../docs/adr/0048-connect-resolve-ao-iniciar.md)), e no `connection.status`
+`closed`, e retoma no `open`; a fila não conhece o estado da conexão por conta própria. Um envio
+que falhou bem na hora da queda pode ter sido entregue mesmo assim, e a re-tentativa depois da
+reconexão o duplica. É o mesmo risco de qualquer retry.
 
 ## Prazo por envio
 

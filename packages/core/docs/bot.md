@@ -381,12 +381,19 @@ Em ordem (plano §5.3):
 
 1. Cria o logger, reserva a sessão no storage (`BotConfigError` se outro bot vivo já a usa) e
    (sem `storage`) avisa que os dados estão em memória.
-2. Assina os eventos do transport e empilha os ganchos de parada internos.
+2. Pausa a fila de saída até o primeiro `open`, assina os eventos do transport e empilha os
+   ganchos de parada internos.
 3. Carrega os plugins: coleta (`plugins` + `pluginDirs`) → config → `setup` de cada um → tabela
    de boot no log → checagem de conflito de comando, papel e serviço.
 4. **Só se o boot dos plugins deu certo**, chama `transport.connect()`; conectado, liga a
    reconexão automática.
 5. Liga o scheduler (dispara os jobs vencidos no downtime) e passa a `running`.
+
+O `connect()` resolve ao iniciar a tentativa, não no `open`
+([ADR 0048](../../../docs/adr/0048-connect-resolve-ao-iniciar.md)). Por isso a fila de saída nasce
+pausada: os envios do `setup` e dos jobs vencidos esperam o primeiro `open`, até
+`outbound.maxPauseMs`, contado desde o `start()`. Num pareamento por QR mais longo que isso, eles
+rejeitam com `OutboundQueueError` `'disconnected'`, e os envios voltam a sair no `open`.
 
 Plugin quebrado (conflito de comando, papel ou serviço, manifesto inválido, ciclo, `pluginDirs`
 ilegível) derruba o boot **antes** de o transport abrir sessão: sem QR nem handshake à toa.
@@ -481,6 +488,9 @@ O transport avisa as quedas por `connection.status`; a `ReconnectionPolicy`
   tempo, observe `connection.status` e chame `bot.stop()`.
 - Um `connect()` de reconexão que falha conta como queda (`connection-lost`): a política decide
   de novo, com a tentativa seguinte do backoff.
+- Um `closed` que chega antes de o `connect()` terminar (o inicial ou o de uma reconexão) não se
+  perde: o bot decide sobre ele quando o `connect()` termina. Se um `open` vier depois dele, a
+  conexão está de pé e nada é feito.
 - Há no máximo um timer de reconexão por vez, e nenhum sobrevive ao `stop()`. O `closed` que o
   próprio `disconnect()` do shutdown gera não reconecta.
 - `connection.qr` conta para o limite de QRs da política e vai para o barramento (um plugin pode

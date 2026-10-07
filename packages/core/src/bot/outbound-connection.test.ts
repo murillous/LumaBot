@@ -131,3 +131,63 @@ describe('Bot: fila de saída durante a queda de conexão', () => {
     expect(sentTexts(transport)).toEqual([]);
   });
 });
+
+/** `connect()` que resolve ao iniciar a tentativa, como o do Baileys: o `open` vem depois. */
+class LateOpenTransport extends DroppingTransport {
+  override async connect(): Promise<void> {
+    this.calls.push('connect');
+    this.emit('connection.status', { status: 'connecting' });
+  }
+
+  open(): void {
+    this.connected = true;
+    this.emit('connection.status', { status: 'open' });
+  }
+}
+
+/** Bot cujo plugin envia no `setup`, antes do `connect()`. */
+async function startBotSendingOnSetup(
+  transport: RecordingTransport,
+): Promise<{ bot: Bot; sent: Promise<MessageKey> }> {
+  let sent: Promise<MessageKey> | undefined;
+  const plugin = definePlugin({
+    name: 'boas-vindas',
+    version: '1.0.0',
+    engine: '>=0.0.0',
+    setup(ctx) {
+      sent = ctx.send.send('c@test', text('online'));
+      sent.catch(() => undefined);
+    },
+  });
+  const bot = createBot({ logger: recordingLogger(), env: {}, transport, plugins: [plugin] });
+  bots.push(bot);
+  await bot.start();
+  if (sent === undefined) throw new Error('setup não rodou');
+  return { bot, sent };
+}
+
+// #253 (ADR 0048): a fila nasce pausada e só despacha no primeiro `open`.
+describe('Bot: fila de saída até o primeiro open', () => {
+  it('envio do setup espera o open em vez de ir para o socket fechado', async () => {
+    const transport = new LateOpenTransport();
+    const { bot, sent } = await startBotSendingOnSetup(transport);
+    expect(bot.state).toBe('running');
+    expect(bot.stats().outbound.paused).toBe(true);
+
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(sentTexts(transport)).toEqual([]);
+
+    transport.open();
+    await expect(sent).resolves.toBeDefined();
+    expect(sentTexts(transport)).toEqual(['online']);
+  });
+
+  it('o teto da pausa conta desde o start(): sem open, rejeita com disconnected', async () => {
+    const transport = new LateOpenTransport();
+    const { sent } = await startBotSendingOnSetup(transport);
+
+    await vi.advanceTimersByTimeAsync(60_000);
+    await expect(sent).rejects.toMatchObject({ reason: 'disconnected' });
+    expect(sentTexts(transport)).toEqual([]);
+  });
+});

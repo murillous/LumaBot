@@ -159,6 +159,63 @@ describe('Bot: reconexão', () => {
     expect(connects(transport)).toBe(1);
   });
 
+  // #253: o `connect()` resolve ao iniciar a tentativa (ADR 0048), então a queda pode chegar antes
+  // de ele terminar, sem `open` depois. Ela não pode se perder.
+  class DropsBeforeOpen extends RecordingTransport {
+    /** Quantos dos próximos `connect()` fecham a conexão e resolvem sem `open`. */
+    drops = 1;
+    override async connect(): Promise<void> {
+      if (this.drops === 0) return super.connect();
+      this.drops -= 1;
+      this.calls.push('connect');
+      // Depois de um tick, como um socket real: com a reconexão já marcada como em andamento.
+      await Promise.resolve();
+      this.emit('connection.status', { status: 'closed', reason: 'connection-lost', error: null });
+    }
+  }
+
+  it('queda durante o connect inicial, sem open depois, reconecta quando o boot termina', async () => {
+    const transport = new DropsBeforeOpen();
+    const b = bot({ transport, reconnection: { backoff: () => 1000 } });
+    await b.start();
+    expect(b.state).toBe('running');
+
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(connects(transport)).toBe(2);
+    expect(transport.connected).toBe(true);
+    expect(b.stats().outbound.paused).toBe(false);
+  });
+
+  it('queda durante um connect de reconexão, sem open depois, reconecta de novo', async () => {
+    const transport = new DropsBeforeOpen();
+    transport.drops = 0;
+    const b = bot({ transport, reconnection: { backoff: () => 1000 } });
+    await b.start();
+
+    transport.drops = 1;
+    transport.emit('connection.status', {
+      status: 'closed',
+      reason: 'connection-lost',
+      error: null,
+    });
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(connects(transport)).toBe(2);
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(connects(transport)).toBe(3);
+    expect(transport.connected).toBe(true);
+  });
+
+  it('queda durante o connect inicial com stop() antes do fim do boot não reconecta', async () => {
+    const transport = new DropsBeforeOpen();
+    const b = bot({ transport, reconnection: { backoff: () => 1000 } });
+    const started = b.start();
+    await b.stop();
+    await started.catch(() => undefined);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(connects(transport)).toBeLessThanOrEqual(1);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
   it('quedas repetidas com a reconexão já agendada reconectam uma vez só', async () => {
     const transport = new RecordingTransport();
     const b = bot({ transport, reconnection: { backoff: () => 1000 } });
