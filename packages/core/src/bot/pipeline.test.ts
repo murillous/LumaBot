@@ -318,6 +318,7 @@ describe('Bot: fluxo da mensagem (§5.3)', () => {
       messageId: original.id,
       sender: original.sender,
       emoji: '👍',
+      fromMe: false,
     });
     transport.emit('message.edited', { ...original, text: 'depois', isEdited: true });
 
@@ -448,6 +449,105 @@ describe('Bot: edição de mensagem (#197)', () => {
     await started;
 
     await vi.waitFor(() => expect(got).toEqual(['edited:cedo']));
+  });
+});
+
+/** Plugin que registra, em ordem, os eventos que não são mensagem. */
+function eventos(got: string[], options: { gate?: Promise<void> } = {}) {
+  return definePlugin({
+    name: 'eventos',
+    version: '1.0.0',
+    engine: ENGINE,
+    async setup(ctx) {
+      await options.gate;
+      ctx.events.on('reaction', (e) => void got.push(`reaction:${e.payload.chat.id}`));
+      ctx.events.on('message.deleted', (e) => void got.push(`deleted:${e.payload.chat.id}`));
+      ctx.events.on('group.joined', (e) => void got.push(`joined:${e.payload.groupId}`));
+      ctx.events.on('group.left', (e) => void got.push(`left:${e.payload.groupId}`));
+      ctx.events.on(
+        'group.participants',
+        (e) => void got.push(`participants:${e.payload.groupId}`),
+      );
+      ctx.events.on('group.updated', (e) => void got.push(`updated:${e.payload.groupId}`));
+    },
+  });
+}
+
+/** Payloads dos eventos que não são mensagem, num chat. */
+function payloads(chatId: string, fromMe = false) {
+  const { chat, id, sender } = message('alvo', { chatId });
+  return {
+    reaction: { chat, messageId: id, sender, emoji: '👍', fromMe },
+    deleted: { chat, messageId: id, deletedBy: sender, fromMe },
+    participants: { groupId: chatId, action: 'add' as const, participants: [sender], actor: null },
+    updated: { groupId: chatId, subject: 'novo' },
+  };
+}
+
+describe('Bot: eventos que não são mensagem (#219, ADR 0038)', () => {
+  it('o chatFilter barra os eventos do chat bloqueado, menos a entrada e a saída do grupo', async () => {
+    const transport = new RecordingTransport();
+    const got: string[] = [];
+    const b = bot({
+      transport,
+      plugins: [eventos(got)],
+      middlewares: { chatFilter: { block: ['bloq@g.us'] } },
+    });
+    await b.start();
+
+    const bloq = payloads('bloq@g.us');
+    transport.emit('reaction', bloq.reaction);
+    transport.emit('message.deleted', bloq.deleted);
+    transport.emit('group.participants', bloq.participants);
+    transport.emit('group.updated', bloq.updated);
+    transport.emit('group.joined', { groupId: 'bloq@g.us' });
+    transport.emit('group.left', { groupId: 'bloq@g.us' });
+    transport.emit('reaction', payloads('livre@g.us').reaction);
+
+    await vi.waitFor(() =>
+      expect(got).toEqual(['joined:bloq@g.us', 'left:bloq@g.us', 'reaction:livre@g.us']),
+    );
+  });
+
+  it('o ignoreSelf barra a reação e a deleção da própria sessão', async () => {
+    const transport = new RecordingTransport();
+    const got: string[] = [];
+    const b = bot({ transport, plugins: [eventos(got)] });
+    await b.start();
+
+    const proprios = payloads('eu@test', true);
+    transport.emit('reaction', proprios.reaction);
+    transport.emit('message.deleted', proprios.deleted);
+    const alheios = payloads('outro@test');
+    transport.emit('message.deleted', alheios.deleted);
+    transport.emit('reaction', alheios.reaction);
+
+    await vi.waitFor(() => expect(got).toEqual(['deleted:outro@test', 'reaction:outro@test']));
+  });
+
+  it('com ignoreSelf: false, a reação da própria sessão chega', async () => {
+    const transport = new RecordingTransport();
+    const got: string[] = [];
+    const b = bot({ transport, plugins: [eventos(got)], middlewares: { ignoreSelf: false } });
+    await b.start();
+
+    transport.emit('reaction', payloads('eu@test', true).reaction);
+
+    await vi.waitFor(() => expect(got).toEqual(['reaction:eu@test']));
+  });
+
+  it('evento que chega durante o boot espera os plugins subirem', async () => {
+    const transport = new RecordingTransport();
+    const got: string[] = [];
+    const gate = deferred();
+    const b = bot({ transport, plugins: [eventos(got, { gate: gate.promise })] });
+    const started = b.start();
+    transport.emit('reaction', payloads('cedo@test').reaction);
+    transport.emit('group.joined', { groupId: 'cedo@g.us' });
+    gate.resolve();
+    await started;
+
+    await vi.waitFor(() => expect(got).toEqual(['reaction:cedo@test', 'joined:cedo@g.us']));
   });
 });
 
