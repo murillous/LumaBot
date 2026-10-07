@@ -24,14 +24,16 @@ const onlyText: Middleware = (ctx, next) => {
 Regras:
 
 - **Onion (estilo Koa)**: o código antes de `next()` roda na ida, o depois de `await next()` na
-  volta, em ordem inversa.
+  volta, em ordem inversa. No bot, comando e listeners são o centro da cebola: a volta só
+  começa depois que eles terminam (ou estouram o prazo, `timeouts.commandMs`/`listenerMs`).
 - **Interromper** = não chamar `next()`. A mensagem não segue para os próximos middlewares
   (nem, no kernel, para comando e listeners).
 - **Sempre `await next()`** (ou `return next()`): sem isso, erros dos internos se perdem e o
   pipeline pode terminar antes deles.
 - **`next()` duas vezes** rejeita com erro.
 - **Erros** (síncronos ou não) propagam: rejeitam o `run()`. Um middleware de fora pode
-  capturá-los com `try { await next() } catch …`.
+  capturá-los com `try { await next() } catch …`. No bot, comando e listeners não lançam para
+  o middleware: erro de plugin vira `plugin.error` ([Bot](bot.md#fluxo-de-uma-mensagem)).
 - O middleware é genérico no contexto: `Middleware<C extends MessageContext>`. No bot, o contexto
   é um `BotMessageContext` (`message`, `text`, `reply`, `log`).
 - No bot, **edições** (`message.edited`) também passam pelos middlewares. Quem só quer mensagem
@@ -73,13 +75,17 @@ const remove = pipeline.use(timing, { priority: 100 });
 pipeline.use(onlyText);
 
 const passed = await pipeline.run({ message }); // true: atravessou; false: interrompida
+// Com terminal: roda no centro da cebola, só se a mensagem atravessar.
+await pipeline.run({ message }, async (ctx) => { /* comando e listeners */ });
 remove(); // idempotente
 ```
 
 - **Prioridade**: maior roda antes (mais por fora). Padrão `0`, aceita negativos. Empate segue
   a ordem de registro. Valor não finito lança `RangeError`.
-- `run(ctx)` resolve `true` se todos chamaram `next()` até o fim — é o sinal para o kernel seguir
-  para comando/listeners — e `false` se algum interrompeu.
+- `run(ctx, terminal?)` resolve `true` se todos chamaram `next()` até o fim e `false` se algum
+  interrompeu. O `terminal` roda quando o último middleware chama `next()`, e a volta espera por
+  ele; o erro dele propaga pela cadeia como o de um middleware. O `Bot` passa ali o roteador e
+  os listeners.
 - A ordem é calculada em `use()`/remoção, não por mensagem. Uma mensagem em andamento usa a
   cadeia de quando começou: registrar ou remover no meio não a afeta.
 

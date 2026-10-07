@@ -408,18 +408,24 @@ export function createBot(config: BotConfig): Bot {
   // --- Fluxo de uma mensagem (plano §5.3) -------------------------------------------------
 
   /**
-   * Barreiras comuns à mensagem nova e à edição: espera o fim do boot e roda os middlewares.
-   * Devolve o contexto se a mensagem passou.
+   * Barreiras comuns à mensagem nova e à edição: espera o fim do boot e roda os middlewares em
+   * volta de `handle`, que só roda se a mensagem atravessar a cadeia. A volta da cebola espera
+   * `handle` terminar (ADR 0012).
    */
-  async function admit(message: Message): Promise<KernelMessageContext | undefined> {
-    if (!ready && !(await readyPromise)) return undefined;
-    const ctx = createMessageContext(message, contextDeps);
-    return (await pipeline.run(ctx)) ? ctx : undefined;
+  async function admit(
+    message: Message,
+    handle: (ctx: KernelMessageContext) => Promise<void>,
+  ): Promise<void> {
+    if (!ready && !(await readyPromise)) return;
+    await pipeline.run(createMessageContext(message, contextDeps), handle);
   }
 
-  async function handleMessage(message: Message): Promise<void> {
-    const ctx = await admit(message);
-    if (ctx === undefined) return;
+  function handleMessage(message: Message): Promise<void> {
+    return admit(message, dispatchMessage);
+  }
+
+  async function dispatchMessage(ctx: KernelMessageContext): Promise<void> {
+    const { message } = ctx;
     const result = await router.dispatch(ctx);
     if (!result.consumed) {
       await bus.emit('message', message, listenerExtras(ctx));
@@ -458,9 +464,10 @@ export function createBot(config: BotConfig): Bot {
    * Edição passa pelas mesmas barreiras da mensagem nova (fila do chat, boot, middlewares — o
    * `rateLimit` a conta), mas não dispara comando: só os listeners de `message.edited`.
    */
-  async function handleEdited(message: Message): Promise<void> {
-    const ctx = await admit(message);
-    if (ctx !== undefined) await bus.emit('message.edited', message, listenerExtras(ctx));
+  function handleEdited(message: Message): Promise<void> {
+    return admit(message, async (ctx) => {
+      await bus.emit('message.edited', ctx.message, listenerExtras(ctx));
+    });
   }
 
   /** Põe a mensagem (nova ou editada) na fila do chat dela: o mesmo chat anda em série. */
@@ -914,8 +921,8 @@ function groupAdminPort(
 function createPipeline(
   options: BotMiddlewaresConfig,
   log: () => Logger,
-): MiddlewarePipeline<BotMessageContext> {
-  const pipeline = new MiddlewarePipeline<BotMessageContext>();
+): MiddlewarePipeline<KernelMessageContext> {
+  const pipeline = new MiddlewarePipeline<KernelMessageContext>();
   if (options.ignoreSelf !== false) {
     pipeline.use(ignoreSelf(), { priority: MIDDLEWARE_PRIORITY.ignoreSelf });
   }

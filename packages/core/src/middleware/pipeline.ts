@@ -53,12 +53,17 @@ export class MiddlewarePipeline<C extends MessageContext = MessageContext> {
    * Passa o contexto pela cadeia. Resolve `true` se a mensagem atravessou até o fim (todos
    * chamaram `next()`) e `false` se algum middleware a interrompeu. Erros de middleware
    * rejeitam a promise: o destino deles é de quem executa o pipeline.
+   *
+   * `terminal` é o estágio mais interno: roda quando o último middleware chama `next()`, e a
+   * volta da cebola espera por ele. É onde o kernel põe comando e listeners (ADR 0012).
    */
-  run(ctx: C): Promise<boolean> {
+  run(ctx: C, terminal?: (ctx: C) => Promise<void>): Promise<boolean> {
     // Snapshot: registrar/remover durante a execução não afeta a mensagem em andamento.
     const chain = this.#chain;
     const length = chain.length;
-    if (length === 0) return Promise.resolve(true);
+    if (length === 0) {
+      return terminal === undefined ? Promise.resolve(true) : terminal(ctx).then(() => true);
+    }
 
     let index = -1;
     let completed = false;
@@ -67,7 +72,7 @@ export class MiddlewarePipeline<C extends MessageContext = MessageContext> {
       index = i;
       if (i === length) {
         completed = true;
-        return RESOLVED;
+        return terminal === undefined ? RESOLVED : terminal(ctx);
       }
       // biome-ignore lint/style/noNonNullAssertion: 0 <= i < length
       const middleware = chain[i]!;
