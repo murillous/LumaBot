@@ -101,11 +101,27 @@ const configs = createPluginConfigs({
 | Método | O que faz |
 | --- | --- |
 | `resolve(name)` | `{ config, messages }` atuais e validados; registra os segredos no `SecretSet`. Lança `PluginConfigError` |
-| `setOverrides(name, overrides)` | Recusa campo `secret`; valida a config resultante; se válida, salva (substitui; `{}` remove) e chama `reload`. Inválida rejeita sem salvar |
-| `describe(name)` | Config atual com segredos trocados por `'********'` |
+| `setOverrides(name, overrides)` | Recusa campo `secret`; valida a config resultante; se válida, salva (substitui; `{}` remove) e chama `reload`. Inválida rejeita sem salvar. Campo sombreado gera `warn` (abaixo) |
+| `describe(name)` | `{ config, messages, sources }`: config atual com segredos trocados por `'********'` e a fonte de cada campo |
 | `jsonSchema(name)` | JSON Schema (entrada) para gerar formulário; segredos com `x-zapforge-override: false`; `undefined` sem `config` |
 
 `pluginConfig` citando plugin que não existe gera `warn` (provável erro de digitação).
+
+### Override sombreado
+
+Override perde para o arquivo e o env. Um `setOverrides` num campo que o `pluginConfig` ou uma
+variável já definem é salvo (passa a valer se a camada de cima sair), mas não muda nada agora.
+Para o dashboard não mostrar "salvo" em silêncio:
+
+- `setOverrides` loga um `warn` com plugin e os campos sombreados (`fields: [{ path, source }]`),
+  sem os valores;
+- `describe` devolve `sources`, o mapa caminho → fonte (`'default' | 'override' | 'file' | 'env'`)
+  de cada folha da config e de cada mensagem:
+
+```ts
+const { sources } = await bot.config.describe('sticker');
+// { quality: 'file', 'openai.token': 'env', 'messages.done': 'override', … }
+```
 
 ### Na fábrica de contexto
 
@@ -178,7 +194,7 @@ A checagem vale em qualquer nível de objeto e vem antes da validação. Overrid
 segredo (gravado antes desta regra ou escrito direto no banco) não derruba o plugin: em
 `resolve`, o campo secreto é descartado e sai um `warn` com plugin e caminho — nunca o valor —,
 uma vez por campo; o resto do override vale. Para limpar, grave o override de novo sem o campo.
-`describe` só mascara: não informa de onde veio o segredo.
+`describe` mascara o valor; `sources` diz só de onde ele veio (`env` ou `file`).
 
 Cifrar segredos no storage, para o dashboard editá-los, fica para o M5 com ADR próprio.
 
