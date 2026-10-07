@@ -2,7 +2,9 @@ import type { Message } from '#message/types.ts';
 import type { MessageKey } from './types.ts';
 
 /** Chave para reagir, editar ou apagar uma mensagem recebida. */
-export function messageKey(message: Message): MessageKey {
+export function messageKey(
+  message: Pick<Message, 'id' | 'chat' | 'sender' | 'fromMe'>,
+): MessageKey {
   return {
     chatId: message.chat.id,
     id: message.id,

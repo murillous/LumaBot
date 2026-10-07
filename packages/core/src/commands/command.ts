@@ -81,6 +81,16 @@ export interface CommandDefinition {
   readonly run: (ctx: CommandContext) => unknown;
 }
 
+/** Comando como os plugins o veem em `ctx.commands.list()` (ADR 0040): sem `run` nem `onReject`. */
+export interface CommandInfo {
+  /** Plugin que registrou o comando. */
+  readonly plugin: string;
+  readonly name: string;
+  readonly aliases: readonly string[];
+  readonly description: string | null;
+  readonly role: CommandRole;
+}
+
 const TOKEN = /^\S+$/;
 
 function assertToken(token: string, what: string): void {

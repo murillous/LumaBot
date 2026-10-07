@@ -25,6 +25,11 @@ export interface BotMessageContext extends MessageContext {
   text: string | null;
   /** Responde no chat da mensagem, citando-a, pela fila de saída. */
   readonly reply: Reply;
+  /**
+   * Reage à mensagem pela fila de saída, com prioridade `'high'`; `null` remove a reação
+   * (capability `reactions`, ADR 0040).
+   */
+  react(emoji: string | null): Promise<void>;
   /** Logger com `chatId` (e `plugin`, em comandos e listeners) no contexto. */
   readonly log: Logger;
 }

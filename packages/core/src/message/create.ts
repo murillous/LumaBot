@@ -1,5 +1,6 @@
 import { createMedia, type MediaSource } from '#message/media.ts';
 import type { Media, Message, MessageOf, MessageType } from '#message/types.ts';
+import { messageKey } from '#transport/message-key.ts';
 
 /**
  * Campos com valor padrão: o transport só informa quando difere do caso comum. `fromMe` fica
@@ -10,14 +11,15 @@ type DefaultedKey = 'quoted' | 'mentions' | 'isForwarded' | 'isViewOnce' | 'isEd
 // Distributiva sobre a union: cada membro vira o seu próprio formato de entrada, então o
 // discriminante `type` continua exigindo os campos específicos (ex.: `location`).
 type InitOf<M> = M extends Message
-  ? Omit<M, 'is' | 'media' | DefaultedKey> &
+  ? Omit<M, 'is' | 'key' | 'media' | DefaultedKey> &
       Partial<Pick<M, DefaultedKey>> &
       (M extends { readonly media: Media } ? { readonly media: MediaSource } : unknown)
   : never;
 
 /**
  * Dados que o transport passa a `createMessage`. Mídia entra como `MediaSource` (o loader
- * nativo); `quoted` entra já normalizado, construído com `createMessage` também.
+ * nativo); `quoted` entra já normalizado, construído com `createMessage` também. `key` não entra:
+ * é derivada dos outros campos.
  */
 export type MessageInit = InitOf<Message>;
 
@@ -29,8 +31,8 @@ function is(this: { readonly type: MessageType }, type: MessageType): boolean {
 
 /**
  * Constrói uma `Message` normalizada a partir do que o transport extraiu do formato nativo.
- * Preenche os padrões (`quoted: null`, `mentions: []`, flags `false`), liga `is()` e embrulha
- * a mídia em `Media` lazy com cache por mensagem.
+ * Preenche os padrões (`quoted: null`, `mentions: []`, flags `false`) e a `key`, liga `is()` e
+ * embrulha a mídia em `Media` lazy com cache por mensagem.
  */
 export function createMessage<I extends MessageInit>(init: I): MessageOf<I['type']> {
   const source = (init as { readonly media?: MediaSource }).media;
@@ -38,6 +40,7 @@ export function createMessage<I extends MessageInit>(init: I): MessageOf<I['type
   // recebe o padrão.
   const message = {
     ...init,
+    key: messageKey(init),
     quoted: init.quoted ?? null,
     mentions: init.mentions ?? [],
     isForwarded: init.isForwarded ?? false,

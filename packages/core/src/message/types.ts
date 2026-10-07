@@ -1,6 +1,8 @@
 // Contrato do modelo de mensagem normalizado (ADR 0009). Transports mapeiam o formato nativo
 // para estes tipos; plugins nunca veem o objeto do transport (exceto via escape hatch).
 
+import type { MessageKey } from '#transport/types.ts';
+
 /** Discriminante da union `Message`. `voice` (PTT) é separado de `audio`. */
 export type MessageType =
   | 'text'
@@ -44,6 +46,11 @@ export interface Media {
 interface BaseMessage<T extends MessageType> {
   readonly type: T;
   readonly id: string;
+  /**
+   * Chave para reagir, editar ou apagar esta mensagem (`ctx.send.react(message.key, …)`).
+   * Derivada por `createMessage` de `chat`, `id`, `fromMe` e `sender` (ADR 0040).
+   */
+  readonly key: MessageKey;
   readonly chat: Chat;
   readonly sender: Contact;
   /** Texto ou legenda; `null` se não houver. */

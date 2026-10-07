@@ -29,6 +29,9 @@ if (msg.quoted?.is('sticker')) await msg.quoted.media.download();
 - `MessageOf<'image' | 'video'>` dá o membro da union para um ou mais tipos;
   `MediaMessageType` lista os tipos que carregam `media`.
 - `is()` é propriedade própria da mensagem: sobrevive a `{ ...msg }`.
+- `key` (`MessageKey`) é a chave para agir sobre a mensagem: `ctx.send.react(msg.key, '👍')`,
+  `ctx.send.delete(msg.quoted.key)` ([ADR 0040](../../../docs/adr/0040-acoes-do-transport-no-plugin.md)).
+  No contexto de comando ou listener, `c.react('👍')` já usa a chave da mensagem recebida.
 
 ## Mídia
 
@@ -86,6 +89,8 @@ const msg = createMessage({
   campos (`media`, `location`, `poll`...).
 - Padrões: `quoted: null`, `mentions: []`, flags `false` (inclusive para `undefined`
   explícito). `fromMe` é obrigatório: esquecê-lo faria o bot responder a si mesmo.
+- `key` não entra: `createMessage` a deriva de `chat`, `id`, `fromMe` e `sender` (o autor só em
+  grupo), com a mesma regra de `messageKey`.
 - `media` recebe um `MediaSource` (o loader nativo); `createMessage` o embrulha com
   `createMedia`, que aplica laziness e cache. `createMedia` também sai de
   `@zapforge/core/adapter` para quem precisar de uma `Media` avulsa.

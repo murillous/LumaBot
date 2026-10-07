@@ -2,8 +2,9 @@
 
 `OutboundQueue` é por onde todo envio do bot passa ([ADR 0019](../../../docs/adr/0019-fila-de-saida-anti-ban.md)):
 intervalo mínimo global e por chat, prioridade (comando > broadcast), retry com backoff e
-humanização opcional. Ela implementa `Sender`, o mesmo contrato de `ctx.send`, e
-`createReply` monta o `ctx.reply` em cima dela. O plugin nunca vê a fila.
+humanização opcional. Ela implementa `Sender`; `createOutbound` monta em cima dela o `ctx.send`
+com as ações (reação, edição, apagar, presença) e `createReply`, o `ctx.reply`. O plugin nunca vê
+a fila.
 
 Peça interno do kernel, não exportado ([ADR 0034](../../../docs/adr/0034-biblioteca-sem-runner.md)): o app só a configura por `createBot({ outbound })`
 (as opções abaixo, sem `transport`); o plugin envia por `ctx.send`/`ctx.reply` e trata
@@ -31,6 +32,28 @@ const reply = createReply(queue, message);
 await reply('pong'); // cita `message`, prioridade high
 await reply.sticker(buffer);
 ```
+
+## Ações que não são envio
+
+Reação, edição, apagar, presença e alteração de participantes de grupo também são tráfego
+([ADR 0040](../../../docs/adr/0040-acoes-do-transport-no-plugin.md)). `enqueue(chatId, ação,
+{ priority })` as põe na fila com as mesmas regras do envio: intervalos, prioridade, backlog,
+retry, pausa e prazo. A humanização não se aplica. Resolve com o retorno da ação; as métricas
+contam a ação como envio (`sent`, `failed`, `retries`).
+
+A fila não conhece a ação: quem enfileira confere a capability antes. É o que `createOutbound`
+(o `ctx.send`) e `createGroups` (o `ctx.groups.updateParticipants`) fazem:
+
+```ts
+import { createOutbound } from '#outbound/actions.ts';
+
+const outbound = createOutbound(queue, transport);
+await outbound.react(message.key, '👍'); // UnsupportedError sem a capability `reactions`
+await queue.enqueue('123@g.us', () => transport.sendPresence('123@g.us', 'composing'));
+```
+
+Uma presença explícita ocupa o intervalo do chat: o envio logo depois dela espera
+`chatIntervalMs`.
 
 ## Taxa
 

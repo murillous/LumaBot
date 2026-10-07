@@ -108,6 +108,15 @@ export interface TransportEvents {
     /** Só admins editam os dados do grupo. */
     readonly restrict?: boolean;
   };
+  /**
+   * Nome ou telefone de um contato mudou (ex.: `pushName` novo). Só os campos alterados vêm
+   * preenchidos (ADR 0040).
+   */
+  'contact.updated': {
+    readonly id: string;
+    readonly name?: string | null;
+    readonly phone?: string | null;
+  };
   'connection.status': ConnectionStatus;
   /** QR a apresentar para parear; o kernel decide como mostrar. */
   'connection.qr': { readonly qr: string };

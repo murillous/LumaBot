@@ -9,12 +9,12 @@ import type { LogFields, Logger } from '#logger/types.ts';
 import type { Message } from '#message/types.ts';
 import type { SanitizedContext, SanitizedFields } from '#middleware/sanitize.ts';
 import { createReply } from '#outbound/reply.ts';
-import type { Reply, Sender } from '#outbound/types.ts';
+import type { Outbound, Reply } from '#outbound/types.ts';
 import type { MessageKey } from '#transport/types.ts';
 
 /** O que o contexto precisa do bot; um objeto por bot, compartilhado por todas as mensagens. */
 export interface MessageContextDeps {
-  readonly sender: Sender;
+  readonly sender: Outbound;
   /** Responder citando: só se o transport tem a capability `quoted`. */
   readonly quote: boolean;
   /** Logger raiz; o contexto cria o filho com `chatId` sob demanda. */
@@ -67,6 +67,11 @@ class MessageContextImpl implements KernelMessageContext {
     const state = this[STATE];
     state.log ??= state.deps.log().child({ chatId: this.message.chat.id });
     return state.log;
+  }
+
+  react(emoji: string | null): Promise<void> {
+    // Prioridade do `reply`: a reação responde a quem escreveu, como ele.
+    return this[STATE].deps.sender.react(this.message.key, emoji, { priority: 'high' });
   }
 }
 
@@ -136,6 +141,27 @@ interface ExpiringView {
   readonly log: Logger;
 }
 
+type Scope<V> = (view: V) => { readonly label: string; readonly fields: LogFields };
+
+/** Recusa (com `ContextExpiredError` e uma linha de log) do que a `view` faz depois do prazo. */
+function refuser<V extends ExpiringView>(
+  plugin: string,
+  view: V,
+  deadline: Deadline,
+  scope: Scope<V>,
+): Refuse {
+  return (operation) => {
+    const { label, fields } = scope(view);
+    const error = new ContextExpiredError(plugin, operation, label, deadline.reason);
+    view.log.warn(`${operation} recusado: ${label} já expirou`, {
+      ...fields,
+      operation,
+      err: error,
+    });
+    return Promise.reject(error);
+  };
+}
+
 /**
  * Descritor do `reply` de uma execução com prazo (comando ou listener): o `reply` de `base`,
  * recusado com `ContextExpiredError` (e uma linha de log) depois que o `Deadline` expira — no
@@ -145,7 +171,7 @@ interface ExpiringView {
 function expiringReplyDescriptor<V extends ExpiringView>(
   plugin: string,
   base: (view: V) => Reply | undefined,
-  scope: (view: V) => { readonly label: string; readonly fields: LogFields },
+  scope: Scope<V>,
 ): PropertyDescriptor {
   return {
     configurable: true,
@@ -153,19 +179,31 @@ function expiringReplyDescriptor<V extends ExpiringView>(
       const reply = base(this);
       const deadline = deadlineOf(this);
       if (reply === undefined || deadline === undefined) return reply;
-      const refuse: Refuse = (operation) => {
-        const { label, fields } = scope(this);
-        const error = new ContextExpiredError(plugin, operation, label, deadline.reason);
-        this.log.warn(`${operation} recusado: ${label} já expirou`, {
-          ...fields,
-          operation,
-          err: error,
-        });
-        return Promise.reject(error);
-      };
-      const guarded = expiringReply(reply, deadline, refuse);
+      const guarded = expiringReply(reply, deadline, refuser(plugin, this, deadline, scope));
       Object.defineProperty(this, 'reply', { value: guarded });
       return guarded;
+    },
+  };
+}
+
+type React = BotMessageContext['react'];
+
+/** Descritor do `react` de uma execução com prazo, recusado depois dele como o `reply`. */
+function expiringReactDescriptor<V extends ExpiringView>(
+  plugin: string,
+  base: (view: V) => Pick<BotMessageContext, 'react'> | undefined,
+  scope: Scope<V>,
+): PropertyDescriptor {
+  return {
+    configurable: true,
+    get(this: V): React | undefined {
+      const target = base(this);
+      const deadline = deadlineOf(this);
+      if (target === undefined || deadline === undefined) return target?.react;
+      const refuse = refuser(plugin, this, deadline, scope);
+      const react: React = (emoji) => (deadline.expired ? refuse('react') : target.react(emoji));
+      Object.defineProperty(this, 'react', { value: react });
+      return react;
     },
   };
 }
@@ -187,6 +225,10 @@ export interface CommandViews {
 /** Deriva os contextos de comando de um plugin. */
 export function commandViewFactory(plugin: string, pluginLog: Logger): CommandViews {
   type View = ExpiringView & { readonly command: string };
+  const scope: Scope<View> = (view) => ({
+    label: `comando "${view.command}"`,
+    fields: { command: view.command },
+  });
   const runDescriptors: PropertyDescriptorMap = {
     log: pluginLogDescriptor(pluginLog),
     signal: signalDescriptor,
@@ -194,7 +236,15 @@ export function commandViewFactory(plugin: string, pluginLog: Logger): CommandVi
       plugin,
       // O `reply` do contexto do kernel, alcançado pela cadeia de protótipos.
       (view) => (Object.getPrototypeOf(view) as { readonly reply?: Reply }).reply,
-      (view) => ({ label: `comando "${view.command}"`, fields: { command: view.command } }),
+      scope,
+    ),
+    react: expiringReactDescriptor<View>(
+      plugin,
+      (view) => {
+        const base = Object.getPrototypeOf(view) as Partial<Pick<BotMessageContext, 'react'>>;
+        return base.react === undefined ? undefined : (base as Pick<BotMessageContext, 'react'>);
+      },
+      scope,
     ),
   };
   return {
@@ -240,6 +290,10 @@ export function listenerViewFactory(
       readonly event: string;
     };
   const kernel = (view: View): KernelMessageContext | undefined => view[KERNEL_CONTEXT];
+  const scope: Scope<View> = (view) => ({
+    label: `listener de "${view.event}"`,
+    fields: { event: view.event },
+  });
   const descriptors: PropertyDescriptorMap = {
     message: {
       get(this: View): Message {
@@ -252,11 +306,8 @@ export function listenerViewFactory(
         return ctx === undefined ? this.payload.text : ctx.text;
       },
     },
-    reply: expiringReplyDescriptor<View>(
-      plugin,
-      (view) => kernel(view)?.reply,
-      (view) => ({ label: `listener de "${view.event}"`, fields: { event: view.event } }),
-    ),
+    reply: expiringReplyDescriptor<View>(plugin, (view) => kernel(view)?.reply, scope),
+    react: expiringReactDescriptor<View>(plugin, kernel, scope),
     log: pluginLogDescriptor(pluginLog),
   } satisfies Record<keyof MessageListenerFields, PropertyDescriptor>;
   return (ctx) => Object.create(ctx, descriptors);

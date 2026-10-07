@@ -28,6 +28,7 @@ describe('eventos do §6.4', () => {
       | 'group.left'
       | 'group.participants'
       | 'group.updated'
+      | 'contact.updated'
       | 'connection.status'
       | 'connection.qr'
       | 'plugin.error';

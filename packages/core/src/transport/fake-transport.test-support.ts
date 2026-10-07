@@ -4,6 +4,7 @@
 import type { Message, MessageOf, MessageType, TextMessage } from '#message/types.ts';
 import { assertCanSend, assertCapability, type Capability } from './capabilities.ts';
 import { TypedEmitter } from './emitter.ts';
+import { messageKey } from './message-key.ts';
 import type {
   GroupMetadata,
   GroupParticipantAction,
@@ -113,8 +114,11 @@ export class TestTransport implements Transport {
   }
 }
 
-export function textMessage(text: string, overrides: Partial<TextMessage> = {}): TextMessage {
-  const message: TextMessage = {
+export function textMessage(
+  text: string,
+  overrides: Partial<Omit<TextMessage, 'key'>> = {},
+): TextMessage {
+  const fields: Omit<TextMessage, 'key'> = {
     type: 'text',
     id: 'msg-1',
     chat: { id: 'chat@test', isGroup: false },
@@ -132,5 +136,6 @@ export function textMessage(text: string, overrides: Partial<TextMessage> = {}):
     },
     ...overrides,
   };
-  return message;
+  // Derivada depois dos overrides, como `createMessage`: segue o chat e o remetente finais.
+  return { ...fields, key: messageKey(fields) };
 }

@@ -1,7 +1,13 @@
 // Contrato da fila de saída (M1-12, ADR 0019). O M1-12 completa este arquivo; os nomes
 // exportados aqui são usados por outros módulos e não mudam.
 
-import type { MediaInput, MessageKey, OutgoingContent, SendOptions } from '#transport/types.ts';
+import type {
+  MediaInput,
+  MessageKey,
+  OutgoingContent,
+  Presence,
+  SendOptions,
+} from '#transport/types.ts';
 
 /** Prioridade na fila: comandos respondem antes de broadcasts. */
 export type SendPriority = 'high' | 'normal' | 'low';
@@ -18,6 +24,28 @@ export interface Sender {
     content: OutgoingContent,
     options?: OutboundSendOptions,
   ): Promise<MessageKey>;
+}
+
+/** Opções das ações da fila que não são envio (ADR 0040). */
+export interface ActionOptions {
+  /** Padrão: `'normal'`. */
+  readonly priority?: SendPriority;
+}
+
+/**
+ * `ctx.send`: tudo o que gera tráfego sobre mensagens e chats, sempre pela fila de saída (ADR
+ * 0019, ADR 0040). Cada ação confere a capability antes de enfileirar e, sem ela, rejeita com
+ * `UnsupportedError`.
+ */
+export interface Outbound extends Sender {
+  /** Reage à mensagem; `emoji: null` remove a reação (capability `reactions`). */
+  react(key: MessageKey, emoji: string | null, options?: ActionOptions): Promise<void>;
+  /** Troca o texto da mensagem (capability `message.edit`). */
+  edit(key: MessageKey, text: string, options?: ActionOptions): Promise<void>;
+  /** Apaga a mensagem para todos (capability `message.delete`). */
+  delete(key: MessageKey, options?: ActionOptions): Promise<void>;
+  /** "Digitando", "gravando" etc. no chat (capability `presence`). */
+  presence(chatId: string, presence: Presence, options?: ActionOptions): Promise<void>;
 }
 
 /** Opções de `ctx.reply`. A citação da mensagem original é automática. */

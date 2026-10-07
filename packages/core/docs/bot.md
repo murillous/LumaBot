@@ -178,11 +178,12 @@ antes de repassá-los ao barramento:
 | `reaction` | `chat.id` | barra `fromMe: true` |
 | `message.deleted` | `chat.id` | barra `fromMe: true` |
 | `group.participants`, `group.updated` | `groupId` | — |
-| `group.joined`, `group.left` | sempre passam | — |
+| `group.joined`, `group.left`, `contact.updated` | sempre passam | — |
 | `connection.status`, `connection.qr` | — | — |
 
 `group.joined` e `group.left` passam mesmo com o grupo bloqueado: são o ciclo de vida do próprio
-bot no grupo e servem para o plugin limpar estado. Esses eventos esperam o fim do boot (um evento
+bot no grupo e servem para o plugin limpar estado. `contact.updated` não é de um chat: o mesmo
+contato aparece em chats liberados. Esses eventos esperam o fim do boot (um evento
 que chega durante o `setup` de um plugin não se perde), mas não entram na fila do chat: uma reação
 pode chegar aos listeners antes de a mensagem reagida terminar de ser processada. Middlewares do
 app não veem esses eventos.

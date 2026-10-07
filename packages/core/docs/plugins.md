@@ -185,7 +185,8 @@ registrou pelo contexto. Um `setup` que estoura o prazo continua rodando em segu
 (não há como abortar código síncrono/arbitrário); a fábrica deve fazer o contexto recusar
 registros depois do `dispose`, para o setup atrasado não deixar nada para trás — a do `Bot` lança
 `PluginHostStateError` em `commands.add`, `events.on`, `services.provide` e `scheduler.on`, e
-rejeita com `ContextExpiredError` `send`, `storage` (KV e coleções) e `scheduler.at`/`cancel`.
+rejeita com `ContextExpiredError` `send` (com as ações), `groups`, `storage` (KV e coleções) e
+`scheduler.at`/`cancel`.
 
 `dispose(reason?)` recebe a falha do `setup` quando ele falhou ou estourou o prazo; a do `Bot` a
 usa como `reason` do `ctx.signal`, que aborta no `dispose`.
@@ -202,8 +203,53 @@ detalhes em [Bot](bot.md#prazos-e-cancelamento-ctxsignal)).
   ou no descarte do plugin, o que vier antes: repasse a `fetch`/SDKs e confira `signal.aborted`
   antes de efeitos.
 - Depois do prazo, o `reply` daquele contexto rejeita com `ContextExpiredError`; depois do
-  descarte, o `reply` de toda execução do plugin e `send`/`storage`/`scheduler.at` também.
+  descarte, o `reply` de toda execução do plugin e `send`/`groups`/`storage`/`scheduler.at`
+  também. O atalho `react` segue a mesma regra do `reply`.
 - Código síncrono travado (laço, CPU pesada) bloqueia o processo inteiro: nenhum prazo resolve.
+
+## Agir no canal: ações e leituras
+
+Tudo o que o transport sabe fazer chega ao plugin pela API pública, sem `ctx.unsafe.native`
+([ADR 0040](../../../docs/adr/0040-acoes-do-transport-no-plugin.md)):
+
+```ts
+setup(ctx) {
+  ctx.commands.add(command({
+    name: 'todos',
+    role: 'group-admin',
+    run: async (c) => {
+      const { participants } = await ctx.groups.metadata(c.message.chat.id);
+      await c.reply('@todos', { mentions: participants.map((p) => p.id) });
+      await c.react('📣'); // reage à mensagem do comando
+    },
+  }));
+}
+```
+
+| No contexto | O que faz | Capability | Pela fila |
+| --- | --- | --- | --- |
+| `ctx.send.send(chatId, content)` | envia | `send.<tipo>` | sim |
+| `ctx.send.react(key, emoji)` | reage; `null` remove | `reactions` | sim |
+| `ctx.send.edit(key, text)` | troca o texto | `message.edit` | sim |
+| `ctx.send.delete(key)` | apaga para todos | `message.delete` | sim |
+| `ctx.send.presence(chatId, presence)` | digitando, gravando… | `presence` | sim |
+| `ctx.groups.metadata(groupId)` | assunto, descrição, participantes | `groups` | não (leitura) |
+| `ctx.groups.updateParticipants(groupId, ids, action)` | add, remove, promote, demote | `groups.admin` | sim |
+| `ctx.commands.list()` | comandos de todos os plugins (`plugin`, `name`, `aliases`, `description`, `role`) | — | — |
+| `ctx.self` | contato da sessão; `null` até a primeira conexão | — | — |
+| `ctx.capabilities` | `ReadonlySet` do que o transport suporta | — | — |
+
+- As ações aceitam `{ priority }` (padrão `'normal'`). O atalho `c.react(emoji)`, no comando e nos
+  listeners de mensagem, usa a chave da mensagem recebida e prioridade `'high'`, como o `reply`.
+- A chave vem de `message.key`; para a mensagem citada, `message.quoted.key`. O `send` devolve a
+  chave da mensagem criada, para editá-la ou apagá-la depois.
+- Sem a capability, a ação rejeita na hora com `UnsupportedError`. Para recurso opcional,
+  confira antes: `if (ctx.capabilities.has('reactions')) await c.react('👍'); else await c.reply('ok')`.
+  Para recurso obrigatório, declare em `requires`.
+- O kernel não restringe `edit`/`delete` às mensagens do bot: o transport decide o que o canal
+  permite.
+- `ctx.groups.metadata` não tem cache nem prazo próprio: o prazo da execução (comando, listener,
+  job) limita quem espera.
 
 ## Versão do core
 
