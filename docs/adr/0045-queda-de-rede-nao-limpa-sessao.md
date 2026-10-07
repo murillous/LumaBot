@@ -1,4 +1,4 @@
-# ADR 0044 — Queda de rede nunca limpa a sessão
+# ADR 0045 — Queda de rede nunca limpa a sessão
 
 **Status:** Aceito (2026-10-07) · Detalha **D03** ([ADR 0003](0003-transport-abstrato.md)) e
 **D37** ([ADR 0037](0037-transport-por-fabrica.md))

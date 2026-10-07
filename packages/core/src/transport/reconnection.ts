@@ -5,7 +5,7 @@
 // - devolve o atraso junto da ação, em vez de cada executor ter os seus `setTimeout` fixos;
 // - o intervalo mínimo entre limpezas funciona (no legacy um `|| 60000` o anulava);
 // - queda de rede nunca limpa a sessão: o legacy limpava após 3 tentativas, e uma queda de
-//   ~30 s apagava credenciais válidas (ADR 0044).
+//   ~30 s apagava credenciais válidas (ADR 0045).
 
 import type { DisconnectReason } from './types.ts';
 

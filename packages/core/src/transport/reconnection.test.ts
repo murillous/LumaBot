@@ -31,7 +31,7 @@ describe('ReconnectionPolicy', () => {
     expect(policy.state.reconnectAttempts).toBe(4);
   });
 
-  it('queda de rede nunca limpa a sessão, por mais tentativas que leve (ADR 0044)', () => {
+  it('queda de rede nunca limpa a sessão, por mais tentativas que leve (ADR 0045)', () => {
     const policy = new ReconnectionPolicy();
     for (let i = 0; i < 100; i++) {
       expect(policy.decide(i % 2 === 0 ? 'connection-lost' : 'unknown')).toMatchObject({

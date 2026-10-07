@@ -63,4 +63,5 @@ o anterior, e o antigo passa a apontar para ele no Status.
 | [0041](0041-reload-em-cascata.md) | D41 | Reload de plugin em cascata pelos dependentes (detalha D17/D18) | Aceito |
 | [0042](0042-handler-lento-segura-o-chat.md) | D42 | Comando e listener lentos seguram o chat (detalha D05/D12) | Aceito |
 | [0043](0043-prazo-de-middleware.md) | D43 | Middleware do app tem prazo, contado fora do `next()` (detalha D12) | Aceito |
-| [0044](0044-queda-de-rede-nao-limpa-sessao.md) | D44 | Queda de rede nunca limpa a sessão (detalha D03/D37) | Aceito |
+| [0044](0044-espera-pelo-bot-assentar.md) | D44 | `bot.settled()` espera o bot processar o que recebeu (detalha D22/D34) | Aceito |
+| [0045](0045-queda-de-rede-nao-limpa-sessao.md) | D45 | Queda de rede nunca limpa a sessão (detalha D03/D37) | Aceito |
