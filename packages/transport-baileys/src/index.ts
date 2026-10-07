@@ -36,8 +36,14 @@ export function baileys(options: BaileysOptions = {}): (deps: TransportDeps) => 
 function driver(fixed: WAVersion | undefined, deps: TransportDeps): BaileysDriver {
   let latest: Promise<WAVersion> | undefined;
   return {
-    makeSocket: ({ auth, logger, version }) =>
-      makeWASocket({ auth, logger, version, browser: Browsers.ubuntu('Chrome') }),
+    makeSocket: ({ auth, logger, version, cachedGroupMetadata }) =>
+      makeWASocket({
+        auth,
+        logger,
+        version,
+        cachedGroupMetadata,
+        browser: Browsers.ubuntu('Chrome'),
+      }),
     version: () => {
       if (fixed) return Promise.resolve(fixed);
       // Uma busca por transport: a versão não muda entre reconexões do mesmo processo.
