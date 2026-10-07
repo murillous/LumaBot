@@ -505,6 +505,7 @@ describe('createPluginHost — reload', () => {
     expect(calls).toEqual(['teardown:ai', 'dispose:ai', 'context:ai', 'setup:ai#2']);
     expect(result).toEqual({
       entry: { name: 'ai', version: '1.0.0', origin: 'config', status: 'loaded' },
+      dependents: [],
       errors: [],
     });
   });
@@ -547,6 +548,105 @@ describe('createPluginHost — reload', () => {
     await expect(h.reload('off')).rejects.toThrow(/desabilitado/);
     await h.stop();
     await expect(h.reload('off')).rejects.toThrow(/stopped/);
+  });
+
+  it('recarrega em cascata quem depende dele: descem na ordem inversa, sobem na de carga', async () => {
+    const calls: string[] = [];
+    const lifecycle = {
+      teardown: (ctx: PluginContext) => void calls.push(`teardown:${ctx.plugin.name}`),
+    };
+    const h = createPluginHost({
+      plugins: entries(
+        plugin('resumo', { dependsOn: { ai: '^1.0.0' }, ...lifecycle }),
+        plugin('ai', lifecycle),
+        plugin('ping', { after: ['ai'], ...lifecycle }),
+        plugin('digest', { dependsOn: { resumo: '^1.0.0' }, ...lifecycle }),
+      ),
+      transport: transport('baileys', []),
+      createContext: recordingFactory(calls),
+      log: fakeLogger(),
+      coreVersion: '1.0.0',
+    });
+    await h.start();
+    calls.length = 0;
+    const result = await h.reload('ai');
+    // `ping` só tem `after`: não pega nada de `ai`, então fica de fora.
+    expect(calls).toEqual([
+      'teardown:digest',
+      'dispose:digest',
+      'teardown:resumo',
+      'dispose:resumo',
+      'teardown:ai',
+      'dispose:ai',
+      'context:ai',
+      'context:resumo',
+      'context:digest',
+    ]);
+    expect(result.entry.status).toBe('loaded');
+    expect(statusOf(result.dependents)).toEqual({ resumo: 'loaded', digest: 'loaded' });
+  });
+
+  it('setup novo que falha deixa os dependentes "dependency-skipped"; o reload seguinte os sobe', async () => {
+    let broken = false;
+    const { host: h, calls } = host([
+      plugin('ai', {
+        setup: () => {
+          if (broken) throw new Error('config ruim');
+        },
+      }),
+      plugin('resumo', { dependsOn: { ai: '^1.0.0' } }),
+      plugin('digest', { dependsOn: { resumo: '^1.0.0' } }),
+    ]);
+    await h.start();
+    broken = true;
+    calls.length = 0;
+    const failed = await h.reload('ai');
+    expect(calls).toEqual([
+      'dispose:digest',
+      'dispose:resumo',
+      'dispose:ai',
+      'context:ai',
+      'dispose:ai',
+    ]);
+    expect(statusOf(h.report())).toEqual({
+      ai: 'setup-failed',
+      resumo: 'dependency-skipped',
+      digest: 'dependency-skipped',
+    });
+    expect(failed.dependents.map((entry) => entry.name)).toEqual(['resumo', 'digest']);
+
+    broken = false;
+    await h.reload('ai');
+    expect(statusOf(h.report())).toEqual({ ai: 'loaded', resumo: 'loaded', digest: 'loaded' });
+  });
+
+  it('dependente ignorado por motivo próprio continua ignorado e não sobe', async () => {
+    const { host: h, calls } = host(
+      [plugin('ai'), plugin('resumo', { dependsOn: { ai: '^1.0.0' } })],
+      { disabledPlugins: ['resumo'] },
+    );
+    await h.start();
+    calls.length = 0;
+    const result = await h.reload('ai');
+    expect(calls).toEqual(['dispose:ai', 'context:ai']);
+    expect(statusOf(result.dependents)).toEqual({ resumo: 'disabled' });
+  });
+
+  it('devolve as falhas do teardown dos dependentes', async () => {
+    const { host: h } = host([
+      plugin('ai'),
+      plugin('resumo', {
+        dependsOn: { ai: '^1.0.0' },
+        teardown: () => {
+          throw new Error('x');
+        },
+      }),
+    ]);
+    await h.start();
+    const result = await h.reload('ai');
+    expect(result.errors.map((error) => `${error.plugin}:${error.phase}`)).toEqual([
+      'resumo:teardown',
+    ]);
   });
 
   it('stop pedido durante reload espera o reload terminar', async () => {

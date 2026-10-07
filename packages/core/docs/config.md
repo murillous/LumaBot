@@ -196,7 +196,9 @@ await configs.setOverrides('ai', { model: 'pro' });
 // valida → salva → reload('ai'): teardown → dispose → contexto novo (resolve) → setup
 ```
 
-Sem reiniciar o processo e sem tocar nos outros plugins. As mudanças são serializadas. Se o
+Sem reiniciar o processo. Quem depende do plugin por `dependsOn` recarrega junto, em cascata
+([Plugins](plugins.md#recarregar-um-plugin-reload)); os outros ficam intocados. As mudanças são
+serializadas. Se o
 `reload` rejeitar (ex.: host parado, plugin desabilitado), o override **já foi salvo** e vale no
 próximo boot.
 

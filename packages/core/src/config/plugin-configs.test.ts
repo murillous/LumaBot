@@ -350,6 +350,7 @@ describe('createPluginConfigs: segredos fora do override', () => {
         reloaded.push(name);
         return {
           entry: { name, version: '1.0.0', origin: 'config', status: 'loaded' },
+          dependents: [],
           errors: [],
         };
       },

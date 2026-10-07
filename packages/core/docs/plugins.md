@@ -168,14 +168,33 @@ seguintes não rodam (cada um vira falha com `timedOut: true`), mas o `dispose` 
 ### Recarregar um plugin (`reload`)
 
 ```ts
-const { entry, errors } = await host.reload('sticker');
+const { entry, dependents, errors } = await host.reload('ai');
 ```
 
-`teardown` → `dispose` → contexto novo → `setup`, só desse plugin. É a primitiva do reload por
-mudança de config ([ADR 0017](../../../docs/adr/0017-config-por-plugin-zod.md)): a fábrica lê a
-config já atualizada. Vale para plugin carregado ou cujo `setup` falhou (para tentar de novo);
-os ignorados por incompatibilidade recusam com `PluginHostStateError`. Quem depende do plugin
-não é recarregado. Não há reload de **código** ([ADR 0008](../../../docs/adr/0008-sem-hot-reload.md)).
+`teardown` → `dispose` → contexto novo → `setup`. É a primitiva do reload por mudança de config
+([ADR 0017](../../../docs/adr/0017-config-por-plugin-zod.md)): a fábrica lê a config já
+atualizada. Vale para plugin carregado ou cujo `setup` falhou (para tentar de novo); os ignorados
+por incompatibilidade recusam com `PluginHostStateError`. Não há reload de **código**
+([ADR 0008](../../../docs/adr/0008-sem-hot-reload.md)).
+
+**Em cascata** ([ADR 0041](../../../docs/adr/0041-reload-em-cascata.md)): quem depende do plugin
+por `dependsOn`, direta ou transitivamente, recarrega junto, para não ficar com um serviço do
+contexto descartado. Com `resumo` dependendo de `ai` e `digest` de `resumo`:
+
+```text
+teardown digest → teardown resumo → teardown ai → setup ai → setup resumo → setup digest
+```
+
+Os dependentes são reavaliados como no boot. Se o `setup` novo do plugin falhar, eles ficam
+`dependency-skipped`; um reload seguinte que o suba traz todos de volta. Um dependente ignorado
+por motivo próprio (ex.: desabilitado) continua ignorado. `after` não entra na cascata, porque só
+ordena a carga.
+
+| Campo | O que é |
+|-------|---------|
+| `entry` | Linha nova do plugin na tabela |
+| `dependents` | Linhas novas dos dependentes recarregados, na ordem de carga |
+| `errors` | Falhas de `teardown`/`dispose` das instâncias anteriores, do plugin e dos dependentes |
 
 ### A fábrica de contexto
 
