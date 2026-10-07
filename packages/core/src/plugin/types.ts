@@ -4,6 +4,7 @@
 
 import type { z } from 'zod';
 import type { CommandDefinition } from '#commands/command.ts';
+import type { RoleCheck, RoleName } from '#commands/roles.ts';
 import type { EventSubscriber } from '#events/types.ts';
 import type { Logger } from '#logger/types.ts';
 import type { Sender } from '#outbound/types.ts';
@@ -57,6 +58,12 @@ export interface PluginContext<
    */
   readonly signal: AbortSignal;
   readonly commands: { add(definition: CommandDefinition): void };
+  /**
+   * Papéis custom (ADR 0035): `define('moderador', check)` deixa qualquer plugin exigir
+   * `role: 'moderador'`. O nome vem de `Roles` (declaration merging). Nome reservado lança
+   * `TypeError`; nome que já tem dono, `RoleConflictError`. O papel sai no teardown/reload.
+   */
+  readonly roles: { define<K extends RoleName>(name: K, check: RoleCheck): void };
   readonly events: EventSubscriber;
   readonly services: ServiceAccess;
   readonly storage: PluginStorage;

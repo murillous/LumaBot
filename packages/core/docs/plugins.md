@@ -30,6 +30,8 @@ export const sticker = definePlugin({
     ctx.config.quality;          // number — sai de z.output do schema
     ctx.plugin.messages.needMedia; // só as chaves declaradas em `messages`
     ctx.commands.add(command({ name: 'sticker', run: async (c) => { /* ... */ } }));
+    // Papel que qualquer plugin pode exigir no comando (ver commands.md, "Papéis custom").
+    ctx.roles.define('moderador', (c) => moderadores.has(c.message.sender.id));
   },
 
   teardown(ctx) { /* libera o que o setup abriu fora do ctx */ },

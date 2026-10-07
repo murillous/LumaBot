@@ -136,7 +136,44 @@ citada.
   transport sabe resolver o número; quando não sabe, `phone` é `null` e esse remetente **nunca**
   é owner.
 
-Papéis custom são middleware ([ADR 0024](../../../docs/adr/0024-papeis-no-core.md)).
+### Papéis custom
+
+Um plugin define um papel nomeado no `setup`, e qualquer plugin o exige no comando
+([ADR 0035](../../../docs/adr/0035-papeis-nomeados-por-plugin.md)). O nome é tipado por
+declaration merging, como os serviços:
+
+```ts
+declare module '@zapforge/core' {
+  interface Roles { moderador: true }
+}
+
+// plugin "moderacao"
+setup(ctx) {
+  ctx.roles.define('moderador', async (c) => {
+    const lista = await ctx.storage.kv.get('moderadores');
+    return Array.isArray(lista) && lista.includes(c.message.sender.id);
+  });
+}
+
+// outro plugin, com dependsOn: { moderacao: '^1.0.0' }
+ctx.commands.add(command({ name: 'ban', role: 'moderador', run: (c) => c.reply('banido') }));
+```
+
+- O `check(c)` recebe `message`, `text`, `command` (o comando que exige o papel), `log` (do
+  plugin dono do papel) e `signal`. Só `true` concede.
+- **Owner passa** em qualquer papel, sem chamar o `check`.
+- **Fail-closed**: `check` que lança, rejeita ou estoura `timeouts.commandMs` recusa o comando e
+  vira `plugin.error` (`phase: 'role'`, `event` = papel) **do plugin dono do papel**. No prazo, o
+  `signal` aborta com `RoleTimeoutError`. Checagem síncrona não cria timer.
+- Papel que nenhum plugin carregado define (dono desligado, ignorado ou recarregando) recusa o
+  comando e loga um erro que pede o `dependsOn` no dono do papel.
+- `owner`, `group-admin` e `everyone` são reservados (`TypeError`). Definir um papel que já tem
+  dono, de outro plugin ou do mesmo, lança `RoleConflictError` (`role`, `existing`, `incoming`):
+  o `setup` falha e o plugin que chegou depois fica ignorado, como num conflito de serviço.
+- O papel sai no teardown/reload do plugin que o definiu.
+
+Fora do bot, passe `roles` (de `createRoleRegistry()`) e, se quiser, `onUnknownRole` às opções
+do roteador; o `check` cru não tem prazo nem fail-closed para erros, que viram `failed`.
 
 ## Recusa e `onReject`
 

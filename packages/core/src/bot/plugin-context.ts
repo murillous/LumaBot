@@ -3,11 +3,12 @@
 // host de plugins só recebe a fábrica.
 
 import type { CommandDefinition } from '#commands/command.ts';
+import { type RoleCheck, RoleTimeoutError } from '#commands/roles.ts';
 import type { CommandRouter } from '#commands/router.ts';
 import type { PluginConfigs } from '#config/plugin-configs.ts';
 import { ContextExpiredError, Deadline, ExecutionTimeoutError, settleWithin } from '#deadline.ts';
 import type { EventBus } from '#events/bus.ts';
-import type { BotEventName, EventSubscriber } from '#events/types.ts';
+import type { BotEventName, EventSubscriber, PluginErrorEvent } from '#events/types.ts';
 import type { Logger } from '#logger/types.ts';
 import type { OutboundSendOptions, Sender } from '#outbound/types.ts';
 import { type PluginContextFactory, PluginHostStateError } from '#plugin/host.ts';
@@ -27,7 +28,12 @@ import type {
 } from '#storage/types.ts';
 import type { OutgoingContent, Unsubscribe } from '#transport/types.ts';
 import type { UnsafeAccess } from '#unsafe/access.ts';
-import { type CommandViews, commandViewFactory, listenerViewFactory } from './message-context.ts';
+import {
+  type CommandViews,
+  commandViewFactory,
+  listenerViewFactory,
+  roleViewFactory,
+} from './message-context.ts';
 
 export interface PluginContextDeps {
   readonly configs: PluginConfigs;
@@ -43,6 +49,8 @@ export interface PluginContextDeps {
   readonly commandTimeoutMs: number;
   /** Destino da rejeição de um `run` que chegou depois do prazo (já reportado como timeout). */
   readonly onLateCommandError: (plugin: string, command: string, error: unknown) => void;
+  /** Checagem de papel custom que lançou, rejeitou ou estourou o prazo (`phase: 'role'`). */
+  readonly onRoleError: (event: PluginErrorEvent) => void;
 }
 
 /** Parte do comando que roda código de plugin com prazo. */
@@ -109,6 +117,7 @@ export function createPluginContextFactory(deps: PluginContextDeps): PluginConte
 
     const commandViews = commandViewFactory(name, log);
     const listenerView = listenerViewFactory(name, log);
+    const roleView = roleViewFactory(log);
     // Nos eventos de mensagem, cada listener recebe a visão com `message`/`text`/`reply`/`log`
     // do plugin; o barramento a cria (uma por listener) e pendura nela o `Deadline`.
     const events = deps.bus.forPlugin(name, {
@@ -128,6 +137,16 @@ export function createPluginContextFactory(deps: PluginContextDeps): PluginConte
         add(definition: CommandDefinition): void {
           guard('commands.add');
           deps.router.registry.add(name, wrapCommand(name, definition, commandViews, deps));
+        },
+      },
+      roles: {
+        define(role, check) {
+          guard('roles.define');
+          deps.router.roles.define(
+            name,
+            role,
+            wrapRoleCheck(name, role, check, roleView, log, deps),
+          );
         },
       },
       events: {
@@ -172,6 +191,7 @@ export function createPluginContextFactory(deps: PluginContextDeps): PluginConte
           reason ?? new PluginHostStateError(`plugin "${name}": contexto descartado`),
         );
         deps.router.registry.removePlugin(name);
+        deps.router.roles.removePlugin(name);
         deps.bus.removePlugin(name);
         deps.services.removePlugin(name);
         deps.scheduler.removePlugin(name);
@@ -257,5 +277,51 @@ function wrapCommand(
       onReject: (ctx, rejection) =>
         timed('onReject', (deadline) => onReject(views.run(ctx, deadline), rejection)),
     }),
+  };
+}
+
+/**
+ * Checagem de papel com prazo e fail-closed (ADR 0035): lançar, rejeitar ou estourar o prazo
+ * recusa o comando e vira `plugin.error` do plugin dono do papel, não do dono do comando. Nunca
+ * lança. Checagem síncrona passa direto, sem timer.
+ */
+function wrapRoleCheck(
+  plugin: string,
+  role: string,
+  check: RoleCheck,
+  view: ReturnType<typeof roleViewFactory>,
+  log: Logger,
+  deps: Pick<PluginContextDeps, 'commandTimeoutMs' | 'onRoleError'>,
+): RoleCheck {
+  const refuse = (error: unknown): false => {
+    deps.onRoleError({
+      plugin,
+      phase: 'role',
+      event: role,
+      error,
+      timedOut: error instanceof RoleTimeoutError,
+    });
+    return false;
+  };
+  return (ctx) => {
+    const deadline = new Deadline();
+    let result: unknown;
+    try {
+      result = check(view(ctx, deadline));
+    } catch (error) {
+      return refuse(error);
+    }
+    const settled = settleWithin(
+      result,
+      deps.commandTimeoutMs,
+      () => {
+        const error = new RoleTimeoutError(plugin, role, deps.commandTimeoutMs);
+        deadline.expire(error);
+        return error;
+      },
+      (error) => log.error(`papel "${role}" rejeitou depois do prazo`, { role, err: error }),
+    );
+    if (!(settled instanceof Promise)) return settled === true;
+    return settled.then((granted) => granted === true, refuse);
   };
 }
