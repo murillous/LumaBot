@@ -25,6 +25,15 @@ export type {
 } from '#commands/router.ts';
 export { createCommandRouter } from '#commands/router.ts';
 export type { MessageContext } from '#context.ts';
+export {
+  createEventBus,
+  DEFAULT_LISTENER_TIMEOUT_MS,
+  type EmitExtras,
+  type EmitResult,
+  type EmittableEventName,
+  type EventBus,
+  type EventBusOptions,
+} from '#events/bus.ts';
 // Contratos do M1-7 a M1-15 (implementações nos PRs de cada item).
 export type {
   BotEventName,
@@ -32,10 +41,19 @@ export type {
   EventSubscriber,
   Listener,
   ListenerContext,
+  ListenerExtras,
   ListenerOptions,
+  MessageFilter,
   MessageTypeEvents,
   PluginErrorEvent,
+  SubscribeOptions,
 } from '#events/types.ts';
+export {
+  createLogger,
+  createNoopLogger,
+  type LogDestination,
+  type LoggerOptions,
+} from '#logger/logger.ts';
 export type { LogFields, Logger, LogLevel } from '#logger/types.ts';
 export { createMessage, type MessageInit } from '#message/create.ts';
 export { createMedia, type MediaSource } from '#message/media.ts';
@@ -80,7 +98,65 @@ export {
   type SanitizeOptions,
   sanitize,
 } from '#middleware/sanitize.ts';
-export type { OutboundSendOptions, Sender, SendPriority } from '#outbound/types.ts';
+export {
+  type HumanizeOptions,
+  type OutboundCloseOptions,
+  OutboundQueue,
+  OutboundQueueError,
+  type OutboundQueueOptions,
+  type OutboundQueueStats,
+  type OutboundTransport,
+  type RetryOptions,
+} from '#outbound/queue.ts';
+export { type CreateReplyOptions, createReply } from '#outbound/reply.ts';
+export type {
+  OutboundSendOptions,
+  Reply,
+  ReplyAudioOptions,
+  ReplyDocumentOptions,
+  ReplyMediaOptions,
+  ReplyOptions,
+  ReplyPollOptions,
+  Sender,
+  SendPriority,
+} from '#outbound/types.ts';
+export {
+  assertPluginDefinition,
+  definePlugin,
+  manifestIssues,
+  PLUGIN_NAME_PATTERN,
+  PluginManifestError,
+} from '#plugin/define.ts';
+export {
+  createPluginHost,
+  DEFAULT_SETUP_TIMEOUT_MS,
+  DEFAULT_TEARDOWN_TIMEOUT_MS,
+  PluginConflictError,
+  type PluginContextFactory,
+  type PluginContextHandle,
+  type PluginHost,
+  type PluginHostOptions,
+  type PluginHostState,
+  PluginHostStateError,
+  type PluginReloadResult,
+} from '#plugin/host.ts';
+export { type OrderableManifest, PluginCycleError, sortPlugins } from '#plugin/order.ts';
+export {
+  describeSkipReason,
+  formatBootTable,
+  PluginLifecycleError,
+  type PluginPhase,
+  type PluginReportEntry,
+  type PluginSkipReason,
+} from '#plugin/report.ts';
+export { isValidRange, satisfies } from '#plugin/semver.ts';
+export {
+  type CollectPluginsOptions,
+  collectPlugins,
+  discoverPlugins,
+  PluginDiscoveryError,
+  type PluginEntry,
+} from '#plugin/sources.ts';
 export type {
   PluginContext,
   PluginDefinition,
@@ -95,6 +171,12 @@ export type {
 } from '#queue/inbound.ts';
 export { InboundQueue } from '#queue/inbound.ts';
 export type { JobHandler, Scheduler } from '#scheduler/types.ts';
+export type { ProvidedService, ServiceRegistry } from '#services/registry.ts';
+export {
+  createServiceRegistry,
+  ServiceConflictError,
+  ServiceNotFoundError,
+} from '#services/registry.ts';
 export type { ServiceAccess, ServiceName, Services } from '#services/types.ts';
 export { ReservedNamespaceError, StorageClosedError } from '#storage/errors.ts';
 export { createMemoryStorage } from '#storage/memory.ts';
@@ -170,4 +252,10 @@ export type {
   TransportEvents,
   Unsubscribe,
 } from '#transport/types.ts';
+export {
+  createUnsafeAccess,
+  type UnsafeAccess,
+  type UnsafeAccessOptions,
+} from '#unsafe/access.ts';
 export type { Unsafe } from '#unsafe/types.ts';
+export { CORE_VERSION } from '#version.ts';

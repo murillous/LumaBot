@@ -11,3 +11,9 @@ Como usar o kernel. O porquê das decisões está nos [ADRs](../../../docs/adr/R
 | [Middlewares](middleware.md) | Pipeline em onion com prioridade e os middlewares oficiais |
 | [Comandos](commands.md) | `command()`, prefixo, aliases, args, `accepts`, `role`, conflitos |
 | [Storage](storage.md) | KV e coleções por plugin, auth state, adapter em memória e suíte de contrato |
+| [Plugins](plugins.md) | `definePlugin`, manifesto, fontes (config + `pluginDirs`), ordem, tabela de boot, `setup`/`teardown`/`reload` |
+| [Fila de saída](outbound-queue.md) | `OutboundQueue`: taxa global/por chat, prioridade, retry, humanização; `createReply` |
+| [Eventos](events.md) | Barramento: eventos do §6.4, filtros, prioridade, `claim()`, isolamento |
+| [Services](services.md) | `ctx.services`: `provide`/`get` tipados por declaration merging, erros, registry |
+| [Logger](logger.md) | `createLogger`, níveis, contexto `plugin`/`chatId`, `err`, redação de segredos |
+| [Escape hatch](unsafe.md) | `ctx.unsafe.native`, aviso no log e `transports` no manifesto |
