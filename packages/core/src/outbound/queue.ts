@@ -59,6 +59,18 @@ export interface OutboundQueueOptions {
    * presença é cosmética e quem chamou `send` só se importa com a mensagem.
    */
   readonly onPresenceError?: (error: unknown, chatId: string) => void;
+  /**
+   * Quanto o que aguarda pode esperar com a fila pausada (conexão caída), em ms. Estourado, rejeita
+   * com `OutboundQueueError` `'disconnected'`, e envios novos rejeitam na hora até o `resume()`.
+   * Padrão: 60000 (cobre o ciclo de reconexão padrão, 5 + 10 + 15 s). `Infinity` desliga.
+   */
+  readonly maxPauseMs?: number;
+  /**
+   * Prazo de cada chamada ao transport (presença e envio), em ms. Estourado, o envio rejeita com
+   * `OutboundQueueError` `'timeout'`, sem re-tentar, e libera o chat. Padrão: 30000. `Infinity`
+   * desliga.
+   */
+  readonly sendTimeoutMs?: number;
   /** Relógio em ms. Padrão: `performance.now` (monotônico). */
   readonly clock?: () => number;
   /** Fonte do jitter do backoff, em [0, 1). Padrão: `Math.random`. */
@@ -76,8 +88,10 @@ export interface OutboundQueueStats {
   /** Envios que rejeitaram com o erro final. */
   readonly failed: number;
   readonly retries: number;
-  /** Recusadas (fila cheia ou fechada) ou descartadas no `close({ drain: false })`. */
+  /** Recusadas (fila cheia, fechada ou desconectada) ou descartadas sem envio. */
   readonly dropped: number;
+  /** Despacho pausado pela conexão caída. */
+  readonly paused: boolean;
 }
 
 export interface OutboundCloseOptions {
@@ -88,12 +102,17 @@ export interface OutboundCloseOptions {
   readonly drain?: boolean;
 }
 
-/** `send` recusado pela fila: backlog cheio ou fila fechada. */
+export type OutboundQueueErrorReason = 'full' | 'closed' | 'disconnected' | 'timeout';
+
+/**
+ * Envio recusado ou abandonado pela fila: backlog cheio, fila fechada, conexão caída além de
+ * `maxPauseMs` ou transport sem resposta em `sendTimeoutMs`.
+ */
 export class OutboundQueueError extends Error {
   override readonly name = 'OutboundQueueError';
-  readonly reason: 'full' | 'closed';
+  readonly reason: OutboundQueueErrorReason;
 
-  constructor(reason: 'full' | 'closed', message: string) {
+  constructor(reason: OutboundQueueErrorReason, message: string) {
     super(message);
     this.reason = reason;
   }
@@ -116,6 +135,8 @@ const DEFAULTS = {
   maxAttempts: 3,
   baseDelayMs: 1000,
   maxDelayMs: 30_000,
+  maxPauseMs: 60_000,
+  sendTimeoutMs: 30_000,
   msPerChar: 50,
   minMs: 500,
   maxMs: 3000,
@@ -205,6 +226,8 @@ export class OutboundQueue implements Sender {
   readonly #isRetryable: (error: unknown) => boolean;
   readonly #humanize: Required<HumanizeOptions> | null;
   readonly #onPresenceError: ((error: unknown, chatId: string) => void) | undefined;
+  readonly #maxPauseMs: number;
+  readonly #sendTimeoutMs: number;
   readonly #clock: () => number;
   readonly #random: () => number;
 
@@ -229,6 +252,10 @@ export class OutboundQueue implements Sender {
   #idleWaiters: (() => void)[] = [];
   #closed = false;
   #discarding = false;
+  #paused = false;
+  // Pausada além do teto: o que chega rejeita na hora, em vez de acumular sem previsão de saída.
+  #offline = false;
+  #pauseTimer: NodeJS.Timeout | undefined;
   #inFlight = 0;
   #sent = 0;
   #failed = 0;
@@ -268,6 +295,16 @@ export class OutboundQueue implements Sender {
     this.#isRetryable = retry.isRetryable ?? isTransient;
     this.#humanize = resolveHumanize(options.humanize, options.transport);
     this.#onPresenceError = options.onPresenceError;
+    const maxPauseMs = options.maxPauseMs ?? DEFAULTS.maxPauseMs;
+    if (!(maxPauseMs >= 0)) {
+      throw new RangeError(`maxPauseMs deve ser >= 0 ou Infinity (recebido: ${maxPauseMs})`);
+    }
+    this.#maxPauseMs = maxPauseMs;
+    const sendTimeoutMs = options.sendTimeoutMs ?? DEFAULTS.sendTimeoutMs;
+    if (!(sendTimeoutMs > 0)) {
+      throw new RangeError(`sendTimeoutMs deve ser > 0 ou Infinity (recebido: ${sendTimeoutMs})`);
+    }
+    this.#sendTimeoutMs = sendTimeoutMs;
     this.#clock = options.clock ?? (() => performance.now());
     this.#random = options.random ?? Math.random;
   }
@@ -285,6 +322,15 @@ export class OutboundQueue implements Sender {
       this.#dropped++;
       return Promise.reject(
         new OutboundQueueError('closed', `fila de saída fechada: envio para ${chatId} recusado`),
+      );
+    }
+    if (this.#offline) {
+      this.#dropped++;
+      return Promise.reject(
+        new OutboundQueueError(
+          'disconnected',
+          `conexão caída há mais de ${this.#maxPauseMs} ms: envio para ${chatId} recusado`,
+        ),
       );
     }
     const priority = PRIORITY_INDEX.get(options?.priority ?? 'normal');
@@ -337,11 +383,47 @@ export class OutboundQueue implements Sender {
       failed: this.#failed,
       retries: this.#retries,
       dropped: this.#dropped,
+      paused: this.#paused,
     };
   }
 
   get closed(): boolean {
     return this.#closed;
+  }
+
+  get paused(): boolean {
+    return this.#paused;
+  }
+
+  /**
+   * Para de despachar (a conexão caiu): o que aguarda e o que chegar esperam o `resume()`, até
+   * `maxPauseMs`. Envios em andamento terminam; se falharem, a re-tentativa também espera.
+   */
+  pause(): void {
+    if (this.#paused) return;
+    this.#paused = true;
+    if (this.#maxPauseMs === Number.POSITIVE_INFINITY) return;
+    this.#pauseTimer = setTimeout(() => {
+      this.#pauseTimer = undefined;
+      this.#offline = true;
+      this.#rejectWaiting(
+        () =>
+          new OutboundQueueError(
+            'disconnected',
+            `conexão caída há mais de ${this.#maxPauseMs} ms: envio descartado`,
+          ),
+      );
+    }, this.#maxPauseMs);
+  }
+
+  /** Volta a despachar (a conexão abriu), inclusive depois de estourado o `maxPauseMs`. */
+  resume(): void {
+    if (!this.#paused) return;
+    this.#paused = false;
+    this.#offline = false;
+    clearTimeout(this.#pauseTimer);
+    this.#pauseTimer = undefined;
+    this.#pump();
   }
 
   /** Resolve quando não há mensagem aguardando nem em andamento. Não impede novos envios. */
@@ -398,7 +480,7 @@ export class OutboundQueue implements Sender {
   }
 
   #pump(): void {
-    if (this.#pumping) return;
+    if (this.#pumping || this.#paused) return;
     this.#pumping = true;
     try {
       for (;;) {
@@ -465,7 +547,10 @@ export class OutboundQueue implements Sender {
     job.attempts++;
     try {
       if (this.#humanize !== null) await this.#simulate(chat.id, job.content, this.#humanize);
-      const key = await this.#transport.send(chat.id, job.content, job.options);
+      const key = await this.#withTimeout(
+        this.#transport.send(chat.id, job.content, job.options),
+        `envio para ${chat.id}`,
+      );
       this.#sent++;
       job.resolve(key);
     } catch (error) {
@@ -486,7 +571,14 @@ export class OutboundQueue implements Sender {
   #handleFailure(chat: ChatState, job: Job, error: unknown): void {
     let retryable: boolean;
     try {
-      retryable = !this.#discarding && job.attempts < this.#maxAttempts && this.#isRetryable(error);
+      // Prazo estourado não re-tenta: o transport pode ainda entregar, e reenviar duplicaria.
+      // Pausada além do teto, a re-tentativa ficaria parada sem previsão.
+      retryable =
+        !this.#discarding &&
+        !this.#offline &&
+        !(error instanceof OutboundQueueError) &&
+        job.attempts < this.#maxAttempts &&
+        this.#isRetryable(error);
     } catch (hookError) {
       this.#failed++;
       job.reject(new AggregateError([hookError, error], 'retry.isRetryable lançou'));
@@ -502,6 +594,22 @@ export class OutboundQueue implements Sender {
     chat.pending++;
     this.#pendingBy[job.priority]++;
     chat.readyAt = Math.max(chat.readyAt, this.#clock() + this.#backoff(job.attempts));
+  }
+
+  /**
+   * Corre `operation` contra `sendTimeoutMs`. O resultado tardio é ignorado de propósito: quem
+   * chamou `send` já recebeu o `'timeout'`, e o `race` mantém um handler na promise original.
+   */
+  #withTimeout<T>(operation: Promise<T>, what: string): Promise<T> {
+    if (this.#sendTimeoutMs === Number.POSITIVE_INFINITY) return operation;
+    let timer: NodeJS.Timeout | undefined;
+    const timeout = new Promise<never>((_resolve, reject) => {
+      timer = setTimeout(() => {
+        const message = `${what}: transport sem resposta em ${this.#sendTimeoutMs} ms`;
+        reject(new OutboundQueueError('timeout', message));
+      }, this.#sendTimeoutMs);
+    });
+    return Promise.race([operation, timeout]).finally(() => clearTimeout(timer));
   }
 
   /** Exponencial com teto e jitter "igual": metade fixa, metade aleatória. */
@@ -530,7 +638,10 @@ export class OutboundQueue implements Sender {
       return;
     }
     try {
-      await this.#transport.sendPresence(chatId, presence);
+      await this.#withTimeout(
+        this.#transport.sendPresence(chatId, presence),
+        `presença em ${chatId}`,
+      );
     } catch (error) {
       // Presença é cosmética: a falha vai para o destino configurado e o envio segue já.
       this.#onPresenceError?.(error, chatId);
@@ -541,8 +652,15 @@ export class OutboundQueue implements Sender {
 
   #discard(): void {
     this.#discarding = true;
-    const error = (): OutboundQueueError =>
-      new OutboundQueueError('closed', 'fila de saída fechada sem drenar: envio descartado');
+    clearTimeout(this.#pauseTimer);
+    this.#pauseTimer = undefined;
+    this.#rejectWaiting(
+      () => new OutboundQueueError('closed', 'fila de saída fechada sem drenar: envio descartado'),
+    );
+  }
+
+  /** Rejeita tudo o que aguarda, inclusive re-tentativas; os envios em andamento seguem. */
+  #rejectWaiting(error: () => OutboundQueueError): void {
     for (const chat of this.#chats.values()) {
       const waiting: Job[] = chat.retry === null ? [] : [chat.retry];
       for (const fifo of chat.jobs) {

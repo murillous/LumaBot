@@ -34,7 +34,7 @@ Só `transport` é obrigatório; `createBot({ transport })` sobe um bot sem plug
 | `secrets` | um novo | `SecretSet` compartilhado entre a config de plugin e o logger (ver abaixo) |
 | `middlewares` | ver [Middlewares](#middlewares) | Oficiais ligados/desligados e os do app |
 | `inbound` | `{ maxPendingPerChat: 100 }` | [Fila de entrada](inbound-queue.md) |
-| `outbound` | padrões da fila | [Fila de saída](outbound-queue.md): taxa, `maxPending`, `retry`, `humanize` |
+| `outbound` | padrões da fila | [Fila de saída](outbound-queue.md): taxa, `maxPending`, `retry`, `humanize`, `maxPauseMs`, `sendTimeoutMs` |
 | `reconnection` | ligada | Opções da `ReconnectionPolicy` + `clearSession`; `false` desliga ([Reconexão](#reconexão)) |
 | `timeouts` | `setupMs` 10000, `teardownMs` 5000, `commandMs` 30000, `listenerMs` 30000, `jobMs` 30000 | Prazos do código de plugin |
 | `shutdown` | `hookTimeoutMs` 5000, `timeoutMs` 15000 | Prazos dos ganchos de parada |
@@ -325,7 +325,7 @@ enquanto os plugins sobem, o transport nem conecta (sem QR nem handshake à toa)
 | 2 | `fila-de-entrada` | 4 s | Drena: as mensagens já aceitas terminam de ser processadas; estourado o prazo, descarta as que aguardam |
 | 3 | `scheduler` | 2 s | Desarma o timer e espera os jobs em andamento; estourado o prazo, abandona-os (o job fica no storage e dispara na próxima subida) |
 | 4 | `plugins` | 5 s | `teardown` de cada plugin, na ordem inversa da carga; estourado o prazo, o teardown em curso é abandonado e os seguintes não rodam |
-| 5 | `fila-de-saida` | 3 s | Drena os envios; estourado o prazo, descarta o resto (`close({ drain: false })`) |
+| 5 | `fila-de-saida` | 3 s | Drena os envios; estourado o prazo, descarta o resto (`close({ drain: false })`). Com a conexão caída, descarta já: a reconexão parou no gancho 1 |
 | — | ganchos do app registrados **antes** do `start()` | | |
 | — | abandono dos internos | sem prazo | Encerra à força o que os ganchos internos não encerraram (abaixo) |
 | — | `transport.disconnect()` | sem prazo | só se o `connect()` chegou a ser chamado |
@@ -389,6 +389,9 @@ O transport avisa as quedas por `connection.status`; a `ReconnectionPolicy`
 - `connection.qr` conta para o limite de QRs da política, vai para o log em `info` (campo `qr`) e
   para o barramento (um plugin pode desenhar o QR).
 - `connection.status`/`connection.qr` também chegam aos listeners.
+- Do `closed` ao `open`, a fila de saída fica pausada: as respostas esperam a reconexão em vez de
+  esgotar o retry, até `outbound.maxPauseMs` (padrão 60 s; depois, rejeitam com
+  `OutboundQueueError` `'disconnected'`). Ver [Fila de saída](outbound-queue.md#conexão-caída).
 
 ```ts
 createBot({

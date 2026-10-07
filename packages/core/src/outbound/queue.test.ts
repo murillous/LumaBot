@@ -545,3 +545,145 @@ describe('OutboundQueue: backlog, métricas e fechamento', () => {
     });
   });
 });
+
+describe('OutboundQueue: pausa pela conexão (#198)', () => {
+  it('pausada, não despacha; ao retomar, envia na ordem', async () => {
+    const { queue, sends } = newQueue({ chatIntervalMs: 0 });
+    queue.pause();
+    const all = [queue.send('a', text('1')), queue.send('a', text('2'))];
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(sends).toHaveLength(0);
+    expect(queue.stats()).toMatchObject({ paused: true, pending: { normal: 2 } });
+    queue.resume();
+    await vi.runAllTimersAsync();
+    await Promise.all(all);
+    expect(sends.map((s) => s.label)).toEqual(['1', '2']);
+    expect(queue.stats().paused).toBe(false);
+  });
+
+  it('a re-tentativa de um envio que falhou na queda espera a retomada', async () => {
+    const { queue, sends, failWith } = newQueue();
+    let down = true;
+    failWith(() => (down ? new Error('Connection Closed') : undefined));
+    const sent = queue.send('a', text('x'));
+    await vi.advanceTimersByTimeAsync(0);
+    queue.pause();
+    // O backoff (1 s) e o retry inteiro passariam sem a pausa.
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(sends).toHaveLength(1);
+    down = false;
+    queue.resume();
+    await vi.runAllTimersAsync();
+    await expect(sent).resolves.toMatchObject({ chatId: 'a' });
+    expect(sends.map((s) => s.at)).toEqual([0, 10_000]);
+  });
+
+  it('além de maxPauseMs, rejeita o que aguarda com disconnected e recusa novos até retomar', async () => {
+    const { queue, sends } = newQueue({ maxPauseMs: 5000 });
+    queue.pause();
+    const waiting = queue.send('a', text('1'));
+    waiting.catch(() => undefined);
+    await vi.advanceTimersByTimeAsync(4999);
+    expect(queue.stats().pending.normal).toBe(1);
+    await vi.advanceTimersByTimeAsync(1);
+    await expect(waiting).rejects.toMatchObject({ reason: 'disconnected' });
+    await expect(queue.send('b', text('2'))).rejects.toMatchObject({ reason: 'disconnected' });
+    expect(queue.stats()).toMatchObject({ dropped: 2, activeChats: 0 });
+    expect(vi.getTimerCount()).toBe(0);
+
+    queue.resume();
+    await expect(queue.send('b', text('3'))).resolves.toMatchObject({ chatId: 'b' });
+    expect(sends.map((s) => s.label)).toEqual(['3']);
+  });
+
+  it('além de maxPauseMs, o envio em andamento que falha não vira re-tentativa', async () => {
+    const { queue, transport } = newQueue({ maxPauseMs: 1000 });
+    let fail!: (error: Error) => void;
+    vi.mocked(transport.send).mockImplementationOnce(
+      () =>
+        new Promise((_, reject) => {
+          fail = reject;
+        }),
+    );
+    const sent = queue.send('a', text('1'));
+    sent.catch(() => undefined);
+    await vi.advanceTimersByTimeAsync(0);
+    queue.pause();
+    await vi.advanceTimersByTimeAsync(1000);
+    fail(new Error('Connection Closed'));
+    await vi.runAllTimersAsync();
+    await expect(sent).rejects.toThrow('Connection Closed');
+    expect(queue.stats()).toMatchObject({ retries: 0, failed: 1, activeChats: 0 });
+  });
+
+  it('retomar antes do teto cancela o timer; maxPauseMs Infinity não arma timer', async () => {
+    const { queue } = newQueue({ maxPauseMs: 5000 });
+    queue.pause();
+    expect(vi.getTimerCount()).toBe(1);
+    queue.resume();
+    expect(vi.getTimerCount()).toBe(0);
+
+    const { queue: semTeto } = newQueue({ maxPauseMs: Number.POSITIVE_INFINITY });
+    semTeto.pause();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('close({ drain: false }) durante a pausa descarta e cancela o teto', async () => {
+    const { queue } = newQueue();
+    queue.pause();
+    const sent = queue.send('a', text('1'));
+    sent.catch(() => undefined);
+    await queue.close({ drain: false });
+    await expect(sent).rejects.toMatchObject({ reason: 'closed' });
+    expect(vi.getTimerCount()).toBe(0);
+  });
+});
+
+describe('OutboundQueue: prazo por envio (#202)', () => {
+  const hang = (): Promise<never> => new Promise(() => undefined);
+
+  it('send pendurado rejeita com timeout, sem re-tentar, e libera o chat', async () => {
+    const { queue, transport, sends } = newQueue({ sendTimeoutMs: 5000, chatIntervalMs: 0 });
+    vi.mocked(transport.send).mockImplementationOnce(hang);
+    const stuck = queue.send('a', text('1'));
+    stuck.catch(() => undefined);
+    const next = queue.send('a', text('2'));
+    await vi.advanceTimersByTimeAsync(4999);
+    expect(sends).toHaveLength(0);
+    await vi.advanceTimersByTimeAsync(1);
+    await expect(stuck).rejects.toMatchObject({ name: 'OutboundQueueError', reason: 'timeout' });
+    await vi.runAllTimersAsync();
+    await expect(next).resolves.toMatchObject({ chatId: 'a' });
+    expect(transport.send).toHaveBeenCalledTimes(2);
+    expect(queue.stats()).toMatchObject({ retries: 0, failed: 1, sent: 1, activeChats: 0 });
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('presença pendurada vai para onPresenceError e o envio segue', async () => {
+    const onPresenceError = vi.fn();
+    const { queue, transport, sends } = newQueue({
+      humanize: { minMs: 0, msPerChar: 0 },
+      sendTimeoutMs: 2000,
+      onPresenceError,
+    });
+    vi.mocked(transport.sendPresence).mockImplementationOnce(hang);
+    const sent = queue.send('a', text('oi'));
+    await vi.advanceTimersByTimeAsync(2000);
+    await expect(sent).resolves.toMatchObject({ chatId: 'a' });
+    expect(sends.map((s) => s.at)).toEqual([2000]);
+    expect(onPresenceError).toHaveBeenCalledWith(
+      expect.objectContaining({ reason: 'timeout' }),
+      'a',
+    );
+  });
+
+  it('valida maxPauseMs e sendTimeoutMs', () => {
+    const { transport } = fakeTransport();
+    expect(() => new OutboundQueue({ transport, maxPauseMs: -1 })).toThrow(RangeError);
+    expect(() => new OutboundQueue({ transport, maxPauseMs: Number.NaN })).toThrow(RangeError);
+    expect(() => new OutboundQueue({ transport, sendTimeoutMs: 0 })).toThrow(RangeError);
+    expect(
+      () => new OutboundQueue({ transport, sendTimeoutMs: Number.POSITIVE_INFINITY }),
+    ).not.toThrow();
+  });
+});

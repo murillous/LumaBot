@@ -21,6 +21,8 @@ const queue = new OutboundQueue({
   maxPending: 1000, // padrão, por prioridade
   retry: { maxAttempts: 3, baseDelayMs: 1000, maxDelayMs: 30_000 }, // padrões
   humanize: false, // padrão
+  maxPauseMs: 60_000, // padrão
+  sendTimeoutMs: 30_000, // padrão
 });
 
 await queue.send('123@g.us', { type: 'text', text: 'aviso' }, { priority: 'low' });
@@ -71,6 +73,8 @@ resposta `high` a comando. No pior caso a fila guarda `3 × maxPending` mensagen
 | `priority` inválida | Rejeita na hora com `TypeError` |
 | Backlog da prioridade cheio (`maxPending`) | Rejeita com `OutboundQueueError`, `reason: 'full'` |
 | Fila fechada | Rejeita com `OutboundQueueError`, `reason: 'closed'` |
+| Conexão caída além de `maxPauseMs` | Rejeita com `OutboundQueueError`, `reason: 'disconnected'` |
+| Transport sem resposta em `sendTimeoutMs` | Rejeita com `OutboundQueueError`, `reason: 'timeout'`, sem re-tentar |
 | Transport falhou | Re-tenta se transitória; senão rejeita com o erro dele |
 
 A espera antes da re-tentativa `n` é `min(maxDelayMs, baseDelayMs × 2^(n-1))`, com jitter: metade
@@ -81,6 +85,34 @@ Por padrão toda falha é transitória, exceto `UnsupportedError` e erros com `r
 **Transports**: marquem assim as falhas permanentes (destino inexistente, mídia recusada), para a
 fila não insistir. Para outra regra, passe `retry.isRetryable`; se ele lançar, o envio rejeita
 com um `AggregateError` com os dois erros.
+
+## Conexão caída
+
+Sem conexão, o envio falharia e esgotaria o retry (~3 s) antes da primeira reconexão (5 s). Por
+isso a fila pausa ([ADR 0039](../../../docs/adr/0039-fila-de-saida-e-conexao.md)):
+
+- `pause()` para o despacho. O que aguarda e o que chegar esperam. O envio em andamento termina;
+  se falhar, a re-tentativa também espera, sem gastar as tentativas que restam.
+- `resume()` volta a despachar, na mesma ordem.
+- `maxPauseMs` (padrão `60000`, que cobre o ciclo de reconexão padrão de 5 + 10 + 15 s) limita a
+  pausa. Estourado, o que aguarda rejeita com `'disconnected'` e os envios novos rejeitam na hora,
+  até o `resume()`. `Infinity` desliga o teto. O prazo conta desde a pausa, não desde a chegada de
+  cada mensagem.
+
+O `Bot` pausa no `connection.status` `closed` e retoma no `open`; a fila não conhece o estado da
+conexão por conta própria. Um envio que falhou bem na hora da queda pode ter sido entregue mesmo
+assim, e a re-tentativa depois da reconexão o duplica. É o mesmo risco de qualquer retry.
+
+## Prazo por envio
+
+Cada chamada da fila ao transport tem prazo de `sendTimeoutMs` (padrão `30000`; `Infinity`
+desliga):
+
+- envio: rejeita com `'timeout'` e libera o chat para a próxima mensagem. Não re-tenta, porque o
+  transport pode ainda entregar e o reenvio duplicaria. O resultado tardio é ignorado;
+- presença: conta como falha de presença (vai para `onPresenceError`), e o envio segue.
+
+Assim um `transport.send` que nunca resolve não prende o chat nem o fechamento.
 
 ## Humanização
 
@@ -107,9 +139,10 @@ opção é ignorada. Uma falha de presença não impede o envio, que sai na hora
 | `inFlight` | Envios em andamento (presença + transport) |
 | `activeChats` | Chats com mensagem aguardando ou em andamento |
 | `sent` | Envios concluídos |
-| `failed` | Envios que rejeitaram com o erro do transport |
+| `failed` | Envios que rejeitaram com o erro do transport ou com `'timeout'` |
 | `retries` | Re-tentativas agendadas |
-| `dropped` | Recusados (cheia/fechada) ou descartados no `close({ drain: false })` |
+| `dropped` | Recusados (cheia, fechada ou desconectada) ou descartados (`close({ drain: false })`, teto da pausa) |
+| `paused` | Despacho pausado pela conexão caída |
 
 ## Fechamento
 
@@ -120,7 +153,9 @@ opção é ignorada. Uma falha de presença não impede o envio, que sai na hora
 - `onIdle()` resolve quando não há nada aguardando nem em andamento, sem fechar.
 
 O `Bot` cria a fila com as opções de `createBot({ outbound })`, entrega `ctx.send` aos plugins e
-fecha a fila num gancho de parada ([Bot](bot.md#shutdown-gracioso-stop)). Para montar à mão, como
+fecha a fila num gancho de parada ([Bot](bot.md#shutdown-gracioso-stop)); com a fila pausada
+(conexão caída), o gancho descarta em vez de drenar, porque a reconexão já parou. Para montar à
+mão, como
 gancho de parada, drenando até o prazo e descartando o resto se ele estourar:
 
 ```ts
@@ -133,8 +168,8 @@ bot.onStop(
 );
 ```
 
-Um `transport.send` que nunca resolve segura o fechamento: o prazo do gancho é a rede de
-segurança.
+Com `sendTimeoutMs: Infinity`, um `transport.send` que nunca resolve segura o fechamento: o
+prazo do gancho é a rede de segurança.
 
 ## `ctx.reply`
 
@@ -151,6 +186,7 @@ Quem monta o contexto passa `quote: false` quando o transport não tem a capabil
 
 - Um chat só ocupa estado enquanto tem mensagem aguardando ou em andamento; o fim do intervalo
   por chat é lembrado num mapa limpo a cada envio, então chats ociosos não acumulam.
-- Timers só existem com trabalho pendente (intervalo, backoff, presença). Ociosa, a fila não
+- Timers só existem com trabalho pendente (intervalo, backoff, presença, prazo do envio) ou com
+  a fila pausada (teto da pausa). Ociosa, a fila não
   segura o processo. Com trabalho pendente segura, de propósito: mensagem aceita não se perde
   em silêncio.

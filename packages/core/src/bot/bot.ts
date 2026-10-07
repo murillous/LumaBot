@@ -489,6 +489,9 @@ export function createBot(config: BotConfig): Bot {
       transport.on('message', (message) => enqueue(message, handleMessage)),
       transport.on('message.edited', (message) => enqueue(message, handleEdited)),
       transport.on('connection.status', (status) => {
+        // Com a conexão caída, o envio falharia e esgotaria o retry antes da reconexão (#198).
+        if (status.status === 'closed') outbound.pause();
+        else if (status.status === 'open') outbound.resume();
         reconnector?.onStatus(status);
         void bus.emit('connection.status', status);
       }),
@@ -515,6 +518,9 @@ export function createBot(config: BotConfig): Bot {
       hooks.push({ name, timeoutMs, hook });
     };
     push('fila-de-saida', STOP_TIMEOUTS.outbound, (signal) => {
+      // Conexão caída: o gancho do transporte já parou a reconexão, então drenar só gastaria o
+      // prazo. Descarta já (ADR 0039).
+      if (outbound.paused) return outbound.close({ drain: false });
       // Drena até o prazo; estourado, descarta o que aguarda (docs/outbound-queue.md).
       signal.addEventListener('abort', () => void outbound.close({ drain: false }), {
         once: true,
