@@ -128,6 +128,8 @@ inválido, que lança na hora.
 
 ## Para o kernel
 
+Tudo nesta seção é interno do kernel, não exportado ([ADR 0034](../../../docs/adr/0034-biblioteca-sem-runner.md)).
+
 `pluginStorage(port, pluginName)` é como o `Bot` monta `ctx.storage` (o port é o `storage` do
 `createBot`, fechado no `stop()`). Namespaces que
 começam com `$` são do kernel: `pluginStorage` lança `ReservedNamespaceError` para eles, então
@@ -187,7 +189,7 @@ contrato.
 
 ### Escrevendo um adapter
 
-Implemente `StoragePort` (`forNamespace`, `authState`, `close`). O core exporta as peças que
+Implemente `StoragePort` (`forNamespace`, `authState`, `close`). `@zapforge/core/adapter` exporta as peças que
 deixam os erros e a validação iguais aos dos outros adapters:
 
 | Função | Para quê |

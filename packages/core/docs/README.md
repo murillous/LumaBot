@@ -2,6 +2,22 @@
 
 Como usar o kernel. O porquê das decisões está nos [ADRs](../../../docs/adr/README.md).
 
+## Pontos de entrada
+
+A API pública se divide por público ([ADR 0034](../../../docs/adr/0034-biblioteca-sem-runner.md)):
+
+| Import | Para quem | O que traz |
+| --- | --- | --- |
+| `@zapforge/core` | Autor de plugin e app | `definePlugin`, `command`, `secret`, tipos dos contextos, eventos, mensagem, storage do plugin e os erros que o plugin trata; `createBot` e sua config, middlewares oficiais, `createLogger`, `createSecretSet`, `createMemoryStorage` |
+| `@zapforge/core/adapter` | Autor de transport ou storage | Contratos `Transport`/`StoragePort`, `TypedEmitter`, `createMessage`, `createMedia`, `messageKey`, `ReconnectionPolicy`, helpers de capability, normalização de consultas, `StorageClosedError` |
+| `@zapforge/core/storage-contract` | Autor de storage | Suíte de contrato (`defineStorageContract`) |
+
+O adapter usa também o modelo compartilhado de `@zapforge/core` (`Message`, `MessageKey`,
+`OutgoingContent`, tipos de storage). Host de plugins, barramento, filas, scheduler e roteador
+são internos: os guias abaixo mostram como funcionam, mas os exemplos com import `#…` só valem
+dentro do core. A lista de cada entrada é fixada em `src/entries.test.ts`; export novo é decisão
+explícita.
+
 | Guia | Assunto |
 | --- | --- |
 | [Transport](transport.md) | Contrato `Transport`, eventos, capabilities e política de reconexão |

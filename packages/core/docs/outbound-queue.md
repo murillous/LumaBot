@@ -5,8 +5,14 @@ intervalo mínimo global e por chat, prioridade (comando > broadcast), retry com
 humanização opcional. Ela implementa `Sender`, o mesmo contrato de `ctx.send`, e
 `createReply` monta o `ctx.reply` em cima dela. O plugin nunca vê a fila.
 
+Peça interno do kernel, não exportado ([ADR 0034](../../../docs/adr/0034-biblioteca-sem-runner.md)): o app só a configura por `createBot({ outbound })`
+(as opções abaixo, sem `transport`); o plugin envia por `ctx.send`/`ctx.reply` e trata
+`OutboundQueueError` e `UnsupportedError`, de `@zapforge/core`. Os exemplos são para quem mexe
+no core.
+
 ```ts
-import { createReply, OutboundQueue } from '@zapforge/core';
+import { OutboundQueue } from '#outbound/queue.ts';
+import { createReply } from '#outbound/reply.ts';
 
 const queue = new OutboundQueue({
   transport,

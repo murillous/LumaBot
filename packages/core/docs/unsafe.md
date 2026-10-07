@@ -42,8 +42,10 @@ oficial.
 
 ## Para quem monta o contexto (kernel)
 
+Peça interno do kernel, não exportado ([ADR 0034](../../../docs/adr/0034-biblioteca-sem-runner.md)).
+
 ```ts
-import { createUnsafeAccess } from '@zapforge/core';
+import { createUnsafeAccess } from '#unsafe/access.ts';
 
 const unsafeAccess = createUnsafeAccess({ transport, log }); // um por bot
 const unsafe = unsafeAccess.forPlugin(manifest); // quantos quiser por plugin

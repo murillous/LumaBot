@@ -54,6 +54,18 @@ it('importar @zapforge/core não tem side effect', async () => {
   expectNoSideEffect(before);
 });
 
+// ADR 0034: o mesmo vale para os outros pontos de entrada.
+it.each([
+  ['@zapforge/core/adapter', () => import('@zapforge/core/adapter')],
+  ['@zapforge/core/storage-contract', () => import('@zapforge/core/storage-contract')],
+])('importar %s não tem side effect', async (_entry, load) => {
+  vi.resetModules();
+  const before = snapshot();
+  const entry = await load();
+  expect(Object.keys(entry).length).toBeGreaterThan(0);
+  expectNoSideEffect(before);
+});
+
 it('createBot() não tem side effect até o start()', async () => {
   const { createBot } = await import('@zapforge/core');
   const before = snapshot();

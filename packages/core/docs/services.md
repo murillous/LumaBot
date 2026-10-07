@@ -79,11 +79,11 @@ O tipo vem de importar o pacote do provedor (ou só o tipo dele): é esse import
 ## Registry
 
 O `Bot` cria um registry por instância (sem estado global) e entrega a cada plugin o acesso
-atribuído a ele (`ctx.services`); no teardown/reload remove o que o plugin proveu. Fora do bot,
-quem compõe faz isso direto:
+atribuído a ele (`ctx.services`); no teardown/reload remove o que o plugin proveu. Por dentro
+(interno do kernel, não exportado ([ADR 0034](../../../docs/adr/0034-biblioteca-sem-runner.md))):
 
 ```ts
-import { createServiceRegistry } from '@zapforge/core';
+import { createServiceRegistry } from '#services/registry.ts';
 
 const services = createServiceRegistry();
 

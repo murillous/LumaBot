@@ -7,7 +7,7 @@ barrar a mensagem, enriquecer o contexto ou medir o que acontece depois dele.
 ## Escrevendo um middleware
 
 ```ts
-import { type Middleware, MiddlewarePipeline } from '@zapforge/core';
+import type { Middleware } from '@zapforge/core';
 
 const timing: Middleware = async (ctx, next) => {
   const start = performance.now();
@@ -60,7 +60,12 @@ ligados, `chatFilter` e `rateLimit` quando configurados. Erro de middleware vai 
 
 ## Pipeline
 
+`MiddlewarePipeline` é peça interno do kernel, não exportado ([ADR 0034](../../../docs/adr/0034-biblioteca-sem-runner.md)); o app passa os middlewares em
+`createBot({ middlewares })`. Para quem mexe no core:
+
 ```ts
+import { MiddlewarePipeline } from '#middleware/pipeline.ts';
+
 const pipeline = new MiddlewarePipeline();
 const remove = pipeline.use(timing, { priority: 100 });
 pipeline.use(onlyText);
@@ -112,7 +117,6 @@ Janela fixa por chave: até `max` mensagens a cada `windowMs`; o excedente é ba
 
 As janelas vencidas são removidas a cada mensagem, então a memória fica limitada às chaves
 ativas na última janela. `clock` (padrão `performance.now`, monotônico) existe para testes.
-O contador sozinho está disponível como `RateLimiter` (`hit(key)`, `size`).
 
 ### `sanitize({ maxTextLength?, maxSenderNameLength? })`
 

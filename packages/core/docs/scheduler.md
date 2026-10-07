@@ -80,8 +80,10 @@ Depois do descarte do plugin (teardown, reload), `ctx.scheduler.at`/`cancel` rej
 
 ## Para o kernel
 
+Peça interno do kernel, não exportado ([ADR 0034](../../../docs/adr/0034-biblioteca-sem-runner.md)).
+
 ```ts
-import { createSchedulerService } from '@zapforge/core';
+import { createSchedulerService } from '#scheduler/service.ts';
 
 const scheduler = createSchedulerService({
   storage, // StoragePort do bot

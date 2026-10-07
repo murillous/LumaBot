@@ -4,8 +4,11 @@
 distintos em paralelo, sem bloqueio global. É a porta do `JidQueue` do legacy, com limite de
 backlog, métricas e shutdown gracioso.
 
+Peça interno do kernel, não exportado ([ADR 0034](../../../docs/adr/0034-biblioteca-sem-runner.md)): o app só a configura por
+`createBot({ inbound: { maxPendingPerChat } })`. Os exemplos abaixo são para quem mexe no core.
+
 ```ts
-import { InboundQueue } from '@zapforge/core';
+import { InboundQueue } from '#queue/inbound.ts';
 
 const queue = new InboundQueue({
   onError: (error, chatId) => logger.error({ err: error, chatId }, 'falha ao processar mensagem'),
