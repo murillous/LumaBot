@@ -147,6 +147,7 @@ decisão anterior.
 | D47 | **A espera na fila de saída não conta no prazo do handler** (detalha D19/D33/D42): o prazo de comando e de listener pausa enquanto um `reply`/`react` do contexto não assenta (fila, humanização, retry, transport) e volta com o que sobrou; `ctx.send` do plugin, `ctx.groups` e jobs seguem contando; benchmark de vazão do M2-4 roda com os intervalos da fila de saída em 0 | `reply` resolve ao enfileirar; manter e documentar | Rajada em chats diferentes não vira `timedOut` falso; o chat fica preso só enquanto espera a própria resposta, limitado pelos tetos da fila |
 | D48 | **`connect()` resolve ao iniciar a tentativa** (detalha D03/D39/D45): resolve com o socket criado, sem esperar o `open`, e rejeita só se nem começou; o andamento e as falhas vêm por `connection.status`; o reconector guarda o `closed` que chega antes do `activate()` ou durante um `connect()` de reconexão e decide sobre ele quando o `connect()` termina (um `open` depois o anula); a fila de saída nasce pausada até o primeiro `open` (teto `maxPauseMs` desde o `start()`); o scheduler segue ligando logo depois do `connect()` | `connect()` resolve no `open`; `connect()` rejeita quando a tentativa cai; scheduler liga no primeiro `open` | O restart 515 do Baileys depois do QR reconecta pela política; envios do `setup` e de jobs vencidos esperam o `open`; todo transport precisa emitir `open` |
 | D49 | **Evento `command`** (detalha D12/D40): só de observação, sai para todo comando que casou, depois de ele terminar, com `{ plugin, name, invokedAs, status: 'ran' \| 'rejected' \| 'failed', message }`; sem `reply`; o `Bot` espera os listeners (seguram o chat, contam no `settled()`); toda mensagem admitida cai em `message` ou em `command` | Evento antes do roteador (`message.received`); middleware por plugin; manter e documentar | Atividade do spontaneous e métricas do dashboard contam comandos como no legacy; consumo do D12 não muda |
+| D50 | **Código de pareamento por evento** (detalha D03/D13): evento do transport `connection.pairing-code` `{ code }`; o `Bot` o trata como o QR (conta para o `maxQrCount`, valor só em `debug`, vai ao barramento); quem pareia por código não emite `connection.qr` | Callback na opção do adapter; campo de tipo no `connection.qr` | O dashboard (plugin) exibe o código como exibe o QR; código expirado segue a política do QR |
 
 ---
 
@@ -337,7 +338,8 @@ bot.on('message', { quoted: 'audio' }, handler);
 
 `message`, `message:<type>`, `message.edited`, `message.deleted`, `reaction`,
 `group.joined`, `group.left`, `group.participants`, `group.updated`,
-`contact.updated` (D40), `connection.status`, `connection.qr`, `command` (D49), `plugin.error`.
+`contact.updated` (D40), `connection.status`, `connection.qr`, `connection.pairing-code` (D50),
+`command` (D49), `plugin.error`.
 
 ### 6.5 Contexto, claim e escape hatch
 

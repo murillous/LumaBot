@@ -26,7 +26,7 @@ export interface Reconnector {
    * andamento, guarda o último `closed` e decide sobre ele quando puder (ADR 0048).
    */
   onStatus(status: ConnectionStatus): void;
-  /** Trata `connection.qr`. */
+  /** Trata `connection.qr` e `connection.pairing-code` (ADR 0050). */
   onQr(): void;
   /** O `connect()` inicial terminou: a partir daqui, uma queda é reconectada. */
   activate(): void;

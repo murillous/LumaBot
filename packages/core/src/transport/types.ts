@@ -120,6 +120,11 @@ export interface TransportEvents {
   'connection.status': ConnectionStatus;
   /** QR a apresentar para parear; o kernel decide como mostrar. */
   'connection.qr': { readonly qr: string };
+  /**
+   * Código de pareamento a digitar no aparelho, a alternativa ao QR (no WhatsApp, "conectar com
+   * número de telefone"). Conta como um QR para o limite de QRs da reconexão (ADR 0050).
+   */
+  'connection.pairing-code': { readonly code: string };
 }
 
 export type TransportEventName = keyof TransportEvents;

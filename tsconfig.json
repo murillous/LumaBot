@@ -12,5 +12,5 @@
   },
   // Scripts de pacote (fora do `src/` de cada um) também passam pelo typecheck daqui.
   "include": ["*.config.ts", "packages/*/scripts"],
-  "references": [{ "path": "packages/core" }]
+  "references": [{ "path": "packages/core" }, { "path": "packages/transport-baileys" }]
 }
