@@ -19,5 +19,9 @@
   ],
   "scripts": {
     "build": "tsdown"
+  },
+  "dependencies": {
+    "pino": "^10.4.0",
+    "zod": "^4.6.5"
   }
 }

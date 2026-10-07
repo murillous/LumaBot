@@ -25,6 +25,18 @@ export type {
 } from '#commands/router.ts';
 export { createCommandRouter } from '#commands/router.ts';
 export type { MessageContext } from '#context.ts';
+// Contratos do M1-7 a M1-15 (implementações nos PRs de cada item).
+export type {
+  BotEventName,
+  BotEvents,
+  EventSubscriber,
+  Listener,
+  ListenerContext,
+  ListenerOptions,
+  MessageTypeEvents,
+  PluginErrorEvent,
+} from '#events/types.ts';
+export type { LogFields, Logger, LogLevel } from '#logger/types.ts';
 export { createMessage, type MessageInit } from '#message/create.ts';
 export { createMedia, type MediaSource } from '#message/media.ts';
 export type {
@@ -68,6 +80,13 @@ export {
   type SanitizeOptions,
   sanitize,
 } from '#middleware/sanitize.ts';
+export type { OutboundSendOptions, Sender, SendPriority } from '#outbound/types.ts';
+export type {
+  PluginContext,
+  PluginDefinition,
+  PluginManifest,
+  PluginMessages,
+} from '#plugin/types.ts';
 export type {
   EnqueueResult,
   InboundQueueOptions,
@@ -75,6 +94,16 @@ export type {
   InboundTask,
 } from '#queue/inbound.ts';
 export { InboundQueue } from '#queue/inbound.ts';
+export type { JobHandler, Scheduler } from '#scheduler/types.ts';
+export type { ServiceAccess, ServiceName, Services } from '#services/types.ts';
+export type {
+  Collection,
+  CollectionOptions,
+  JsonValue,
+  KeyValueStore,
+  PluginStorage,
+  StoragePort,
+} from '#storage/types.ts';
 export {
   assertCanSend,
   assertCapability,
@@ -112,3 +141,4 @@ export type {
   TransportEvents,
   Unsubscribe,
 } from '#transport/types.ts';
+export type { Unsafe } from '#unsafe/types.ts';
