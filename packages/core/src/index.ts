@@ -10,6 +10,7 @@ export type {
   BotMiddlewaresConfig,
   BotPluginConfigs,
   BotState,
+  BotStats,
   BotTimeouts,
 } from '#bot/bot.ts';
 export { BotStateError, createBot, GroupAdminTimeoutError } from '#bot/bot.ts';
@@ -103,7 +104,7 @@ export {
   type SanitizeOptions,
   sanitize,
 } from '#middleware/sanitize.ts';
-export { OutboundQueueError } from '#outbound/queue.ts';
+export { OutboundQueueError, type OutboundQueueStats } from '#outbound/queue.ts';
 export type {
   OutboundSendOptions,
   Reply,
@@ -131,6 +132,7 @@ export type {
   PluginManifest,
   PluginMessages,
 } from '#plugin/types.ts';
+export type { InboundQueueStats } from '#queue/inbound.ts';
 export { JobHandlerConflictError } from '#scheduler/service.ts';
 export type { JobContext, JobHandler, Scheduler } from '#scheduler/types.ts';
 export { ServiceConflictError, ServiceNotFoundError } from '#services/registry.ts';

@@ -21,14 +21,18 @@ import { ignoreSelf } from '#middleware/ignore-self.ts';
 import { type Middleware, MiddlewarePipeline } from '#middleware/pipeline.ts';
 import { type RateLimitOptions, rateLimit } from '#middleware/rate-limit.ts';
 import { type SanitizeOptions, sanitize } from '#middleware/sanitize.ts';
-import { OutboundQueue, type OutboundQueueOptions } from '#outbound/queue.ts';
+import {
+  OutboundQueue,
+  type OutboundQueueOptions,
+  type OutboundQueueStats,
+} from '#outbound/queue.ts';
 import type { Sender } from '#outbound/types.ts';
 import { PLUGIN_NAME_PATTERN } from '#plugin/define.ts';
 import { createPluginHost, type PluginHost, type PluginReloadResult } from '#plugin/host.ts';
 import type { PluginLifecycleError, PluginReportEntry } from '#plugin/report.ts';
 import { collectPlugins } from '#plugin/sources.ts';
 import type { PluginDefinition } from '#plugin/types.ts';
-import { InboundQueue, type InboundQueueOptions } from '#queue/inbound.ts';
+import { InboundQueue, type InboundQueueOptions, type InboundQueueStats } from '#queue/inbound.ts';
 import { createSchedulerService } from '#scheduler/service.ts';
 import { createServiceRegistry } from '#services/registry.ts';
 import { createMemoryStorage } from '#storage/memory.ts';
@@ -178,6 +182,16 @@ export interface Bot {
   readonly config: BotPluginConfigs;
   /** Tabela de boot atual (reflete reloads); vazia antes do `start()`. */
   plugins(): PluginReportEntry[];
+  /**
+   * Métricas das filas de entrada e de saída, lidas de contadores (O(1)). Sempre disponível:
+   * zeros antes do `start()`, valores finais depois do `stop()`. Devolve uma cópia.
+   */
+  stats(): BotStats;
+}
+
+export interface BotStats {
+  readonly inbound: InboundQueueStats;
+  readonly outbound: OutboundQueueStats;
 }
 
 /** Operação incompatível com o estado atual do bot. */
@@ -763,6 +777,10 @@ export function createBot(config: BotConfig): Bot {
 
     plugins(): PluginReportEntry[] {
       return host?.report() ?? [];
+    },
+
+    stats(): BotStats {
+      return { inbound: inbound.stats(), outbound: outbound.stats() };
     },
 
     start(): Promise<void> {
