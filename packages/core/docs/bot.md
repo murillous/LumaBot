@@ -64,9 +64,29 @@ const bot = createBot({
 | `config.setOverrides(nome, overrides)` | Valida, salva no storage e recarrega o plugin (`teardown` → `setup`) |
 | `config.describe(nome)` / `config.jsonSchema(nome)` | Config mascarada e JSON Schema, para o dashboard |
 | `plugins()` | Tabela de boot atual (`PluginReportEntry[]`, reflete reloads); vazia antes do `start()` |
+| `stats()` | Métricas das filas (`BotStats`): `inbound` e `outbound` (abaixo) |
 
 `bot.config` só funciona depois que o `start()` carregou os plugins; antes, lança
 `BotStateError`.
+
+### Métricas: `stats()`
+
+`bot.stats()` devolve `{ inbound, outbound }`, lidos de contadores mantidos a cada operação
+(leitura O(1), sem custo no caminho da mensagem). Cada chamada devolve uma cópia.
+
+- `inbound` (`InboundQueueStats`): `activeChats`, `pending`, `processed`, `dropped` (excedeu
+  `maxPendingPerChat` ou chegou com a fila fechada) e `errors`. Ver [Fila de entrada](inbound-queue.md).
+- `outbound` (`OutboundQueueStats`): `pending` por prioridade, `inFlight`, `activeChats`, `sent`,
+  `failed`, `retries`, `dropped` e `paused` (conexão caída). Ver
+  [Fila de saída](outbound-queue.md#métricas).
+
+Funciona em qualquer estado: antes do `start()` tudo é zero, e depois do `stop()` ficam os
+valores finais (as filas não zeram ao fechar).
+
+```ts
+const { inbound, outbound } = bot.stats();
+log.info('filas', { recebidas: inbound.processed, enviadas: outbound.sent });
+```
 
 ## Fluxo de uma mensagem
 
