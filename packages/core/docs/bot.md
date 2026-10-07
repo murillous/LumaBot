@@ -96,9 +96,10 @@ Plano §5.3 e [ADR 0012](../../../docs/adr/0012-pipeline-de-3-estagios.md):
 transport 'message' ou 'message.edited'
   → fila de entrada (mesmo chat em série)
   → middlewares (onion, por prioridade)          interrompeu? fim
-  → roteador de comandos (só 'message')          casou? roda o comando e consome: fim
-  → barramento: listeners de 'message' e 'message:<tipo>' (ou de 'message.edited'),
-    em paralelo, com claim()
+    → roteador de comandos (só 'message')        casou? roda o comando e consome
+    → barramento: listeners de 'message' e 'message:<tipo>' (ou de 'message.edited'),
+      em paralelo, com claim()
+  ← volta dos middlewares (depois do comando ou dos listeners)
 ctx.reply()/ctx.send → fila de saída → transport
 ```
 
@@ -107,6 +108,9 @@ ctx.reply()/ctx.send → fila de saída → transport
 - **`ctx.text`** começa igual a `message.text`. Um middleware pode reescrevê-lo — o `sanitize`
   grava ali o texto truncado — e o roteador e os listeners leem o resultado. `message` nunca muda.
 - **Middleware que não chama `next()`** barra a mensagem: nem comando nem listeners a veem.
+- **Comando e listeners rodam dentro dos middlewares**: o código depois de `await next()` roda
+  quando eles terminam, então um middleware mede o tratamento inteiro, mantém o "digitando" ou
+  libera um recurso no fim. A volta espera também os prazos (`commandMs`, `listenerMs`).
 - **Comando que casa consome** a mensagem, mesmo recusado (papel, `accepts`) ou com erro. A
   resposta de `onReject` sai pelo `ctx.reply`. Comando que lança vira `plugin.error`
   (`phase: 'command'`, `event` = nome do comando) e uma linha de log em `error`; o chat segue.
