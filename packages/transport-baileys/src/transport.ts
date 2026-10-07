@@ -1,7 +1,9 @@
 // Transport do WhatsApp sobre o Baileys (M2-1). Este módulo cuida da conexão: socket, QR ou
 // código de pareamento, credenciais no storage do bot e o motivo de cada queda. Quem decide
-// reconectar é o `Bot`, pela `ReconnectionPolicy` (ADR 0048).
+// reconectar é o `Bot`, pela `ReconnectionPolicy` (ADR 0048). As mensagens recebidas passam
+// pela normalização (`normalize.ts`) antes de virar o evento `message`.
 
+import { Readable } from 'node:stream';
 import {
   type Capability,
   type Contact,
@@ -28,13 +30,17 @@ import {
   type AuthenticationState,
   type Contact as BaileysContact,
   type BaileysEventMap,
+  downloadMediaMessage,
+  isJidStatusBroadcast,
   jidDecode,
   jidNormalizedUser,
+  type WAMessage,
   type WAVersion,
 } from 'baileys';
 import { loadAuthState } from './auth-state.ts';
 import { toDisconnectReason } from './disconnect-reason.ts';
 import { type ILogger, toBaileysLogger } from './logger.ts';
+import { type NormalizeEnv, toMessage } from './normalize.ts';
 
 /** Como parear uma sessão sem credenciais: escaneando o QR ou digitando um código no aparelho. */
 export type BaileysPairing = 'qr' | { readonly phone: string };
@@ -48,8 +54,14 @@ export interface BaileysSocket {
     ): void;
   };
   readonly user: BaileysContact | undefined;
+  /** Mapeamento LID ↔ telefone que o Baileys aprende com a sessão. */
+  readonly signalRepository: {
+    readonly lidMapping: { getPNForLID(lid: string): Promise<string | null> };
+  };
   end(error: Error | undefined): Promise<void>;
   requestPairingCode(phoneNumber: string): Promise<string>;
+  /** Pede ao aparelho que reenvie uma mídia cujo link expirou. */
+  updateMediaMessage(message: WAMessage): Promise<WAMessage>;
 }
 
 export interface SocketConfig {
@@ -140,6 +152,33 @@ export class BaileysTransport implements Transport {
       });
     });
 
+    // Em fila: a normalização é assíncrona (telefone de LID) e não pode inverter a ordem de
+    // chegada, que a fila de entrada do bot preserva por chat.
+    let inbound = Promise.resolve();
+    const env = this.#normalizeEnv(socket, state);
+    socket.ev.on('messages.upsert', ({ messages, type }) => {
+      if (!current()) return;
+      // `append` é histórico e cópia de sincronização; só `notify` é mensagem nova.
+      if (type !== 'notify') return;
+      for (const raw of messages) {
+        // Status (stories) não é conversa: fica de fora até haver um evento para ele.
+        if (raw.key.remoteJid && isJidStatusBroadcast(raw.key.remoteJid)) continue;
+        inbound = inbound
+          .then(() => toMessage(raw, env))
+          .then(
+            (message) => {
+              if (message !== null && current()) this.#events.emit('message', message);
+            },
+            (error: unknown) => {
+              this.#log.error('falha ao normalizar mensagem do Baileys; descartada', {
+                err: error,
+                messageId: raw.key.id,
+              });
+            },
+          );
+      }
+    });
+
     socket.ev.on('connection.update', ({ connection, lastDisconnect, qr }) => {
       if (!current()) return;
       if (qr !== undefined) {
@@ -186,6 +225,29 @@ export class BaileysTransport implements Transport {
     socket.end(undefined).catch((error: unknown) => {
       this.#log.warn('falha ao encerrar o socket do Baileys', { err: error });
     });
+  }
+
+  #normalizeEnv(socket: BaileysSocket, state: AuthenticationState): NormalizeEnv {
+    const logger = toBaileysLogger(this.#log.child({ lib: 'baileys' }));
+    const media = { reuploadRequest: (m: WAMessage) => socket.updateMediaMessage(m), logger };
+    return {
+      // Lido a cada mensagem: no primeiro pareamento o `me` só chega depois do socket criado.
+      get selfIds() {
+        const me = state.creds.me;
+        return [me?.id, me?.lid].flatMap((id) => (id ? [jidNormalizedUser(id)] : []));
+      },
+      pnForLid: (lid) =>
+        socket.signalRepository.lidMapping.getPNForLID(lid).catch((error: unknown) => {
+          // Sem o par, o contato segue com `phone: null`: os papéis falham fechados (ADR 0046).
+          this.#log.warn('falha ao resolver o telefone de um LID', { err: error, lid });
+          return null;
+        }),
+      download: (raw) => downloadMediaMessage(raw, 'buffer', {}, media),
+      stream: async (raw) =>
+        Readable.toWeb(
+          await downloadMediaMessage(raw, 'stream', {}, media),
+        ) as ReadableStream<Uint8Array>,
+    };
   }
 
   #requestPairingCode(socket: BaileysSocket, phone: string): void {

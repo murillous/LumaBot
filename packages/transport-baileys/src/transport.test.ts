@@ -1,6 +1,11 @@
-import { type ConnectionStatus, createMemoryStorage, type Logger } from '@zapforge/core';
+import {
+  type ConnectionStatus,
+  createMemoryStorage,
+  type Logger,
+  type Message,
+} from '@zapforge/core';
 import type { AuthStateStore, TransportDeps } from '@zapforge/core/adapter';
-import { DisconnectReason } from 'baileys';
+import { DisconnectReason, type WAMessage } from 'baileys';
 import { describe, expect, it, vi } from 'vitest';
 import { boom, FakeDriver } from './fake-socket.test-support.ts';
 import { type BaileysPairing, BaileysTransport } from './transport.ts';
@@ -354,6 +359,110 @@ describe('BaileysTransport: reconexão e desconexão', () => {
 
     expect(driver.sockets).toHaveLength(0);
     expect(transport.native).toBeNull();
+  });
+});
+
+describe('BaileysTransport: mensagens recebidas', () => {
+  const GROUP = '120363000000000001@g.us';
+  const text = (id: string, key: Partial<WAMessage['key']> = {}): WAMessage => ({
+    key: { remoteJid: 'a@s.whatsapp.net', id, fromMe: false, ...key },
+    message: { conversation: id },
+    messageTimestamp: 1_760_000_000,
+  });
+
+  async function connected() {
+    const ctx = setup();
+    const messages: Message[] = [];
+    ctx.transport.on('message', (message) => {
+      messages.push(message);
+    });
+    await ctx.transport.connect();
+    return { ...ctx, messages, socket: ctx.driver.last };
+  }
+
+  it('messages.upsert notify vira message normalizada', async () => {
+    const { socket, messages } = await connected();
+    socket.emit('messages.upsert', {
+      type: 'notify',
+      messages: [
+        { ...text('M1'), message: { ephemeralMessage: { message: { conversation: 'oi' } } } },
+      ],
+    });
+    await vi.waitFor(() => expect(messages).toHaveLength(1));
+    expect(messages[0]).toMatchObject({ type: 'text', id: 'M1', text: 'oi' });
+  });
+
+  it('mantém a ordem de chegada mesmo com o telefone de um LID demorando', async () => {
+    const { socket, messages } = await connected();
+    let release: (() => void) | undefined;
+    socket.signalRepository.lidMapping.getPNForLID = () =>
+      new Promise((resolve) => {
+        release = () => resolve('5511911110000@s.whatsapp.net');
+      });
+    socket.emit('messages.upsert', {
+      type: 'notify',
+      messages: [text('M1', { remoteJid: GROUP, participant: '1@lid' }), text('M2')],
+    });
+    await vi.waitFor(() => expect(release).toBeDefined());
+    expect(messages).toEqual([]);
+
+    release?.();
+    await vi.waitFor(() => expect(messages.map((m) => m.id)).toEqual(['M1', 'M2']));
+    expect(messages[0]?.sender.phone).toBe('5511911110000');
+  });
+
+  it('ignora append (histórico), status e o que não é mensagem', async () => {
+    const { socket, messages } = await connected();
+    socket.emit('messages.upsert', { type: 'append', messages: [text('H1')] });
+    socket.emit('messages.upsert', {
+      type: 'notify',
+      messages: [
+        text('S1', { remoteJid: 'status@broadcast', participant: 'a@s.whatsapp.net' }),
+        { ...text('R1'), message: { reactionMessage: { text: '👍' } } },
+        text('M1'),
+      ],
+    });
+    await vi.waitFor(() => expect(messages.map((m) => m.id)).toEqual(['M1']));
+  });
+
+  it('falha ao resolver LID loga e entrega com phone null', async () => {
+    const { socket, messages, log } = await connected();
+    socket.signalRepository.lidMapping.getPNForLID = () => Promise.reject(new Error('banco'));
+    socket.emit('messages.upsert', {
+      type: 'notify',
+      messages: [text('M1', { remoteJid: GROUP, participant: '1@lid' })],
+    });
+    await vi.waitFor(() => expect(messages).toHaveLength(1));
+    expect(messages[0]?.sender).toMatchObject({ id: '1@lid', phone: null });
+    expect(log.lines).toContainEqual({
+      level: 'warn',
+      message: 'falha ao resolver o telefone de um LID',
+    });
+  });
+
+  it('falha na normalização descarta só aquela mensagem e vai para o log', async () => {
+    const { socket, messages, log } = await connected();
+    const broken = text('X1');
+    Object.defineProperty(broken, 'message', {
+      get() {
+        throw new Error('proto malformado');
+      },
+    });
+    socket.emit('messages.upsert', { type: 'notify', messages: [broken, text('M2')] });
+    await vi.waitFor(() => expect(messages.map((m) => m.id)).toEqual(['M2']));
+    expect(log.lines).toContainEqual({
+      level: 'error',
+      message: 'falha ao normalizar mensagem do Baileys; descartada',
+    });
+  });
+
+  it('mensagens do socket anterior deixam de valer depois da reconexão', async () => {
+    const { driver, transport, messages } = await connected();
+    const old = driver.last;
+    await transport.connect();
+    old.emit('messages.upsert', { type: 'notify', messages: [text('OLD')] });
+    driver.last.emit('messages.upsert', { type: 'notify', messages: [text('NEW')] });
+    await vi.waitFor(() => expect(messages.map((m) => m.id)).toEqual(['NEW']));
   });
 });
 
