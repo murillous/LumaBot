@@ -1,6 +1,6 @@
 # ADR 0024 — Papéis no core
 
-**Status:** Aceito (2026-10-06) · Decisão **D24** do [plano](../../ZAPFORGE_PLAN.md#4-decisões)
+**Status:** Aceito (2026-10-06) · Decisão **D24** do [plano](../../ZAPFORGE_PLAN.md#4-decisões) · Papéis custom: substituído pelo [ADR 0035](0035-papeis-nomeados-por-plugin.md)
 
 ## Contexto
 
