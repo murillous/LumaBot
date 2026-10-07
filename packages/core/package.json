@@ -12,6 +12,11 @@
       "@zapforge/source": "./src/index.ts",
       "types": "./dist/index.d.mts",
       "default": "./dist/index.mjs"
+    },
+    "./storage-contract": {
+      "@zapforge/source": "./src/storage/contract/index.ts",
+      "types": "./dist/storage-contract.d.mts",
+      "default": "./dist/storage-contract.mjs"
     }
   },
   "files": [

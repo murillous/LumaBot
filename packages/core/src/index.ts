@@ -96,13 +96,42 @@ export type {
 export { InboundQueue } from '#queue/inbound.ts';
 export type { JobHandler, Scheduler } from '#scheduler/types.ts';
 export type { ServiceAccess, ServiceName, Services } from '#services/types.ts';
+export { ReservedNamespaceError, StorageClosedError } from '#storage/errors.ts';
+export { createMemoryStorage } from '#storage/memory.ts';
+export { isReservedNamespace, kernelStorage, pluginStorage } from '#storage/namespace.ts';
+export {
+  assertFieldName,
+  cloneJson,
+  type FilterOperator,
+  type NormalizedCondition,
+  type NormalizedQuery,
+  type NormalizedSort,
+  normalizeDocument,
+  normalizeIndexes,
+  normalizeQuery,
+  normalizeWhere,
+} from '#storage/query.ts';
 export type {
+  AuthKeyData,
+  AuthStateStore,
   Collection,
   CollectionOptions,
+  FieldCondition,
+  FieldName,
+  FieldOperators,
+  FindQuery,
+  JsonObject,
   JsonValue,
   KeyValueStore,
+  Patch,
   PluginStorage,
+  Scalar,
+  Sort,
+  SortDirection,
   StoragePort,
+  Target,
+  Where,
+  WithId,
 } from '#storage/types.ts';
 export {
   assertCanSend,
