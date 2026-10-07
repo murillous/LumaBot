@@ -4,8 +4,8 @@
 // listener, um job ou o contexto inteiro do plugin.
 
 /**
- * Prazo de uma execução de código de plugin. Quem expira é o dono do timer que já existe (o
- * barramento, o roteador, o scheduler, o host); aqui não há timer.
+ * Prazo de uma execução de código de plugin. Quem expira é o dono do timer (o barramento, o
+ * roteador, o scheduler, o host); o timer de `armTimer` só conta o tempo, sem expirar sozinho.
  *
  * Com `parent` (o `Deadline` de vida do plugin), a execução expira também quando o pai expira:
  * o descarte do plugin alcança os comandos, listeners e jobs dele ainda em andamento (ADR 0033).
@@ -20,6 +20,9 @@ export class Deadline {
   // `AbortController` é a parte cara (EventTarget) no caminho quente de cada mensagem.
   #controller: AbortController | undefined;
   #signal: AbortSignal | undefined;
+  // Envios da execução aguardando a fila de saída: enquanto houver um, o prazo não corre (ADR 0045).
+  #holds = 0;
+  #onHold: ((held: boolean) => void) | undefined;
 
   constructor(parent?: Deadline) {
     this.#parent = parent;
@@ -46,6 +49,64 @@ export class Deadline {
       this.#signal = this.#parent === undefined ? own : AbortSignal.any([own, this.#parent.signal]);
     }
     return this.#signal;
+  }
+
+  /**
+   * Pausa o prazo enquanto `operation` (um envio pela fila de saída) não assenta: a espera pela
+   * taxa anti-ban, o "digitando" e as re-tentativas são do kernel, não do plugin, e a fila tem
+   * tetos próprios (ADR 0045). Devolve uma promise nova, que assenta como `operation`: uma
+   * rejeição que o plugin ignore continua não tratada, como sem a pausa.
+   */
+  hold<T>(operation: Promise<T>): Promise<T> {
+    if (this.#holds++ === 0) this.#onHold?.(true);
+    const release = (): void => {
+      if (--this.#holds === 0) this.#onHold?.(false);
+    };
+    return operation.then(
+      (value) => {
+        release();
+        return value;
+      },
+      (error: unknown) => {
+        release();
+        throw error;
+      },
+    );
+  }
+
+  /**
+   * Arma o timer do prazo: `fire` corre depois de `timeoutMs` contados só fora das pausas de
+   * `hold`. Um timer por execução. Devolve o desarme.
+   */
+  armTimer(timeoutMs: number, fire: () => void): () => void {
+    let remaining = timeoutMs;
+    let startedAt = 0;
+    let timer: NodeJS.Timeout | undefined;
+    const start = (): void => {
+      startedAt = performance.now();
+      timer = setTimeout(
+        () => {
+          this.#onHold = undefined;
+          fire();
+        },
+        Math.max(0, remaining),
+      );
+    };
+    this.#onHold = (held) => {
+      if (held) {
+        clearTimeout(timer);
+        timer = undefined;
+        remaining -= performance.now() - startedAt;
+      } else {
+        start();
+      }
+    };
+    // O handler pode ter enviado antes de o timer armar (envio síncrono no início do `run`).
+    if (this.#holds === 0) start();
+    return () => {
+      clearTimeout(timer);
+      this.#onHold = undefined;
+    };
   }
 
   /** Marca como expirado e aborta o `signal`. Só a primeira expiração vale, a do pai inclusive. */
@@ -176,6 +237,7 @@ export class ArmedTimers {
  * cancelado e segue em segundo plano, e uma rejeição dele depois do prazo vai para `onLate`,
  * nunca vira rejeição não tratada. Resultado síncrono passa direto, sem timer: o caminho quente
  * não paga nada (plano §7). O timer fica em `armed` enquanto corre, para o shutdown desarmá-lo.
+ * Com `deadline`, o prazo pausa enquanto a execução aguarda a fila de saída (`Deadline.hold`).
  */
 export function settleWithin(
   result: unknown,
@@ -183,19 +245,27 @@ export function settleWithin(
   onTimeout: () => Error,
   onLate: (error: unknown) => void,
   armed: ArmedTimers,
+  deadline?: Deadline,
 ): unknown {
   if (!isThenable(result)) return result;
   return new Promise((resolve, reject) => {
     let settled = false;
     const disarm = (): void => {
       settled = true;
-      clearTimeout(timer);
+      cancel();
       armed.delete(disarm);
     };
-    const timer = setTimeout(() => {
+    const fire = (): void => {
       disarm();
       reject(onTimeout());
-    }, timeoutMs);
+    };
+    let cancel: () => void;
+    if (deadline === undefined) {
+      const timer = setTimeout(fire, timeoutMs);
+      cancel = () => clearTimeout(timer);
+    } else {
+      cancel = deadline.armTimer(timeoutMs, fire);
+    }
     armed.add(disarm);
     result.then(
       (value) => {

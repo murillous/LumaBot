@@ -1,6 +1,7 @@
 // `Deadline` com pai (#200): a execução expira também quando o contexto do plugin é descartado.
+// Pausa do prazo (ADR 0045): o tempo de envio na fila de saída não conta.
 
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Deadline } from './deadline.ts';
 
 describe('Deadline com pai', () => {
@@ -59,5 +60,99 @@ describe('Deadline com pai', () => {
     expect(parent.signal.aborted).toBe(false);
     expect(sibling.expired).toBe(false);
     expect(sibling.signal.aborted).toBe(false);
+  });
+});
+
+describe('Deadline.armTimer com hold', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const pending = (): { promise: Promise<string>; resolve: (v: string) => void } => {
+    let resolve: (v: string) => void = () => undefined;
+    const promise = new Promise<string>((r) => {
+      resolve = r;
+    });
+    return { promise, resolve };
+  };
+
+  it('pausa enquanto o envio não assenta e retoma com o que sobrou', async () => {
+    const deadline = new Deadline();
+    const fire = vi.fn();
+    deadline.armTimer(1000, fire);
+    await vi.advanceTimersByTimeAsync(400);
+
+    const send = pending();
+    const held = deadline.hold(send.promise);
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(fire).not.toHaveBeenCalled();
+
+    send.resolve('chave');
+    await expect(held).resolves.toBe('chave');
+    await vi.advanceTimersByTimeAsync(599);
+    expect(fire).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(fire).toHaveBeenCalledOnce();
+  });
+
+  it('envios sobrepostos: só retoma quando o último assenta', async () => {
+    const deadline = new Deadline();
+    const fire = vi.fn();
+    deadline.armTimer(1000, fire);
+    const first = pending();
+    const second = pending();
+    void deadline.hold(first.promise);
+    void deadline.hold(second.promise);
+
+    first.resolve('a');
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(fire).not.toHaveBeenCalled();
+
+    second.resolve('b');
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(fire).toHaveBeenCalledOnce();
+  });
+
+  it('envio antes de armar: o timer começa pausado', async () => {
+    const deadline = new Deadline();
+    const fire = vi.fn();
+    const send = pending();
+    void deadline.hold(send.promise);
+    deadline.armTimer(1000, fire);
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(fire).not.toHaveBeenCalled();
+
+    send.resolve('a');
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(fire).toHaveBeenCalledOnce();
+  });
+
+  it('a rejeição do envio chega a quem chamou e também retoma o prazo', async () => {
+    const deadline = new Deadline();
+    const fire = vi.fn();
+    deadline.armTimer(1000, fire);
+    const failure = new Error('fila cheia');
+
+    await expect(deadline.hold(Promise.reject(failure))).rejects.toBe(failure);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(fire).toHaveBeenCalledOnce();
+  });
+
+  it('o desarme cancela o timer, inclusive um envio que assenta depois', async () => {
+    const deadline = new Deadline();
+    const fire = vi.fn();
+    const disarm = deadline.armTimer(1000, fire);
+    const send = pending();
+    void deadline.hold(send.promise);
+    disarm();
+
+    send.resolve('a');
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(fire).not.toHaveBeenCalled();
+    expect(vi.getTimerCount()).toBe(0);
   });
 });

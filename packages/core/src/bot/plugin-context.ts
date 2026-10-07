@@ -327,6 +327,7 @@ function wrapCommand(
       },
       (error) => deps.onLateCommandError(plugin, name, error),
       deps.armed,
+      deadline,
     ) as R;
   };
   return {

@@ -122,13 +122,14 @@ type Refuse = (operation: string) => Promise<never>;
 
 /**
  * `reply` que confere o prazo a cada chamada — não só na leitura de `ctx.reply`: quem guardou a
- * função antes do prazo (`const r = ctx.reply`) também é recusado depois dele.
+ * função antes do prazo (`const r = ctx.reply`) também é recusado depois dele. No prazo, o envio
+ * pausa o relógio até assentar (ADR 0045).
  */
 function expiringReply(reply: Reply, deadline: Deadline, refuse: Refuse): Reply {
   const guard =
     <A extends unknown[]>(operation: string, send: (...args: A) => Promise<MessageKey>) =>
     (...args: A): Promise<MessageKey> =>
-      deadline.expired ? refuse(operation) : send(...args);
+      deadline.expired ? refuse(operation) : deadline.hold(send(...args));
   type AnySend = (...args: unknown[]) => Promise<MessageKey>;
   const shortcuts = Object.fromEntries(
     REPLY_METHODS.map((method) => [method, guard(`reply.${method}`, reply[method] as AnySend)]),
@@ -188,7 +189,10 @@ function expiringReplyDescriptor<V extends ExpiringView>(
 
 type React = BotMessageContext['react'];
 
-/** Descritor do `react` de uma execução com prazo, recusado depois dele como o `reply`. */
+/**
+ * Descritor do `react` de uma execução com prazo: recusado depois dele e pausando o relógio no
+ * prazo, como o `reply`.
+ */
 function expiringReactDescriptor<V extends ExpiringView>(
   plugin: string,
   base: (view: V) => Pick<BotMessageContext, 'react'> | undefined,
@@ -201,7 +205,8 @@ function expiringReactDescriptor<V extends ExpiringView>(
       const deadline = deadlineOf(this);
       if (target === undefined || deadline === undefined) return target?.react;
       const refuse = refuser(plugin, this, deadline, scope);
-      const react: React = (emoji) => (deadline.expired ? refuse('react') : target.react(emoji));
+      const react: React = (emoji) =>
+        deadline.expired ? refuse('react') : deadline.hold(target.react(emoji));
       Object.defineProperty(this, 'react', { value: react });
       return react;
     },

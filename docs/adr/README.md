@@ -65,3 +65,4 @@ o anterior, e o antigo passa a apontar para ele no Status.
 | [0043](0043-prazo-de-middleware.md) | D43 | Middleware do app tem prazo, contado fora do `next()` (detalha D12) | Aceito |
 | [0044](0044-espera-pelo-bot-assentar.md) | D44 | `bot.settled()` espera o bot processar o que recebeu (detalha D22/D34) | Aceito |
 | [0045](0045-queda-de-rede-nao-limpa-sessao.md) | D45 | Queda de rede nunca limpa a sessão (detalha D03/D37) | Aceito |
+| [0046](0046-espera-na-fila-de-saida-fora-do-prazo.md) | D46 | A espera na fila de saída não conta no prazo do handler (detalha D19/D33/D42) | Aceito |
