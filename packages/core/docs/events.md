@@ -82,6 +82,7 @@ nenhum prazo resolve isso.
 | `group.updated` | `{ groupId }` + só os campos alterados |
 | `contact.updated` | `{ id }` + só os campos alterados (`name?`, `phone?`) |
 | `connection.status` / `connection.qr` | `ConnectionStatus` / `{ qr }` |
+| `connection.pairing-code` | `{ code }` (pareamento por código, ADR 0050) |
 | `command` | `CommandEvent`: `{ plugin, name, invokedAs, status, message }` ([abaixo](#comandos-command)) |
 | `plugin.error` | `PluginErrorEvent`: `{ plugin, phase, event, error, timedOut }` |
 

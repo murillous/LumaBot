@@ -342,6 +342,47 @@ describe('Bot: reconexão', () => {
     expect(notice).toBeDefined();
   });
 
+  it('código de pareamento vai para o barramento e conta para o limite de QRs (ADR 0050)', async () => {
+    const transport = new RecordingTransport();
+    const codes: string[] = [];
+    const clearSession = vi.fn(async () => undefined);
+    const b = bot({
+      transport,
+      reconnection: { clearSession, maxQrCount: 1, qrRetryDelayMs: 100, cleanDelayMs: 100 },
+      plugins: [
+        definePlugin({
+          name: 'tela',
+          version: '1.0.0',
+          engine: '>=0.0.0',
+          setup: (ctx) => {
+            ctx.events.on('connection.pairing-code', (e) => {
+              codes.push(e.payload.code);
+            });
+          },
+        }),
+      ],
+    });
+    await b.start();
+
+    transport.emit('connection.pairing-code', { code: 'ABCD1234' });
+    expect(codes).toEqual(['ABCD1234']);
+
+    transport.emit('connection.status', { status: 'closed', reason: 'qr-timeout', error: null });
+    await vi.advanceTimersByTimeAsync(100);
+    expect(clearSession).toHaveBeenCalledOnce();
+  });
+
+  it('código de pareamento só sai com o valor em debug', async () => {
+    const transport = new RecordingTransport();
+    const logger = recordingLogger();
+    const b = bot({ transport, logger });
+    await b.start();
+
+    transport.emit('connection.pairing-code', { code: 'SEGREDO1' });
+    const withValue = logger.lines.filter((line) => JSON.stringify(line).includes('SEGREDO1'));
+    expect(withValue.map((line) => line.level)).toEqual(['debug']);
+  });
+
   it('reconnection: false desliga a reconexão', async () => {
     const transport = new RecordingTransport();
     const b = bot({ transport, reconnection: false });

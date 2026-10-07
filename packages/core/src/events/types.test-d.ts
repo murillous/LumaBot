@@ -32,6 +32,7 @@ describe('eventos do §6.4', () => {
       | 'contact.updated'
       | 'connection.status'
       | 'connection.qr'
+      | 'connection.pairing-code'
       | 'command'
       | 'plugin.error';
     expectTypeOf<BotEventName>().toEqualTypeOf<Planned>();
@@ -45,6 +46,9 @@ describe('eventos do §6.4', () => {
     expectTypeOf<BotEvents['connection.status']>().toEqualTypeOf<ConnectionStatus>();
     expectTypeOf<BotEvents['plugin.error']>().toEqualTypeOf<PluginErrorEvent>();
     expectTypeOf<BotEvents['connection.qr']>().toEqualTypeOf<{ readonly qr: string }>();
+    expectTypeOf<BotEvents['connection.pairing-code']>().toEqualTypeOf<{
+      readonly code: string;
+    }>();
     expectTypeOf<BotEvents['command']>().toEqualTypeOf<CommandEvent>();
   });
 });

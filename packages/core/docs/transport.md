@@ -77,6 +77,7 @@ Os eventos chegam já normalizados (`TransportEvents`):
 | `contact.updated` | `{ id, name?, phone? }` (nome ou telefone de um contato mudou; só os campos alterados) |
 | `connection.status` | `{ status: 'connecting' \| 'open' }` ou `{ status: 'closed', reason, error }` |
 | `connection.qr` | `{ qr }` |
+| `connection.pairing-code` | `{ code }` (código de pareamento, a alternativa ao QR; quem pareia por código não emite `connection.qr`) |
 
 `message:<type>` e `plugin.error` (plano §6.4) são gerados pelo kernel, não pelo transport.
 
@@ -207,6 +208,7 @@ const policy = new ReconnectionPolicy({
 });
 
 transport.on('connection.qr', () => policy.qrPresented());
+transport.on('connection.pairing-code', () => policy.qrPresented());
 transport.on('connection.status', async (s) => {
   if (s.status === 'open') return policy.connected();
   if (s.status !== 'closed') return;

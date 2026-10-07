@@ -116,7 +116,7 @@ export class ReconnectionPolicy {
     }
   }
 
-  /** O transport apresentou um QR (evento `connection.qr`). */
+  /** O transport apresentou um QR ou código de pareamento (`connection.qr`/`.pairing-code`). */
   qrPresented(): void {
     this.#qrCount++;
   }

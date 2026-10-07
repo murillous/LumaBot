@@ -563,6 +563,13 @@ export function createBot(config: BotConfig): Bot {
         log.debug('valor do QR de pareamento', { qr: payload.qr });
         void bus.emit('connection.qr', payload);
       }),
+      transport.on('connection.pairing-code', (payload) => {
+        // Mesma tentativa de pareamento que o QR (ADR 0050), e o mesmo risco no log.
+        reconnector?.onQr();
+        log.info('código de pareamento recebido; exiba-o pelo evento connection.pairing-code');
+        log.debug('valor do código de pareamento', { code: payload.code });
+        void bus.emit('connection.pairing-code', payload);
+      }),
     ];
     for (const event of Object.keys(DIRECT_EVENTS) as DirectEvent[]) offs.push(forward(event));
     return () => {

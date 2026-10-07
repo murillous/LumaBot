@@ -230,7 +230,7 @@ antes de repassá-los ao barramento:
 | `message.deleted` | `chat.id` | barra `fromMe: true` |
 | `group.participants`, `group.updated` | `groupId` | — |
 | `group.joined`, `group.left`, `contact.updated` | sempre passam | — |
-| `connection.status`, `connection.qr` | — | — |
+| `connection.status`, `connection.qr`, `connection.pairing-code` | — | — |
 
 `group.joined` e `group.left` passam mesmo com o grupo bloqueado: são o ciclo de vida do próprio
 bot no grupo e servem para o plugin limpar estado. `contact.updated` não é de um chat: o mesmo
@@ -498,7 +498,10 @@ O transport avisa as quedas por `connection.status`; a `ReconnectionPolicy`
 - `connection.qr` conta para o limite de QRs da política e vai para o barramento (um plugin pode
   desenhar o QR). O log em `info` só avisa que chegou um QR; o valor (campo `qr`) sai em `debug`,
   porque quem lê o log (agregador, arquivo) pareia o número enquanto o QR vale.
-- `connection.status`/`connection.qr` também chegam aos listeners.
+- `connection.pairing-code` (pareamento por código, [ADR 0050](../../../docs/adr/0050-codigo-de-pareamento.md))
+  segue as mesmas regras do QR: conta para o limite, o valor (`code`) só sai em `debug` e vai para o
+  barramento.
+- `connection.status`/`connection.qr`/`connection.pairing-code` também chegam aos listeners.
 - Do `closed` ao `open`, a fila de saída fica pausada: as respostas esperam a reconexão em vez de
   esgotar o retry, até `outbound.maxPauseMs` (padrão 60 s; depois, rejeitam com
   `OutboundQueueError` `'disconnected'`). Ver [Fila de saída](outbound-queue.md#conexão-caída).
