@@ -104,6 +104,11 @@ export interface BotTimeouts {
   readonly listenerMs?: number;
   /** Cada handler de job do scheduler. Padrão: 30000. */
   readonly jobMs?: number;
+  /**
+   * Cada middleware do pipeline, contado só no tempo dele (o que roda dentro do `next()` não
+   * conta). Estourado, a mensagem é descartada e o erro vai para o log. Padrão: 30000.
+   */
+  readonly middlewareMs?: number;
 }
 
 export interface BotConfig {
@@ -211,6 +216,9 @@ export class BotStateError extends Error {
 
 /** Prazo padrão do `run` de um comando: o mesmo dos listeners. */
 const DEFAULT_COMMAND_TIMEOUT_MS = 30_000;
+
+/** Prazo padrão de cada middleware: o mesmo dos handlers (ADR 0043). */
+const DEFAULT_MIDDLEWARE_TIMEOUT_MS = 30_000;
 
 /**
  * Prazos dos ganchos de parada internos. Somam o total padrão (`shutdown.timeoutMs`, 15 s): um
@@ -321,7 +329,11 @@ export function createBot(config: BotConfig): Bot {
         { plugin: command.plugin, command: command.name, role },
       ),
   });
-  const pipeline = createPipeline(config.middlewares ?? {}, getLog);
+  const pipeline = createPipeline(
+    config.middlewares ?? {},
+    timeouts.middlewareMs ?? DEFAULT_MIDDLEWARE_TIMEOUT_MS,
+    getLog,
+  );
   // Os mesmos filtros, para os eventos que não passam pelo pipeline (ADR 0038).
   const chatFilterOptions = config.middlewares?.chatFilter;
   const chatIsAllowed = chatFilterOptions ? chatAllowed(chatFilterOptions) : () => true;
@@ -592,6 +604,8 @@ export function createBot(config: BotConfig): Bot {
     // Sem await: o que resta delas é trabalho já em andamento, e nenhuma das três rejeita.
     void reconnector?.stop();
     void inbound.close({ drain: false });
+    // Middleware preso na mensagem abandonada: sem isto, o timer dele viveria até o prazo.
+    pipeline.close();
     await scheduler.stop(aborted);
     // Teardown pulado ou abandonado vira falha que o host loga; o `dispose` roda para todos.
     await host?.stop(aborted);
@@ -938,9 +952,15 @@ function groupAdminPort(
 /** Pipeline com os middlewares oficiais ligados pela config e os do app. */
 function createPipeline(
   options: BotMiddlewaresConfig,
+  timeoutMs: number,
   log: () => Logger,
 ): MiddlewarePipeline<KernelMessageContext> {
-  const pipeline = new MiddlewarePipeline<KernelMessageContext>();
+  // Middleware roda dentro da tarefa da fila do chat: sem prazo, um preso seguraria o chat
+  // para sempre (ADR 0043).
+  const pipeline = new MiddlewarePipeline<KernelMessageContext>({
+    timeoutMs,
+    onLateError: (error) => log().error('middleware rejeitou depois do prazo', { err: error }),
+  });
   if (options.ignoreSelf !== false) {
     pipeline.use(ignoreSelf(), { priority: MIDDLEWARE_PRIORITY.ignoreSelf });
   }

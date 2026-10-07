@@ -38,6 +38,25 @@ Regras:
   é um `BotMessageContext` (`message`, `text`, `reply`, `log`).
 - No bot, **edições** (`message.edited`) também passam pelos middlewares. Quem só quer mensagem
   nova confere `ctx.message.isEdited` ([Bot](bot.md#fluxo-de-uma-mensagem)).
+- No bot, **cada middleware tem prazo** (ver [Prazo](#prazo)).
+
+## Prazo
+
+O middleware roda dentro da tarefa da fila do chat: preso, ele seguraria as próximas mensagens
+daquele chat. Por isso, no bot, cada um tem `timeouts.middlewareMs` (padrão 30 s;
+[ADR 0043](../../../docs/adr/0043-prazo-de-middleware.md)).
+
+- O relógio conta **só o tempo do próprio middleware**. Ele para no `next()` e volta, com o que
+  sobrou, quando o `next()` termina: um comando lento lá dentro não estoura o middleware de fora.
+  Ida e volta do mesmo middleware dividem um prazo só.
+- Estourado, a mensagem é descartada: o erro (`MiddlewareTimeoutError`) vai para o log
+  (`falha ao processar mensagem`) e a próxima mensagem do chat segue. Um `next()` chamado depois
+  disso rejeita com o mesmo erro, sem rodar comando nem listeners.
+- O JS não cancela promise: o middleware estourado continua rodando em segundo plano. Se ele
+  rejeitar depois, o erro vai para o log (`middleware rejeitou depois do prazo`).
+- Middleware síncrono, ou que só devolve o `next()` (`return next()`), não arma timer.
+- Trabalho que precisa de mais tempo se solta do middleware (sem `await`, com `catch` próprio)
+  ou sobe `timeouts.middlewareMs`, que vale para todos.
 
 ## O texto de trabalho `ctx.text`
 
@@ -70,7 +89,8 @@ ligados, `chatFilter` e `rateLimit` quando configurados. Erro de middleware vai 
 ```ts
 import { MiddlewarePipeline } from '#middleware/pipeline.ts';
 
-const pipeline = new MiddlewarePipeline();
+// timeoutMs liga o prazo por middleware; onLateError recebe a rejeição tardia.
+const pipeline = new MiddlewarePipeline({ timeoutMs: 30_000, onLateError: console.error });
 const remove = pipeline.use(timing, { priority: 100 });
 pipeline.use(onlyText);
 
@@ -86,6 +106,8 @@ remove(); // idempotente
   interrompeu. O `terminal` roda quando o último middleware chama `next()`, e a volta espera por
   ele; o erro dele propaga pela cadeia como o de um middleware. O `Bot` passa ali o roteador e
   os listeners.
+- Sem `timeoutMs`, o pipeline não tem prazo. Com ele, `close()` abandona os middlewares em
+  andamento (`MiddlewareAbandonedError`) e desarma os timers; o `Bot` chama no fim do shutdown.
 - A ordem é calculada em `use()`/remoção, não por mensagem. Uma mensagem em andamento usa a
   cadeia de quando começou: registrar ou remover no meio não a afeta.
 
