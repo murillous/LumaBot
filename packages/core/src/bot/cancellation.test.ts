@@ -3,7 +3,12 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { command } from '#commands/command.ts';
-import { ContextExpiredError } from '#deadline.ts';
+import {
+  ContextExpiredError,
+  ExecutionTimeoutError,
+  JobTimeoutError,
+  ListenerTimeoutError,
+} from '#deadline.ts';
 import { createEventBus } from '#events/bus.ts';
 import { definePlugin } from '#plugin/define.ts';
 import { PluginLifecycleError } from '#plugin/report.ts';
@@ -343,5 +348,124 @@ describe('PluginContext.signal e contexto descartado', () => {
     await expect(
       captured?.send.send('chat@test', { type: 'text', text: 'x' }),
     ).rejects.toBeInstanceOf(ContextExpiredError);
+  });
+});
+
+describe('motivo tipado do timeout', () => {
+  it('listener e job abortam com erros tipados, filhos de ExecutionTimeoutError', async () => {
+    const bus = createEventBus({ listenerTimeoutMs: 100, onError: () => undefined });
+    let listenerSignal: AbortSignal | undefined;
+    bus.forPlugin('ouvinte').on('group.left', async (e) => {
+      listenerSignal = e.signal;
+      await forever();
+    });
+    const done = bus.emit('group.left', { groupId: 'g' });
+    await vi.advanceTimersByTimeAsync(100);
+    await done;
+    expect(listenerSignal?.reason).toBeInstanceOf(ListenerTimeoutError);
+    expect(listenerSignal?.reason).toBeInstanceOf(ExecutionTimeoutError);
+    expect(listenerSignal?.reason).toMatchObject({
+      plugin: 'ouvinte',
+      event: 'group.left',
+      timeoutMs: 100,
+    });
+
+    let jobSignal: AbortSignal | undefined;
+    const plugin = definePlugin({
+      name: 'agenda',
+      version: '1.0.0',
+      engine: ENGINE,
+      async setup(ctx) {
+        ctx.scheduler.on('lembrar', async (_payload, job) => {
+          jobSignal = job.signal;
+          await forever();
+        });
+        await ctx.scheduler.at(Date.now(), 'lembrar');
+      },
+    });
+    const b = bot({
+      transport: new RecordingTransport(),
+      logger: recordingLogger(),
+      plugins: [plugin],
+      timeouts: { jobMs: 1000 },
+    });
+    await b.start();
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(jobSignal?.reason).toBeInstanceOf(JobTimeoutError);
+    expect(jobSignal?.reason).toBeInstanceOf(ExecutionTimeoutError);
+    expect(jobSignal?.reason).toMatchObject({ plugin: 'agenda', job: 'lembrar', timeoutMs: 1000 });
+  });
+
+  it('CommandTimeoutError também é ExecutionTimeoutError', () => {
+    const error = new CommandTimeoutError('p', 'c', 10);
+    expect(error).toBeInstanceOf(ExecutionTimeoutError);
+    expect(error).toMatchObject({ name: 'CommandTimeoutError', plugin: 'p', timeoutMs: 10 });
+  });
+});
+
+describe('recusa de contexto expirado sem log duplicado', () => {
+  it('reply recusado que escapa do comando é logado uma vez só', async () => {
+    const transport = new RecordingTransport();
+    const logger = recordingLogger();
+    let release: () => void = () => undefined;
+    const plugin = definePlugin({
+      name: 'lerdo',
+      version: '1.0.0',
+      engine: ENGINE,
+      setup(ctx) {
+        ctx.commands.add(
+          command({
+            name: 'demora',
+            run: async (c) => {
+              await new Promise<void>((resolve) => {
+                release = resolve;
+              });
+              // Sem catch: a recusa rejeita o run depois do prazo.
+              await c.reply('tarde demais');
+            },
+          }),
+        );
+      },
+    });
+    const b = bot({ transport, logger, plugins: [plugin], timeouts: { commandMs: 1000 } });
+    await b.start();
+
+    transport.emit('message', message('!demora'));
+    await vi.advanceTimersByTimeAsync(1000);
+    release();
+    await vi.runAllTimersAsync();
+
+    const expired = logger.lines.filter(
+      (line) => line.fields['err'] instanceof ContextExpiredError,
+    );
+    expect(expired).toHaveLength(1);
+    expect(expired[0]?.level).toBe('warn');
+  });
+
+  it('reply recusado que escapa do listener é logado uma vez só', async () => {
+    const transport = new RecordingTransport();
+    const logger = recordingLogger();
+    const plugin = definePlugin({
+      name: 'ouvinte',
+      version: '1.0.0',
+      engine: ENGINE,
+      setup(ctx) {
+        ctx.events.on('message', { timeoutMs: 1000 }, async (e) => {
+          await new Promise<void>((resolve) => setTimeout(resolve, 1500));
+          await e.reply('tarde');
+        });
+      },
+    });
+    const b = bot({ transport, logger, plugins: [plugin] });
+    await b.start();
+
+    transport.emit('message', message('oi'));
+    await vi.runAllTimersAsync();
+
+    const expired = logger.lines.filter(
+      (line) => line.fields['err'] instanceof ContextExpiredError,
+    );
+    expect(expired).toHaveLength(1);
+    expect(expired[0]?.level).toBe('warn');
   });
 });

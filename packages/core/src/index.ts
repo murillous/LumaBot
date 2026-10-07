@@ -53,7 +53,12 @@ export {
 } from '#config/plugin-configs.ts';
 export { isSecretSchema, SECRET_MASK, secret } from '#config/schema.ts';
 export type { BotMessageContext, MessageContext } from '#context.ts';
-export { ContextExpiredError } from '#deadline.ts';
+export {
+  ContextExpiredError,
+  ExecutionTimeoutError,
+  JobTimeoutError,
+  ListenerTimeoutError,
+} from '#deadline.ts';
 export {
   createEventBus,
   DEFAULT_LISTENER_TIMEOUT_MS,
@@ -84,6 +89,7 @@ export {
   createNoopLogger,
   type LogDestination,
   type LoggerOptions,
+  MIN_SECRET_LENGTH,
 } from '#logger/logger.ts';
 export { createSecretSet, type SecretSet, type SecretSource } from '#logger/secrets.ts';
 export type { LogFields, Logger, LogLevel } from '#logger/types.ts';

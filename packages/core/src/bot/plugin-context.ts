@@ -5,7 +5,7 @@
 import type { CommandDefinition } from '#commands/command.ts';
 import type { CommandRouter } from '#commands/router.ts';
 import type { PluginConfigs } from '#config/plugin-configs.ts';
-import { ContextExpiredError, Deadline } from '#deadline.ts';
+import { ContextExpiredError, Deadline, ExecutionTimeoutError } from '#deadline.ts';
 import type { EventBus } from '#events/bus.ts';
 import type { BotEventName, EventSubscriber } from '#events/types.ts';
 import type { Logger } from '#logger/types.ts';
@@ -46,17 +46,13 @@ export interface PluginContextDeps {
 }
 
 /** O `run` de um comando estourou o prazo. Vai em `plugin.error` com `timedOut: true`. */
-export class CommandTimeoutError extends Error {
-  override readonly name = 'CommandTimeoutError';
-  readonly plugin: string;
+export class CommandTimeoutError extends ExecutionTimeoutError {
+  override readonly name: string = 'CommandTimeoutError';
   readonly command: string;
-  readonly timeoutMs: number;
 
   constructor(plugin: string, command: string, timeoutMs: number) {
-    super(`comando "${command}" do plugin "${plugin}" excedeu ${timeoutMs} ms`);
-    this.plugin = plugin;
+    super(plugin, `comando "${command}"`, timeoutMs);
     this.command = command;
-    this.timeoutMs = timeoutMs;
   }
 }
 

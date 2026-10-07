@@ -26,14 +26,22 @@ export interface LoggerOptions {
   /**
    * Valores secretos (ex.: campos `secret` da config) trocados por `[REDACTED]` em qualquer
    * lugar da linha: mensagem, campos, bindings, `err.message`/`err.stack`. Pega o valor, sob
-   * qualquer nome de campo. Strings vazias são ignoradas. Uma `SecretSource` (ex.:
-   * `createSecretSet()`) é consultada a cada linha: segredos descobertos depois da criação do
-   * logger — como os da config de plugin, resolvida no setup e no reload — também são censurados.
+   * qualquer nome de campo. Valores com menos de `MIN_SECRET_LENGTH` caracteres são ignorados.
+   * Uma `SecretSource` (ex.: `createSecretSet()`) é consultada a cada linha: segredos descobertos
+   * depois da criação do logger — como os da config de plugin, resolvida no setup e no reload —
+   * também são censurados.
    */
   readonly secrets?: readonly string[] | SecretSource;
 }
 
 const CENSOR = '[REDACTED]';
+
+/**
+ * Tamanho mínimo de um segredo para ser censurado no log. A censura troca o valor onde ele
+ * aparecer na linha: um segredo de 1 a 3 caracteres (`"1"`, `"on"`) apagaria pedaços de todo
+ * log, e um valor tão curto não protege nada de qualquer forma.
+ */
+export const MIN_SECRET_LENGTH = 4;
 
 /**
  * Logger estruturado em JSON. `child({ plugin })` e `child({ chatId })` acumulam contexto; o
@@ -91,7 +99,7 @@ function withSecretsCensored(
 // que contém outro ser trocado inteiro.
 function toNeedles(secrets: readonly string[]): string[] {
   return secrets
-    .filter((secret) => secret.length > 0)
+    .filter((secret) => secret.length >= MIN_SECRET_LENGTH)
     .map((secret) => JSON.stringify(secret).slice(1, -1))
     .sort((a, b) => b.length - a.length);
 }

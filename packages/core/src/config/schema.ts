@@ -75,6 +75,57 @@ export function secret<T extends z.ZodType>(schema: T): T {
   return schema.meta({ secret: true, writeOnly: true }) as T;
 }
 
+// Os `checks` (`.min()`, `.refine()`) também têm `_zod`, mas não são schemas: não têm `meta`.
+const isSchema = (value: unknown): value is z.ZodType =>
+  typeof value === 'object' &&
+  value !== null &&
+  '_zod' in value &&
+  typeof (value as { meta?: unknown }).meta === 'function';
+
+/** Sub-schemas guardados na definição (`element`, `options`, `keyType`, `items`...). */
+function childrenOf(def: Def): z.ZodType[] {
+  const children: z.ZodType[] = [];
+  for (const value of Object.values(def)) {
+    if (isSchema(value)) children.push(value);
+    else if (Array.isArray(value)) children.push(...value.filter(isSchema));
+  }
+  return children;
+}
+
+/**
+ * Caminhos de `secret()` fora de campo de `z.object` (dentro de array, record, union...). A config
+ * só acha segredo seguindo objetos — para censurar no log, mascarar e recusar no override —, então
+ * um segredo noutro lugar passaria sem nenhuma dessas proteções. `[*]` marca o nível que não é
+ * objeto. `z.lazy` não é percorrido.
+ */
+export function misplacedSecrets(schema: z.ZodType): string[] {
+  const found: string[] = [];
+  const visited = new Set<z.ZodType>();
+  const walk = (node: z.ZodType, path: string, nested: boolean): void => {
+    if (visited.has(node)) return;
+    visited.add(node);
+    if (node.meta()?.['secret'] === true) {
+      // Num campo de objeto, o valor inteiro é segredo: o que houver dentro já está coberto.
+      if (nested) found.push(path);
+      return;
+    }
+    const def = defOf(node);
+    if (def.type === 'object') {
+      for (const [key, field] of Object.entries(def.shape ?? {})) {
+        walk(field, path === '' ? key : `${path}.${key}`, nested);
+      }
+      return;
+    }
+    // Embrulhos e pipes não mudam o nível; qualquer outro contêiner tira do caminho de objetos.
+    const transparent = WRAPPERS.has(def.type) || def.type === 'pipe';
+    for (const child of childrenOf(def)) {
+      walk(child, transparent ? path : `${path}[*]`, nested || !transparent);
+    }
+  };
+  walk(schema, '', false);
+  return found;
+}
+
 /** `true` se o campo foi marcado com `secret()` (em qualquer nível do embrulho). */
 export function isSecretSchema(schema: z.ZodType): boolean {
   for (let current: z.ZodType | undefined = schema; current; current = innerOf(current)) {

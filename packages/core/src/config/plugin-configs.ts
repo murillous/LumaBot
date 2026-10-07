@@ -6,16 +6,23 @@
 // entra por override: o storage guarda em texto puro (ADR 0032).
 
 import type { z } from 'zod';
-import { createNoopLogger } from '#logger/logger.ts';
+import { createNoopLogger, MIN_SECRET_LENGTH } from '#logger/logger.ts';
 import type { SecretSet } from '#logger/secrets.ts';
 import type { Logger } from '#logger/types.ts';
 import type { PluginReloadResult } from '#plugin/host.ts';
 import type { PluginDefinition, PluginMessages } from '#plugin/types.ts';
 import { kernelStorage } from '#storage/namespace.ts';
 import type { JsonObject, StoragePort } from '#storage/types.ts';
-import { type ConfigEnv, type EnvEntry, envName, processEnv, readEnvFields } from './env.ts';
+import {
+  type ConfigEnv,
+  type EnvEntry,
+  envCollisions,
+  envName,
+  processEnv,
+  readEnvFields,
+} from './env.ts';
 import { type ConfigSource, PluginConfigError, type PluginConfigIssue } from './errors.ts';
-import { isSecretSchema, objectShape, SECRET_MASK } from './schema.ts';
+import { isSecretSchema, misplacedSecrets, objectShape, SECRET_MASK } from './schema.ts';
 
 /**
  * Config de um plugin vinda do app ou do storage: os campos do schema e, opcionalmente,
@@ -174,6 +181,13 @@ function secretPaths(
   });
 }
 
+/** Valor no caminho de objetos `path` (`undefined` se algum nível faltar). */
+function valueAt(value: unknown, path: readonly string[]): unknown {
+  let node = value;
+  for (const key of path) node = isPlainObject(node) ? node[key] : undefined;
+  return node;
+}
+
 /** Cópia de `value` sem o campo em `path` (os objetos do caminho são copiados, não alterados). */
 function withoutPath(value: PlainObject, path: readonly string[]): PlainObject {
   const [key, ...rest] = path as [string, ...string[]];
@@ -241,6 +255,7 @@ export function createPluginConfigs(options: PluginConfigsOptions): PluginConfig
   let queue: Promise<unknown> = Promise.resolve();
   // Avisa uma vez por campo: `resolve` roda a cada setup/reload/describe.
   const warnedLegacy = new Set<string>();
+  const warnedShort = new Set<string>();
 
   function definitionOf(name: string): PluginDefinition {
     const definition = byName.get(name);
@@ -279,6 +294,22 @@ export function createPluginConfigs(options: PluginConfigsOptions): PluginConfig
       throw new TypeError(
         `plugin "${name}": "${MESSAGES_KEY}" é reservado para sobrescrever textos (ADR 0025) ` +
           'e não pode ser campo do schema de config',
+      );
+    }
+    const misplaced = schema ? misplacedSecrets(schema) : [];
+    if (misplaced.length > 0) {
+      throw new TypeError(
+        `plugin "${name}": secret() só vale em campo de z.object (em qualquer nível de objetos); ` +
+          `dentro de array, record ou union ele não seria censurado nem protegido (ADR 0032): ` +
+          misplaced.map((path) => `"${path}"`).join(', '),
+      );
+    }
+    const collisions = envCollisions(name, shape, Object.keys(definition.messages ?? {}));
+    if (collisions.size > 0) {
+      const list = [...collisions].map(([env, paths]) => `${env} (${paths.join(', ')})`);
+      throw new TypeError(
+        `plugin "${name}": campos diferentes geram a mesma variável de ambiente; renomeie um ` +
+          `deles: ${list.join('; ')}`,
       );
     }
 
@@ -400,11 +431,39 @@ export function createPluginConfigs(options: PluginConfigsOptions): PluginConfig
     return clean;
   }
 
+  /**
+   * Avisa (uma vez por campo, sem o valor) do segredo curto demais para a censura do log
+   * (`MIN_SECRET_LENGTH`): o logger não o censura, e ele sai no log como qualquer texto.
+   */
+  function warnShortSecrets(definition: PluginDefinition, config: unknown): void {
+    if (!definition.config) return;
+    for (const path of secretPaths(definition.config, config)) {
+      const values: string[] = [];
+      secretStrings(valueAt(config, path), values);
+      if (!values.some((value) => value.length < MIN_SECRET_LENGTH)) continue;
+      const label = path.join('.');
+      const key = `${definition.name}:${label}`;
+      if (warnedShort.has(key)) continue;
+      warnedShort.add(key);
+      log.warn(
+        `campo secreto "${label}" do plugin "${definition.name}" tem menos de ` +
+          `${MIN_SECRET_LENGTH} caracteres e não é censurado no log`,
+        { plugin: definition.name, field: label },
+      );
+    }
+  }
+
+  /** Grava os segredos da config resolvida no `SecretSet` e avisa dos curtos demais. */
+  function trackSecrets(definition: PluginDefinition, result: Computed & { ok: true }): void {
+    warnShortSecrets(definition, result.resolved.config);
+    options.secrets?.set(SECRETS_OWNER(definition.name), result.secrets);
+  }
+
   async function current(name: string): Promise<ResolvedPluginConfig> {
     const definition = definitionOf(name);
     const result = compute(definition, dropLegacySecrets(definition, await kv.get(name)));
     if (!result.ok) throw result.error;
-    options.secrets?.set(SECRETS_OWNER(name), result.secrets);
+    trackSecrets(definition, result);
     return result.resolved;
   }
 
@@ -428,7 +487,7 @@ export function createPluginConfigs(options: PluginConfigsOptions): PluginConfig
     const result = compute(definition, overrides);
     if (!result.ok) throw result.error;
     // Antes de salvar e de recarregar: o reload loga, e o segredo novo já precisa sair censurado.
-    options.secrets?.set(SECRETS_OWNER(name), result.secrets);
+    trackSecrets(definition, result);
     if (Object.keys(overrides).length === 0) await kv.delete(name);
     else await kv.set(name, overrides);
     return options.reload ? options.reload(name) : undefined;

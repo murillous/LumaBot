@@ -66,6 +66,34 @@ export function coerceEnvValue(raw: string, schema: z.ZodType): unknown {
   }
 }
 
+/**
+ * Variáveis de ambiente que dois caminhos da config produzem iguais: `openAIKey` e `openAiKey`
+ * viram ambos `OPEN_AI_KEY`, e uma variável preencheria os dois campos. Devolve, por variável,
+ * os caminhos em conflito. `messages` entra como `messages.<chave>`.
+ */
+export function envCollisions(
+  plugin: string,
+  shape: Readonly<Record<string, z.ZodType>> | undefined,
+  messageKeys: readonly string[],
+): Map<string, string[]> {
+  const byName = new Map<string, string[]>();
+  const add = (path: readonly string[]): void => {
+    const name = envName(plugin, path);
+    byName.set(name, [...(byName.get(name) ?? []), path.join('.')]);
+  };
+  const walk = (fields: Readonly<Record<string, z.ZodType>>, prefix: readonly string[]): void => {
+    for (const [key, field] of Object.entries(fields)) {
+      const nested = objectShape(field);
+      if (nested) walk(nested, [...prefix, key]);
+      else add([...prefix, key]);
+    }
+  };
+  if (shape) walk(shape, []);
+  for (const key of messageKeys) add(['messages', key]);
+  for (const [name, paths] of byName) if (paths.length < 2) byName.delete(name);
+  return byName;
+}
+
 /** Um valor lido do ambiente: caminho no objeto de config e a variável de onde veio. */
 export interface EnvEntry {
   readonly path: readonly string[];

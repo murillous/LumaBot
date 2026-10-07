@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
+import { recordingLogger } from '#bot/harness.test-support.ts';
 import { createLogger, type LogDestination } from '#logger/logger.ts';
 import { createSecretSet } from '#logger/secrets.ts';
 import type { PluginDefinition } from '#plugin/types.ts';
@@ -407,5 +408,77 @@ describe('createPluginConfigs: segredos fora do override', () => {
       'x-zapforge-override': false,
     });
     expect(schema.properties['model']).not.toHaveProperty('x-zapforge-override');
+  });
+});
+
+describe('segredo curto demais para a censura do log', () => {
+  it('avisa uma vez por campo, sem o valor', async () => {
+    const log = recordingLogger();
+    const configs = createPluginConfigs({
+      plugins: [
+        plugin('pin', { config: z.object({ pin: secret(z.string()), ok: secret(z.string()) }) }),
+      ],
+      storage: createMemoryStorage(),
+      env: {},
+      file: { pin: { pin: '123', ok: 'longo-o-bastante' } },
+      log,
+    });
+    await configs.resolve('pin');
+    await configs.resolve('pin');
+
+    const warns = log.lines.filter((line) => line.level === 'warn');
+    expect(warns).toHaveLength(1);
+    expect(warns[0]?.fields).toMatchObject({ plugin: 'pin', field: 'pin' });
+    expect(JSON.stringify(warns)).not.toContain('123');
+  });
+});
+
+describe('erros do autor no schema (ADR 0032)', () => {
+  const resolveOf = (definition: PluginDefinition): Promise<unknown> =>
+    createPluginConfigs({
+      plugins: [definition],
+      storage: createMemoryStorage(),
+      env: {},
+    }).resolve(definition.name);
+
+  it('secret() dentro de array, record ou union é recusado com o caminho', async () => {
+    const definition = plugin('contas', {
+      config: z.object({
+        accounts: z.array(z.object({ token: secret(z.string()) })).default([]),
+        porChat: z.record(z.string(), secret(z.string())).optional(),
+        auth: z.union([z.object({ key: secret(z.string()) }), z.string()]).optional(),
+      }),
+    });
+    const error: unknown = await resolveOf(definition).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(TypeError);
+    expect((error as Error).message).toContain('"accounts[*].token"');
+    expect((error as Error).message).toContain('"porChat[*]"');
+    expect((error as Error).message).toContain('"auth[*].key"');
+  });
+
+  it('secret() em campo de objeto (qualquer nível) e com array como valor é aceito', async () => {
+    const definition = plugin('ok', {
+      config: z.object({
+        db: z
+          .object({ password: secret(z.string()).default('padrão-x') })
+          .default({ password: 'padrão-x' }),
+        tokens: secret(z.array(z.string())).default([]),
+        nome: z.string().min(1).default('bot'),
+      }),
+    });
+    await expect(resolveOf(definition)).resolves.toBeDefined();
+  });
+
+  it('dois campos que geram a mesma variável de ambiente são recusados', async () => {
+    const definition = plugin('ia', {
+      config: z.object({ openAIKey: z.string().optional(), openAiKey: z.string().optional() }),
+      messages: { okDone: 'a', ok_done: 'b' },
+    });
+    const error: unknown = await resolveOf(definition).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(TypeError);
+    expect((error as Error).message).toContain('ZAPFORGE_IA__OPEN_AI_KEY (openAIKey, openAiKey)');
+    expect((error as Error).message).toContain(
+      'ZAPFORGE_IA__MESSAGES__OK_DONE (messages.okDone, messages.ok_done)',
+    );
   });
 });

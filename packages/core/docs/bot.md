@@ -183,16 +183,20 @@ oferece **cancelamento cooperativo** ([ADR 0033](../../../docs/adr/0033-cancelam
 | Onde | `signal` | Aborta quando | `reason` |
 | --- | --- | --- | --- |
 | Comando (`run`) | `c.signal` | `timeouts.commandMs` estoura | `CommandTimeoutError` |
-| Listener (todo evento) | `e.signal` | o prazo **deste** listener estoura | `Error` de timeout |
-| Job do scheduler | `handler(payload, { signal })` | `timeouts.jobMs` estoura | `Error` de timeout |
+| Listener (todo evento) | `e.signal` | o prazo **deste** listener estoura | `ListenerTimeoutError` |
+| Job do scheduler | `handler(payload, { signal })` | `timeouts.jobMs` estoura | `JobTimeoutError` |
 | Plugin (`setup`) | `ctx.signal` | o contexto é descartado (teardown, reload, `setup` que falhou/estourou) | erro do `setup`, ou `PluginHostStateError` no descarte normal |
 
 Depois do prazo, o que o contexto expirado tentar fazer é **recusado**, em vez de executar:
 
 - `reply` de um comando ou listener expirado rejeita com `ContextExpiredError` (`plugin`,
   `operation`, `scope`, `cause` = o erro de timeout) e sai uma linha `warn` com o plugin e o
-  comando/evento. Vale também para o `reply` guardado antes do prazo (`const r = c.reply`).
+  comando/evento. Vale também para o `reply` guardado antes do prazo (`const r = c.reply`). Se
+  o plugin não tratar a rejeição, ela não é logada de novo como erro tardio: a linha `warn` basta.
 - `send`, `storage` e `scheduler.at`/`cancel` do `PluginContext` descartado rejeitam igual.
+- `CommandTimeoutError`, `ListenerTimeoutError` e `JobTimeoutError` estendem
+  `ExecutionTimeoutError` (`plugin`, `timeoutMs`): `signal.reason instanceof
+  ExecutionTimeoutError` distingue timeout de descarte do contexto.
 - O prazo é **por listener**: um listener lento expirar não aborta o `signal` nem bloqueia o
   `reply` de outro listener do mesmo evento que está no prazo.
 

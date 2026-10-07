@@ -146,6 +146,12 @@ describe('createLogger', () => {
     });
   });
 
+  it('secrets ignora valores curtos demais para censurar (MIN_SECRET_LENGTH)', () => {
+    const { log, raw } = capture({ secrets: ['on', 'abc', 'abcd'] });
+    log.info('on abc abcd');
+    expect(raw[0]).toContain('"msg":"on abc [REDACTED]"');
+  });
+
   it('secrets troca inteiro o segredo que contém outro', () => {
     const { log, raw } = capture({ secrets: ['abc', 'abcdef'] });
     log.info('abcdef');
