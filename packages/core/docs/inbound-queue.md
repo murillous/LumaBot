@@ -33,7 +33,8 @@ fecha e drena antes do teardown dos plugins ([Bot](bot.md#fluxo-de-uma-mensagem)
 - Uma tarefa que chama `enqueue` no próprio chat agenda a nova para depois dela.
 - A tarefa pode ser síncrona ou devolver uma promise; o chat só avança quando ela termina.
   Uma promise que nunca resolve trava aquele chat (e só ele): ponha timeout na própria tarefa
-  se ela depende de I/O.
+  se ela depende de I/O. No bot, a tarefa é o tratamento inteiro da mensagem, com comando e
+  listeners: um handler lento segura o chat ([ADR 0042](../../../docs/adr/0042-handler-lento-segura-o-chat.md)).
 
 ## Erros
 

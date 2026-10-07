@@ -1,4 +1,4 @@
-import { assertCommandTokens, type CommandDefinition } from './command.ts';
+import { assertCommandDefinition, type CommandDefinition } from './command.ts';
 
 /** Comando registrado com o plugin que o declarou. */
 export interface RegisteredCommand {
@@ -56,7 +56,7 @@ export function createCommandRegistry(): CommandRegistry {
     add(plugin, definition) {
       // Quem registra sem passar por `command()` (o `ctx.commands.add` aceita a definição
       // literal) também falha no boot, e não com um comando que nunca casa.
-      assertCommandTokens(definition);
+      assertCommandDefinition(definition);
       const entry: RegisteredCommand = { plugin, definition };
       const tokens = tokensOf(definition);
       // Valida tudo antes de gravar: um conflito no 2º alias não pode deixar o 1º registrado.
