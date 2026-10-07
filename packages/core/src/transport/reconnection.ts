@@ -3,7 +3,9 @@
 // reconectar) é o kernel ou o adapter. Diferenças em relação ao legacy:
 // - decide sobre o `DisconnectReason` normalizado, não sobre status code do Baileys;
 // - devolve o atraso junto da ação, em vez de cada executor ter os seus `setTimeout` fixos;
-// - o intervalo mínimo entre limpezas funciona (no legacy um `|| 60000` o anulava).
+// - o intervalo mínimo entre limpezas funciona (no legacy um `|| 60000` o anulava);
+// - queda de rede nunca limpa a sessão: o legacy limpava após 3 tentativas, e uma queda de
+//   ~30 s apagava credenciais válidas (ADR 0044).
 
 import type { DisconnectReason } from './types.ts';
 
@@ -14,7 +16,7 @@ export type ReconnectionDecision =
   | {
       readonly action: 'clean-session';
       readonly delayMs: number;
-      readonly cause: 'logged-out' | 'auth-failed' | 'qr-limit' | 'reconnect-limit';
+      readonly cause: 'logged-out' | 'auth-failed' | 'qr-limit';
     }
   /**
    * Não reconectar: o bot para. Hoje só para `'replaced'` — reconectar derrubaria a outra
@@ -23,7 +25,7 @@ export type ReconnectionDecision =
   | { readonly action: 'stop'; readonly cause: 'replaced' };
 
 export interface ReconnectionState {
-  /** Reconexões com backoff desde a última conexão aberta. */
+  /** Reconexões com backoff desde a última conexão aberta (só escolhe o atraso). */
   readonly reconnectAttempts: number;
   /** QRs apresentados desde a última conexão aberta. */
   readonly qrCount: number;
@@ -32,10 +34,11 @@ export interface ReconnectionState {
 }
 
 export interface ReconnectionPolicyOptions {
-  /** Atraso da tentativa `attempt` (1, 2, ...). Padrão: 5 s × tentativa, até 15 s (legacy). */
+  /**
+   * Atraso da tentativa `attempt` (1, 2, ...), sem limite de tentativas. Padrão: 5 s × tentativa,
+   * até 15 s (legacy).
+   */
   readonly backoff?: (attempt: number) => number;
-  /** Reconexões com backoff antes de desistir e limpar a sessão. Padrão 3. */
-  readonly maxReconnectAttempts?: number;
   /** QRs apresentados sem pareamento antes de limpar a sessão. Padrão 5. */
   readonly maxQrCount?: number;
   /** Atraso antes de pedir um QR novo. Padrão 3 s. */
@@ -56,7 +59,6 @@ const defaultBackoff = (attempt: number): number => Math.min(5_000 * attempt, 15
 
 export class ReconnectionPolicy {
   readonly #backoff: (attempt: number) => number;
-  readonly #maxReconnectAttempts: number;
   readonly #maxQrCount: number;
   readonly #qrRetryDelayMs: number;
   readonly #serverErrorDelayMs: number;
@@ -69,7 +71,6 @@ export class ReconnectionPolicy {
 
   constructor(options: ReconnectionPolicyOptions = {}) {
     this.#backoff = options.backoff ?? defaultBackoff;
-    this.#maxReconnectAttempts = options.maxReconnectAttempts ?? 3;
     this.#maxQrCount = options.maxQrCount ?? 5;
     this.#qrRetryDelayMs = options.qrRetryDelayMs ?? 3_000;
     this.#serverErrorDelayMs = options.serverErrorDelayMs ?? 5_000;
@@ -108,7 +109,10 @@ export class ReconnectionPolicy {
         return { action: 'reconnect', delayMs: this.#serverErrorDelayMs };
       case 'connection-lost':
       case 'unknown':
-        return this.#reconnectWithBackoff();
+        // Sem limite: a credencial continua válida, por mais que a rede demore a voltar. Só o
+        // aparelho (logged-out) ou o servidor (auth-failed) dizem que ela deixou de valer.
+        this.#reconnectAttempts++;
+        return { action: 'reconnect', delayMs: this.#backoff(this.#reconnectAttempts) };
     }
   }
 
@@ -121,14 +125,6 @@ export class ReconnectionPolicy {
   connected(): void {
     this.#reconnectAttempts = 0;
     this.#qrCount = 0;
-  }
-
-  #reconnectWithBackoff(): ReconnectionDecision {
-    if (this.#reconnectAttempts >= this.#maxReconnectAttempts) {
-      return this.#clean('reconnect-limit');
-    }
-    this.#reconnectAttempts++;
-    return { action: 'reconnect', delayMs: this.#backoff(this.#reconnectAttempts) };
   }
 
   #clean(

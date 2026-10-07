@@ -20,7 +20,7 @@ describe('ReconnectionPolicy', () => {
   });
 
   it('queda de conexão reconecta com backoff linear até 15 s (padrão do legacy)', () => {
-    const policy = new ReconnectionPolicy({ maxReconnectAttempts: 5 });
+    const policy = new ReconnectionPolicy();
     const delays = Array.from({ length: 4 }, () => policy.decide('connection-lost'));
     expect(delays).toEqual([
       { action: 'reconnect', delayMs: 5_000 },
@@ -31,17 +31,24 @@ describe('ReconnectionPolicy', () => {
     expect(policy.state.reconnectAttempts).toBe(4);
   });
 
-  it('esgotadas as tentativas, limpa a sessão e zera os contadores', () => {
-    const policy = new ReconnectionPolicy({ maxReconnectAttempts: 2 });
-    policy.decide('unknown');
-    policy.decide('unknown');
+  it('queda de rede nunca limpa a sessão, por mais tentativas que leve (ADR 0044)', () => {
+    const policy = new ReconnectionPolicy();
+    for (let i = 0; i < 100; i++) {
+      expect(policy.decide(i % 2 === 0 ? 'connection-lost' : 'unknown')).toMatchObject({
+        action: 'reconnect',
+      });
+    }
+    expect(policy.decide('connection-lost')).toEqual({ action: 'reconnect', delayMs: 15_000 });
+    expect(policy.state).toMatchObject({ reconnectAttempts: 101, lastCleanAt: null });
+  });
 
-    expect(policy.decide('unknown')).toEqual({
-      action: 'clean-session',
-      delayMs: 3_000,
-      cause: 'reconnect-limit',
-    });
+  it('limpeza zera as tentativas', () => {
+    const policy = new ReconnectionPolicy();
+    policy.decide('connection-lost');
+    policy.decide('connection-lost');
+    policy.decide('logged-out');
     expect(policy.state.reconnectAttempts).toBe(0);
+    expect(policy.decide('connection-lost')).toEqual({ action: 'reconnect', delayMs: 5_000 });
   });
 
   it('usa o backoff injetado', () => {
@@ -51,7 +58,7 @@ describe('ReconnectionPolicy', () => {
   });
 
   it('conexão aberta zera tentativas e QRs', () => {
-    const policy = new ReconnectionPolicy({ maxReconnectAttempts: 1 });
+    const policy = new ReconnectionPolicy();
     policy.decide('connection-lost');
     policy.qrPresented();
     policy.connected();
@@ -61,7 +68,7 @@ describe('ReconnectionPolicy', () => {
   });
 
   it('erro de servidor tenta de novo com atraso fixo, sem gastar tentativa', () => {
-    const policy = new ReconnectionPolicy({ maxReconnectAttempts: 1, serverErrorDelayMs: 7 });
+    const policy = new ReconnectionPolicy({ serverErrorDelayMs: 7 });
     for (let i = 0; i < 5; i++) {
       expect(policy.decide('server-error')).toEqual({ action: 'reconnect', delayMs: 7 });
     }
@@ -114,14 +121,14 @@ describe('ReconnectionPolicy', () => {
     const time = clock();
     const policy = new ReconnectionPolicy({
       now: time.now,
-      maxReconnectAttempts: 3,
       initialState: { reconnectAttempts: 3, lastCleanAt: time.now() - 30_000 },
     });
 
-    expect(policy.decide('connection-lost')).toEqual({
+    expect(policy.decide('connection-lost')).toEqual({ action: 'reconnect', delayMs: 15_000 });
+    expect(policy.decide('logged-out')).toEqual({
       action: 'clean-session',
       delayMs: 30_000,
-      cause: 'reconnect-limit',
+      cause: 'logged-out',
     });
   });
 

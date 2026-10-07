@@ -13,7 +13,7 @@ import type { ConnectionStatus, Transport } from '#transport/types.ts';
 export interface BotReconnectionOptions extends ReconnectionPolicyOptions {
   /**
    * Apaga as credenciais salvas, para a decisão `clean-session` (sessão encerrada no aparelho,
-   * credenciais rejeitadas, limite de tentativas). Com transport por fábrica, o padrão limpa o
+   * credenciais rejeitadas, QRs sem pareamento; queda de rede nunca, ADR 0044). Com transport por fábrica, o padrão limpa o
    * `auth` que a fábrica recebeu; isto o substitui. Com instância pronta e sem ela, o bot não tem
    * como parear de novo sozinho: loga e para.
    */
