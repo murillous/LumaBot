@@ -345,7 +345,8 @@ describe('Bot: boot', () => {
 
     await expect(b.start()).rejects.toBeInstanceOf(CommandConflictError);
     expect(b.state).toBe('stopped');
-    expect(transport.calls).toEqual(['connect', 'disconnect']);
+    // Boot sequencial: o conflito derruba o boot antes do connect.
+    expect(transport.calls).toEqual([]);
   });
 
   it('setup que falha vira plugin.error (phase setup) e o plugin fica ignorado', async () => {

@@ -142,10 +142,11 @@ export type BotPluginConfigs = Pick<PluginConfigs, 'setOverrides' | 'describe' |
 export interface Bot {
   readonly state: BotState;
   /**
-   * Sobe o bot (ordem em docs/bot.md): conecta o transport e, em paralelo, carrega os plugins.
-   * Idempotente enquanto `starting`/`running` (devolve a mesma promise); rejeita com
-   * `BotStateError` depois de `stop()`. Rejeita com o erro de boot (ex.:
-   * `CommandConflictError`) depois de encerrar o que já tinha subido.
+   * Sobe o bot (ordem em docs/bot.md): carrega os plugins e, só se o boot deles der certo,
+   * conecta o transport e liga o scheduler. Plugin quebrado (ex.: `CommandConflictError`) ⇒ o
+   * transport nunca conecta. Idempotente enquanto `starting`/`running` (devolve a mesma
+   * promise); rejeita com `BotStateError` depois de `stop()`. Rejeita com o erro de boot depois
+   * de encerrar o que já tinha subido.
    */
   start(): Promise<void>;
   /**
@@ -505,34 +506,27 @@ export function createBot(config: BotConfig): Bot {
       throw error;
     }
 
-    // O connect sai já, de forma síncrona com o start(): o handshake (QR, rede) corre em
-    // paralelo com o setup dos plugins. Mensagens que chegarem antes do fim do boot esperam na
-    // fila de entrada (`readyPromise`). Conectado, uma queda já é reconectada.
-    const connecting = callConnect(transport).then(() => reconnector?.activate());
-    const [connected, plugins] = await Promise.allSettled([connecting, bootPlugins()]);
+    // Plugins primeiro, connect depois (plano §5.3): um plugin quebrado (conflito de comando,
+    // manifesto inválido, ciclo) derruba o boot antes de o transport abrir sessão — sem QR nem
+    // handshake à toa.
+    try {
+      await bootPlugins();
+    } catch (error) {
+      log.error('falha ao carregar os plugins; encerrando', { err: error });
+      // O transport nunca conectou: o encerramento não chama `disconnect()`.
+      await failBoot(error, false);
+    }
 
-    const failure =
-      connected.status === 'rejected'
-        ? connected.reason
-        : plugins.status === 'rejected'
-          ? plugins.reason
-          : undefined;
-    if (connected.status === 'rejected' && plugins.status === 'rejected') {
-      log.error('falha ao carregar os plugins', { err: plugins.reason });
+    // Mensagens que chegarem durante o handshake esperam na fila de entrada (`readyPromise`)
+    // até o fim do boot. Conectado, uma queda já é reconectada.
+    try {
+      await callConnect(transport);
+      reconnector?.activate();
+    } catch (error) {
+      // O transport pode ter conectado pela metade: o encerramento desconecta.
+      await failBoot(error, true);
     }
-    if (failure !== undefined) {
-      if (connected.status === 'fulfilled') {
-        log.error('falha no boot; encerrando', { err: failure });
-      }
-      // Libera o que já foi registrado; o transport pode ter conectado pela metade.
-      try {
-        await shutdown(true);
-      } catch (cleanupError) {
-        const cleanup = cleanupError instanceof AggregateError ? cleanupError.errors : [];
-        throw new AggregateError([failure, ...cleanup], 'start(): falha no boot e ao encerrar');
-      }
-      throw failure;
-    }
+
     if (stopRequested) {
       // stop() chegou durante o boot: quem chamou stop() conduz o encerramento.
       throw new BotStateError('start(): bot parado durante a inicialização', state);
@@ -540,6 +534,17 @@ export function createBot(config: BotConfig): Bot {
     scheduler.start();
     settleReady(true);
     state = 'running';
+  }
+
+  /** Encerra o que o boot já subiu e relança `failure` (ou o `AggregateError` com a limpeza). */
+  async function failBoot(failure: unknown, disconnect: boolean): Promise<never> {
+    try {
+      await shutdown(disconnect);
+    } catch (cleanupError) {
+      const cleanup = cleanupError instanceof AggregateError ? cleanupError.errors : [];
+      throw new AggregateError([failure, ...cleanup], 'start(): falha no boot e ao encerrar');
+    }
+    throw failure;
   }
 
   // --- Shutdown -----------------------------------------------------------------------------
@@ -656,7 +661,7 @@ export function createBot(config: BotConfig): Bot {
   return bot;
 }
 
-/** `transport.connect()` chamado já, com um throw síncrono do adapter virando rejeição. */
+/** `transport.connect()` com um throw síncrono do adapter virando rejeição. */
 function callConnect(transport: Transport): Promise<void> {
   try {
     return transport.connect();

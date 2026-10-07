@@ -18,11 +18,12 @@ import type { PluginContext, PluginDefinition } from './types.ts';
 /**
  * Contexto de um plugin montado pelo `Bot`. `dispose` desfaz tudo o que o plugin registrou
  * por esse contexto (comandos, listeners, serviços, jobs) e roda sempre depois do `teardown` —
- * ou no lugar dele, quando o `setup` falhou no meio.
+ * ou no lugar dele, quando o `setup` falhou no meio. `reason` é a falha do `setup` (o erro de
+ * timeout, se ele estourou o prazo), que vira o motivo do `ctx.signal` abortado (ADR 0033).
  */
 export interface PluginContextHandle {
   readonly context: PluginContext;
-  dispose(): void | Promise<void>;
+  dispose(reason?: unknown): void | Promise<void>;
 }
 
 /** Monta o contexto de um plugin. O loader não conhece os serviços concretos (M1-16 fornece). */
@@ -220,7 +221,7 @@ export function createPluginHost(options: PluginHostOptions): PluginHost {
     if (!setup.ok) {
       // Sem teardown: ele pareia com um setup que terminou. O dispose limpa o registro parcial.
       const disposed = await runPhase(definition.name, 'dispose', teardownTimeoutMs, () =>
-        handle.dispose(),
+        handle.dispose(setup.error),
       );
       if (!disposed.ok) logLifecycleError(disposed.error);
       return fail(base, setup.error);

@@ -191,7 +191,8 @@ export function createCommandRouter(options: CommandRouterOptions = {}): Command
           media = mediaOf(message) ?? mediaOf(message.quoted);
         }
 
-        const commandCtx: CommandContext = Object.assign(base, { accepted, media });
+        // `signal` vem do Bot, na visão do comando (ADR 0033); solto, do contexto recebido.
+        const commandCtx = Object.assign(base, { accepted, media }) as CommandContext;
         await definition.run(commandCtx);
         return { consumed: true, status: 'ran', command };
       } catch (error) {

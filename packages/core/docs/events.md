@@ -46,6 +46,25 @@ ctx.events.on('message', async (e) => {
 
 O tipo é condicional: `ListenerContext<'reaction'>` não tem esses campos.
 
+### `signal` (todo evento)
+
+Todo listener recebe `e.signal: AbortSignal`, que aborta quando **o prazo dele** estoura
+(`reason` = o erro de timeout). É por listener, não por emissão: o contexto da emissão é
+compartilhado (`claim()`), mas cada listener recebe uma visão própria com o próprio prazo, e um
+listener lento expirar não afeta o `signal` nem o `reply` de outro do mesmo evento
+([ADR 0033](../../../docs/adr/0033-cancelamento-cooperativo.md)).
+
+```ts
+ctx.events.on('message', async (e) => {
+  const res = await fetch(url, { signal: e.signal });
+  await e.reply(await res.text()); // depois do prazo: rejeita com ContextExpiredError
+});
+```
+
+No bot, o `reply` de um listener expirado rejeita com `ContextExpiredError` e uma linha `warn`
+(plugin e evento), sem chegar ao transport. Código síncrono travado bloqueia o processo inteiro;
+nenhum prazo resolve isso.
+
 ### Eventos
 
 | Evento | Payload |
@@ -97,8 +116,8 @@ Exceção síncrona, rejeição ou timeout de um listener não afetam os demais:
 `PluginErrorEvent` (`phase: 'listener'`, nome do plugin, evento, `timedOut`), entrega ao `onError`
 do bus e emite `plugin.error` para quem quiser assinar (ex.: dashboard).
 
-- O timeout não cancela o listener (não há como); ele segue rodando, mas já foi reportado. Se
-  rejeitar depois do prazo, o erro vai só para o `onError`.
+- O timeout não cancela o listener (não há como); ele segue rodando, mas já foi reportado, e o
+  `signal` dele aborta. Se rejeitar depois do prazo, o erro vai só para o `onError`.
 - Falha num listener de `plugin.error` vai só para o `onError`: virar outro `plugin.error`
   geraria um loop.
 
@@ -126,6 +145,10 @@ const result = await bus.emit('message', message, extras);
 - `onError` é obrigatório e é o destino garantido de toda falha (inclusive as que não viram
   evento). Não deve lançar.
 - `emit` nunca rejeita: resolve quando todos os listeners assentam ou estouram o prazo.
+- Cada listener recebe uma visão própria do contexto da emissão (`Object.create(ctx)`), com o
+  próprio prazo e `signal`. `forPlugin(plugin, { view })` troca essa visão por evento assinado —
+  o `Bot` a usa para pôr `message`/`text`/`reply`/`log` do plugin nos eventos de mensagem; a
+  visão precisa herdar do contexto recebido.
 - `message:<type>` não se emite diretamente (o tipo de `emit` barra): emita `message` e o bus
   deriva o resto.
 - `extras` são campos que quem emite acrescenta ao contexto, copiados para o contexto

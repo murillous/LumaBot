@@ -1,3 +1,4 @@
+import { DEADLINE, Deadline, deadlineOf } from '#deadline.ts';
 import type { Message, MessageType } from '#message/types.ts';
 import type { Unsubscribe } from '#transport/types.ts';
 import type {
@@ -43,9 +44,22 @@ export interface EventBusOptions {
   readonly onError: (error: PluginErrorEvent) => void;
 }
 
+/** Deriva o contexto que um listener recebe a partir do contexto da emissão. */
+export type ListenerView = <C extends object>(ctx: C) => C;
+
+export interface PluginSubscriberOptions {
+  /**
+   * Visão por listener para os listeners deste plugin no `event` assinado; `undefined` usa a
+   * padrão (`Object.create(ctx)`). A visão precisa herdar do contexto recebido. O `Bot` a usa
+   * para pôr `message`/`text`/`reply`/`log` do plugin nos eventos de mensagem sem uma segunda
+   * camada de protótipo no caminho quente.
+   */
+  readonly view?: (event: BotEventName) => ListenerView | undefined;
+}
+
 export interface EventBus {
   /** Assinatura em nome do plugin: falhas saem com o nome dele e `removePlugin` as desfaz. */
-  forPlugin(plugin: string): EventSubscriber;
+  forPlugin(plugin: string, options?: PluginSubscriberOptions): EventSubscriber;
   /** Remove todos os listeners do plugin (teardown e reload). */
   removePlugin(plugin: string): void;
   /**
@@ -76,6 +90,7 @@ interface Entry {
   readonly seq: number;
   /** Tipos aceitos em `quoted`; `null` sem filtro. */
   readonly quoted: ReadonlySet<MessageType> | null;
+  readonly view: ListenerView | undefined;
 }
 
 const NO_ENTRIES: readonly Entry[] = [];
@@ -139,6 +154,7 @@ export function createEventBus(options: EventBusOptions): EventBus {
 
   function subscribe(
     plugin: string,
+    view: ListenerView | undefined,
     event: BotEventName,
     first: unknown,
     second: unknown,
@@ -158,6 +174,7 @@ export function createEventBus(options: EventBusOptions): EventBus {
       timeoutMs: opts?.timeoutMs === undefined ? defaultTimeoutMs : validTimeout(opts.timeoutMs),
       seq: seq++,
       quoted: quotedSet(opts?.quoted),
+      view,
     };
     changed(event, [...(byEvent.get(event) ?? NO_ENTRIES), entry].sort(compare));
     return () => {
@@ -184,11 +201,15 @@ export function createEventBus(options: EventBusOptions): EventBus {
     if (event !== 'plugin.error') void emit('plugin.error', report);
   }
 
-  /** Corre a promise do listener contra o prazo; resolve `true` se ele falhou. */
+  /**
+   * Corre a promise do listener contra o prazo; resolve `true` se ele falhou. Estourado o prazo,
+   * expira o `Deadline` do listener: o `ctx.signal` dele aborta (ADR 0033).
+   */
   function watch(
     entry: Entry,
     event: BotEventName,
     result: PromiseLike<unknown>,
+    deadline: Deadline,
   ): Promise<boolean> {
     return new Promise<boolean>((resolve) => {
       let settled = false;
@@ -197,6 +218,7 @@ export function createEventBus(options: EventBusOptions): EventBus {
         const error = new Error(
           `listener do plugin "${entry.plugin}" em "${event}" excedeu ${entry.timeoutMs} ms`,
         );
+        deadline.expire(error);
         fail(entry, event, error, true);
         resolve(true);
       }, entry.timeoutMs);
@@ -233,7 +255,9 @@ export function createEventBus(options: EventBusOptions): EventBus {
         : (byEvent.get(event) ?? NO_ENTRIES);
     if (entries.length === 0) return NO_LISTENERS;
 
-    // Um contexto por emissão, compartilhado: é o que torna o claim() visível aos demais.
+    // Um contexto por emissão, compartilhado: é o que torna o claim() visível aos demais. Cada
+    // listener recebe uma visão derivada dele com o próprio `Deadline`: o prazo é por listener,
+    // e um lento expirar não pode abortar o `signal` de outro que está no prazo.
     let claimed = false;
     const ctx = {
       event,
@@ -243,6 +267,10 @@ export function createEventBus(options: EventBusOptions): EventBus {
       },
       claim() {
         claimed = true;
+      },
+      get signal(): AbortSignal {
+        // `this` é a visão do listener (ou uma derivada dela); o `Deadline` está nela.
+        return (deadlineOf(this) as Deadline).signal;
       },
     };
     if (extras !== undefined) Object.assign(ctx, extras);
@@ -256,9 +284,13 @@ export function createEventBus(options: EventBusOptions): EventBus {
         if (!quoted || !entry.quoted.has(quoted.type)) continue;
       }
       listeners++;
+      const deadline = new Deadline();
+      const view: { [DEADLINE]?: Deadline } =
+        entry.view === undefined ? Object.create(ctx) : entry.view(ctx);
+      view[DEADLINE] = deadline;
       let result: unknown;
       try {
-        result = entry.listener(ctx as unknown as AnyContext);
+        result = entry.listener(view as unknown as AnyContext);
       } catch (error) {
         failed++;
         fail(entry, event, error, false);
@@ -266,7 +298,7 @@ export function createEventBus(options: EventBusOptions): EventBus {
       }
       if (isThenable(result)) {
         pending ??= [];
-        pending.push(watch(entry, event, result));
+        pending.push(watch(entry, event, result, deadline));
       }
     }
 
@@ -278,10 +310,10 @@ export function createEventBus(options: EventBusOptions): EventBus {
   }
 
   return {
-    forPlugin(plugin) {
+    forPlugin(plugin, options) {
       return {
         on(event: BotEventName, first: unknown, second?: unknown): Unsubscribe {
-          return subscribe(plugin, event, first, second);
+          return subscribe(plugin, options?.view?.(event), event, first, second);
         },
       } as EventSubscriber;
     },

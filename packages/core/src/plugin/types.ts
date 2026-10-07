@@ -49,6 +49,13 @@ export interface PluginContext<
   readonly config: TConfig;
   /** Logger com `plugin` no contexto (M1-14). */
   readonly log: Logger;
+  /**
+   * Aborta quando o contexto é descartado: no `teardown`/reload, ou quando o `setup` falha ou
+   * estoura o prazo (`reason` = o erro do `setup`). Repasse ao trabalho de fundo do plugin
+   * (ADR 0033). Descartado o contexto, `send`, `storage` e `scheduler.at`/`cancel` rejeitam
+   * com `ContextExpiredError`.
+   */
+  readonly signal: AbortSignal;
   readonly commands: { add(definition: CommandDefinition): void };
   readonly events: EventSubscriber;
   readonly services: ServiceAccess;

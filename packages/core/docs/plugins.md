@@ -176,7 +176,25 @@ O loader não conhece comandos, eventos, storage nem serviços: recebe
 registrou pelo contexto. Um `setup` que estoura o prazo continua rodando em segundo plano
 (não há como abortar código síncrono/arbitrário); a fábrica deve fazer o contexto recusar
 registros depois do `dispose`, para o setup atrasado não deixar nada para trás — a do `Bot` lança
-`PluginHostStateError` em `commands.add`, `events.on`, `services.provide` e `scheduler.on`.
+`PluginHostStateError` em `commands.add`, `events.on`, `services.provide` e `scheduler.on`, e
+rejeita com `ContextExpiredError` `send`, `storage` (KV e coleções) e `scheduler.at`/`cancel`.
+
+`dispose(reason?)` recebe a falha do `setup` quando ele falhou ou estourou o prazo; a do `Bot` a
+usa como `reason` do `ctx.signal`, que aborta no `dispose`.
+
+### Cancelamento cooperativo para autores de plugin
+
+O código do plugin não é interrompido à força: o kernel avisa pelo `signal` e recusa o que o
+contexto expirado tentar fazer ([ADR 0033](../../../docs/adr/0033-cancelamento-cooperativo.md),
+detalhes em [Bot](bot.md#prazos-e-cancelamento-ctxsignal)).
+
+- `ctx.signal` (no `setup`) aborta quando o contexto é descartado: repasse ao trabalho de fundo
+  do plugin (timers, conexões, streams) e pare-o no `abort`.
+- `c.signal` (comando), `e.signal` (listener) e `{ signal }` (job) abortam no prazo da execução:
+  repasse a `fetch`/SDKs e confira `signal.aborted` antes de efeitos.
+- Depois do prazo, o `reply` daquele contexto rejeita com `ContextExpiredError`; depois do
+  descarte, `send`/`storage`/`scheduler.at` do plugin também.
+- Código síncrono travado (laço, CPU pesada) bloqueia o processo inteiro: nenhum prazo resolve.
 
 ## Versão do core
 

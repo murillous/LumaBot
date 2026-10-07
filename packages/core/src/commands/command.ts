@@ -30,6 +30,13 @@ export interface CommandContext extends BotMessageContext {
   readonly args: readonly string[];
   /** Texto após o comando, sem o espaço inicial e com quebras de linha preservadas. */
   readonly rawArgs: string;
+  /**
+   * Aborta quando o `run` estoura o prazo (`timeouts.commandMs`), com `reason` =
+   * `CommandTimeoutError`. Repasse a `fetch`/SDKs para parar o trabalho a tempo (ADR 0033);
+   * depois do prazo, o `reply` deste contexto rejeita com `ContextExpiredError`. Montado pelo
+   * `Bot`: quem usa o roteador solto o fornece no contexto passado a `dispatch`.
+   */
+  readonly signal: AbortSignal;
   /** Entrada de `accepts` que casou; `null` se o comando não declara `accepts`. */
   readonly accepted: AcceptedMessage | null;
   /**
@@ -44,8 +51,8 @@ export type CommandRejection =
   | { readonly reason: 'role'; readonly required: CommandRole }
   | { readonly reason: 'accepts'; readonly accepts: readonly AcceptSpec[] };
 
-/** Contexto de `onReject`: ainda não há mídia resolvida nem `accepted`. */
-export type RejectContext = Omit<CommandContext, 'accepted' | 'media'>;
+/** Contexto de `onReject`: ainda não há mídia resolvida nem `accepted`, e não há prazo. */
+export type RejectContext = Omit<CommandContext, 'accepted' | 'media' | 'signal'>;
 
 export interface CommandDefinition {
   /** Nome sem o prefixo (`'sticker'`, não `'!sticker'`). Casado sem diferenciar caixa. */
