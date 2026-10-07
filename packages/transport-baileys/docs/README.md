@@ -5,8 +5,8 @@ contrato `Transport` do core ([Transport](../../core/docs/transport.md)). O porq
 está nos [ADRs](../../../docs/adr/README.md).
 
 > Em construção (M2-1). O pacote conecta, pareia, informa as quedas, entrega as mensagens
-> recebidas, envia e age sobre mensagens e grupos. Os eventos de grupo, contato, reação, edição e
-> apagamento chegam no M2-1.6.
+> recebidas e os eventos de reação, edição, apagamento, grupo e contato, envia e age sobre
+> mensagens e grupos.
 
 ## Uso
 
@@ -74,7 +74,8 @@ Cada mensagem nova do Baileys (`messages.upsert` do tipo `notify`) vira o evento
 - `append`: histórico e cópias de sincronização, que não são mensagens novas;
 - status (`status@broadcast`), que não é conversa;
 - mensagens sem conteúdo (aviso de grupo, falha ao decifrar) ou só de controle (edição, reação,
-  apagamento, voto de enquete). Edição, reação e apagamento viram eventos próprios no M2-1.6.
+  apagamento, voto de enquete). Edição, reação e apagamento viram eventos próprios
+  ([Eventos](#eventos)).
 
 As mensagens saem na ordem em que chegaram, mesmo quando resolver o telefone de uma demora. Se a
 normalização de uma falhar, ela é descartada com log em `error` e as seguintes seguem.
@@ -126,6 +127,62 @@ privada, o remetente de uma mensagem da própria sessão é a sessão.
 `quoted` é uma `Message` montada do `contextInfo`, com as mesmas regras (envelopes, tipos,
 telefone). O proto da citada não traz horário nem nome do autor: `timestamp` é o da mensagem que
 cita e `sender.name` é `null`. `fromMe` vale quando o autor é a sessão (por telefone ou LID).
+
+## Eventos
+
+Além de `message` e `connection.*`, o transport converte estes eventos do Baileys:
+
+| Evento do Baileys | Evento do core |
+| --- | --- |
+| `messages.reaction` | `reaction` (`emoji: null` quando a reação foi removida) |
+| `messages.update` com `editedMessage` | `message.edited`: a `Message` com o conteúdo novo e `isEdited: true` |
+| `messages.update` com `REVOKE` | `message.deleted` (`deletedBy`: quem apagou, o autor ou um admin do grupo) |
+| `group-participants.update` | `group.participants`; a própria sessão adicionada ou removida vira `group.joined`/`group.left` |
+| `groups.upsert` (grupo criado com a sessão dentro) | `group.joined` |
+| `groups.update` | `group.updated`, só com os campos alterados (`subject`, `description`, `announce`, `restrict`) |
+| remetente de uma mensagem nova | `contact.updated` |
+
+Todos passam pela mesma fila das mensagens, na ordem de chegada: a edição ou a reação nunca sai
+antes da mensagem a que se refere. Uma conversão que falha é descartada com log em `error`, e as
+seguintes seguem. Os eventos do socket anterior deixam de valer depois de uma reconexão.
+
+- **Contatos e telefone**: `sender`, `deletedBy`, `actor` e os participantes seguem as regras de
+  [Contatos e telefone](#contatos-e-telefone). O Baileys não manda o `pushName` nesses eventos;
+  o nome vem do último que o contato usou numa mensagem, ou `null` se ele ainda não mandou
+  nenhuma.
+- **Edição**: o WhatsApp manda só o conteúdo novo; a citada e as menções vêm dele. O `timestamp`
+  é o da edição.
+- **Participantes**: `action` é `add`, `remove`, `promote` ou `demote`. Quem saiu sozinho chega
+  como `remove`, com ele mesmo em `actor`. A troca de número (`modify`) não tem evento. Quando a
+  própria sessão é adicionada ou removida, ela sai da lista e vira `group.joined`/`group.left`;
+  promovida ou rebaixada, segue em `group.participants`.
+- **Alteração de grupo**: ao sincronizar, o Baileys emite `groups.update` com os metadados
+  completos de cada grupo. Esse não é uma alteração e não vira `group.updated`; o cache de
+  metadados cai mesmo assim. Descrição removida chega como `description: null`.
+- **Status** (`status@broadcast`) fica de fora em todos, como nas mensagens.
+
+### `contact.updated`
+
+Sai antes da `message` do remetente, para quem guarda nomes já tê-lo ao tratar a mensagem:
+
+- na **primeira vez** que o contato manda uma mensagem desde que o processo subiu, com o `name`
+  (`pushName`) e o `phone` que houver;
+- depois, só quando o nome ou o telefone muda, com só o campo alterado.
+
+Campo desconhecido não conta como mudança: uma mensagem sem `pushName` não apaga o nome visto, e um
+LID sem telefone resolvido não apaga o telefone. Mensagens da própria sessão não geram o evento. Os
+contatos vistos ficam em memória durante a vida do transport (sobrevivem às reconexões); ao
+reiniciar o processo, cada um sai de novo na primeira mensagem. Quem precisa do nome de todo
+remetente (o `trackUsers` do legacy) faz upsert a cada `contact.updated`.
+
+### O que chegou com o bot desconectado
+
+Ao reconectar, o servidor entrega o que chegou enquanto o bot estava fora. As mensagens vêm como
+`append` e ficam de fora, mas o Baileys emite os eventos de reação, edição, apagamento e grupo
+delas sem dizer que são atrasados, então esses saem. Os de grupo atualizam o estado (quem entrou,
+o assunto novo); quem reage a `reaction` ou `message.edited` pode querer descartar os antigos pelo
+horário da mensagem. Nessa sincronização o Baileys também junta eventos: uma reação ou edição de
+uma mensagem que chegou no mesmo lote pode vir incorporada a ela, sem evento próprio.
 
 ## Capabilities
 

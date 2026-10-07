@@ -13,6 +13,7 @@ import {
   type proto,
   toNumber,
   type WAMessage,
+  type WAMessageKey,
 } from 'baileys';
 
 /** O que a normalização precisa da sessão; o transport liga ao socket, os testes a falsos. */
@@ -48,8 +49,8 @@ const VIEW_ONCE: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * Campos que não são o conteúdo da mensagem. Edição, apagamento e reação viram eventos próprios
- * no mapeamento de eventos (M2-1.6); o resto é metadado do protocolo.
+ * Campos que não são o conteúdo da mensagem. Edição, apagamento e reação chegam por eventos
+ * próprios do Baileys (`events.ts`); o resto é metadado do protocolo.
  */
 const CONTROL: ReadonlySet<string> = new Set([
   'protocolMessage',
@@ -91,13 +92,22 @@ function contentKey(content: Content): keyof Content | undefined {
  * grupo, mensagem que não deu para decifrar) ou só controle (edição, reação, apagamento).
  */
 export function toMessage(raw: WAMessage, env: NormalizeEnv): Promise<Message | null> {
-  return build(raw, env, toNumber(raw.messageTimestamp) * 1000);
+  return build(raw, env, toNumber(raw.messageTimestamp) * 1000, false);
+}
+
+/**
+ * Nova versão de uma mensagem editada, com `isEdited: true`. `raw` é a chave da original com o
+ * conteúdo novo; o Baileys não manda o `pushName` na edição, então o nome vem de quem chama.
+ */
+export function toEditedMessage(raw: WAMessage, env: NormalizeEnv): Promise<Message | null> {
+  return build(raw, env, toNumber(raw.messageTimestamp) * 1000, true);
 }
 
 async function build(
   raw: WAMessage,
   env: NormalizeEnv,
   timestamp: number,
+  isEdited: boolean,
 ): Promise<Message | null> {
   const chatId = raw.key.remoteJid;
   const id = raw.key.id;
@@ -111,18 +121,10 @@ async function build(
   const fromMe = raw.key.fromMe === true;
   const node = content[key];
   const context = contextOf(node);
-  // Grupo, status e citada trazem o autor em `participant`. Sem ele (conversa privada), o
-  // autor é o próprio chat, ou a sessão quando foi ela que mandou.
-  const [author, alt] = raw.key.participant
-    ? [raw.key.participant, raw.key.participantAlt]
-    : fromMe
-      ? [env.selfIds[0] ?? chatId, undefined]
-      : [chatId, raw.key.remoteJidAlt];
-
   const base: Base = {
     id,
     chat: { id: chatId, isGroup },
-    sender: await resolveContact(env, author, alt, raw.pushName ?? null),
+    sender: await authorOf(raw.key, chatId, env, raw.pushName ?? null),
     timestamp,
     fromMe,
     quoted: context ? await quoted(context, chatId, env, timestamp) : null,
@@ -131,6 +133,7 @@ async function build(
     ),
     isForwarded: context?.isForwarded === true,
     isViewOnce: viewOnce || raw.key.isViewOnce === true || flag(node, 'viewOnce'),
+    isEdited,
   };
   // O download parte da mensagem sem envelopes: é o formato que o Baileys espera.
   const unwrapped: WAMessage = { ...raw, message: content };
@@ -286,7 +289,28 @@ function quoted(
     },
     env,
     timestamp,
+    false,
   );
+}
+
+/**
+ * Autor de uma mensagem pela chave. Grupo, status e citada o trazem em `participant`. Sem ele
+ * (conversa privada), o autor é o próprio chat, ou a sessão quando foi ela que mandou.
+ */
+export function authorOf(
+  key: WAMessageKey,
+  chatId: string,
+  env: Pick<NormalizeEnv, 'selfIds' | 'pnForLid'>,
+  name: string | null,
+): Promise<Contact> {
+  const alt = key.participant ? key.participantAlt : key.fromMe ? undefined : key.remoteJidAlt;
+  return resolveContact(env, authorJid(key, chatId, env.selfIds), alt, name);
+}
+
+/** O JID do autor pela chave, sem resolver o telefone (ver `authorOf`). */
+export function authorJid(key: WAMessageKey, chatId: string, selfIds: readonly string[]): string {
+  if (key.participant) return key.participant;
+  return key.fromMe ? (selfIds[0] ?? chatId) : chatId;
 }
 
 /**

@@ -1,8 +1,9 @@
 // Transport do WhatsApp sobre o Baileys (M2-1). Este módulo cuida da conexão: socket, QR ou
 // código de pareamento, credenciais no storage do bot e o motivo de cada queda. Quem decide
 // reconectar é o `Bot`, pela `ReconnectionPolicy` (ADR 0048). As mensagens recebidas passam
-// pela normalização (`normalize.ts`) antes de virar o evento `message`; o envio e as demais
-// ações traduzem o formato do core em `outgoing.ts`.
+// pela normalização (`normalize.ts`) antes de virar o evento `message`, e os demais eventos do
+// Baileys (reação, edição, apagamento, grupos) são convertidos em `events.ts`; o envio e as
+// demais ações traduzem o formato do core em `outgoing.ts`.
 
 import { Readable } from 'node:stream';
 import type {
@@ -39,11 +40,20 @@ import {
   type MiscMessageGenerationOptions,
   type ParticipantAction,
   type WAMessage,
+  WAMessageStubType,
   type WAPresence,
   type WAVersion,
 } from 'baileys';
 import { loadAuthState } from './auth-state.ts';
 import { toDisconnectReason } from './disconnect-reason.ts';
+import {
+  ContactBook,
+  toDeleted,
+  toEdited,
+  toGroupUpdated,
+  toParticipantEvents,
+  toReaction,
+} from './events.ts';
 import { type ILogger, toBaileysLogger } from './logger.ts';
 import { type NormalizeEnv, toMessage } from './normalize.ts';
 import { toContent, toGroupMetadata, toQuoted, toWAKey } from './outgoing.ts';
@@ -138,6 +148,8 @@ export class BaileysTransport implements Transport {
    * pelos eventos de grupo do Baileys e a cada conexão, porque a queda pode ter perdido algum.
    */
   readonly #groups = new Map<string, Promise<BaileysGroupMetadata>>();
+  /** Contatos já vistos, entre conexões: o `contact.updated` sai só no que é novo. */
+  readonly #contacts = new ContactBook();
 
   constructor(options: BaileysTransportOptions, deps: TransportDeps) {
     this.#pairing = options.pairing;
@@ -198,10 +210,18 @@ export class BaileysTransport implements Transport {
       });
     });
 
-    // Em fila: a normalização é assíncrona (telefone de LID) e não pode inverter a ordem de
-    // chegada, que a fila de entrada do bot preserva por chat.
+    // Em fila: a conversão é assíncrona (telefone de LID) e não pode inverter a ordem de
+    // chegada, que a fila de entrada do bot preserva por chat. Reação, edição e apagamento entram
+    // na mesma fila: a edição de uma mensagem não passa à frente dela.
     let inbound = Promise.resolve();
+    const enqueue = (work: () => Promise<void>, failure: string, messageId?: string | null) => {
+      inbound = inbound.then(work).catch((error: unknown) => {
+        this.#log.error(failure, { err: error, messageId });
+      });
+    };
     const env = this.#normalizeEnv(socket, state, logger);
+    const contacts = this.#contacts;
+
     socket.ev.on('messages.upsert', ({ messages, type }) => {
       if (!current()) return;
       // `append` é histórico e cópia de sincronização; só `notify` é mensagem nova.
@@ -209,29 +229,91 @@ export class BaileysTransport implements Transport {
       for (const raw of messages) {
         // Status (stories) não é conversa: fica de fora até haver um evento para ele.
         if (raw.key.remoteJid && isJidStatusBroadcast(raw.key.remoteJid)) continue;
-        inbound = inbound
-          .then(() => toMessage(raw, env))
-          .then(
-            (message) => {
-              if (message !== null && current()) this.#events.emit('message', message);
-            },
-            (error: unknown) => {
-              this.#log.error('falha ao normalizar mensagem do Baileys; descartada', {
-                err: error,
-                messageId: raw.key.id,
-              });
-            },
-          );
+        enqueue(
+          async () => {
+            const message = await toMessage(raw, env);
+            if (message === null || !current()) return;
+            // Antes da mensagem: quem guarda nomes já o tem ao tratá-la.
+            const contact = message.fromMe ? null : contacts.observe(message.sender);
+            if (contact !== null) this.#events.emit('contact.updated', contact);
+            this.#events.emit('message', message);
+          },
+          'falha ao normalizar mensagem do Baileys; descartada',
+          raw.key.id,
+        );
       }
     });
 
+    socket.ev.on('messages.reaction', (reactions) => {
+      if (!current()) return;
+      for (const item of reactions) {
+        enqueue(
+          async () => {
+            const reaction = await toReaction(item, env, contacts);
+            if (reaction !== null && current()) this.#events.emit('reaction', reaction);
+          },
+          'falha ao converter reação do Baileys; descartada',
+          item.key.id,
+        );
+      }
+    });
+
+    socket.ev.on('messages.update', (updates) => {
+      if (!current()) return;
+      // A maior parte é recibo de entrega e leitura, que não tem evento no core.
+      for (const item of updates) {
+        if (item.update.message?.editedMessage) {
+          enqueue(
+            async () => {
+              const message = await toEdited(item, env, contacts);
+              if (message !== null && current()) this.#events.emit('message.edited', message);
+            },
+            'falha ao converter edição do Baileys; descartada',
+            item.key.id,
+          );
+        } else if (item.update.messageStubType === WAMessageStubType.REVOKE) {
+          enqueue(
+            async () => {
+              const deleted = await toDeleted(item, env, contacts);
+              if (deleted !== null && current()) this.#events.emit('message.deleted', deleted);
+            },
+            'falha ao converter apagamento do Baileys; descartado',
+            item.key.id,
+          );
+        }
+      }
+    });
+
+    // Grupo criado com a sessão dentro: o Baileys avisa pelo `groups.upsert`, não pelos
+    // participantes.
+    socket.ev.on('groups.upsert', (groups) => {
+      if (!current()) return;
+      for (const { id } of groups) {
+        enqueue(async () => {
+          if (current()) this.#events.emit('group.joined', { groupId: id });
+        }, 'falha ao repassar grupo novo');
+      }
+    });
     socket.ev.on('groups.update', (updates) => {
       if (!current()) return;
-      for (const { id } of updates) if (id) this.#groups.delete(id);
+      for (const update of updates) {
+        if (update.id) this.#groups.delete(update.id);
+        const changed = toGroupUpdated(update);
+        if (changed === null) continue;
+        enqueue(async () => {
+          if (current()) this.#events.emit('group.updated', changed);
+        }, 'falha ao repassar alteração de grupo');
+      }
     });
-    socket.ev.on('group-participants.update', ({ id }) => {
+    socket.ev.on('group-participants.update', (update) => {
       if (!current()) return;
-      this.#groups.delete(id);
+      this.#groups.delete(update.id);
+      enqueue(async () => {
+        const { self, others } = await toParticipantEvents(update, env, contacts);
+        if (!current()) return;
+        if (self !== null) this.#events.emit(self, { groupId: update.id });
+        if (others !== null) this.#events.emit('group.participants', others);
+      }, 'falha ao converter alteração de participantes do Baileys; descartada');
     });
 
     socket.ev.on('connection.update', ({ connection, lastDisconnect, qr }) => {

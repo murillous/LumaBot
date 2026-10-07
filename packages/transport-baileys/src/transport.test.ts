@@ -5,7 +5,7 @@ import {
   type Message,
 } from '@zapforge/core';
 import { type AuthStateStore, CAPABILITIES, type TransportDeps } from '@zapforge/core/adapter';
-import { DisconnectReason, type WAMessage } from 'baileys';
+import { DisconnectReason, type WAMessage, WAMessageStubType } from 'baileys';
 import { describe, expect, it, vi } from 'vitest';
 import { boom, FakeDriver } from './fake-socket.test-support.ts';
 import { type BaileysPairing, BaileysTransport } from './transport.ts';
@@ -501,6 +501,173 @@ describe('BaileysTransport: mensagens recebidas', () => {
     old.emit('messages.upsert', { type: 'notify', messages: [text('OLD')] });
     driver.last.emit('messages.upsert', { type: 'notify', messages: [text('NEW')] });
     await vi.waitFor(() => expect(messages.map((m) => m.id)).toEqual(['NEW']));
+  });
+});
+
+describe('BaileysTransport: eventos (M2-1.6)', () => {
+  const GROUP = '120363000000000001@g.us';
+  const ALICE = '5511911110000@s.whatsapp.net';
+  const text = (id: string, pushName?: string): WAMessage => ({
+    key: { remoteJid: GROUP, id, fromMe: false, participant: ALICE },
+    message: { conversation: id },
+    messageTimestamp: 1_760_000_000,
+    ...(pushName === undefined ? {} : { pushName }),
+  });
+
+  async function connected() {
+    const ctx = setup();
+    const seen: string[] = [];
+    const record =
+      (event: string) =>
+      (payload: unknown): void => {
+        seen.push(`${event} ${JSON.stringify(payload, ['id', 'name', 'messageId', 'groupId'])}`);
+      };
+    for (const event of [
+      'message',
+      'message.edited',
+      'message.deleted',
+      'reaction',
+      'group.joined',
+      'group.left',
+      'group.participants',
+      'group.updated',
+      'contact.updated',
+    ] as const) {
+      ctx.transport.on(event, record(event));
+    }
+    await ctx.transport.connect();
+    return { ...ctx, seen, socket: ctx.driver.last };
+  }
+
+  it('contact.updated sai antes da mensagem na primeira vez e quando o nome muda', async () => {
+    const { socket, seen } = await connected();
+    socket.emit('messages.upsert', {
+      type: 'notify',
+      messages: [text('M1', 'Alice'), text('M2', 'Alice'), text('M3', 'Alice B.')],
+    });
+    await vi.waitFor(() => expect(seen).toHaveLength(5));
+    expect(seen).toEqual([
+      `contact.updated {"id":"${ALICE}","name":"Alice"}`,
+      'message {"id":"M1"}',
+      'message {"id":"M2"}',
+      `contact.updated {"id":"${ALICE}","name":"Alice B."}`,
+      'message {"id":"M3"}',
+    ]);
+  });
+
+  it('mensagem da própria sessão não registra contato', async () => {
+    const { socket, seen } = await connected();
+    socket.emit('messages.upsert', {
+      type: 'notify',
+      messages: [{ ...text('M1', 'Eu'), key: { remoteJid: ALICE, id: 'M1', fromMe: true } }],
+    });
+    await vi.waitFor(() => expect(seen).toEqual(['message {"id":"M1"}']));
+  });
+
+  it('reação, edição e apagamento seguem a ordem de chegada das mensagens', async () => {
+    const { socket, seen } = await connected();
+    socket.signalRepository.lidMapping.getPNForLID = () =>
+      new Promise((resolve) => setTimeout(() => resolve(null), 20));
+    socket.emit('messages.upsert', {
+      type: 'notify',
+      messages: [{ ...text('M1'), key: { remoteJid: GROUP, id: 'M1', participant: '1@lid' } }],
+    });
+    socket.emit('messages.update', [
+      {
+        key: { remoteJid: GROUP, id: 'M1', participant: ALICE },
+        update: { message: { editedMessage: { message: { conversation: 'novo' } } } },
+      },
+      // Recibo de leitura: sem evento.
+      { key: { remoteJid: GROUP, id: 'M1', participant: ALICE }, update: { status: 4 } },
+    ]);
+    socket.emit('messages.reaction', [
+      {
+        key: { remoteJid: GROUP, id: 'M1' },
+        reaction: { text: '👍', key: { remoteJid: GROUP, id: 'R1', participant: ALICE } },
+      },
+    ]);
+    socket.emit('messages.update', [
+      {
+        key: { remoteJid: GROUP, id: 'M1', participant: ALICE },
+        update: {
+          message: null,
+          messageStubType: WAMessageStubType.REVOKE,
+          key: { remoteJid: GROUP, id: 'X', participant: ALICE },
+        },
+      },
+    ]);
+    await vi.waitFor(() => expect(seen).toHaveLength(4));
+    expect(seen).toEqual([
+      'message {"id":"M1"}',
+      'message.edited {"id":"M1"}',
+      'reaction {"messageId":"M1"}',
+      'message.deleted {"messageId":"M1"}',
+    ]);
+  });
+
+  it('grupos: criado com a sessão, participantes, alteração e saída', async () => {
+    const { socket, seen } = await connected();
+    socket.updateCreds({ me: { id: '5511999990000:3@s.whatsapp.net' } });
+    socket.emit('groups.upsert', [{ id: GROUP, subject: 'Novo', owner: ALICE, participants: [] }]);
+    socket.emit('group-participants.update', {
+      id: GROUP,
+      author: ALICE,
+      participants: [{ id: '2@s.whatsapp.net' }],
+      action: 'add',
+    });
+    socket.emit('groups.update', [
+      { id: GROUP, subject: 'Renomeado' },
+      // Sincronização com os metadados completos: não é alteração.
+      { id: GROUP, subject: 'Renomeado', participants: [] },
+    ]);
+    socket.emit('group-participants.update', {
+      id: GROUP,
+      author: ALICE,
+      participants: [{ id: '5511999990000@s.whatsapp.net' }],
+      action: 'remove',
+    });
+    await vi.waitFor(() => expect(seen).toHaveLength(4));
+    expect(seen).toEqual([
+      `group.joined {"groupId":"${GROUP}"}`,
+      `group.participants {"groupId":"${GROUP}"}`,
+      `group.updated {"groupId":"${GROUP}"}`,
+      `group.left {"groupId":"${GROUP}"}`,
+    ]);
+  });
+
+  it('eventos do socket anterior deixam de valer depois da reconexão', async () => {
+    const { driver, transport, seen } = await connected();
+    const old = driver.last;
+    await transport.connect();
+    old.emit('messages.reaction', [
+      {
+        key: { remoteJid: GROUP, id: 'M1' },
+        reaction: { text: '👍', key: { remoteJid: GROUP, id: 'R1', participant: ALICE } },
+      },
+    ]);
+    old.emit('groups.update', [{ id: GROUP, subject: 'Velho' }]);
+    driver.last.emit('groups.update', [{ id: GROUP, subject: 'Novo' }]);
+    await vi.waitFor(() => expect(seen).toEqual([`group.updated {"groupId":"${GROUP}"}`]));
+  });
+
+  it('falha na conversão descarta só aquele evento e vai para o log', async () => {
+    const { socket, seen, log } = await connected();
+    socket.signalRepository.lidMapping.getPNForLID = () => Promise.reject(new Error('banco'));
+    const broken = { remoteJid: GROUP, id: 'R1', participant: '1@lid' };
+    Object.defineProperty(broken, 'fromMe', {
+      get() {
+        throw new Error('proto malformado');
+      },
+    });
+    socket.emit('messages.reaction', [
+      { key: { remoteJid: GROUP, id: 'M1' }, reaction: { text: '👍', key: broken } },
+    ]);
+    socket.emit('groups.update', [{ id: GROUP, subject: 'Novo' }]);
+    await vi.waitFor(() => expect(seen).toEqual([`group.updated {"groupId":"${GROUP}"}`]));
+    expect(log.lines).toContainEqual({
+      level: 'error',
+      message: 'falha ao converter reação do Baileys; descartada',
+    });
   });
 });
 
