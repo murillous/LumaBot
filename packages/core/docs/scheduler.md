@@ -93,4 +93,6 @@ await scheduler.stop();                           // gancho de parada
   consulta do loop ou a remoção depois do handler) vai ao `onStorageError`, e o loop tenta de
   novo depois de `storageRetryMs`. Se a remoção falhar, o job continua no storage e é entregue
   de novo (pelo menos uma vez). Os dois callbacks não devem lançar.
-- O `onError` **não** emite `plugin.error` no barramento sozinho: quem liga isso é o `Bot`.
+- O `onError` **não** emite `plugin.error` no barramento sozinho: quem liga isso é o `Bot`, que
+  loga a falha e a emite. O `Bot` também liga o `onStorageError` ao log, chama `start()` quando
+  termina o boot e `stop()` num gancho de parada ([Bot](bot.md#shutdown-gracioso-stop)).

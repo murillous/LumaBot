@@ -18,6 +18,10 @@ transport.onMessage((message) => {
 });
 ```
 
+No `Bot`, cada evento `message` do transport vira uma tarefa no chat dele, a fila é configurada
+por `createBot({ inbound })`, o erro de uma tarefa vai para o log com o `chatId` e o `stop()` a
+fecha e drena antes do teardown dos plugins ([Bot](bot.md#fluxo-de-uma-mensagem)).
+
 ## Ordem e paralelismo
 
 - Tarefas do mesmo `chatId` rodam uma de cada vez, na ordem de `enqueue`.

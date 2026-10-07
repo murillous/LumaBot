@@ -1,4 +1,46 @@
+import { CommandConflictError } from '#commands/registry.ts';
+import { createCommandRouter, type IsGroupAdmin } from '#commands/router.ts';
+import type { ConfigEnv } from '#config/env.ts';
+import { normalizeOwners } from '#config/owners.ts';
+import {
+  createPluginConfigs,
+  type PluginConfigFile,
+  type PluginConfigs,
+} from '#config/plugin-configs.ts';
+import type { BotMessageContext } from '#context.ts';
+import { createEventBus, type EmittableEventName } from '#events/bus.ts';
+import type { BotEvents, ListenerExtras, PluginErrorEvent } from '#events/types.ts';
+import { createLogger, createNoopLogger } from '#logger/logger.ts';
+import { createSecretSet, type SecretSet } from '#logger/secrets.ts';
+import type { Logger, LogLevel } from '#logger/types.ts';
+import type { Message } from '#message/types.ts';
+import { type ChatFilterOptions, chatFilter } from '#middleware/chat-filter.ts';
+import { ignoreSelf } from '#middleware/ignore-self.ts';
+import { type Middleware, MiddlewarePipeline } from '#middleware/pipeline.ts';
+import { type RateLimitOptions, rateLimit } from '#middleware/rate-limit.ts';
+import { type SanitizeOptions, sanitize } from '#middleware/sanitize.ts';
+import { OutboundQueue, type OutboundQueueOptions } from '#outbound/queue.ts';
+import type { Sender } from '#outbound/types.ts';
+import { createPluginHost, type PluginHost, type PluginReloadResult } from '#plugin/host.ts';
+import type { PluginLifecycleError, PluginReportEntry } from '#plugin/report.ts';
+import { collectPlugins } from '#plugin/sources.ts';
+import type { PluginDefinition } from '#plugin/types.ts';
+import { InboundQueue, type InboundQueueOptions } from '#queue/inbound.ts';
+import { createSchedulerService } from '#scheduler/service.ts';
+import { createServiceRegistry } from '#services/registry.ts';
+import { createMemoryStorage } from '#storage/memory.ts';
+import type { StoragePort } from '#storage/types.ts';
+import { hasCapability } from '#transport/capabilities.ts';
 import type { Transport } from '#transport/types.ts';
+import { createUnsafeAccess } from '#unsafe/access.ts';
+import {
+  createMessageContext,
+  type KernelMessageContext,
+  type MessageContextDeps,
+  messageExtras,
+} from './message-context.ts';
+import { CommandTimeoutError, createPluginContextFactory } from './plugin-context.ts';
+import { type BotReconnectionOptions, createReconnector, type Reconnector } from './reconnect.ts';
 import {
   type RegisteredStopHook,
   runStopHooks,
@@ -13,26 +55,112 @@ import {
  */
 export type BotState = 'idle' | 'starting' | 'running' | 'stopping' | 'stopped';
 
+/** Middleware do app com prioridade (maior roda antes). */
+export interface BotMiddlewareEntry {
+  readonly middleware: Middleware<BotMessageContext>;
+  /** Padrão: 0 — dentro dos oficiais, que ficam entre 700 e 1000. */
+  readonly priority?: number;
+}
+
+/**
+ * Middlewares do bot. Os oficiais entram nesta ordem (de fora para dentro): `ignoreSelf` (1000),
+ * `chatFilter` (900), `rateLimit` (800), `sanitize` (700); depois os do app (`use`, padrão 0).
+ */
+export interface BotMiddlewaresConfig {
+  /** Barra as mensagens da própria sessão. Padrão: `true`. */
+  readonly ignoreSelf?: boolean;
+  /** Allow/blocklist de chats. Padrão: desligado. */
+  readonly chatFilter?: ChatFilterOptions;
+  /** Rate limit de entrada. Padrão: desligado. Sem `onLimited`, loga em `debug`. */
+  readonly rateLimit?: RateLimitOptions;
+  /** Truncagem de texto e nome. Padrão: ligado com os limites do `sanitize`; `false` desliga. */
+  readonly sanitize?: SanitizeOptions | false;
+  /** Middlewares do app. */
+  readonly use?: readonly (Middleware<BotMessageContext> | BotMiddlewareEntry)[];
+}
+
+/** Prazos dos estágios que rodam código de plugin, em ms. */
+export interface BotTimeouts {
+  /** Criação do contexto e `setup` de cada plugin. Padrão: 10000. */
+  readonly setupMs?: number;
+  /** `teardown` e limpeza de cada plugin. Padrão: 5000. */
+  readonly teardownMs?: number;
+  /** `run` de cada comando; estourado, o chat é liberado e sai `plugin.error`. Padrão: 30000. */
+  readonly commandMs?: number;
+  /** Cada listener de evento. Padrão: 30000. */
+  readonly listenerMs?: number;
+  /** Cada handler de job do scheduler. Padrão: 30000. */
+  readonly jobMs?: number;
+}
+
 export interface BotConfig {
   readonly transport: Transport;
+  /**
+   * Storage do bot (plugins, scheduler, overrides de config). O bot o fecha no `stop()`.
+   * Padrão: em memória (`createMemoryStorage`), com aviso no log — os dados somem ao reiniciar.
+   */
+  readonly storage?: StoragePort;
+  /** Plugins da config (pacotes npm que o app importa). */
+  readonly plugins?: readonly PluginDefinition[];
+  /** Pastas de plugins locais (ver `collectPlugins`), relativas a `cwd`. */
+  readonly pluginDirs?: readonly string[];
+  /** Base de `pluginDirs`. Padrão: `process.cwd()`. */
+  readonly cwd?: string;
+  /** Nomes de plugin que não carregam. */
+  readonly disabledPlugins?: readonly string[];
+  /** Config por plugin (a camada "arquivo"; ver ADR 0032). */
+  readonly pluginConfig?: PluginConfigFile;
+  /** Ambiente da config de plugin (`ZAPFORGE_*`). Padrão: `process.env`. */
+  readonly env?: ConfigEnv;
+  /** Telefones dos donos (`role: 'owner'`); aceitos com pontuação, normalizados no `createBot`. */
+  readonly owners?: readonly string[];
+  /** Prefixo de comando. Padrão: `'!'`. */
+  readonly prefix?: string;
+  /**
+   * Logger pronto. Sem ele, o bot cria um (`createLogger`) com `logLevel` e `secrets`. Um
+   * logger próprio só censura os segredos da config se for criado com o mesmo `secrets`.
+   */
+  readonly logger?: Logger;
+  /** Nível do logger criado pelo bot. Padrão: `'info'`. */
+  readonly logLevel?: LogLevel;
+  /** Fonte de segredos compartilhada entre a config de plugin e o logger. Padrão: uma nova. */
+  readonly secrets?: SecretSet;
+  readonly middlewares?: BotMiddlewaresConfig;
+  /** Fila de entrada por chat. */
+  readonly inbound?: Pick<InboundQueueOptions, 'maxPendingPerChat'>;
+  /** Fila de saída (taxa, prioridade, retry, humanização). */
+  readonly outbound?: Omit<OutboundQueueOptions, 'transport'>;
+  /** Reconexão automática. Padrão: ligada com os padrões da `ReconnectionPolicy`. */
+  readonly reconnection?: BotReconnectionOptions | false;
+  readonly timeouts?: BotTimeouts;
   readonly shutdown?: ShutdownOptions;
 }
+
+/** Config de plugin em runtime, para o dashboard: overrides, visão mascarada e schema. */
+export type BotPluginConfigs = Pick<PluginConfigs, 'setOverrides' | 'describe' | 'jsonSchema'>;
 
 export interface Bot {
   readonly state: BotState;
   /**
-   * Conecta o transport. Idempotente enquanto `starting`/`running` (devolve a mesma promise);
-   * rejeita com `BotStateError` depois de `stop()`.
+   * Sobe o bot (ordem em docs/bot.md): conecta o transport e, em paralelo, carrega os plugins.
+   * Idempotente enquanto `starting`/`running` (devolve a mesma promise); rejeita com
+   * `BotStateError` depois de `stop()`. Rejeita com o erro de boot (ex.:
+   * `CommandConflictError`) depois de encerrar o que já tinha subido.
    */
   start(): Promise<void>;
   /**
-   * Shutdown gracioso: roda os ganchos de parada (LIFO) e desconecta o transport. Idempotente:
-   * chamadas repetidas devolvem a mesma promise. Rejeita com `AggregateError` se algum gancho
-   * ou o `disconnect` falhar — mas sempre termina em `stopped`.
+   * Shutdown gracioso: roda os ganchos de parada (LIFO; os internos drenam filas e fazem o
+   * `teardown` dos plugins), desconecta o transport e fecha o storage. Idempotente: chamadas
+   * repetidas devolvem a mesma promise. Rejeita com `AggregateError` se alguma etapa falhar —
+   * mas sempre termina em `stopped`.
    */
   stop(): Promise<void>;
   /** Registra um gancho de parada; devolve a função que o remove. */
   onStop(hook: StopHook, options?: StopHookOptions): () => void;
+  /** Config dos plugins. Disponível depois que o `start()` carrega os plugins. */
+  readonly config: BotPluginConfigs;
+  /** Tabela de boot atual (reflete reloads); vazia antes do `start()`. */
+  plugins(): PluginReportEntry[];
 }
 
 /** Operação incompatível com o estado atual do bot. */
@@ -46,7 +174,36 @@ export class BotStateError extends Error {
   }
 }
 
-/** Cria um bot. Não conecta nem agenda nada: o efeito começa em `start()`. */
+/** Prazo padrão do `run` de um comando: o mesmo dos listeners. */
+const DEFAULT_COMMAND_TIMEOUT_MS = 30_000;
+
+/** Prazos dos ganchos de parada internos (o total segue `shutdown.timeoutMs`). */
+const STOP_TIMEOUTS = {
+  reconnection: 2000,
+  inbound: 5000,
+  plugins: 10_000,
+  scheduler: 5000,
+  outbound: 5000,
+} as const;
+
+/** Eventos do transport que vão direto ao barramento, sem tratamento do kernel. */
+const DIRECT_EVENTS = [
+  'message.deleted',
+  'reaction',
+  'group.joined',
+  'group.left',
+  'group.participants',
+  'group.updated',
+] as const satisfies readonly EmittableEventName[];
+type DirectEvent = (typeof DIRECT_EVENTS)[number];
+
+const MIDDLEWARE_PRIORITY = { ignoreSelf: 1000, chatFilter: 900, rateLimit: 800, sanitize: 700 };
+
+/**
+ * Cria um bot. Valida a config e monta as peças sem efeito colateral (sem conexão, timer,
+ * logger ou leitura de disco): o efeito começa em `start()`. Lança `BotConfigError` para
+ * `owners` malformado e `TypeError`/`RangeError` para opções inválidas.
+ */
 export function createBot(config: BotConfig): Bot {
   const { transport } = config;
   // Todo o estado vive neste closure (ADR 0004): duas instâncias nunca se enxergam.
@@ -56,6 +213,336 @@ export function createBot(config: BotConfig): Bot {
   let startPromise: Promise<void> | undefined;
   let shutdownPromise: Promise<void> | undefined;
   let stopAfterStart: Promise<void> | undefined;
+
+  // O logger nasce no start(): criar o do pino aqui já seria efeito colateral. Até lá, quem
+  // logar (nada deveria) cai no no-op.
+  let log: Logger = createNoopLogger();
+  const getLog = (): Logger => log;
+  const secrets = config.secrets ?? createSecretSet();
+  const storage = config.storage ?? createMemoryStorage();
+  const timeouts = config.timeouts ?? {};
+
+  const bus = createEventBus({
+    listenerTimeoutMs: timeouts.listenerMs,
+    onError: (event) => logPluginError(event),
+  });
+  const services = createServiceRegistry();
+  const router = createCommandRouter({
+    prefix: config.prefix,
+    owners: normalizeOwners(config.owners ?? []),
+    isGroupAdmin: groupAdminPort(transport),
+  });
+  const pipeline = createPipeline(config.middlewares ?? {}, getLog);
+  const inbound = new InboundQueue({
+    maxPendingPerChat: config.inbound?.maxPendingPerChat,
+    onError: (error, chatId) => log.error('falha ao processar mensagem', { chatId, err: error }),
+  });
+  const outbound = new OutboundQueue({
+    onPresenceError: (error, chatId) =>
+      log.debug('falha ao enviar presença', { chatId, err: error }),
+    ...config.outbound,
+    transport,
+  });
+  // O plugin vê só `send`: a fila (close, stats) fica com o kernel.
+  const send: Sender = {
+    send: (chatId, content, options) => outbound.send(chatId, content, options),
+  };
+  const scheduler = createSchedulerService({
+    storage,
+    jobTimeoutMs: timeouts.jobMs,
+    onError: (event) => {
+      logPluginError(event);
+      void bus.emit('plugin.error', event);
+    },
+    onStorageError: (error) => log.error('scheduler: falha no storage', { err: error }),
+  });
+  const contextDeps: MessageContextDeps = {
+    sender: send,
+    quote: hasCapability(transport, 'quoted'),
+    log: getLog,
+  };
+  const reconnector: Reconnector | undefined =
+    config.reconnection === false
+      ? undefined
+      : createReconnector({
+          transport,
+          log: getLog,
+          options: config.reconnection ?? {},
+          giveUp: () => {
+            // Chamado de dentro de um handler do transport: o stop corre em paralelo.
+            bot.stop().catch((error: unknown) => log.error('falha ao parar o bot', { err: error }));
+          },
+        });
+
+  let host: PluginHost | undefined;
+  let configs: PluginConfigs | undefined;
+  let booted = false;
+  // Mensagens que chegam enquanto os plugins sobem esperam aqui; `false` = boot abortado. Só a
+  // primeira chamada vale: depois de pronto, o shutdown drena o que a fila já aceitou.
+  let ready = false;
+  let settleReady: (ok: boolean) => void = () => undefined;
+  const readyPromise = new Promise<boolean>((resolve) => {
+    settleReady = (ok) => {
+      settleReady = () => undefined;
+      ready = ok;
+      resolve(ok);
+    };
+  });
+
+  function logPluginError(event: PluginErrorEvent): void {
+    log.error(`plugin "${event.plugin}" falhou (${event.phase})`, {
+      plugin: event.plugin,
+      phase: event.phase,
+      event: event.event,
+      timedOut: event.timedOut,
+      err: event.error,
+    });
+  }
+
+  /** Erros de ciclo de vida do host viram `plugin.error` (o host já os logou). */
+  function emitLifecycleError(error: PluginLifecycleError): void {
+    const phase = error.phase === 'context' || error.phase === 'setup' ? 'setup' : 'teardown';
+    void bus.emit('plugin.error', {
+      plugin: error.plugin,
+      phase,
+      event: null,
+      error: error.cause ?? error,
+      timedOut: error.timedOut,
+    });
+  }
+
+  // --- Fluxo de uma mensagem (plano §5.3) -------------------------------------------------
+
+  async function handleMessage(message: Message): Promise<void> {
+    if (!ready && !(await readyPromise)) return;
+    const ctx = createMessageContext(message, contextDeps);
+    if (!(await pipeline.run(ctx))) return;
+    const result = await router.dispatch(ctx);
+    if (!result.consumed) {
+      await bus.emit('message', message, listenerExtras(ctx));
+      return;
+    }
+    if (result.status === 'rejected' && result.reply !== null) {
+      // Sem await: a resposta espera a taxa da fila de saída, e o chat não precisa esperar.
+      ctx.reply(result.reply).catch((error: unknown) =>
+        ctx.log.warn('falha ao enviar a recusa do comando', {
+          plugin: result.command.plugin,
+          command: result.command.name,
+          err: error,
+        }),
+      );
+    } else if (result.status === 'failed') {
+      const event: PluginErrorEvent = {
+        plugin: result.command.plugin,
+        phase: 'command',
+        event: result.command.name,
+        error: result.error,
+        timedOut: result.error instanceof CommandTimeoutError,
+      };
+      logPluginError(event);
+      void bus.emit('plugin.error', event);
+    }
+  }
+
+  /** Extras dos eventos de mensagem: os campos chegam aos listeners pela visão de cada plugin. */
+  function listenerExtras(ctx: KernelMessageContext): ListenerExtras<'message'> {
+    return messageExtras(ctx) as unknown as ListenerExtras<'message'>;
+  }
+
+  function onMessage(message: Message): void {
+    const result = inbound.enqueue(message.chat.id, () => handleMessage(message));
+    if (result !== 'queued') {
+      log.warn('mensagem descartada pela fila de entrada', {
+        chatId: message.chat.id,
+        messageId: message.id,
+        reason: result,
+      });
+    }
+  }
+
+  function onEdited(message: Message): void {
+    // Edição não passa por middlewares nem comandos (não é mensagem nova): vai direto aos
+    // listeners, com o mesmo contexto de mensagem.
+    const ctx = createMessageContext(message, contextDeps);
+    void bus.emit('message.edited', message, listenerExtras(ctx));
+  }
+
+  /** Repassa um evento do transport direto ao barramento. */
+  function forward<E extends DirectEvent>(event: E): () => void {
+    return transport.on(event, (payload) => {
+      // `BotEvents` estende `TransportEvents`: o payload é o mesmo tipo.
+      void bus.emit(event, payload as BotEvents[E]);
+    });
+  }
+
+  /** Assina todos os eventos do transport; devolve a função que desfaz. */
+  function subscribeTransport(): () => void {
+    const offs: (() => void)[] = [
+      transport.on('message', onMessage),
+      transport.on('message.edited', onEdited),
+      transport.on('connection.status', (status) => {
+        reconnector?.onStatus(status);
+        void bus.emit('connection.status', status);
+      }),
+      transport.on('connection.qr', (payload) => {
+        reconnector?.onQr();
+        log.info('QR de pareamento recebido', { qr: payload.qr });
+        void bus.emit('connection.qr', payload);
+      }),
+    ];
+    for (const event of DIRECT_EVENTS) offs.push(forward(event));
+    return () => {
+      for (const off of offs) off();
+    };
+  }
+
+  // --- Boot ---------------------------------------------------------------------------------
+
+  /** Ganchos internos, empilhados para o LIFO rodar na ordem do shutdown (docs/bot.md). */
+  function registerInternalHooks(unsubscribe: () => void): void {
+    const push = (name: string, timeoutMs: number, hook: StopHook): void => {
+      hooks.push({ name, timeoutMs, hook });
+    };
+    push('fila-de-saida', STOP_TIMEOUTS.outbound, (signal) => {
+      // Drena até o prazo; estourado, descarta o que aguarda (docs/outbound-queue.md).
+      signal.addEventListener('abort', () => void outbound.close({ drain: false }), {
+        once: true,
+      });
+      return outbound.close();
+    });
+    push('scheduler', STOP_TIMEOUTS.scheduler, () => scheduler.stop());
+    push('plugins', STOP_TIMEOUTS.plugins, async () => {
+      const errors = (await host?.stop()) ?? [];
+      if (errors.length > 0) {
+        throw new AggregateError(errors, `teardown: ${errors.length} falha(s) de plugin`);
+      }
+    });
+    push('fila-de-entrada', STOP_TIMEOUTS.inbound, () => inbound.close());
+    push('transporte', STOP_TIMEOUTS.reconnection, async () => {
+      // Para de aceitar eventos (nada novo entra na fila) e de reconectar.
+      unsubscribe();
+      settleReady(false);
+      await reconnector?.stop();
+    });
+  }
+
+  async function bootPlugins(): Promise<void> {
+    const entries = await collectPlugins({
+      plugins: config.plugins,
+      pluginDirs: config.pluginDirs,
+      cwd: config.cwd,
+    });
+    configs = createPluginConfigs({
+      plugins: entries.map((entry) => entry.definition),
+      file: config.pluginConfig,
+      storage,
+      env: config.env,
+      secrets,
+      log,
+      reload: (name) => reload(name),
+    });
+    const createContext = createPluginContextFactory({
+      configs,
+      log,
+      router,
+      bus,
+      services,
+      storage,
+      scheduler,
+      send,
+      unsafe: createUnsafeAccess({ transport, log }),
+      commandTimeoutMs: timeouts.commandMs ?? DEFAULT_COMMAND_TIMEOUT_MS,
+      onLateCommandError: (plugin, command, error) =>
+        log.error(`comando "${command}" rejeitou depois do prazo`, {
+          plugin,
+          command,
+          err: error,
+        }),
+    });
+    const pluginHost = createPluginHost({
+      plugins: entries,
+      transport,
+      createContext,
+      log,
+      disabledPlugins: config.disabledPlugins,
+      setupTimeoutMs: timeouts.setupMs,
+      teardownTimeoutMs: timeouts.teardownMs,
+    });
+    host = pluginHost;
+    const table = await pluginHost.start();
+    for (const entry of table) {
+      if (entry.status !== 'skipped' || entry.reason.kind !== 'setup-failed') continue;
+      const { error } = entry.reason;
+      // Conflito de comando é erro no boot (ADR 0007), não "plugin ignorado".
+      if (error.cause instanceof CommandConflictError) throw error.cause;
+      emitLifecycleError(error);
+    }
+  }
+
+  async function reload(name: string): Promise<PluginReloadResult> {
+    if (!host) throw new BotStateError(`reload("${name}"): plugins ainda não carregados`, state);
+    const result = await host.reload(name);
+    for (const error of result.errors) emitLifecycleError(error);
+    if (result.entry.status === 'skipped' && result.entry.reason.kind === 'setup-failed') {
+      emitLifecycleError(result.entry.reason.error);
+    }
+    return result;
+  }
+
+  async function runStart(): Promise<void> {
+    try {
+      log = config.logger ?? createLogger({ level: config.logLevel ?? 'info', secrets });
+      booted = true;
+      if (config.storage === undefined) {
+        log.warn('sem storage configurado: usando memória, os dados somem ao reiniciar');
+      }
+      registerInternalHooks(subscribeTransport());
+    } catch (error) {
+      // Nada conectou ainda: só desfaz o que foi registrado.
+      await shutdown(false).catch((cleanup: unknown) =>
+        log.error('falha ao encerrar após erro no start', { err: cleanup }),
+      );
+      throw error;
+    }
+
+    // O connect sai já, de forma síncrona com o start(): o handshake (QR, rede) corre em
+    // paralelo com o setup dos plugins. Mensagens que chegarem antes do fim do boot esperam na
+    // fila de entrada (`readyPromise`). Conectado, uma queda já é reconectada.
+    const connecting = callConnect(transport).then(() => reconnector?.activate());
+    const [connected, plugins] = await Promise.allSettled([connecting, bootPlugins()]);
+
+    const failure =
+      connected.status === 'rejected'
+        ? connected.reason
+        : plugins.status === 'rejected'
+          ? plugins.reason
+          : undefined;
+    if (connected.status === 'rejected' && plugins.status === 'rejected') {
+      log.error('falha ao carregar os plugins', { err: plugins.reason });
+    }
+    if (failure !== undefined) {
+      if (connected.status === 'fulfilled') {
+        log.error('falha no boot; encerrando', { err: failure });
+      }
+      // Libera o que já foi registrado; o transport pode ter conectado pela metade.
+      try {
+        await shutdown(true);
+      } catch (cleanupError) {
+        const cleanup = cleanupError instanceof AggregateError ? cleanupError.errors : [];
+        throw new AggregateError([failure, ...cleanup], 'start(): falha no boot e ao encerrar');
+      }
+      throw failure;
+    }
+    if (stopRequested) {
+      // stop() chegou durante o boot: quem chamou stop() conduz o encerramento.
+      throw new BotStateError('start(): bot parado durante a inicialização', state);
+    }
+    scheduler.start();
+    settleReady(true);
+    state = 'running';
+  }
+
+  // --- Shutdown -----------------------------------------------------------------------------
 
   function shutdown(disconnect: boolean): Promise<void> {
     shutdownPromise ??= runShutdown(disconnect);
@@ -74,38 +561,43 @@ export function createBot(config: BotConfig): Bot {
         errors.push(error);
       }
     }
+    // Storage por último: os teardowns e o scheduler ainda o usam até aqui.
+    if (booted) {
+      try {
+        await storage.close();
+      } catch (error) {
+        errors.push(error);
+      }
+    }
     state = 'stopped';
     if (errors.length > 0) {
       throw new AggregateError(errors, `stop(): ${errors.length} falha(s) no encerramento`);
     }
   }
 
-  async function runStart(): Promise<void> {
-    try {
-      await transport.connect();
-    } catch (connectError) {
-      // Libera o que já foi registrado; o transport pode ter conectado pela metade.
-      try {
-        await shutdown(true);
-      } catch (cleanupError) {
-        const cleanup = cleanupError instanceof AggregateError ? cleanupError.errors : [];
-        throw new AggregateError(
-          [connectError, ...cleanup],
-          'start(): falha ao conectar e ao encerrar',
-        );
-      }
-      throw connectError;
+  const pluginConfigs: BotPluginConfigs = {
+    setOverrides: (plugin, overrides) =>
+      requireConfigs('setOverrides').setOverrides(plugin, overrides),
+    describe: (plugin) => requireConfigs('describe').describe(plugin),
+    jsonSchema: (plugin) => requireConfigs('jsonSchema').jsonSchema(plugin),
+  };
+
+  function requireConfigs(method: string): PluginConfigs {
+    if (!configs) {
+      throw new BotStateError(`config.${method}(): plugins ainda não carregados (start)`, state);
     }
-    if (stopRequested) {
-      // stop() chegou durante o connect: quem chamou stop() conduz o encerramento.
-      throw new BotStateError('start(): bot parado durante a inicialização', state);
-    }
-    state = 'running';
+    return configs;
   }
 
-  return {
+  const bot: Bot = {
     get state(): BotState {
       return state;
+    },
+
+    config: pluginConfigs,
+
+    plugins(): PluginReportEntry[] {
+      return host?.report() ?? [];
     },
 
     start(): Promise<void> {
@@ -130,7 +622,7 @@ export function createBot(config: BotConfig): Bot {
           return shutdown(false);
         case 'starting': {
           stopRequested = true;
-          // Espera o connect assentar (sucesso ou falha) e só então encerra; se o start já
+          // Espera o boot assentar (sucesso ou falha) e só então encerra; se o start já
           // encerrou por falha, `shutdown` devolve a mesma promise.
           const afterStart = (): Promise<void> => shutdown(true);
           stopAfterStart ??= (startPromise ?? Promise.resolve()).then(afterStart, afterStart);
@@ -161,4 +653,58 @@ export function createBot(config: BotConfig): Bot {
       };
     },
   };
+  return bot;
+}
+
+/** `transport.connect()` chamado já, com um throw síncrono do adapter virando rejeição. */
+function callConnect(transport: Transport): Promise<void> {
+  try {
+    return transport.connect();
+  } catch (error) {
+    return Promise.reject(error);
+  }
+}
+
+/** Porta `isGroupAdmin` do roteador, a partir do transport (capability `groups`). */
+function groupAdminPort(transport: Transport): IsGroupAdmin | undefined {
+  if (!hasCapability(transport, 'groups')) return undefined;
+  return async (chatId, senderId) => {
+    const metadata = await transport.getGroupMetadata(chatId);
+    return metadata.participants.some(
+      (participant) => participant.id === senderId && participant.isAdmin,
+    );
+  };
+}
+
+/** Pipeline com os middlewares oficiais ligados pela config e os do app. */
+function createPipeline(
+  options: BotMiddlewaresConfig,
+  log: () => Logger,
+): MiddlewarePipeline<BotMessageContext> {
+  const pipeline = new MiddlewarePipeline<BotMessageContext>();
+  if (options.ignoreSelf !== false) {
+    pipeline.use(ignoreSelf(), { priority: MIDDLEWARE_PRIORITY.ignoreSelf });
+  }
+  if (options.chatFilter) {
+    pipeline.use(chatFilter(options.chatFilter), { priority: MIDDLEWARE_PRIORITY.chatFilter });
+  }
+  if (options.rateLimit) {
+    const limit = rateLimit({
+      onLimited: (ctx) =>
+        log().debug('mensagem barrada pelo rate limit', {
+          chatId: ctx.message.chat.id,
+          senderId: ctx.message.sender.id,
+        }),
+      ...options.rateLimit,
+    });
+    pipeline.use(limit, { priority: MIDDLEWARE_PRIORITY.rateLimit });
+  }
+  if (options.sanitize !== false) {
+    pipeline.use(sanitize(options.sanitize), { priority: MIDDLEWARE_PRIORITY.sanitize });
+  }
+  for (const entry of options.use ?? []) {
+    if (typeof entry === 'function') pipeline.use(entry);
+    else pipeline.use(entry.middleware, { priority: entry.priority });
+  }
+  return pipeline;
 }

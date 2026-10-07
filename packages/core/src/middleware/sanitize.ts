@@ -9,7 +9,9 @@ export interface SanitizedFields {
 
 /**
  * Contexto com o resultado de `sanitize`. `ctx.message` é imutável (contrato compartilhado),
- * então o texto limpo fica ao lado dele; sem o middleware, `sanitized` fica ausente.
+ * então o texto limpo fica ao lado dele: em `ctx.text`, o texto de trabalho que o roteador e os
+ * listeners leem (M1-16.2), e em `sanitized`, junto do nome do remetente. Sem o middleware,
+ * `sanitized` fica ausente.
  */
 export interface SanitizedContext extends MessageContext {
   sanitized?: SanitizedFields;
@@ -39,10 +41,10 @@ export function sanitize(options: SanitizeOptions = {}): Middleware<SanitizedCon
   }
   return (ctx, next) => {
     const { message } = ctx;
-    ctx.sanitized = {
-      text: truncate(message.text, maxText),
-      senderName: truncate(message.sender.name, maxName),
-    };
+    // Trunca o texto de trabalho, não o original: um middleware anterior pode tê-lo reescrito.
+    const text = truncate(ctx.text === undefined ? message.text : ctx.text, maxText);
+    ctx.text = text;
+    ctx.sanitized = { text, senderName: truncate(message.sender.name, maxName) };
     return next();
   };
 }

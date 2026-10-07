@@ -7,7 +7,7 @@ import type { Message } from '#message/types.ts';
 const base = {
   id: 'm1',
   chat: { id: 'grupo@g.us', isGroup: true },
-  sender: { id: 'ana@s.whatsapp.net', name: 'Ana' },
+  sender: { id: 'ana@s.whatsapp.net', name: 'Ana', phone: null },
   timestamp: 0,
   fromMe: false,
 };

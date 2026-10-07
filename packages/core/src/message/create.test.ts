@@ -4,7 +4,7 @@ import { createMessage } from '#message/create.ts';
 const base = {
   id: 'm1',
   chat: { id: 'grupo@g.us', isGroup: true },
-  sender: { id: 'ana@s.whatsapp.net', name: 'Ana' },
+  sender: { id: 'ana@s.whatsapp.net', name: 'Ana', phone: null },
   timestamp: 1_700_000_000_000,
   fromMe: false,
 };
@@ -24,7 +24,7 @@ describe('createMessage', () => {
   });
 
   it('padrão também vale para undefined explícito, e valores informados prevalecem', () => {
-    const bia = { id: 'bia@s.whatsapp.net', name: null };
+    const bia = { id: 'bia@s.whatsapp.net', name: null, phone: null };
     const msg = createMessage({
       ...base,
       type: 'text',
@@ -81,6 +81,19 @@ describe('createMessage', () => {
     });
     expect(msg.poll.options).toEqual(['sim', 'não']);
     expect('media' in msg).toBe(false);
+  });
+
+  it('propaga o telefone do remetente e das menções (M1-16.4)', () => {
+    const bia = { id: '123@lid', name: 'Bia', phone: '5511888888888' };
+    const msg = createMessage({
+      ...base,
+      sender: { id: '456@lid', name: 'Ana', phone: '5511999999999' },
+      type: 'text',
+      text: 'oi @bia',
+      mentions: [bia],
+    });
+    expect(msg.sender.phone).toBe('5511999999999');
+    expect(msg.mentions[0]?.phone).toBe('5511888888888');
   });
 });
 

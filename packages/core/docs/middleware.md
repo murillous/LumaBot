@@ -32,7 +32,31 @@ Regras:
 - **`next()` duas vezes** rejeita com erro.
 - **Erros** (síncronos ou não) propagam: rejeitam o `run()`. Um middleware de fora pode
   capturá-los com `try { await next() } catch …`.
-- O middleware é genérico no contexto: `Middleware<C extends MessageContext>`.
+- O middleware é genérico no contexto: `Middleware<C extends MessageContext>`. No bot, o contexto
+  é um `BotMessageContext` (`message`, `text`, `reply`, `log`).
+
+## O texto de trabalho `ctx.text`
+
+`ctx.message` é imutável. Para mudar o que os estágios seguintes leem — truncar, normalizar,
+tirar uma menção do começo —, reescreva `ctx.text`:
+
+```ts
+const semMencao: Middleware<BotMessageContext> = (ctx, next) => {
+  ctx.text = ctx.text?.replace(/^@\S+\s*/, '') ?? null;
+  return next();
+};
+```
+
+No bot, `ctx.text` começa igual a `message.text`; o roteador casa os comandos por ele e os
+listeners o recebem em `e.text`. Fora do bot o campo é opcional (`MessageContext.text?`): quem lê
+usa `ctx.text` se definido, senão `message.text`.
+
+## No bot
+
+O `Bot` monta o pipeline com os oficiais e os do app (`createBot({ middlewares })`), na ordem e
+com os padrões descritos em [Bot → Middlewares](bot.md#middlewares): `ignoreSelf` e `sanitize`
+ligados, `chatFilter` e `rateLimit` quando configurados. Erro de middleware vai para o log com o
+`chatId`; a mensagem para ali e o chat segue.
 
 ## Pipeline
 
@@ -92,13 +116,18 @@ O contador sozinho está disponível como `RateLimiter` (`hit(key)`, `size`).
 
 ### `sanitize({ maxTextLength?, maxSenderNameLength? })`
 
-Trunca o texto/legenda (padrão 4096) e o nome do remetente (padrão 100), sem cortar emoji ao
-meio. Como `ctx.message` é imutável, o resultado vai para `ctx.sanitized`, tipado por
-`SanitizedContext`:
+Trunca o texto de trabalho (padrão 4096) e o nome do remetente (padrão 100), sem cortar emoji
+ao meio. Como `ctx.message` é imutável, o texto truncado vai para `ctx.text` — o que o roteador e
+os listeners leem — e, junto do nome, para `ctx.sanitized`, tipado por `SanitizedContext`:
 
 ```ts
 const pipeline = new MiddlewarePipeline<SanitizedContext>();
 pipeline.use(sanitize());
 // adiante:
-const text = ctx.sanitized?.text ?? ctx.message.text;
+ctx.text;                 // texto truncado
+ctx.sanitized?.senderName; // nome truncado
 ```
+
+Ele trunca o `ctx.text` que recebeu (de um middleware anterior, se houver), não o
+`message.text` original. Até o M1-16 o texto truncado só ia para `ctx.sanitized.text`, que
+continua preenchido com o mesmo valor.

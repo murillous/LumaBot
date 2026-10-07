@@ -84,6 +84,9 @@ pasta na ordem dada. Convenção de pasta (`discoverPlugins(dir)`):
 
 ## Subir e derrubar: `createPluginHost`
 
+O `Bot` faz tudo isto no `start()`/`stop()` ([Bot → Plugins](bot.md#plugins)), com a fábrica de
+contexto ligada aos serviços da instância. Para montar à mão:
+
 ```ts
 import { createPluginHost } from '@zapforge/core';
 
@@ -172,7 +175,8 @@ O loader não conhece comandos, eventos, storage nem serviços: recebe
 `createContext(plugin) => { context, dispose }`. `dispose` precisa desfazer tudo o que o plugin
 registrou pelo contexto. Um `setup` que estoura o prazo continua rodando em segundo plano
 (não há como abortar código síncrono/arbitrário); a fábrica deve fazer o contexto recusar
-registros depois do `dispose`, para o setup atrasado não deixar nada para trás.
+registros depois do `dispose`, para o setup atrasado não deixar nada para trás — a do `Bot` lança
+`PluginHostStateError` em `commands.add`, `events.on`, `services.provide` e `scheduler.on`.
 
 ## Versão do core
 

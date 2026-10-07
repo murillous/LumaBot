@@ -1,4 +1,4 @@
-import type { MessageContext } from '#context.ts';
+import type { BotMessageContext } from '#context.ts';
 import type { Media, Message, MessageType } from '#message/types.ts';
 
 /** Quem pode rodar o comando (ADR 0024). Papéis custom são middleware de plugin. */
@@ -16,8 +16,12 @@ export interface AcceptedMessage {
   readonly message: Message;
 }
 
-/** Contexto que o `run` recebe: o da mensagem mais o que o roteador resolveu. */
-export interface CommandContext extends MessageContext {
+/**
+ * Contexto que o `run` recebe: o da mensagem (`text`, `reply`, `log`, montados pelo `Bot`) mais
+ * o que o roteador resolveu. Quem usa o roteador fora do `Bot` fornece `reply`/`log` no
+ * contexto passado a `dispatch`; o roteador só herda o que recebeu.
+ */
+export interface CommandContext extends BotMessageContext {
   /** Nome canônico do comando casado (não o alias digitado). */
   readonly command: string;
   /** Token digitado, já em minúsculas: o nome ou um dos aliases. */

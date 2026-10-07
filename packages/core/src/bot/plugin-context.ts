@@ -1,0 +1,208 @@
+// Fábrica do `PluginContext` (M1-16): liga cada campo do contexto ao serviço do bot, sempre em
+// nome do plugin, e desfaz tudo no `dispose`. É a única peça que conhece todos os serviços; o
+// host de plugins só recebe a fábrica.
+
+import type { CommandDefinition } from '#commands/command.ts';
+import type { CommandRouter } from '#commands/router.ts';
+import type { PluginConfigs } from '#config/plugin-configs.ts';
+import type { EventBus } from '#events/bus.ts';
+import type { BotEventName, EventSubscriber } from '#events/types.ts';
+import type { Logger } from '#logger/types.ts';
+import type { Sender } from '#outbound/types.ts';
+import { type PluginContextFactory, PluginHostStateError } from '#plugin/host.ts';
+import type { PluginContext } from '#plugin/types.ts';
+import type { SchedulerService } from '#scheduler/service.ts';
+import type { Scheduler } from '#scheduler/types.ts';
+import type { ServiceRegistry } from '#services/registry.ts';
+import type { ServiceAccess } from '#services/types.ts';
+import { pluginStorage } from '#storage/namespace.ts';
+import type { StoragePort } from '#storage/types.ts';
+import type { Unsubscribe } from '#transport/types.ts';
+import type { UnsafeAccess } from '#unsafe/access.ts';
+import { commandViewFactory, listenerViewFactory } from './message-context.ts';
+
+export interface PluginContextDeps {
+  readonly configs: PluginConfigs;
+  readonly log: Logger;
+  readonly router: CommandRouter;
+  readonly bus: EventBus;
+  readonly services: ServiceRegistry;
+  readonly storage: StoragePort;
+  readonly scheduler: SchedulerService;
+  readonly send: Sender;
+  readonly unsafe: UnsafeAccess;
+  /** Prazo do `run` de cada comando, em ms (ADR 0005). */
+  readonly commandTimeoutMs: number;
+  /** Destino da rejeição de um `run` que chegou depois do prazo (já reportado como timeout). */
+  readonly onLateCommandError: (plugin: string, command: string, error: unknown) => void;
+}
+
+/** O `run` de um comando estourou o prazo. Vai em `plugin.error` com `timedOut: true`. */
+export class CommandTimeoutError extends Error {
+  override readonly name = 'CommandTimeoutError';
+  readonly plugin: string;
+  readonly command: string;
+  readonly timeoutMs: number;
+
+  constructor(plugin: string, command: string, timeoutMs: number) {
+    super(`comando "${command}" do plugin "${plugin}" excedeu ${timeoutMs} ms`);
+    this.plugin = plugin;
+    this.command = command;
+    this.timeoutMs = timeoutMs;
+  }
+}
+
+/** Eventos cujo payload é uma `Message`: os listeners deles recebem os campos de mensagem. */
+export function isMessageEvent(event: BotEventName): boolean {
+  return event === 'message' || event === 'message.edited' || event.startsWith('message:');
+}
+
+export function createPluginContextFactory(deps: PluginContextDeps): PluginContextFactory {
+  return async (plugin) => {
+    const { name } = plugin;
+    // Lança `PluginConfigError` com config inválida: o host ignora o plugin (ADR 0032).
+    const { config, messages } = await deps.configs.resolve(name);
+    const log = deps.log.child({ plugin: name });
+
+    // Um `setup` que estourou o prazo segue rodando em segundo plano (não há como abortá-lo).
+    // Depois do `dispose`, tudo o que ele registrar ficaria órfão: o contexto recusa.
+    let disposed = false;
+    const guard = (what: string): void => {
+      if (disposed) {
+        throw new PluginHostStateError(
+          `plugin "${name}": ${what} depois que o contexto foi descartado (setup que estourou ` +
+            'o prazo, ou registro depois do teardown)',
+        );
+      }
+    };
+
+    const commandView = commandViewFactory(log);
+    const listenerView = listenerViewFactory(log);
+    const events = deps.bus.forPlugin(name);
+    const services = deps.services.forPlugin(name);
+    const scheduler = deps.scheduler.forPlugin(name);
+
+    const context: PluginContext = {
+      plugin: { name, version: plugin.version, messages },
+      config,
+      log,
+      commands: {
+        add(definition: CommandDefinition): void {
+          guard('commands.add');
+          deps.router.registry.add(name, wrapCommand(name, definition, commandView, deps));
+        },
+      },
+      events: {
+        on(event: BotEventName, first: unknown, second?: unknown): Unsubscribe {
+          guard('events.on');
+          if (!isMessageEvent(event)) return (events.on as AnySubscribe)(event, first, second);
+          // O contexto do barramento é um só por emissão; o `log` com o nome do plugin precisa
+          // de uma visão por listener.
+          const wrap = (value: unknown): unknown =>
+            typeof value === 'function'
+              ? (ctx: object) => (value as (ctx: object) => unknown)(listenerView(ctx))
+              : value;
+          return (events.on as AnySubscribe)(event, wrap(first), wrap(second));
+        },
+      } as EventSubscriber,
+      services: {
+        provide(service, implementation) {
+          guard('services.provide');
+          services.provide(service, implementation);
+        },
+        get: (service) => services.get(service),
+        has: (service) => services.has(service),
+      } satisfies ServiceAccess,
+      storage: pluginStorage(deps.storage, name),
+      scheduler: {
+        at: (when, job, payload) => scheduler.at(when, job, payload),
+        cancel: (id) => scheduler.cancel(id),
+        on(job, handler) {
+          guard('scheduler.on');
+          return scheduler.on(job, handler);
+        },
+      } satisfies Scheduler,
+      send: deps.send,
+      unsafe: deps.unsafe.forPlugin(plugin),
+    };
+
+    return {
+      context,
+      dispose(): void {
+        disposed = true;
+        deps.router.registry.removePlugin(name);
+        deps.bus.removePlugin(name);
+        deps.services.removePlugin(name);
+        deps.scheduler.removePlugin(name);
+      },
+    };
+  };
+}
+
+type AnySubscribe = (event: BotEventName, first: unknown, second: unknown) => Unsubscribe;
+
+/**
+ * Comando com o `log` do plugin dono no contexto de `run` e `onReject`, e `run` com prazo: um
+ * `run` preso seguraria o chat na fila de entrada para sempre (ADR 0005).
+ */
+function wrapCommand(
+  plugin: string,
+  definition: CommandDefinition,
+  view: <C extends object>(ctx: C) => C,
+  deps: Pick<PluginContextDeps, 'commandTimeoutMs' | 'onLateCommandError'>,
+): CommandDefinition {
+  const { run, onReject, name } = definition;
+  return {
+    ...definition,
+    run: (ctx) =>
+      withDeadline(run(view(ctx)), deps.commandTimeoutMs, plugin, name, deps.onLateCommandError),
+    ...(onReject && { onReject: (ctx, rejection) => onReject(view(ctx), rejection) }),
+  };
+}
+
+function isThenable(value: unknown): value is PromiseLike<unknown> {
+  return (
+    value !== null &&
+    (typeof value === 'object' || typeof value === 'function') &&
+    typeof (value as PromiseLike<unknown>).then === 'function'
+  );
+}
+
+/**
+ * Corre o resultado do `run` contra o prazo. O `run` não tem como ser cancelado e segue em
+ * segundo plano; o chat é liberado. Uma rejeição depois do prazo vai para `onLate`, nunca vira
+ * rejeição não tratada. `run` síncrono passa direto, sem timer.
+ */
+function withDeadline(
+  result: unknown,
+  timeoutMs: number,
+  plugin: string,
+  command: string,
+  onLate: PluginContextDeps['onLateCommandError'],
+): unknown {
+  if (!isThenable(result)) return result;
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const timer = setTimeout(() => {
+      settled = true;
+      reject(new CommandTimeoutError(plugin, command, timeoutMs));
+    }, timeoutMs);
+    result.then(
+      (value) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error: unknown) => {
+        if (settled) {
+          onLate(plugin, command, error);
+          return;
+        }
+        settled = true;
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}

@@ -19,6 +19,12 @@ export type MessageType =
 export interface Contact {
   readonly id: string;
   readonly name: string | null;
+  /**
+   * Telefone só com dígitos, com DDI (`'5511999999999'`), ou `null` se o transport não souber.
+   * Fica separado de `id` porque o ID nativo nem sempre carrega o número (no WhatsApp, um LID);
+   * só o transport sabe resolvê-lo. É com ele que o roteador reconhece os `owners`.
+   */
+  readonly phone: string | null;
 }
 
 export interface Chat {

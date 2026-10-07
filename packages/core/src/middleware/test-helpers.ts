@@ -18,6 +18,7 @@ export function fakeContext(init: FakeMessageInit = {}): MessageContext {
     sender: {
       id: init.senderId ?? 'user-1',
       name: init.senderName === undefined ? 'Fulano' : init.senderName,
+      phone: null,
     },
     text: init.text ?? 'oi',
     timestamp: 0,
