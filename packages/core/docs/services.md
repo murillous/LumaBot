@@ -79,7 +79,8 @@ O tipo vem de importar o pacote do provedor (ou só o tipo dele): é esse import
 ## Registry
 
 O `Bot` cria um registry por instância (sem estado global) e entrega a cada plugin o acesso
-atribuído a ele. Enquanto o `Bot` não liga os plugins (M1-16), quem compõe faz isso direto:
+atribuído a ele (`ctx.services`); no teardown/reload remove o que o plugin proveu. Fora do bot,
+quem compõe faz isso direto:
 
 ```ts
 import { createServiceRegistry } from '@zapforge/core';

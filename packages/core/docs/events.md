@@ -24,6 +24,28 @@ setup(ctx) {
 `on()` devolve a função que desfaz a assinatura (idempotente). No teardown o kernel remove todas
 as do plugin, então não é preciso guardá-la só para isso.
 
+### Contexto dos eventos de mensagem
+
+Em `message`, `message:<tipo>` e `message.edited`, o contexto traz também
+(`MessageListenerFields`):
+
+| Campo | Conteúdo |
+| --- | --- |
+| `message` | a mesma mensagem de `payload` |
+| `text` | o texto de trabalho, depois dos middlewares (ex.: truncado pelo `sanitize`) |
+| `reply` | responde no chat, citando a mensagem, pela fila de saída |
+| `log` | logger com `plugin` e `chatId` |
+
+```ts
+ctx.events.on('message', async (e) => {
+  if (!e.text?.includes('bom dia')) return;
+  e.log.info('cumprimento');
+  await e.reply('Bom dia! ☀️');
+});
+```
+
+O tipo é condicional: `ListenerContext<'reaction'>` não tem esses campos.
+
 ### Eventos
 
 | Evento | Payload |
@@ -82,7 +104,9 @@ do bus e emite `plugin.error` para quem quiser assinar (ex.: dashboard).
 
 ## Montar o bus (kernel)
 
-O `Bot` monta um único bus e entrega `bus.forPlugin(nome)` a cada plugin:
+O `Bot` monta um único bus e entrega a cada plugin uma assinatura em nome dele. As mensagens que
+nenhum comando consumiu, as edições e os demais eventos do transport chegam por `emit`; falha de
+listener vai para o log do bot. Para montar à mão:
 
 ```ts
 import { createEventBus } from '@zapforge/core';
@@ -104,8 +128,10 @@ const result = await bus.emit('message', message, extras);
 - `emit` nunca rejeita: resolve quando todos os listeners assentam ou estouram o prazo.
 - `message:<type>` não se emite diretamente (o tipo de `emit` barra): emita `message` e o bus
   deriva o resto.
-- `extras` são campos que quem emite acrescenta ao contexto (ex.: `reply` para mensagens),
-  copiados para o contexto compartilhado. São opcionais enquanto o `ListenerContext` do evento
-  não declarar nenhum além de `event`, `payload`, `claimed` e `claim`.
+- `extras` são campos que quem emite acrescenta ao contexto, copiados para o contexto
+  compartilhado. O barramento não os confere: o tipo os aceita opcionais em todo evento. Nos
+  eventos de mensagem, quem garante `message`/`text`/`reply`/`log` é o `Bot`, que monta uma visão
+  por listener (o `log` leva o nome do plugin, então não cabe no contexto compartilhado). Quem
+  usa o barramento solto e emite mensagem sem extras entrega listeners sem esses campos.
 - A ordem é calculada no `on()`/remoção (e, para `message`, cacheada por tipo), não por
   emissão. Assinar ou remover durante uma emissão não afeta a rodada em andamento.

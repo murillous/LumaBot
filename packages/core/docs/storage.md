@@ -128,7 +128,8 @@ inválido, que lança na hora.
 
 ## Para o kernel
 
-`pluginStorage(port, pluginName)` é como o `Bot` (M1-16) monta `ctx.storage`. Namespaces que
+`pluginStorage(port, pluginName)` é como o `Bot` monta `ctx.storage` (o port é o `storage` do
+`createBot`, fechado no `stop()`). Namespaces que
 começam com `$` são do kernel: `pluginStorage` lança `ReservedNamespaceError` para eles, então
 nenhum plugin alcança os dados internos, seja qual for o nome dele. Componentes do kernel usam
 `kernelStorage(port, 'scheduler')` (namespace `$scheduler`), `kernelStorage(port, 'config')`

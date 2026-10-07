@@ -72,6 +72,9 @@ O ambiente é injetável (`env`); sem ele, vale `process.env`, lido só em `src/
 
 ## `createPluginConfigs`
 
+O `Bot` faz isto no `start()` com `pluginConfig`, `storage`, `env` e `secrets` da config dele, e
+expõe `setOverrides`/`describe`/`jsonSchema` em `bot.config`. Para montar à mão:
+
 ```ts
 import { createLogger, createPluginConfigs, createSecretSet } from '@zapforge/core';
 
@@ -165,7 +168,9 @@ próximo boot.
 
 ## `owners`
 
-Telefones dos donos do bot, só dígitos com DDI, como `Contact.phone`:
+Telefones dos donos do bot (`createBot({ owners })`), só dígitos com DDI, como `Contact.phone`. O
+bot normaliza a lista no `createBot` e o roteador compara com `sender.phone`
+([Comandos](commands.md#role)):
 
 ```ts
 normalizeOwners(['+55 11 99999-9999', '5511999999999']); // ['5511999999999']

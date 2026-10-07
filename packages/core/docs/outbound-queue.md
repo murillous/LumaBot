@@ -113,7 +113,9 @@ opção é ignorada. Uma falha de presença não impede o envio, que sai na hora
   para abortar a drenagem.
 - `onIdle()` resolve quando não há nada aguardando nem em andamento, sem fechar.
 
-Como gancho de parada do bot, drenando até o prazo e descartando o resto se ele estourar:
+O `Bot` cria a fila com as opções de `createBot({ outbound })`, entrega `ctx.send` aos plugins e
+fecha a fila num gancho de parada ([Bot](bot.md#shutdown-gracioso-stop)). Para montar à mão, como
+gancho de parada, drenando até o prazo e descartando o resto se ele estourar:
 
 ```ts
 bot.onStop(

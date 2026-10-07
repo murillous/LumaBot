@@ -26,15 +26,29 @@ const sticker = command({
 `command()` valida nome e aliases na hora (não vazios, sem espaço) e devolve a definição.
 O nome vai **sem** o prefixo.
 
-## Montar o roteador
+## No bot
+
+O plugin registra com `ctx.commands.add(definição)` no `setup`; o `Bot` monta o roteador com
+`prefix` e `owners` da config, liga `isGroupAdmin` ao transport (capability `groups`) e chama o
+roteador para cada mensagem que passou pelos middlewares ([Bot](bot.md#fluxo-de-uma-mensagem)).
+No teardown/reload os comandos do plugin saem sozinhos.
+
+```ts
+createBot({ transport, prefix: '!', owners: ['+55 11 99999-9999'], plugins: [media] });
+```
+
+## Montar o roteador (fora do bot)
 
 ```ts
 import { createCommandRouter } from '@zapforge/core';
 
 const router = createCommandRouter({
   prefix: '!',                         // padrão '!'; não pode ser vazio
-  owners: ['5511999999999@s.whatsapp.net'],
-  isGroupAdmin: (chatId, senderId) => transport.isGroupAdmin(chatId, senderId),
+  owners: ['5511999999999'],           // já normalizados (normalizeOwners)
+  isGroupAdmin: async (chatId, senderId) => {
+    const { participants } = await transport.getGroupMetadata(chatId);
+    return participants.some((p) => p.id === senderId && p.isAdmin);
+  },
 });
 
 router.registry.add('media', sticker); // 1º argumento: o plugin dono do comando
@@ -45,12 +59,15 @@ if (!result.consumed) {
 }
 ```
 
-Enquanto o loader de plugins (M1-8) e o `Bot` não existem, quem compõe chama `registry.add` e
-`dispatch` diretamente.
+O roteador herda o contexto recebido: `reply` e `log` do `CommandContext` são os do contexto que
+o `Bot` monta. Quem usa o roteador solto e quer esses campos os põe no `ctx` passado a
+`dispatch`.
 
 ## Match
 
-- O texto vem de `message.text` (texto ou legenda da mídia), sem os espaços iniciais.
+- O texto é o **texto de trabalho** `ctx.text` (no bot, o texto ou legenda da mídia depois dos
+  middlewares — truncado pelo `sanitize`, por exemplo), sem os espaços iniciais. Sem `ctx.text`
+  no contexto, vale `message.text`; `ctx.text === null` nunca é comando.
 - Começa com o prefixo? O **token** é o trecho do fim do prefixo até o primeiro espaço em
   branco. Ele casa por igualdade exata com um nome ou alias registrado — nunca por
   `includes()`/`startsWith()`, então `vou mandar !sticker`, `!stickers` e `!sabado` (com alias
@@ -66,6 +83,9 @@ O contexto do `run` (`CommandContext`) estende `MessageContext` com:
 
 | Campo | Conteúdo |
 | --- | --- |
+| `text` | Texto de trabalho que casou (ver [Match](#match)) |
+| `reply` | Responde no chat, citando a mensagem, pela fila de saída |
+| `log` | Logger com `plugin` (o dono do comando) e `chatId` |
 | `command` | Nome canônico do comando casado |
 | `invokedAs` | Token digitado (nome ou alias), em minúsculas |
 | `args` | Argumentos já quebrados (ver abaixo) |
@@ -98,15 +118,19 @@ citada.
 | Papel | Quem roda |
 | --- | --- |
 | `everyone` (padrão) | Todo mundo |
-| `owner` | Remetente cujo `sender.id` está em `owners` |
+| `owner` | Remetente cujo `sender.phone` está em `owners` |
 | `group-admin` | Admin do grupo, segundo a porta `isGroupAdmin(chatId, senderId)` |
 
 - Owner passa também em `group-admin`.
 - `group-admin` fora de grupo é recusado (não há grupo a que o papel se refira).
 - Sem `isGroupAdmin` (transport sem a capability `groups`), `group-admin` recusa todo mundo
   exceto owners: falha fechada, nunca libera por falta de informação.
-- `owners` é comparado por igualdade com `message.sender.id`, então use o formato de ID do
-  transport.
+- `owners` são telefones só com dígitos e DDI (`'5511999999999'`), comparados por igualdade com
+  `message.sender.phone`. O bot normaliza a lista da config com `normalizeOwners`, então lá vale
+  `'+55 (11) 99999-9999'`; no roteador solto, normalize antes.
+- Não se usa `sender.id`: no WhatsApp ele pode ser um LID, de onde não sai o telefone. Só o
+  transport sabe resolver o número; quando não sabe, `phone` é `null` e esse remetente **nunca**
+  é owner.
 
 Papéis custom são middleware ([ADR 0024](../../../docs/adr/0024-papeis-no-core.md)).
 
@@ -114,8 +138,8 @@ Papéis custom são middleware ([ADR 0024](../../../docs/adr/0024-papeis-no-core
 
 A ordem é: papel → `accepts` → `run`. Na recusa, o roteador chama
 `onReject(ctx, rejection)`, com `rejection` igual a `{ reason: 'role', required }` ou
-`{ reason: 'accepts', accepts }`. O texto retornado volta em `result.reply` para quem chamou
-`dispatch` enviar ao chat (o `ctx.reply` chega no M1-12). Sem `onReject`, ou retornando
+`{ reason: 'accepts', accepts }`. O texto retornado volta em `result.reply`; no bot, ele sai pelo
+`ctx.reply` (citando a mensagem). Sem `onReject`, ou retornando
 `null`/`undefined`, a recusa é silenciosa (`reply: null`). Comando recusado também consome a
 mensagem.
 
@@ -130,8 +154,8 @@ mensagem.
 | `rejected` | `true` | `command`, `rejection`, `reply` |
 | `failed` | `true` | `command`, `error` (de `run`, `onReject` ou `isGroupAdmin`) |
 
-`command` é `{ plugin, name, invokedAs }`. Quem chama decide o destino do erro de `failed`
-(log, evento `plugin.error`).
+`command` é `{ plugin, name, invokedAs }`. Quem chama decide o destino do erro de `failed`; no
+bot, vira `plugin.error` (`phase: 'command'`) e log em `error`.
 
 ## Conflitos
 
@@ -144,7 +168,8 @@ com `plugin` e `definition`), e a mensagem cita os dois plugins:
 Conflito de comando "s": "search" do plugin "busca" colide com "sticker" do plugin "media".
 ```
 
-Como os comandos são registrados no `setup` dos plugins, o conflito derruba o boot. Alias
+Como os comandos são registrados no `setup` dos plugins, o conflito derruba o boot: o `Bot`
+encerra o que subiu e o `start()` rejeita com o `CommandConflictError`. Alias
 repetido ou igual ao próprio nome dentro do mesmo comando é inofensivo e não conta.
 
 `registry.removePlugin(nome)` tira todos os comandos de um plugin (teardown e reload).
