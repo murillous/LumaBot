@@ -36,6 +36,12 @@ export type {
   MessageTypeEvents,
   PluginErrorEvent,
 } from '#events/types.ts';
+export {
+  createLogger,
+  createNoopLogger,
+  type LogDestination,
+  type LoggerOptions,
+} from '#logger/logger.ts';
 export type { LogFields, Logger, LogLevel } from '#logger/types.ts';
 export { createMessage, type MessageInit } from '#message/create.ts';
 export { createMedia, type MediaSource } from '#message/media.ts';
@@ -147,4 +153,9 @@ export type {
   TransportEvents,
   Unsubscribe,
 } from '#transport/types.ts';
+export {
+  createUnsafeAccess,
+  type UnsafeAccess,
+  type UnsafeAccessOptions,
+} from '#unsafe/access.ts';
 export type { Unsafe } from '#unsafe/types.ts';
