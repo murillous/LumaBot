@@ -1,5 +1,5 @@
 import type { BotMessageContext, MessageContext } from '#context.ts';
-import type { Media, Message } from '#message/types.ts';
+import type { Contact, Media, Message } from '#message/types.ts';
 import { parseArgs } from './args.ts';
 import type {
   AcceptedMessage,
@@ -15,9 +15,11 @@ import { createRoleRegistry, type RoleContext, type RoleRegistry } from './roles
 
 /**
  * Porta para consultar admins de grupo. Vem do transport (capability `groups`, M1-2); o core
- * não importa transport, então quem compõe o bot injeta.
+ * não importa transport, então quem compõe o bot injeta. Recebe o contato inteiro, não só o
+ * id: no WhatsApp o id do remetente e o do participante podem vir em espaços diferentes (LID e
+ * JID de telefone), e o telefone é o que os liga (ADR 0046).
  */
-export type IsGroupAdmin = (chatId: string, senderId: string) => boolean | Promise<boolean>;
+export type IsGroupAdmin = (chatId: string, sender: Contact) => boolean | Promise<boolean>;
 
 export interface CommandRouterOptions {
   /** Padrão: `'!'`. Comparado sem diferenciar caixa. */
@@ -163,7 +165,7 @@ export function createCommandRouter(options: CommandRouterOptions = {}): Command
     }
     // `group-admin` fora de grupo não tem a quem se referir: recusa.
     if (!message.chat.isGroup || !isGroupAdmin) return false;
-    return isGroupAdmin(message.chat.id, message.sender.id);
+    return isGroupAdmin(message.chat.id, message.sender);
   }
 
   async function reject(
