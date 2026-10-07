@@ -72,9 +72,10 @@ O tipo vem de importar o pacote do provedor (ou só o tipo dele): é esse import
 - **Sem re-prover.** O mesmo plugin chamar `provide` duas vezes para o mesmo nome também é
   `ServiceConflictError`: quem já fez `get` ficaria com a instância antiga sem saber. Trocar a
   implementação é recarregar o plugin.
-- **Teardown e reload** removem o que o plugin proveu; no novo `setup` ele provê de novo. Um
-  consumidor que guardou a instância no `setup` continua com a antiga; se o provedor pode
-  recarregar, chame `get` na hora do uso.
+- **Teardown e reload** removem o que o plugin proveu; no novo `setup` ele provê de novo. O
+  reload do provedor recarrega em cascata quem declara `dependsOn` nele
+  ([ADR 0041](../../../docs/adr/0041-reload-em-cascata.md)), então guardar a instância no `setup`
+  é seguro. Quem usa o serviço sem `dependsOn` não recarrega junto e fica com a instância antiga.
 
 ## Registry
 

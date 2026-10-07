@@ -666,8 +666,11 @@ export function createBot(config: BotConfig): Bot {
     if (!host) throw new BotStateError(`reload("${name}"): plugins ainda não carregados`, state);
     const result = await host.reload(name);
     for (const error of result.errors) emitLifecycleError(error);
-    if (result.entry.status === 'skipped' && result.entry.reason.kind === 'setup-failed') {
-      emitLifecycleError(result.entry.reason.error);
+    // Os dependentes recarregados em cascata (ADR 0041) também podem falhar no `setup` novo.
+    for (const entry of [result.entry, ...result.dependents]) {
+      if (entry.status === 'skipped' && entry.reason.kind === 'setup-failed') {
+        emitLifecycleError(entry.reason.error);
+      }
     }
     return result;
   }

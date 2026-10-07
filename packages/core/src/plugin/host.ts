@@ -54,7 +54,15 @@ export type PluginHostState = 'idle' | 'starting' | 'running' | 'stopping' | 'st
 export interface PluginReloadResult {
   /** Linha nova do plugin na tabela: `loaded`, ou `skipped` se o `setup` novo falhou. */
   readonly entry: PluginReportEntry;
-  /** Falhas do `teardown`/`dispose` da instância anterior (já registradas no log). */
+  /**
+   * Linhas novas de quem depende dele (`dependsOn`, transitivo), recarregados em cascata, na
+   * ordem de carga. `dependency-skipped` se o plugin recarregado não subiu.
+   */
+  readonly dependents: readonly PluginReportEntry[];
+  /**
+   * Falhas do `teardown`/`dispose` das instâncias anteriores, do plugin e dos dependentes (já
+   * registradas no log). Falha do `setup` novo fica na `entry` de cada um.
+   */
   readonly errors: readonly PluginLifecycleError[];
 }
 
@@ -76,10 +84,11 @@ export interface PluginHost {
    */
   stop(signal?: AbortSignal): Promise<PluginLifecycleError[]>;
   /**
-   * Derruba e sobe de novo um plugin (`teardown` → `dispose` → novo contexto → `setup`), sem
-   * tocar nos outros. É a primitiva do reload por mudança de config (ADR 0017): o contexto novo
-   * sai da fábrica, que já lê a config atualizada. Vale para plugin carregado ou cujo `setup`
-   * falhou; os que dependem dele não são recarregados.
+   * Derruba e sobe de novo um plugin (`teardown` → `dispose` → novo contexto → `setup`) e, em
+   * cascata, quem depende dele por `dependsOn` (ADR 0041): os dependentes descem antes (ordem
+   * inversa) e sobem depois (ordem de carga), reavaliados como no boot. É a primitiva do reload
+   * por mudança de config (ADR 0017): o contexto novo sai da fábrica, que já lê a config
+   * atualizada. Vale para plugin carregado ou cujo `setup` falhou.
    */
   reload(name: string): Promise<PluginReloadResult>;
   /** Tabela atual, na ordem de carga (reflete reloads). */
@@ -371,16 +380,47 @@ export function createPluginHost(options: PluginHostOptions): PluginHost {
           'só recarrega plugin carregado ou cujo setup falhou',
       );
     }
-    const errors = await bringDown(slot);
-    slot.report = await bringUp(slot);
+    // Quem guardou um serviço do plugin no `setup` ficaria com a instância do contexto
+    // descartado: o subgrafo de dependentes desce e sobe junto (ADR 0041).
+    const affected = withDependents(slot);
+    const errors: PluginLifecycleError[] = [];
+    for (const each of affected.toReversed()) errors.push(...(await bringDown(each)));
+    for (const each of affected) {
+      // O próprio plugin não passa por `incompatibility`: o motivo estático dele não muda, e
+      // um `setup-failed` anterior precisa de uma nova tentativa.
+      const reason = each === slot ? undefined : incompatibility(each.entry.definition);
+      each.report = reason
+        ? { ...reportBase(each.entry), status: 'skipped', reason }
+        : await bringUp(each);
+    }
+    const dependents = affected.slice(1).map((each) => each.report);
     log.info(
       `plugin "${name}" recarregado: ${slot.report.status === 'loaded' ? 'carregado' : 'ignorado'}`,
       {
         plugin: name,
         status: slot.report.status,
+        ...(dependents.length > 0 && {
+          dependents: dependents.map((entry) => ({ name: entry.name, status: entry.status })),
+        }),
       },
     );
-    return { entry: slot.report, errors };
+    return { entry: slot.report, dependents, errors };
+  }
+
+  /**
+   * O slot e quem depende dele por `dependsOn`, direta ou transitivamente, na ordem de carga.
+   * `after` só ordena: quem o usa não pega nada do outro plugin, então não entra.
+   */
+  function withDependents(root: Slot): Slot[] {
+    const names = new Set([root.entry.definition.name]);
+    // Na ordem topológica, toda dependência aparece antes do dependente: uma passada basta.
+    return slots.filter((each) => {
+      if (each === root) return true;
+      const dependsOn = Object.keys(each.entry.definition.dependsOn ?? {});
+      if (!dependsOn.some((dependency) => names.has(dependency))) return false;
+      names.add(each.entry.definition.name);
+      return true;
+    });
   }
 
   return {
