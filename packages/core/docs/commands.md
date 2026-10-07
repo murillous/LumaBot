@@ -169,8 +169,9 @@ ctx.commands.add(command({ name: 'ban', role: 'moderador', run: (c) => c.reply('
 - Papel que nenhum plugin carregado define (dono desligado, ignorado ou recarregando) recusa o
   comando e loga um erro que pede o `dependsOn` no dono do papel.
 - `owner`, `group-admin` e `everyone` são reservados (`TypeError`). Definir um papel que já tem
-  dono, de outro plugin ou do mesmo, lança `RoleConflictError` (`role`, `existing`, `incoming`):
-  o `setup` falha e o plugin que chegou depois fica ignorado, como num conflito de serviço.
+  dono, de outro plugin ou do mesmo, lança `RoleConflictError` (`role`, `existing`, `incoming`).
+  No boot, isso derruba o `start()`, como conflito de comando ou de serviço (ADR 0035); num
+  reload, o plugin recarregado fica ignorado.
 - O papel sai no teardown/reload do plugin que o definiu.
 
 Fora do bot, passe `roles` (de `createRoleRegistry()`) e, se quiser, `onUnknownRole` às opções

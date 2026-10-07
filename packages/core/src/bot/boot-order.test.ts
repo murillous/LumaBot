@@ -4,9 +4,20 @@
 import { describe, expect, it } from 'vitest';
 import { command } from '#commands/command.ts';
 import { CommandConflictError } from '#commands/registry.ts';
+import { RoleConflictError } from '#commands/roles.ts';
 import { definePlugin } from '#plugin/define.ts';
+import { ServiceConflictError } from '#services/registry.ts';
 import { createBot } from './bot.ts';
 import { deferred, RecordingTransport, recordingLogger } from './harness.test-support.ts';
+
+declare module '@zapforge/core' {
+  interface Roles {
+    'test.boot-papel': true;
+  }
+  interface Services {
+    'test.boot-servico': true;
+  }
+}
 
 const ENGINE = '>=0.0.0';
 
@@ -28,6 +39,48 @@ describe('Bot: ordem de boot', () => {
     });
 
     await expect(bot.start()).rejects.toBeInstanceOf(CommandConflictError);
+    expect(bot.state).toBe('stopped');
+    expect(transport.calls).not.toContain('connect');
+  });
+
+  it('conflito de papel rejeita o start() sem chamar connect (ADR 0035)', async () => {
+    const transport = new RecordingTransport();
+    const plugin = (name: string) =>
+      definePlugin({
+        name,
+        version: '1.0.0',
+        engine: ENGINE,
+        setup: (ctx) => ctx.roles.define('test.boot-papel', () => true),
+      });
+    const bot = createBot({
+      transport,
+      env: {},
+      logger: recordingLogger(),
+      plugins: [plugin('a'), plugin('b')],
+    });
+
+    await expect(bot.start()).rejects.toBeInstanceOf(RoleConflictError);
+    expect(bot.state).toBe('stopped');
+    expect(transport.calls).not.toContain('connect');
+  });
+
+  it('conflito de serviço rejeita o start() sem chamar connect (ADR 0035)', async () => {
+    const transport = new RecordingTransport();
+    const plugin = (name: string) =>
+      definePlugin({
+        name,
+        version: '1.0.0',
+        engine: ENGINE,
+        setup: (ctx) => ctx.services.provide('test.boot-servico', true),
+      });
+    const bot = createBot({
+      transport,
+      env: {},
+      logger: recordingLogger(),
+      plugins: [plugin('a'), plugin('b')],
+    });
+
+    await expect(bot.start()).rejects.toBeInstanceOf(ServiceConflictError);
     expect(bot.state).toBe('stopped');
     expect(transport.calls).not.toContain('connect');
   });

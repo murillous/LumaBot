@@ -240,9 +240,11 @@ Destino dos erros de plugin — todos viram `plugin.error` no barramento e linha
 | `listener` | listener lançou, rejeitou ou estourou o prazo |
 | `scheduler` | handler de job lançou, rejeitou ou estourou o prazo |
 
-**Conflito de comando derruba o boot** ([ADR 0007](../../../docs/adr/0007-plugins-via-npm-e-pasta.md)):
-se o `setup` de um plugin falha com `CommandConflictError`, o `start()` encerra o que subiu e
-rejeita com esse erro. Os demais erros de `setup` só ignoram o plugin.
+**Conflito de nome derruba o boot** ([ADR 0007](../../../docs/adr/0007-plugins-via-npm-e-pasta.md),
+[ADR 0035](../../../docs/adr/0035-papeis-nomeados-por-plugin.md)): se o `setup` de um plugin falha
+com `CommandConflictError`, `RoleConflictError` ou `ServiceConflictError`, o `start()` encerra o
+que subiu e rejeita com esse erro. Os demais erros de `setup`, e os conflitos num `reload`, só
+ignoram o plugin.
 
 ## Prazos e cancelamento (`ctx.signal`)
 
@@ -326,15 +328,15 @@ Em ordem (plano §5.3):
    (sem `storage`) avisa que os dados estão em memória.
 2. Assina os eventos do transport e empilha os ganchos de parada internos.
 3. Carrega os plugins: coleta (`plugins` + `pluginDirs`) → config → `setup` de cada um → tabela
-   de boot no log → checagem de conflito de comando.
+   de boot no log → checagem de conflito de comando, papel e serviço.
 4. **Só se o boot dos plugins deu certo**, chama `transport.connect()`; conectado, liga a
    reconexão automática.
 5. Liga o scheduler (dispara os jobs vencidos no downtime) e passa a `running`.
 
-Plugin quebrado (conflito de comando, manifesto inválido, ciclo, `pluginDirs` ilegível) derruba
-o boot **antes** de o transport abrir sessão: sem QR nem handshake à toa. Mensagens que chegam
-durante o handshake aguardam na fila de entrada e são processadas no fim do boot; se o boot
-falha, são descartadas.
+Plugin quebrado (conflito de comando, papel ou serviço, manifesto inválido, ciclo, `pluginDirs`
+ilegível) derruba o boot **antes** de o transport abrir sessão: sem QR nem handshake à toa.
+Mensagens que chegam durante o handshake aguardam na fila de entrada e são processadas no fim do
+boot; se o boot falha, são descartadas.
 
 **Falha no boot**: o bot roda o shutdown e termina em `stopped`. Se a falha foi dos plugins, o
 transport nunca conectou e o `disconnect()` não é chamado. Se foi do `connect()`, o shutdown

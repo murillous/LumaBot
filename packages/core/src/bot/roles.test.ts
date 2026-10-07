@@ -194,7 +194,7 @@ describe('papéis custom nomeados', () => {
     expect(line?.fields).toMatchObject({ plugin: 'sozinho', command: 'ban' });
   });
 
-  it('conflito entre plugins e nome reservado falham no setup', async () => {
+  it('nome reservado falha no setup e o plugin fica ignorado', async () => {
     const transport = new RecordingTransport();
     const errors: PluginErrorEvent[] = [];
     const observador = definePlugin({
@@ -207,13 +207,6 @@ describe('papéis custom nomeados', () => {
         });
       },
     });
-    const rival = definePlugin({
-      name: 'rival',
-      version: '1.0.0',
-      engine: ENGINE,
-      dependsOn: { moderacao: '^1.0.0' },
-      setup: (ctx) => ctx.roles.define('moderador', () => true),
-    });
     const reservado = definePlugin({
       name: 'reservado',
       version: '1.0.0',
@@ -223,20 +216,34 @@ describe('papéis custom nomeados', () => {
     });
     const b = bot({
       transport,
-      plugins: [observador, moderacao(() => false), rival, reservado],
+      plugins: [observador, moderacao(() => false), reservado],
     });
     await b.start();
 
     const status = Object.fromEntries(b.plugins().map((entry) => [entry.name, entry.status]));
-    expect(status).toMatchObject({ moderacao: 'loaded', rival: 'skipped', reservado: 'skipped' });
+    expect(status).toMatchObject({ moderacao: 'loaded', reservado: 'skipped' });
     const byPlugin = Object.fromEntries(errors.map((e) => [e.plugin, e.error]));
-    expect(byPlugin['rival']).toBeInstanceOf(RoleConflictError);
-    expect(byPlugin['rival']).toMatchObject({
-      role: 'moderador',
-      existing: 'moderacao',
-      incoming: 'rival',
-    });
     expect(byPlugin['reservado']).toBeInstanceOf(TypeError);
+  });
+
+  it('conflito de papel entre plugins derruba o boot (ADR 0035)', async () => {
+    const transport = new RecordingTransport();
+    const rival = definePlugin({
+      name: 'rival',
+      version: '1.0.0',
+      engine: ENGINE,
+      dependsOn: { moderacao: '^1.0.0' },
+      setup: (ctx) => ctx.roles.define('moderador', () => true),
+    });
+    const b = bot({ transport, plugins: [moderacao(() => false), rival] });
+
+    const error = await b.start().then(
+      () => undefined,
+      (cause: unknown) => cause,
+    );
+    expect(error).toBeInstanceOf(RoleConflictError);
+    expect(error).toMatchObject({ role: 'moderador', existing: 'moderacao', incoming: 'rival' });
+    expect(b.state).toBe('stopped');
   });
 
   it('reload do dono remove e recria o papel', async () => {
