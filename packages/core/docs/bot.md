@@ -468,6 +468,10 @@ O transport avisa as quedas por `connection.status`; a `ReconnectionPolicy`
 | `clean-session`, instância pronta, sem `clearSession` | loga em `error` que a sessão precisa de novo pareamento e para o bot (`stop()`) |
 | `stop` (motivo `replaced`) | loga em `error` que outra conexão assumiu a sessão e para o bot, sem reconectar nem limpar |
 
+- `clean-session` só vem de `logged-out`, `auth-failed` ou `qr-limit`. Queda de rede reconecta
+  sem limite de tentativas e nunca apaga as credenciais
+  ([ADR 0045](../../../docs/adr/0045-queda-de-rede-nao-limpa-sessao.md)); para desistir após um
+  tempo, observe `connection.status` e chame `bot.stop()`.
 - Um `connect()` de reconexão que falha conta como queda (`connection-lost`): a política decide
   de novo, com a tentativa seguinte do backoff.
 - Há no máximo um timer de reconexão por vez, e nenhum sobrevive ao `stop()`. O `closed` que o
@@ -485,7 +489,6 @@ createBot({
   transport: baileys({ pairing: 'qr' }), // fábrica: o clean-session limpa o auth sozinho
   storage,
   reconnection: {
-    maxReconnectAttempts: 5,
     backoff: (attempt) => Math.min(1_000 * 2 ** attempt, 30_000),
   },
 });

@@ -141,6 +141,27 @@ describe('clean-session com transport por fábrica', () => {
     expect(b.state).toBe('running');
   });
 
+  it('queda de rede longa não apaga as credenciais: reconecta até a rede voltar (#236)', async () => {
+    const storage = createMemoryStorage();
+    const { transport, factory } = recordingFactory();
+    const b = bot({ transport: factory, storage });
+    await b.start();
+    await storage.authState('default').setCreds({ me: '1' });
+    // Rede fora por 10 tentativas (5 + 10 + 15 × 8 = 135 s com o backoff padrão).
+    for (let i = 0; i < 10; i++) transport.connectFailures.push(new Error('sem rede'));
+
+    transport.emit('connection.status', {
+      status: 'closed',
+      reason: 'connection-lost',
+      error: null,
+    });
+    await vi.advanceTimersByTimeAsync(5_000 + 10_000 + 15_000 * 9);
+
+    expect(await storage.authState('default').getCreds()).toEqual({ me: '1' });
+    expect(transport.calls.filter((call) => call === 'connect')).toHaveLength(12);
+    expect(b.state).toBe('running');
+  });
+
   it('reconnection.clearSession vence o padrão', async () => {
     const storage = createMemoryStorage();
     const { transport, factory } = recordingFactory();

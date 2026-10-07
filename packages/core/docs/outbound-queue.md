@@ -117,7 +117,8 @@ isso a fila pausa ([ADR 0039](../../../docs/adr/0039-fila-de-saida-e-conexao.md)
 - `pause()` para o despacho. O que aguarda e o que chegar esperam. O envio em andamento termina;
   se falhar, a re-tentativa também espera, sem gastar as tentativas que restam.
 - `resume()` volta a despachar, na mesma ordem.
-- `maxPauseMs` (padrão `60000`, que cobre o ciclo de reconexão padrão de 5 + 10 + 15 s) limita a
+- `maxPauseMs` (padrão `60000`: quanto tempo uma resposta ainda faz sentido; a reconexão não tem
+  limite de tentativas, [ADR 0045](../../../docs/adr/0045-queda-de-rede-nao-limpa-sessao.md)) limita a
   pausa. Estourado, o que aguarda rejeita com `'disconnected'` e os envios novos rejeitam na hora,
   até o `resume()`. `Infinity` desliga o teto. O prazo conta desde a pausa, não desde a chegada de
   cada mensagem.

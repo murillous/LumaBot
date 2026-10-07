@@ -175,7 +175,6 @@ import { ReconnectionPolicy } from '@zapforge/core/adapter';
 
 const policy = new ReconnectionPolicy({
   backoff: (attempt) => Math.min(1_000 * 2 ** attempt, 30_000), // padrão: 5 s × n, até 15 s
-  maxReconnectAttempts: 3,
 });
 
 transport.on('connection.qr', () => policy.qrPresented());
@@ -192,7 +191,7 @@ transport.on('connection.status', async (s) => {
 
 | Motivo | Decisão |
 | --- | --- |
-| `connection-lost`, `unknown` | `reconnect` com backoff; esgotadas as tentativas, `clean-session` (`reconnect-limit`) |
+| `connection-lost`, `unknown` | `reconnect` com backoff, sem limite de tentativas: queda de rede nunca limpa a sessão ([ADR 0045](../../../docs/adr/0045-queda-de-rede-nao-limpa-sessao.md)) |
 | `server-error` | `reconnect` com atraso fixo (`serverErrorDelayMs`), sem gastar tentativa |
 | `qr-timeout` | `reconnect` (novo QR); após `maxQrCount` QRs, `clean-session` (`qr-limit`) |
 | `logged-out`, `auth-failed` | `clean-session` |
