@@ -12,6 +12,13 @@ function clock(start = 1_000_000) {
 }
 
 describe('ReconnectionPolicy', () => {
+  it("'replaced' não reconecta: decide parar, sem mexer nos contadores (ADR 0036)", () => {
+    const policy = new ReconnectionPolicy();
+    policy.decide('connection-lost');
+    expect(policy.decide('replaced')).toEqual({ action: 'stop', cause: 'replaced' });
+    expect(policy.state.reconnectAttempts).toBe(1);
+  });
+
   it('queda de conexão reconecta com backoff linear até 15 s (padrão do legacy)', () => {
     const policy = new ReconnectionPolicy({ maxReconnectAttempts: 5 });
     const delays = Array.from({ length: 4 }, () => policy.decide('connection-lost'));

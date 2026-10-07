@@ -1,7 +1,7 @@
 import { CommandConflictError } from '#commands/registry.ts';
 import { createCommandRouter, type IsGroupAdmin } from '#commands/router.ts';
 import type { ConfigEnv } from '#config/env.ts';
-import { normalizeOwners } from '#config/owners.ts';
+import { BotConfigError, normalizeOwners } from '#config/owners.ts';
 import {
   createPluginConfigs,
   type PluginConfigFile,
@@ -22,6 +22,7 @@ import { type RateLimitOptions, rateLimit } from '#middleware/rate-limit.ts';
 import { type SanitizeOptions, sanitize } from '#middleware/sanitize.ts';
 import { OutboundQueue, type OutboundQueueOptions } from '#outbound/queue.ts';
 import type { Sender } from '#outbound/types.ts';
+import { PLUGIN_NAME_PATTERN } from '#plugin/define.ts';
 import { createPluginHost, type PluginHost, type PluginReloadResult } from '#plugin/host.ts';
 import type { PluginLifecycleError, PluginReportEntry } from '#plugin/report.ts';
 import { collectPlugins } from '#plugin/sources.ts';
@@ -30,6 +31,7 @@ import { InboundQueue, type InboundQueueOptions } from '#queue/inbound.ts';
 import { createSchedulerService } from '#scheduler/service.ts';
 import { createServiceRegistry } from '#services/registry.ts';
 import { createMemoryStorage } from '#storage/memory.ts';
+import { DEFAULT_SESSION, sessionStorage } from '#storage/namespace.ts';
 import type { StoragePort } from '#storage/types.ts';
 import { hasCapability } from '#transport/capabilities.ts';
 import type { Transport } from '#transport/types.ts';
@@ -42,6 +44,7 @@ import {
 } from './message-context.ts';
 import { CommandTimeoutError, createPluginContextFactory } from './plugin-context.ts';
 import { type BotReconnectionOptions, createReconnector, type Reconnector } from './reconnect.ts';
+import { claimSession, type ReleaseSession } from './session.ts';
 import {
   type RegisteredStopHook,
   runStopHooks,
@@ -97,8 +100,15 @@ export interface BotTimeouts {
 export interface BotConfig {
   readonly transport: Transport;
   /**
-   * Storage do bot (plugins, scheduler, overrides de config). O bot o fecha no `stop()`.
-   * Padrão: em memória (`createMemoryStorage`), com aviso no log — os dados somem ao reiniciar.
+   * Sessão (o número) que este bot opera; kebab-case, como nome de plugin. Tudo o que o bot
+   * persiste fica no escopo dela (ADR 0036), então trocar o nome "esquece" os dados da anterior.
+   * Dois bots vivos no mesmo storage não podem usar a mesma. Padrão: `'default'`.
+   */
+  readonly session?: string;
+  /**
+   * Storage do bot (plugins, scheduler, overrides de config). O bot o fecha no `stop()` — o
+   * último a parar, se vários bots o dividem. Padrão: em memória (`createMemoryStorage`), com
+   * aviso no log — os dados somem ao reiniciar.
    */
   readonly storage?: StoragePort;
   /** Plugins da config (pacotes npm que o app importa). */
@@ -204,10 +214,11 @@ const MIDDLEWARE_PRIORITY = { ignoreSelf: 1000, chatFilter: 900, rateLimit: 800,
 /**
  * Cria um bot. Valida a config e monta as peças sem efeito colateral (sem conexão, timer,
  * logger ou leitura de disco): o efeito começa em `start()`. Lança `BotConfigError` para
- * `owners` malformado e `TypeError`/`RangeError` para opções inválidas.
+ * `owners` ou `session` malformados e `TypeError`/`RangeError` para opções inválidas.
  */
 export function createBot(config: BotConfig): Bot {
   const { transport } = config;
+  const session = validateSession(config.session ?? DEFAULT_SESSION);
   // Todo o estado vive neste closure (ADR 0004): duas instâncias nunca se enxergam.
   const hooks: RegisteredStopHook[] = [];
   let state: BotState = 'idle';
@@ -222,6 +233,9 @@ export function createBot(config: BotConfig): Bot {
   const getLog = (): Logger => log;
   const secrets = config.secrets ?? createSecretSet();
   const storage = config.storage ?? createMemoryStorage();
+  // O escopo da sessão é aplicado aqui, uma vez: scheduler, config e plugins só veem esta visão.
+  const scoped = sessionStorage(storage, session);
+  let releaseSession: ReleaseSession | undefined;
   const timeouts = config.timeouts ?? {};
 
   const bus = createEventBus({
@@ -250,7 +264,7 @@ export function createBot(config: BotConfig): Bot {
     send: (chatId, content, options) => outbound.send(chatId, content, options),
   };
   const scheduler = createSchedulerService({
-    storage,
+    storage: scoped,
     jobTimeoutMs: timeouts.jobMs,
     onError: (event) => {
       logPluginError(event);
@@ -438,7 +452,7 @@ export function createBot(config: BotConfig): Bot {
     configs = createPluginConfigs({
       plugins: entries.map((entry) => entry.definition),
       file: config.pluginConfig,
-      storage,
+      storage: scoped,
       env: config.env,
       secrets,
       log,
@@ -450,7 +464,7 @@ export function createBot(config: BotConfig): Bot {
       router,
       bus,
       services,
-      storage,
+      storage: scoped,
       scheduler,
       send,
       unsafe: createUnsafeAccess({ transport, log }),
@@ -498,6 +512,8 @@ export function createBot(config: BotConfig): Bot {
   async function runStart(): Promise<void> {
     try {
       log = config.logger ?? createLogger({ level: config.logLevel ?? 'info', secrets });
+      // Antes de `booted`: um bot recusado aqui não fecha o storage do bot que usa a sessão.
+      releaseSession = claimSession(storage, session);
       booted = true;
       if (config.storage === undefined) {
         log.warn('sem storage configurado: usando memória, os dados somem ao reiniciar');
@@ -571,8 +587,10 @@ export function createBot(config: BotConfig): Bot {
         errors.push(error);
       }
     }
-    // Storage por último: os teardowns e o scheduler ainda o usam até aqui.
-    if (booted) {
+    // Storage por último: os teardowns e o scheduler ainda o usam até aqui. Se outro bot (outra
+    // sessão) ainda o usa, quem fecha é o último a parar.
+    const lastUser = releaseSession?.() ?? true;
+    if (booted && lastUser) {
       try {
         await storage.close();
       } catch (error) {
@@ -664,6 +682,16 @@ export function createBot(config: BotConfig): Bot {
     },
   };
   return bot;
+}
+
+/** Nome de sessão no formato de nome de plugin: vira prefixo de namespace no storage. */
+function validateSession(session: string): string {
+  if (!PLUGIN_NAME_PATTERN.test(session)) {
+    throw new BotConfigError(
+      `session deve ser kebab-case minúsculo (ex.: "atendimento"); recebido "${session}"`,
+    );
+  }
+  return session;
 }
 
 /** `transport.connect()` com um throw síncrono do adapter virando rejeição. */

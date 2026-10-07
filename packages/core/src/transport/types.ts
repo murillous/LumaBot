@@ -19,6 +19,8 @@ export type DisconnectReason =
   | 'logged-out'
   /** Credenciais rejeitadas ou corrompidas. */
   | 'auth-failed'
+  /** Outra conexão da mesma sessão assumiu (ex.: outro processo com o mesmo número). */
+  | 'replaced'
   /** Falha do lado do servidor do serviço de mensagens. */
   | 'server-error'
   /** Queda de rede, timeout ou fechamento inesperado. */

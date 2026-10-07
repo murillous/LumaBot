@@ -20,7 +20,8 @@ Só `transport` é obrigatório; `createBot({ transport })` sobe um bot sem plug
 | Opção | Padrão | O que faz |
 | --- | --- | --- |
 | `transport` | — | O canal (`Transport`) |
-| `storage` | memória, com aviso no log | `StoragePort` de plugins, scheduler e overrides de config. O bot o fecha no `stop()` |
+| `session` | `'default'` | Sessão (o número) que o bot opera; kebab-case. Escopo de tudo o que ele persiste ([Sessão](#sessão)) |
+| `storage` | memória, com aviso no log | `StoragePort` de plugins, scheduler e overrides de config. O bot o fecha no `stop()` (o último a parar, se vários o dividem) |
 | `plugins` | `[]` | Plugins da config (pacotes npm que o app importa) |
 | `pluginDirs` / `cwd` | — / `process.cwd()` | Pastas de plugins locais ([Plugins](plugins.md#fontes-config-e-plugindirs)) |
 | `disabledPlugins` | `[]` | Nomes que não carregam |
@@ -247,7 +248,8 @@ idle ──start()──▶ starting ──boot ok──▶ running ──stop()
 
 Em ordem (plano §5.3):
 
-1. Cria o logger e (sem `storage`) avisa que os dados estão em memória.
+1. Cria o logger, reserva a sessão no storage (`BotConfigError` se outro bot vivo já a usa) e
+   (sem `storage`) avisa que os dados estão em memória.
 2. Assina os eventos do transport e empilha os ganchos de parada internos.
 3. Carrega os plugins: coleta (`plugins` + `pluginDirs`) → config → `setup` de cada um → tabela
    de boot no log → checagem de conflito de comando.
@@ -284,7 +286,7 @@ pendente rejeita com `BotStateError`, porque o bot nunca chegou a `running`.
 | 5 | `fila-de-saida` | 5 s | Drena os envios; estourado o prazo, descarta o resto (`close({ drain: false })`) |
 | — | ganchos do app registrados **antes** do `start()` | | |
 | — | `transport.disconnect()` | sem prazo | |
-| — | `storage.close()` | sem prazo | só se o bot chegou a dar `start()` |
+| — | `storage.close()` | sem prazo | só se o bot chegou a dar `start()` e nenhum outro bot (outra sessão) ainda usa o storage |
 
 Ganchos do app registrados com o bot já rodando ficam acima dos internos e rodam antes deles
 (ainda dá para enviar mensagem); os registrados antes do `start()` rodam depois (bom para fechar
@@ -318,6 +320,7 @@ O transport avisa as quedas por `connection.status`; a `ReconnectionPolicy`
 | `reconnect` | espera `delayMs` e chama `transport.connect()` |
 | `clean-session` com `clearSession` | espera `delayMs`, chama `clearSession()` e reconecta |
 | `clean-session` sem `clearSession` | loga em `error` que a sessão precisa de novo pareamento e para o bot (`stop()`) |
+| `stop` (motivo `replaced`) | loga em `error` que outra conexão assumiu a sessão e para o bot, sem reconectar nem limpar |
 
 - Um `connect()` de reconexão que falha conta como queda (`connection-lost`): a política decide
   de novo, com a tentativa seguinte do backoff.
@@ -334,10 +337,13 @@ createBot({
   reconnection: {
     maxReconnectAttempts: 5,
     backoff: (attempt) => Math.min(1_000 * 2 ** attempt, 30_000),
-    clearSession: () => storage.authState('principal').clear(),
+    clearSession: () => storage.authState('default').clear(), // o mesmo nome do `session`
   },
 });
 ```
+
+`replaced` é o caso de dois processos com o mesmo número: reconectar derrubaria a outra conexão,
+que derrubaria esta, em laço. O bot para e deixa a outra seguir.
 
 ## Exemplo ponta a ponta
 
@@ -425,6 +431,31 @@ process.once('SIGTERM', () => {
   );
 });
 ```
+
+## Sessão
+
+`session` identifica o número que o bot opera ([ADR 0036](../../../docs/adr/0036-escopo-de-sessao.md)).
+Tudo o que o bot persiste fica no escopo dela: o storage de cada plugin, os jobs do scheduler e
+os overrides de config. Assim, vários números podem dividir um storage (um Postgres para todos,
+por exemplo) sem um ver os jobs, o KV ou a config do outro.
+
+```ts
+const vendas = createBot({ transport: transportVendas, storage, session: 'vendas' });
+const suporte = createBot({ transport: transportSuporte, storage, session: 'suporte' });
+```
+
+- O nome segue a regra de nome de plugin (kebab-case minúsculo, começando por letra); fora dela,
+  `createBot` lança `BotConfigError`.
+- **Trocar o nome "esquece" os dados**: jobs, KV e overrides da sessão anterior ficam no storage,
+  mas o bot não os vê mais. Escolha o nome uma vez.
+- A sessão `'default'` (o padrão) guarda nos namespaces sem prefixo; as outras, em
+  `<sessão>:<namespace>` ([Storage](storage.md#para-o-kernel)).
+- A mesma sessão não roda duas vezes no mesmo storage: o `start()` do segundo bot rejeita com
+  `BotConfigError`, sem afetar o primeiro. Depois do `stop()` a sessão fica livre.
+- Entre processos o storage não sabe quem está vivo; ali quem protege é o transport, com
+  `DisconnectReason` `'replaced'` ([Reconexão](#reconexão)).
+- O auth state do transport segue o mesmo nome: `storage.authState('<sessão>')`.
+- Um storage compartilhado só fecha quando o último bot que o usa para.
 
 ## Várias instâncias
 

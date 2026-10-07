@@ -10,15 +10,15 @@ export class StorageClosedError extends Error {
   }
 }
 
-/** Plugin com nome que cai no namespace reservado do kernel. */
+/** Plugin com nome que cai no namespace reservado do kernel ou no de outra sessão. */
 export class ReservedNamespaceError extends Error {
   override readonly name = 'ReservedNamespaceError';
   readonly namespace: string;
 
   constructor(namespace: string) {
     super(
-      `Namespace de storage "${namespace}" é reservado ao kernel (prefixo "$"). ` +
-        'Renomeie o plugin.',
+      `Namespace de storage "${namespace}" é reservado (prefixo "$" é do kernel; ":" separa ` +
+        'a sessão). Renomeie o plugin.',
     );
     this.namespace = namespace;
   }
