@@ -8,6 +8,7 @@ import {
   type PluginConfigs,
 } from '#config/plugin-configs.ts';
 import type { BotMessageContext } from '#context.ts';
+import { ContextExpiredError } from '#deadline.ts';
 import { createEventBus, type EmittableEventName } from '#events/bus.ts';
 import type { BotEvents, ListenerExtras, PluginErrorEvent } from '#events/types.ts';
 import { createLogger, createNoopLogger } from '#logger/logger.ts';
@@ -255,6 +256,7 @@ export function createBot(config: BotConfig): Bot {
       logPluginError(event);
       void bus.emit('plugin.error', event);
     },
+    onLateError: (event) => logPluginError(event),
     onStorageError: (error) => log.error('scheduler: falha no storage', { err: error }),
   });
   const contextDeps: MessageContextDeps = {
@@ -453,12 +455,15 @@ export function createBot(config: BotConfig): Bot {
       send,
       unsafe: createUnsafeAccess({ transport, log }),
       commandTimeoutMs: timeouts.commandMs ?? DEFAULT_COMMAND_TIMEOUT_MS,
-      onLateCommandError: (plugin, command, error) =>
+      onLateCommandError: (plugin, command, error) => {
+        // A recusa de um contexto expirado já foi logada quando aconteceu (ADR 0033).
+        if (error instanceof ContextExpiredError) return;
         log.error(`comando "${command}" rejeitou depois do prazo`, {
           plugin,
           command,
           err: error,
-        }),
+        });
+      },
     });
     const pluginHost = createPluginHost({
       plugins: entries,

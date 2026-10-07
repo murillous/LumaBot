@@ -81,8 +81,10 @@ secrets.set('plugin:ai', [apiKey]);   // a partir daqui, apiKey sai como [REDACT
 secrets.delete('plugin:ai');
 ```
 
-Limites: com lista fixa, os segredos são fixados na criação (filhos herdam); um segredo muito
-curto ou comum censura também o texto que coincidir com ele. String vazia é ignorada.
+Limites: com lista fixa, os segredos são fixados na criação (filhos herdam); um segredo comum
+censura também o texto que coincidir com ele. Valores com menos de `MIN_SECRET_LENGTH` (4)
+caracteres são ignorados: censurar `"1"` ou `"on"` apagaria pedaços de todo log, e um valor tão
+curto não protege nada de qualquer forma.
 
 ## Logger silencioso
 

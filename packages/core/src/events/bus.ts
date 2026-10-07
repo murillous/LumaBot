@@ -1,4 +1,10 @@
-import { DEADLINE, Deadline, deadlineOf } from '#deadline.ts';
+import {
+  ContextExpiredError,
+  DEADLINE,
+  Deadline,
+  deadlineOf,
+  ListenerTimeoutError,
+} from '#deadline.ts';
 import type { Message, MessageType } from '#message/types.ts';
 import type { Unsubscribe } from '#transport/types.ts';
 import type {
@@ -215,9 +221,7 @@ export function createEventBus(options: EventBusOptions): EventBus {
       let settled = false;
       const timer = setTimeout(() => {
         settled = true;
-        const error = new Error(
-          `listener do plugin "${entry.plugin}" em "${event}" excedeu ${entry.timeoutMs} ms`,
-        );
+        const error = new ListenerTimeoutError(entry.plugin, event, entry.timeoutMs);
         deadline.expire(error);
         fail(entry, event, error, true);
         resolve(true);
@@ -231,8 +235,11 @@ export function createEventBus(options: EventBusOptions): EventBus {
         },
         (error: unknown) => {
           if (settled) {
-            // Já reportado como timeout; o erro tardio só vai para o log.
-            onError({ plugin: entry.plugin, phase: 'listener', event, error, timedOut: false });
+            // Já reportado como timeout; o erro tardio só vai para o log. A recusa de um
+            // contexto expirado já foi logada quando aconteceu (ADR 0033): não repete.
+            if (!(error instanceof ContextExpiredError)) {
+              onError({ plugin: entry.plugin, phase: 'listener', event, error, timedOut: false });
+            }
             return;
           }
           settled = true;

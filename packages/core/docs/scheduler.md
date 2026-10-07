@@ -61,7 +61,8 @@ Jobs vencidos disparam em ordem de horário e sem esperar um pelo outro.
 ### Prazo e `signal`
 
 O segundo argumento do handler (`JobContext`) traz `signal: AbortSignal`, que aborta quando o
-handler estoura o prazo (`timeouts.jobMs`, padrão 30 s), com `reason` = o erro de timeout.
+handler estoura o prazo (`timeouts.jobMs`, padrão 30 s), com `reason` = `JobTimeoutError`
+(`plugin`, `job`, `timeoutMs`).
 Handlers de um parâmetro só continuam valendo. Repasse o `signal` a `fetch`/SDKs e confira
 `signal.aborted` antes de efeitos que não o recebem: o `ctx.send`/`ctx.storage` do `setup` são do
 plugin e não sabem do prazo do job ([ADR 0033](../../../docs/adr/0033-cancelamento-cooperativo.md)).
@@ -85,6 +86,7 @@ import { createSchedulerService } from '@zapforge/core';
 const scheduler = createSchedulerService({
   storage, // StoragePort do bot
   onError: (event) => { /* plugin.error: log + barramento */ },
+  onLateError: (event) => { /* opcional: rejeição depois do prazo, só log */ },
   onStorageError: (error) => { /* log */ },
   jobTimeoutMs: 30_000, // opcional
   storageRetryMs: 5000, // opcional
@@ -111,7 +113,11 @@ await scheduler.stop();                           // gancho de parada
 - **Falhas.** Falha de handler vai ao `onError` como `PluginErrorEvent`. Falha do storage (a
   consulta do loop ou a remoção depois do handler) vai ao `onStorageError`, e o loop tenta de
   novo depois de `storageRetryMs`. Se a remoção falhar, o job continua no storage e é entregue
-  de novo (pelo menos uma vez). Os dois callbacks não devem lançar.
+  de novo (pelo menos uma vez). Os callbacks não devem lançar.
+- **Rejeição depois do prazo.** O job já saiu como timeout no `onError`; a rejeição que chega
+  depois vai ao `onLateError` (padrão: o próprio `onError`). O `Bot` a liga só ao log, para ela
+  não virar um segundo `plugin.error`. Uma `ContextExpiredError` tardia não é repassada: a recusa
+  já foi logada quando aconteceu.
 - O `onError` **não** emite `plugin.error` no barramento sozinho: quem liga isso é o `Bot`, que
   loga a falha e a emite. O `Bot` também liga o `onStorageError` ao log, chama `start()` quando
   termina o boot e `stop()` num gancho de parada ([Bot](bot.md#shutdown-gracioso-stop)).

@@ -1,6 +1,6 @@
 # ADR 0033 — Cancelamento cooperativo do código de plugin
 
-**Status:** Proposto (2026-10-07) · Detalha a decisão **D05** ([ADR 0005](0005-plugins-no-mesmo-processo.md))
+**Status:** Aceito (2026-10-07) · Detalha a decisão **D05** ([ADR 0005](0005-plugins-no-mesmo-processo.md))
 
 ## Contexto
 
@@ -20,9 +20,11 @@ dele e passaria a ser recusado para sempre depois de um timeout); não fazer nad
 - **`signal: AbortSignal`** em todo código de plugin com prazo: `CommandContext.signal`,
   `ListenerContext.signal` (todo evento), segundo argumento do handler de job
   (`(payload, { signal })`, compatível com handlers de um parâmetro) e `PluginContext.signal`.
-  Comando, listener e job abortam quando o prazo estoura, com `reason` = o erro de timeout; o do
-  plugin aborta no descarte do contexto (teardown, reload, `setup` que falhou ou estourou o
-  prazo, com o erro do `setup` como `reason`).
+  Comando, listener e job abortam quando o prazo estoura, com `reason` = `CommandTimeoutError`,
+  `ListenerTimeoutError` ou `JobTimeoutError`, todos filhos de `ExecutionTimeoutError` (`plugin`,
+  `timeoutMs`): o plugin distingue timeout de outro motivo com `instanceof`. O do plugin aborta
+  no descarte do contexto (teardown, reload, `setup` que falhou ou estourou o prazo, com o erro
+  do `setup` como `reason`).
 - O `signal` é abortado pelos **timers de prazo que já existem** (sem timer novo), e o
   `AbortController` só é criado quando alguém lê `signal`.
 - O prazo é **por execução**: no barramento, cada listener recebe uma visão própria da emissão
@@ -32,6 +34,10 @@ dele e passaria a ser recusado para sempre depois de um timeout); não fazer nad
   `ContextExpiredError` (`plugin`, `operation`, `scope`, `cause` = motivo) e uma linha `warn`, em
   vez de executar. Os registros (`commands.add`, `events.on`, …) seguem lançando
   `PluginHostStateError` depois do descarte.
+- **Um registro por falha**: a recusa já loga em `warn`. Se o plugin não tratar a
+  `ContextExpiredError` e ela rejeitar o comando, listener ou job depois do prazo, o kernel não
+  a loga de novo como erro tardio. Qualquer rejeição tardia de job vai só ao log, sem um segundo
+  `plugin.error` (o timeout já saiu), como já acontecia com comando e listener.
 - A recusa vale para o que pertence ao contexto expirado. O `ctx.send`/`ctx.storage` que um
   comando usa pelo closure do `setup` são do plugin: só são recusados no descarte dele. Dentro de
   uma execução, o plugin confere `signal.aborted` antes de efeitos.

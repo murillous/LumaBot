@@ -51,5 +51,5 @@ o anterior, e o antigo passa a apontar para ele no Status.
 | [0029](0029-open-core-repo-privado.md) | D29 | Open core com repo privado | Aceito |
 | [0030](0030-metas-de-performance.md) | D30 | Metas de performance com benchmark no CI | Aceito |
 | [0031](0031-nome-zapforge.md) | D31 | Nome: ZapForge | Aceito |
-| [0032](0032-camadas-da-config-de-plugin.md) | — | Camadas e convenções da config de plugin (detalha D17) | Proposto |
-| [0033](0033-cancelamento-cooperativo.md) | — | Cancelamento cooperativo do código de plugin (detalha D05) | Proposto |
+| [0032](0032-camadas-da-config-de-plugin.md) | D32 | Camadas e convenções da config de plugin (detalha D17) | Aceito |
+| [0033](0033-cancelamento-cooperativo.md) | D33 | Cancelamento cooperativo do código de plugin (detalha D05) | Aceito |

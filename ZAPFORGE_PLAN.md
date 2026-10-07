@@ -92,8 +92,9 @@ Débitos que **impedem** um kernel de verdade e que o ZapForge deve corrigir por
 
 ## 4. Decisões
 
-Cada linha = um ADR a escrever no M0 (`docs/adr/NNNN-*.md`, formato Contexto / Decisão /
-Consequências / Status).
+Cada linha = um ADR (`docs/adr/NNNN-*.md`, formato Contexto / Decisão / Consequências / Status).
+D01–D31 foram escritas no M0; as seguintes nasceram nas issues que as exigiram e detalham uma
+decisão anterior.
 
 | ID | Decisão | Alternativas descartadas | Motivo |
 |---|---|---|---|
@@ -128,6 +129,8 @@ Consequências / Status).
 | D29 | **Open core**: plugins/transports comerciais em **repo privado** na org `thera-org` do GitHub, publicados como pacotes privados na org npm da Thera e consumindo os pacotes **públicos** `@zapforge/*` | Pastas privadas no monorepo | Repo privado é o teste definitivo da API pública |
 | D30 | **Metas de performance mensuráveis** com benchmark no CI (seção 7) | "Rápido" sem métrica | Sem régua não há aceite nem detecção de regressão |
 | D31 | **Nome: ZapForge** (`@zapforge/*`) | zapcore (conflita com `go.uber.org/zap/zapcore`) | Org `zapforge` criada no npm em 2026-10-06; kernel e plugins públicos no GitHub sob a conta pessoal `murillous`; plugins privados ficam na `thera-org` (ver D29) |
+| D32 | **Camadas da config de plugin** (detalha D17): env `ZAPFORGE_<PLUGIN>__<CAMPO>`; "arquivo" = `pluginConfig` do app; `messages` como chave reservada; `secret()` como metadado do Zod, só em campo de `z.object`; config inválida ignora só o plugin; segredo nunca entra por override | Env sem prefixo; `pluginMessages` separado; segredo por lista de caminhos; config inválida derruba o boot | Contrato estável para quem configura; erro isolado no plugin; storage em texto puro não guarda segredo |
+| D33 | **Cancelamento cooperativo** (detalha D05): `signal: AbortSignal` em comando, listener, job e `PluginContext`, abortado pelos timers de prazo existentes; contexto expirado recusa efeitos com `ContextExpiredError`; `reason` tipado (`ExecutionTimeoutError`) | Worker threads; `AsyncLocalStorage` por execução; só documentar | O JS não mata promise: o plugin precisa saber do prazo, e o kernel não pode aceitar efeito atrasado |
 
 ---
 
@@ -237,6 +240,7 @@ export const config = defineConfig({
   plugins: [sticker(), ai({ provider: 'gemini' })],
   pluginDirs: ['./plugins'],
   disabledPlugins: [],
+  pluginConfig: { sticker: { quality: 90 } },     // env ZAPFORGE_STICKER__QUALITY vence (D32)
 });
 ```
 
@@ -322,6 +326,12 @@ bot.on('message', { priority: -10 }, async (ctx) => {
 });
 
 ctx.unsafe.native                   // unknown; loga aviso; implica transports: ['baileys']
+
+// Prazo (D33): o signal aborta quando o prazo do comando/listener/job estoura
+run: async (c) => {
+  const res = await fetch(url, { signal: c.signal });
+  await c.reply(await res.text());  // depois do prazo: rejeita com ContextExpiredError
+}
 ```
 
 ### 6.6 Storage
@@ -516,6 +526,9 @@ critérios de aceite. Toda issue herda os critérios gerais:
   - Reload de plugin ao mudar config (`teardown` → `setup`)
   - Objeto `messages` sobrescrevível
   - `owners` da config do bot: telefones só com dígitos, comparados com `Contact.phone` (M1-16)
+  - Convenções do D32: env `ZAPFORGE_<PLUGIN>__<CAMPO>` (colisão de nomes = erro do autor),
+    `pluginConfig` como arquivo, `PluginConfigError` com campo e fonte, `secret()` só em campo de
+    `z.object`, segredo recusado no override
 - **#M1-14 Logger**
   - pino com `plugin` e `chatId` no contexto; nível configurável
 - **#M1-15 Escape hatch**
@@ -528,6 +541,8 @@ critérios de aceite. Toda issue herda os critérios gerais:
   - `ReconnectionPolicy` ligada a `connection.status`/`connection.qr`; o `Bot` executa a decisão
   - Owners por telefone: `Contact.phone` (só dígitos, `null` se o transport não souber); o
     roteador compara `owners` com `sender.phone`
+  - Cancelamento cooperativo (D33): `signal` em comando, listener, job e `PluginContext`;
+    `reply`/`send`/`storage`/`scheduler` de contexto expirado rejeitam com `ContextExpiredError`
   - *Aceite*: mensagem de um `Transport` de teste percorre os estágios até o comando ou os
     listeners (teste de ponta a ponta sem transporte real)
 

@@ -30,7 +30,9 @@ export const ai = definePlugin({
 ```
 
 Regras do schema: o tipo base precisa ser `z.object(...)` (pode ter `.default`, `.optional`) e
-não pode ter campo `messages`, que é reservado para sobrescrever textos. Plugin sem `config`
+não pode ter campo `messages`, que é reservado para sobrescrever textos. `secret()` só vale em
+campo de `z.object` (em qualquer nível de objetos), e dois campos não podem gerar a mesma
+variável de ambiente (ver abaixo). Plugin sem `config`
 recebe `ctx.config === undefined`, e qualquer campo dado a ele é erro.
 
 ## Camadas e precedência
@@ -67,6 +69,10 @@ Plugin kebab-case e campos camelCase viram SCREAMING_SNAKE; `__` separa os níve
 convertido para o tipo do campo: número (`'42'`), booleano (`true/false`, `1/0`, `yes/no`,
 `on/off`), literal, e JSON para arrays, records e uniões (`'["a","b"]'`). Texto que não converte
 segue cru e o Zod rejeita, apontando a variável.
+
+Dois caminhos que geram a mesma variável — `openAIKey` e `openAiKey` viram ambos `OPEN_AI_KEY` —
+são erro do autor: o plugin é recusado com a variável e os campos em conflito, em vez de uma
+variável preencher os dois. Vale também para as chaves de `messages`.
 
 O ambiente é injetável (`env`); sem ele, vale `process.env`, lido só em `src/config/`.
 
@@ -133,11 +139,17 @@ A mensagem nunca traz o valor recebido (pode ser secreto).
   com o erro na tabela de boot; o resto sobe.
 - **Em runtime**: `setOverrides` inválido rejeita, nada é salvo e o plugin segue com a config
   anterior.
-- Schema que não é `z.object` ou com campo `messages` é erro do autor do plugin (`TypeError`).
+- Schema que não é `z.object`, com campo `messages`, com `secret()` fora de campo de objeto ou
+  com dois campos na mesma variável de ambiente é erro do autor do plugin (`TypeError`): no boot,
+  o plugin é ignorado com o motivo na tabela.
 
 ## Segredos
 
-`secret(schema)` marca o campo (em qualquer nível, sobrevive a `.optional()`/`.default()`):
+`secret(schema)` marca o campo (em qualquer nível de objetos, sobrevive a
+`.optional()`/`.default()`). Dentro de array, record ou union ele é recusado, com o caminho
+(`accounts[*].token`): a config só acha segredo seguindo objetos, e ali ele passaria sem
+censura, sem máscara e aceito por override. Para uma lista secreta, marque o campo inteiro:
+`tokens: secret(z.array(z.string()))`. Um campo secreto tem estas garantias:
 
 - `describe` mostra `'********'`;
 - o JSON Schema sai com `secret: true`, `writeOnly: true` e `x-zapforge-override: false` (o
@@ -145,7 +157,8 @@ A mensagem nunca traz o valor recebido (pode ser secreto).
 - `resolve`/`setOverrides` põem os valores no `SecretSet` (dono `plugin:<nome>`, trocados a cada
   resolução). O logger criado com `secrets: secretSet` censura esses valores em qualquer linha —
   mesmo os resolvidos depois da criação do logger ou alterados num reload. Ver
-  [Logger](logger.md#segredos).
+  [Logger](logger.md#segredos). Um segredo com menos de `MIN_SECRET_LENGTH` (4) caracteres não
+  é censurado; a resolução avisa uma vez por campo, com plugin e caminho (nunca o valor).
 
 ### Segredo não entra por override
 

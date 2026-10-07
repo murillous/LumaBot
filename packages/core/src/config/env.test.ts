@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { coerceEnvValue, envName, readEnvFields, toEnvSegment } from './env.ts';
+import { coerceEnvValue, envCollisions, envName, readEnvFields, toEnvSegment } from './env.ts';
 
 describe('envName', () => {
   it('converte plugin kebab-case e campos camelCase para SCREAMING_SNAKE com __ entre níveis', () => {
@@ -48,5 +48,17 @@ describe('readEnvFields', () => {
       { path: ['quality'], name: 'ZAPFORGE_AI__QUALITY', value: 9 },
       { path: ['openai', 'apiKey'], name: 'ZAPFORGE_AI__OPENAI__API_KEY', value: 'k' },
     ]);
+  });
+});
+
+describe('envCollisions', () => {
+  it('só devolve variáveis com mais de um caminho, inclusive aninhados', () => {
+    const shape = {
+      a: z.object({ bC: z.string(), b_c: z.string() }),
+      ok: z.string(),
+    };
+    expect(envCollisions('p', shape, ['ok'])).toEqual(
+      new Map([['ZAPFORGE_P__A__B_C', ['a.bC', 'a.b_c']]]),
+    );
   });
 });

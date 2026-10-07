@@ -1,6 +1,6 @@
 # ADR 0032 — Camadas e convenções da config de plugin
 
-**Status:** Proposto (2026-10-06) · Detalha a decisão **D17** ([ADR 0017](0017-config-por-plugin-zod.md))
+**Status:** Aceito (2026-10-07) · Detalha a decisão **D17** ([ADR 0017](0017-config-por-plugin-zod.md))
 
 ## Contexto
 
@@ -20,7 +20,9 @@ inválida derrubar o boot.
   SCREAMING_SNAKE e `__` entre níveis (`ZAPFORGE_USER_NAMES__OPENAI__API_KEY`). Só campos
   declarados no schema são lidos; o texto é convertido para o tipo do campo (número, booleano,
   literal, JSON para arrays/objetos). O prefixo evita colisão com variáveis de outras
-  ferramentas; o `__` deixa nome de plugin e de campo inequívocos.
+  ferramentas; o `__` deixa nome de plugin e de campo inequívocos. Dois campos que geram a mesma
+  variável (`openAIKey` e `openAiKey` → `OPEN_AI_KEY`) são erro do autor do plugin, e o plugin é
+  recusado no boot: uma variável não pode preencher dois campos em silêncio.
 - **Arquivo**: um objeto `nome do plugin → entrada` passado pelo app (o `pluginConfig` da config
   do bot). A mesma forma de entrada vale para os overrides do storage
   (`kernelStorage(port, 'config').kv`, chave = nome do plugin).
@@ -29,7 +31,11 @@ inválida derrubar o boot.
   do plugin não pode ter campo `messages`; chave que o manifesto não declara é erro.
 - **Segredo** é metadado do schema: `secret(z.string())` grava `{ secret: true, writeOnly: true }`
   no registro do Zod. Assim o JSON Schema exportado para o dashboard já carrega a marca, e o
-  segredo sobrevive a `.optional()`/`.default()`.
+  segredo sobrevive a `.optional()`/`.default()`. `secret()` só vale em campo de `z.object`
+  (em qualquer nível de objetos): é seguindo objetos que a config acha o segredo para censurar,
+  mascarar e recusar no override. Dentro de array, record ou union ele passaria sem nenhuma
+  dessas proteções, então é erro do autor e o plugin é recusado no boot. Uma lista secreta
+  marca o campo inteiro (`secret(z.array(z.string()))`).
 - **Config inválida ignora o plugin**, não derruba o boot: a fábrica de contexto lança
   `PluginConfigError`, que vira `setup-failed` (fase `context`) com o motivo na tabela de boot.
   Numa mudança em runtime, a config nova é validada antes de salvar; inválida é recusada e o
@@ -43,7 +49,10 @@ inválida derrubar o boot.
   `x-zapforge-override: false` (e não `readOnly`, que contradiz o `writeOnly` já presente) para
   o dashboard não oferecer a edição.
 - **Segredos no log** chegam por uma fonte viva (`SecretSet`) compartilhada entre a config e o
-  logger, porque a config é resolvida depois que o logger existe e muda no reload.
+  logger, porque a config é resolvida depois que o logger existe e muda no reload. O logger
+  ignora valores com menos de 4 caracteres (`MIN_SECRET_LENGTH`): a censura troca o valor onde
+  ele aparecer, e um segredo como `"1"` apagaria pedaços de todo log. A resolução avisa desse
+  campo uma vez, com plugin e caminho, sem o valor.
 
 ## Consequências
 
@@ -54,3 +63,4 @@ inválida derrubar o boot.
   trocar uma chave exige mexer em env ou no arquivo e reiniciar (ou recarregar) o plugin.
   Cifrar segredos no storage, para o dashboard poder editá-los, fica para o M5, com ADR próprio.
 - Erros de validação nunca carregam o valor recebido, que pode ser secreto.
+- Um segredo com menos de 4 caracteres sai no log sem censura; o aviso no boot diz qual campo.

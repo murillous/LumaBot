@@ -5,7 +5,7 @@
 // Entrega "pelo menos uma vez": o documento só sai do storage depois que o handler termina.
 // Se o processo cair no meio, o job continua lá e dispara de novo ao subir.
 
-import { Deadline } from '#deadline.ts';
+import { ContextExpiredError, Deadline, JobTimeoutError } from '#deadline.ts';
 import type { PluginErrorEvent } from '#events/types.ts';
 import { kernelStorage } from '#storage/namespace.ts';
 import type { Collection, JsonValue, StoragePort, WithId } from '#storage/types.ts';
@@ -40,6 +40,12 @@ export interface SchedulerServiceOptions {
    * `phase: 'scheduler'` e o nome do job em `event`. Não deve lançar.
    */
   readonly onError: (error: PluginErrorEvent) => void;
+  /**
+   * Destino da rejeição de um handler que chegou depois do prazo, já reportado como timeout
+   * pelo `onError`: normalmente só o log, para não virar um segundo `plugin.error`. Padrão:
+   * `onError`. Não deve lançar.
+   */
+  readonly onLateError?: (error: PluginErrorEvent) => void;
   /**
    * Destino das falhas do próprio storage (consulta do loop, remoção depois do handler). O loop
    * não morre: tenta de novo após `storageRetryMs`. Não deve lançar.
@@ -143,6 +149,7 @@ function isThenable(value: unknown): value is PromiseLike<unknown> {
 
 export function createSchedulerService(options: SchedulerServiceOptions): SchedulerService {
   const { onError, onStorageError } = options;
+  const onLateError = options.onLateError ?? onError;
   const jobTimeoutMs = validTimeout('jobTimeoutMs', options.jobTimeoutMs ?? DEFAULT_JOB_TIMEOUT_MS);
   const retryMs = validTimeout(
     'storageRetryMs',
@@ -278,9 +285,7 @@ export function createSchedulerService(options: SchedulerServiceOptions): Schedu
       let settled = false;
       const timeout = setTimeout(() => {
         settled = true;
-        const error = new Error(
-          `job "${doc.job}" do plugin "${doc.plugin}" excedeu ${jobTimeoutMs} ms`,
-        );
+        const error = new JobTimeoutError(doc.plugin, doc.job, jobTimeoutMs);
         deadline.expire(error);
         fail(doc, error, true);
         resolve();
@@ -293,13 +298,23 @@ export function createSchedulerService(options: SchedulerServiceOptions): Schedu
           resolve();
         },
         (error: unknown) => {
-          // Rejeição depois do prazo: já reportado como timeout; o erro tardio vai só ao log.
           if (!settled) {
             settled = true;
             clearTimeout(timeout);
             resolve();
+            fail(doc, error, false);
+            return;
           }
-          fail(doc, error, false);
+          // Rejeição depois do prazo: já reportado como timeout; o erro tardio vai só ao
+          // `onLateError`. A recusa de um contexto expirado já foi logada (ADR 0033).
+          if (error instanceof ContextExpiredError) return;
+          onLateError({
+            plugin: doc.plugin,
+            phase: 'scheduler',
+            event: doc.job,
+            error,
+            timedOut: false,
+          });
         },
       );
     });

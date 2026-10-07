@@ -43,6 +43,44 @@ export class Deadline {
 }
 
 /**
+ * Uma execução com prazo (comando, listener ou job) estourou o tempo. É o `reason` do `signal`
+ * abortado: o plugin distingue timeout de outro motivo com `instanceof` (ADR 0033).
+ */
+export class ExecutionTimeoutError extends Error {
+  override readonly name: string = 'ExecutionTimeoutError';
+  readonly plugin: string;
+  readonly timeoutMs: number;
+
+  constructor(plugin: string, what: string, timeoutMs: number) {
+    super(`${what} do plugin "${plugin}" excedeu ${timeoutMs} ms`);
+    this.plugin = plugin;
+    this.timeoutMs = timeoutMs;
+  }
+}
+
+/** Um listener estourou o prazo. Vai em `plugin.error` com `timedOut: true`. */
+export class ListenerTimeoutError extends ExecutionTimeoutError {
+  override readonly name: string = 'ListenerTimeoutError';
+  readonly event: string;
+
+  constructor(plugin: string, event: string, timeoutMs: number) {
+    super(plugin, `listener em "${event}"`, timeoutMs);
+    this.event = event;
+  }
+}
+
+/** O handler de um job estourou o prazo. Vai em `plugin.error` com `timedOut: true`. */
+export class JobTimeoutError extends ExecutionTimeoutError {
+  override readonly name: string = 'JobTimeoutError';
+  readonly job: string;
+
+  constructor(plugin: string, job: string, timeoutMs: number) {
+    super(plugin, `job "${job}"`, timeoutMs);
+    this.job = job;
+  }
+}
+
+/**
  * Operação de um contexto expirado: `reply` de um comando ou listener que estourou o prazo, ou
  * `send`/`storage`/`scheduler` de um contexto de plugin descartado. A operação não executa;
  * `cause` é o motivo da expiração (o erro de timeout ou do descarte).

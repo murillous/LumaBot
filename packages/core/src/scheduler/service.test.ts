@@ -370,6 +370,23 @@ describe('falhas', () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
+  it('rejeição depois do prazo vai ao onLateError, não vira um segundo plugin.error', async () => {
+    const late: PluginErrorEvent[] = [];
+    const boom = new Error('tarde');
+    const service = create({ jobTimeoutMs: 500, onLateError: (e) => late.push(e) });
+    service
+      .forPlugin('p')
+      .on('j', () => new Promise((_, reject) => setTimeout(() => reject(boom), 800)));
+    service.start();
+    await service.forPlugin('p').at(T0, 'j');
+    await vi.advanceTimersByTimeAsync(800);
+    expect(errors).toHaveLength(1);
+    expect(errors[0]?.timedOut).toBe(true);
+    expect(late).toEqual([
+      { plugin: 'p', phase: 'scheduler', event: 'j', error: boom, timedOut: false },
+    ]);
+  });
+
   it('falha do storage vai ao onStorageError e o loop tenta de novo', async () => {
     const real = kernelStorage(port, 'scheduler').collection('jobs');
     let failures = 1;

@@ -49,7 +49,7 @@ O tipo é condicional: `ListenerContext<'reaction'>` não tem esses campos.
 ### `signal` (todo evento)
 
 Todo listener recebe `e.signal: AbortSignal`, que aborta quando **o prazo dele** estoura
-(`reason` = o erro de timeout). É por listener, não por emissão: o contexto da emissão é
+(`reason` = `ListenerTimeoutError`, com `plugin`, `event` e `timeoutMs`). É por listener, não por emissão: o contexto da emissão é
 compartilhado (`claim()`), mas cada listener recebe uma visão própria com o próprio prazo, e um
 listener lento expirar não afeta o `signal` nem o `reply` de outro do mesmo evento
 ([ADR 0033](../../../docs/adr/0033-cancelamento-cooperativo.md)).
