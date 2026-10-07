@@ -25,6 +25,7 @@ Requer Node 24+ (`engines` na raiz; `.nvmrc` para `nvm use`/`fnm use`).
 | `pnpm test` | Vitest em todos os pacotes |
 | `pnpm build` | `tsdown` em cada pacote (ESM + `.d.ts` em `dist/`) |
 | `pnpm changeset` | Registra a mudança de um pacote publicável |
+| `pnpm version-packages` | Consome os changesets (versões e changelogs) e sincroniza o `CORE_VERSION` |
 
 ### Novo pacote
 

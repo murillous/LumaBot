@@ -13,7 +13,8 @@
     "lint": "biome check",
     "lint:fix": "biome check --write",
     "test": "vitest run",
-    "changeset": "changeset"
+    "changeset": "changeset",
+    "version-packages": "changeset version && node packages/core/scripts/sync-version.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.15",

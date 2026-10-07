@@ -10,6 +10,7 @@
     "isolatedDeclarations": false,
     "noEmit": true
   },
-  "include": ["*.config.ts"],
+  // Scripts de pacote (fora do `src/` de cada um) também passam pelo typecheck daqui.
+  "include": ["*.config.ts", "packages/*/scripts"],
   "references": [{ "path": "packages/core" }]
 }
