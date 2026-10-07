@@ -11,6 +11,7 @@ import type {
   RejectContext,
 } from './command.ts';
 import { type CommandRegistry, createCommandRegistry, type RegisteredCommand } from './registry.ts';
+import { createRoleRegistry, type RoleContext, type RoleRegistry } from './roles.ts';
 
 /**
  * Porta para consultar admins de grupo. Vem do transport (capability `groups`, M1-2); o core
@@ -30,6 +31,13 @@ export interface CommandRouterOptions {
   readonly isGroupAdmin?: IsGroupAdmin;
   /** Registro a usar; padrão: um novo. */
   readonly registry?: CommandRegistry;
+  /** Papéis custom (ADR 0035); padrão: um registro novo, vazio. */
+  readonly roles?: RoleRegistry;
+  /**
+   * Comando exige um papel custom que nenhum plugin carregado define. O comando é recusado
+   * (fail-closed) de todo jeito; aqui quem compõe o roteador registra o erro de configuração.
+   */
+  readonly onUnknownRole?: (role: string, command: MatchedCommand) => void;
 }
 
 /** Comando casado, para quem chamou o roteador saber o que rodou. */
@@ -67,6 +75,7 @@ export type DispatchResult =
 
 export interface CommandRouter {
   readonly registry: CommandRegistry;
+  readonly roles: RoleRegistry;
   /**
    * Comando que a mensagem invoca, sem validar papel nem `accepts`. `text` é o texto de
    * trabalho (`ctx.text`); padrão: `message.text`.
@@ -111,6 +120,7 @@ export function createCommandRouter(options: CommandRouterOptions = {}): Command
   const owners = new Set(options.owners ?? []);
   const isGroupAdmin = options.isGroupAdmin;
   const registry = options.registry ?? createCommandRegistry();
+  const roles = options.roles ?? createRoleRegistry();
 
   function match(message: Message, workingText = message.text): CommandMatch | null {
     const text = workingText?.trimStart();
@@ -129,13 +139,28 @@ export function createCommandRouter(options: CommandRouterOptions = {}): Command
     return { entry, invokedAs: token, rawArgs };
   }
 
-  async function hasRole(role: CommandRole, message: Message): Promise<boolean> {
+  async function hasRole(
+    role: CommandRole,
+    ctx: RoleContext,
+    command: MatchedCommand,
+  ): Promise<boolean> {
     if (role === 'everyone') return true;
+    const { message } = ctx;
     // Dono é superusuário: passa também em `group-admin`. Compara pelo telefone, não pelo
     // `sender.id`: no WhatsApp o ID pode ser um LID, de onde não sai o número (M1-16.4).
     const phone = message.sender.phone;
     if (phone !== null && owners.has(phone)) return true;
     if (role === 'owner') return false;
+    if (role !== 'group-admin') {
+      // Papel custom: sem dono carregado (plugin desligado, ignorado ou recarregando), recusa.
+      const custom = roles.find(role);
+      if (!custom) {
+        options.onUnknownRole?.(role, command);
+        return false;
+      }
+      // Só `true` concede: o `check` embrulhado pelo bot já recusa em erro e no prazo.
+      return (await custom.check(ctx)) === true;
+    }
     // `group-admin` fora de grupo não tem a quem se referir: recusa.
     if (!message.chat.isGroup || !isGroupAdmin) return false;
     return isGroupAdmin(message.chat.id, message.sender.id);
@@ -151,6 +176,7 @@ export function createCommandRouter(options: CommandRouterOptions = {}): Command
 
   return {
     registry,
+    roles,
     match,
 
     async dispatch(ctx) {
@@ -178,7 +204,7 @@ export function createCommandRouter(options: CommandRouterOptions = {}): Command
         });
 
         const role = definition.role ?? 'everyone';
-        if (!(await hasRole(role, message))) {
+        if (!(await hasRole(role, base, command))) {
           const rejection: CommandRejection = { reason: 'role', required: role };
           const reply = await reject(definition, base, rejection);
           return { consumed: true, status: 'rejected', command, rejection, reply };

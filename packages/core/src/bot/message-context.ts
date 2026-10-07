@@ -206,6 +206,24 @@ export function commandViewFactory(plugin: string, pluginLog: Logger): CommandVi
 }
 
 /**
+ * Deriva, para a checagem de um papel custom, a visão com o `log` do plugin dono do papel e o
+ * `signal` preso ao `deadline` da checagem.
+ */
+export function roleViewFactory(
+  pluginLog: Logger,
+): <C extends object>(ctx: C, deadline: Deadline) => C {
+  const descriptors: PropertyDescriptorMap = {
+    log: pluginLogDescriptor(pluginLog),
+    signal: signalDescriptor,
+  };
+  return (ctx, deadline) => {
+    const view = Object.create(ctx, descriptors) as { [DEADLINE]?: Deadline };
+    view[DEADLINE] = deadline;
+    return view as typeof ctx;
+  };
+}
+
+/**
  * Deriva, para um listener de evento de mensagem, a visão com `message`, `text`, `reply` e `log`
  * (do plugin). O objeto do barramento fica no protótipo: `claimed`/`claim()` seguem
  * compartilhados entre os listeners da emissão; o barramento pendura na visão o `Deadline` do

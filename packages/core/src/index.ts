@@ -28,6 +28,8 @@ export type {
 } from '#commands/command.ts';
 export { command } from '#commands/command.ts';
 export { CommandConflictError } from '#commands/registry.ts';
+export type { RoleCheck, RoleContext, RoleName, Roles } from '#commands/roles.ts';
+export { RoleConflictError, RoleTimeoutError } from '#commands/roles.ts';
 export type { ConfigEnv } from '#config/env.ts';
 export {
   type ConfigSource,

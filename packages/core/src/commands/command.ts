@@ -1,8 +1,12 @@
 import type { BotMessageContext } from '#context.ts';
 import type { Media, Message, MessageType } from '#message/types.ts';
+import type { RoleName } from './roles.ts';
 
-/** Quem pode rodar o comando (ADR 0024). Papéis custom são middleware de plugin. */
-export type CommandRole = 'owner' | 'group-admin' | 'everyone';
+/**
+ * Quem pode rodar o comando: os embutidos (ADR 0024) ou um papel custom que um plugin define com
+ * `ctx.roles.define` e declara em `Roles` (ADR 0035).
+ */
+export type CommandRole = 'owner' | 'group-admin' | 'everyone' | RoleName;
 
 /**
  * O que o comando aceita: o tipo da própria mensagem (`'image'`) ou da mensagem citada

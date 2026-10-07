@@ -272,6 +272,13 @@ export function createBot(config: BotConfig): Bot {
     isGroupAdmin: groupAdminPort(transport, commandTimeoutMs, (error) =>
       log.warn('consulta de admin do grupo falhou depois do prazo', { err: error }),
     ),
+    // O comando é recusado de todo jeito (fail-closed); o log diz ao autor o que falta.
+    onUnknownRole: (role, command) =>
+      log.error(
+        `comando "${command.name}" exige o papel "${role}", que nenhum plugin carregado define: ` +
+          `declare dependsOn no plugin dono do papel (em "${command.plugin}")`,
+        { plugin: command.plugin, command: command.name, role },
+      ),
   });
   const pipeline = createPipeline(config.middlewares ?? {}, getLog);
   const inbound = new InboundQueue({
@@ -532,6 +539,10 @@ export function createBot(config: BotConfig): Bot {
       send,
       unsafe: createUnsafeAccess({ transport, log }),
       commandTimeoutMs,
+      onRoleError: (event) => {
+        logPluginError(event);
+        void bus.emit('plugin.error', event);
+      },
       onLateCommandError: (plugin, command, error) => {
         // A recusa de um contexto expirado já foi logada quando aconteceu (ADR 0033).
         if (error instanceof ContextExpiredError) return;

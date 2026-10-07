@@ -9,9 +9,9 @@ import type { TransportEvents, Unsubscribe } from '#transport/types.ts';
 /** Falha isolada de um plugin; o kernel emite e segue rodando os demais (ADR 0005). */
 export interface PluginErrorEvent {
   readonly plugin: string;
-  /** Onde a falha aconteceu. */
-  readonly phase: 'listener' | 'command' | 'setup' | 'teardown' | 'scheduler';
-  /** Evento ou job em processamento, quando houver. */
+  /** Onde a falha aconteceu. `role`: a checagem de um papel custom que o plugin define. */
+  readonly phase: 'listener' | 'command' | 'role' | 'setup' | 'teardown' | 'scheduler';
+  /** Evento, comando, papel ou job em processamento, quando houver. */
   readonly event: string | null;
   readonly error: unknown;
   readonly timedOut: boolean;

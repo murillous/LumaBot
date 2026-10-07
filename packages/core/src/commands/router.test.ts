@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { MessageContext } from '#context.ts';
 import type { Media, Message, MessageType } from '#message/types.ts';
 import { type CommandContext, type CommandDefinition, command } from './command.ts';
+import { createRoleRegistry, type RoleContext } from './roles.ts';
 import { createCommandRouter } from './router.ts';
 
 const MEDIA_TYPES: ReadonlySet<MessageType> = new Set([
@@ -347,6 +348,51 @@ describe('roteador: role', () => {
 
     expect(result.status).toBe('ran');
     expect(isGroupAdmin).not.toHaveBeenCalled();
+  });
+
+  it('papel custom: avalia o check do registro, que recebe a mensagem e o comando', async () => {
+    const roles = createRoleRegistry();
+    const check = vi.fn((ctx: RoleContext) => ctx.message.sender.id === 'mod');
+    roles.define('moderacao', 'moderador', check);
+    const router = createCommandRouter({ roles });
+    router.registry.add('m', spyCommand({ role: 'moderador' }).def);
+
+    expect((await router.dispatch(ctxOf({ text: '!s', sender: 'mod' }))).status).toBe('ran');
+    expect(await router.dispatch(ctxOf({ text: '!s', sender: 'outro' }))).toMatchObject({
+      status: 'rejected',
+      rejection: { reason: 'role', required: 'moderador' },
+    });
+    expect(check.mock.calls[0]?.[0]).toMatchObject({ command: 'sticker', invokedAs: 's' });
+  });
+
+  it('papel custom: owner passa sem consultar o check', async () => {
+    const roles = createRoleRegistry();
+    const check = vi.fn(() => false);
+    roles.define('moderacao', 'moderador', check);
+    const router = createCommandRouter({ owners: ['5511999999999'], roles });
+    router.registry.add('m', spyCommand({ role: 'moderador' }).def);
+
+    const result = await router.dispatch(ctxOf({ text: '!s', phone: '5511999999999' }));
+
+    expect(result.status).toBe('ran');
+    expect(check).not.toHaveBeenCalled();
+  });
+
+  it('papel custom sem dono recusa e avisa onUnknownRole', async () => {
+    const onUnknownRole = vi.fn();
+    const router = createCommandRouter({ onUnknownRole });
+    const { def, calls } = spyCommand({ role: 'moderador' });
+    router.registry.add('m', def);
+
+    const result = await router.dispatch(ctxOf({ text: '!s' }));
+
+    expect(result).toMatchObject({ status: 'rejected', rejection: { reason: 'role' } });
+    expect(calls).toEqual([]);
+    expect(onUnknownRole).toHaveBeenCalledWith('moderador', {
+      plugin: 'm',
+      name: 'sticker',
+      invokedAs: 's',
+    });
   });
 
   it('valida role antes de accepts', async () => {

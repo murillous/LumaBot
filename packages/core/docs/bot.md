@@ -153,6 +153,7 @@ instância, sempre em nome do plugin:
 | `log` | logger do bot com `{ plugin }` |
 | `signal` | aborta no descarte do contexto (teardown, reload, `setup` que falhou ou estourou o prazo) |
 | `commands.add` | roteador do bot; o `run`/`onReject` recebem `log` com `plugin` e `chatId` |
+| `roles.define` | papéis do roteador ([papéis custom](commands.md#papéis-custom)); o `check` recebe `log` do plugin dono e `signal` |
 | `events` | barramento do bot |
 | `services` | registry do bot |
 | `storage` | storage no namespace do plugin |
@@ -160,10 +161,10 @@ instância, sempre em nome do plugin:
 | `send` | fila de saída |
 | `unsafe` | escape hatch, com aviso uma vez por plugin |
 
-No `teardown`/reload o bot remove tudo o que o plugin registrou (comandos, listeners, serviços,
-handlers de job). Um `setup` que estoura o prazo continua rodando em segundo plano; depois do
-descarte, o contexto **recusa** `commands.add`, `events.on`, `services.provide` e
-`scheduler.on` (lançam `PluginHostStateError`), para nada ficar órfão, e `send`, `storage` (KV e
+No `teardown`/reload o bot remove tudo o que o plugin registrou (comandos, papéis, listeners,
+serviços, handlers de job). Um `setup` que estoura o prazo continua rodando em segundo plano; depois do
+descarte, o contexto **recusa** `commands.add`, `roles.define`, `events.on`, `services.provide`
+e `scheduler.on` (lançam `PluginHostStateError`), para nada ficar órfão, e `send`, `storage` (KV e
 coleções) e `scheduler.at`/`cancel` (rejeitam com `ContextExpiredError`), para nenhum efeito sair
 de um plugin que já desceu. O `ctx.signal` do plugin aborta no descarte.
 
@@ -174,6 +175,7 @@ Destino dos erros de plugin — todos viram `plugin.error` no barramento e linha
 | `setup` | fábrica de contexto ou `setup` lançou/estourou o prazo (o plugin fica ignorado na tabela) |
 | `teardown` | `teardown`/limpeza no reload ou no `stop()` (no `stop()`, também no `AggregateError`) |
 | `command` | `run`, `onReject` ou a consulta de admin lançou, ou um deles estourou `timeouts.commandMs` (`timedOut: true`) |
+| `role` | `check` de um papel custom lançou, rejeitou ou estourou `timeouts.commandMs` (`event` = papel; vai para o plugin **dono do papel**, e o comando é recusado) |
 | `listener` | listener lançou, rejeitou ou estourou o prazo |
 | `scheduler` | handler de job lançou, rejeitou ou estourou o prazo |
 
@@ -190,6 +192,7 @@ oferece **cancelamento cooperativo** ([ADR 0033](../../../docs/adr/0033-cancelam
 | Onde | `signal` | Aborta quando | `reason` |
 | --- | --- | --- | --- |
 | Comando (`run` e `onReject`) | `c.signal` | `timeouts.commandMs` estoura (cada um conta o seu) | `CommandTimeoutError` |
+| Papel custom (`check`) | `c.signal` | `timeouts.commandMs` estoura | `RoleTimeoutError` |
 | Listener (todo evento) | `e.signal` | o prazo **deste** listener estoura | `ListenerTimeoutError` |
 | Job do scheduler | `handler(payload, { signal })` | `timeouts.jobMs` estoura | `JobTimeoutError` |
 | Plugin (`setup`) | `ctx.signal` | o contexto é descartado (teardown, reload, `setup` que falhou/estourou) | erro do `setup`, ou `PluginHostStateError` no descarte normal |
