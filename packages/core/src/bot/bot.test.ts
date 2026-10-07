@@ -55,6 +55,7 @@ describe('createBot', () => {
     const bot = createBot({ transport });
     const started = bot.start();
     expect(bot.state).toBe('starting');
+    await vi.waitFor(() => expect(transport.calls).toContain('connect'));
     transport.finishConnect();
     await started;
     expect(bot.state).toBe('running');
@@ -67,6 +68,7 @@ describe('createBot', () => {
     const first = bot.start();
     const second = bot.start();
     expect(second).toBe(first);
+    await vi.waitFor(() => expect(transport.calls).toContain('connect'));
     transport.finishConnect();
     await first;
     await bot.start();
@@ -132,6 +134,7 @@ describe('createBot', () => {
     const stopped = bot.stop();
     expect(bot.stop()).toBe(stopped);
     expect(bot.state).toBe('starting');
+    await vi.waitFor(() => expect(transport.calls).toContain('connect'));
     transport.finishConnect();
     await expect(started).rejects.toBeInstanceOf(BotStateError);
     await stopped;
@@ -147,6 +150,7 @@ describe('createBot', () => {
     bot.onStop(hook);
     const started = bot.start();
     const failure = new Error('sem rede');
+    await vi.waitFor(() => expect(transport.calls).toContain('connect'));
     transport.finishConnect(failure);
     await expect(started).rejects.toBe(failure);
     expect(bot.state).toBe('stopped');
@@ -160,6 +164,7 @@ describe('createBot', () => {
     const bot = createBot({ transport });
     const started = bot.start();
     const stopped = bot.stop();
+    await vi.waitFor(() => expect(transport.calls).toContain('connect'));
     transport.finishConnect(new Error('sem rede'));
     await expect(started).rejects.toThrow('sem rede');
     await stopped;
@@ -172,6 +177,7 @@ describe('createBot', () => {
     const bot = createBot({ transport });
     const started = bot.start();
     const failure = new Error('sem rede');
+    await vi.waitFor(() => expect(transport.calls).toContain('connect'));
     transport.finishConnect(failure);
     const error: unknown = await started.catch((e: unknown) => e);
     expect(error).toBeInstanceOf(AggregateError);
