@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { ContextExpiredError } from '#deadline.ts';
 import type { PluginErrorEvent } from '#events/types.ts';
 import { createMemoryStorage } from '#storage/memory.ts';
 import { kernelStorage } from '#storage/namespace.ts';
@@ -387,6 +388,20 @@ describe('falhas', () => {
     ]);
   });
 
+  it('recusa de contexto expirado depois do prazo não vai ao onLateError (ADR 0033)', async () => {
+    const late: PluginErrorEvent[] = [];
+    const service = create({ jobTimeoutMs: 500, onLateError: (e) => late.push(e) });
+    const expired = new ContextExpiredError('p', 'send', 'job "j"', new Error('prazo'));
+    service
+      .forPlugin('p')
+      .on('j', () => new Promise((_, reject) => setTimeout(() => reject(expired), 800)));
+    service.start();
+    await service.forPlugin('p').at(T0, 'j');
+    await vi.advanceTimersByTimeAsync(800);
+    expect(errors).toHaveLength(1);
+    expect(late).toEqual([]);
+  });
+
   it('falha do storage vai ao onStorageError e o loop tenta de novo', async () => {
     const real = kernelStorage(port, 'scheduler').collection('jobs');
     let failures = 1;
@@ -438,6 +453,11 @@ describe('validação de at', () => {
     const scheduler = create().forPlugin('p');
     await expect(scheduler.at(T0, '')).rejects.toThrow(TypeError);
     expect(() => scheduler.on('', () => undefined)).toThrow(TypeError);
+  });
+
+  it('recusa handler que não é função', () => {
+    const scheduler = create().forPlugin('p');
+    expect(() => scheduler.on('j', 'nada' as unknown as () => void)).toThrow(TypeError);
   });
 
   it('recusa payload que não é JSON', async () => {

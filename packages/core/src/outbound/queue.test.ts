@@ -476,6 +476,60 @@ describe('OutboundQueue: backlog, métricas e fechamento', () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
+  it('close({ drain: false }) não re-tenta o envio em andamento que falha depois', async () => {
+    const { queue, transport } = newQueue();
+    let fail!: (error: Error) => void;
+    vi.mocked(transport.send).mockImplementationOnce(
+      () =>
+        new Promise((_, reject) => {
+          fail = reject;
+        }),
+    );
+    const sent = queue.send('a', text('1'));
+    sent.catch(() => undefined);
+    await vi.advanceTimersByTimeAsync(0);
+    const closing = queue.close({ drain: false });
+    // Falha transitória: sem o descarte em curso, viraria re-tentativa.
+    fail(new Error('timeout'));
+    await vi.runAllTimersAsync();
+    await closing;
+    await expect(sent).rejects.toThrow('timeout');
+    expect(transport.send).toHaveBeenCalledOnce();
+    expect(queue.stats()).toMatchObject({ retries: 0, failed: 1, activeChats: 0 });
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('close({ drain: false }) aborta uma drenagem em curso: as duas promises resolvem', async () => {
+    const { queue } = newQueue();
+    // Três chats: o primeiro sai já, os outros esperam o intervalo global no timer da fila.
+    const all = ['a', 'b', 'c'].map((chat) => queue.send(chat, text(chat)));
+    for (const sent of all) sent.catch(() => undefined);
+    await vi.advanceTimersByTimeAsync(0);
+    const draining = queue.close();
+    const aborting = queue.close({ drain: false });
+    await Promise.all([draining, aborting]);
+    await expect(all[1]).rejects.toMatchObject({ reason: 'closed' });
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('conta envio recusado pela fila fechada e falha do isRetryable', async () => {
+    const { queue, failWith } = newQueue({
+      retry: {
+        isRetryable: () => {
+          throw new Error('hook quebrado');
+        },
+      },
+    });
+    failWith(() => new Error('timeout'));
+    const failed = queue.send('a', text('1'));
+    failed.catch(() => undefined);
+    await vi.runAllTimersAsync();
+    await expect(failed).rejects.toBeInstanceOf(AggregateError);
+    await queue.close();
+    await expect(queue.send('a', text('2'))).rejects.toMatchObject({ reason: 'closed' });
+    expect(queue.stats()).toMatchObject({ failed: 1, dropped: 1 });
+  });
+
   it('não deixa timer nem estado de chat quando ociosa', async () => {
     const { queue } = newQueue();
     const all = ['a', 'b', 'a', 'c'].map((chat, i) => queue.send(chat, text(String(i))));

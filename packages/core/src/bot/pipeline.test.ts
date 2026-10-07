@@ -468,6 +468,128 @@ describe('Bot: boot', () => {
     expect(b.config.jsonSchema('eco')).toMatchObject({ type: 'object' });
   });
 
+  it('reload de plugin com scheduler.on: o handler antigo sai e o novo recebe os jobs', async () => {
+    const transport = new RecordingTransport();
+    const runs: string[] = [];
+    const agenda = definePlugin({
+      name: 'agenda',
+      version: '1.0.0',
+      engine: ENGINE,
+      config: z.object({ versao: z.string().default('v1') }),
+      async setup(ctx) {
+        const { versao } = ctx.config;
+        ctx.scheduler.on('lembrete', () => {
+          runs.push(versao);
+        });
+        await ctx.scheduler.at(0, 'lembrete');
+      },
+    });
+    const b = bot({ transport, plugins: [agenda] });
+    await b.start();
+    await vi.waitFor(() => expect(runs).toEqual(['v1']));
+
+    // Sem tirar o handler no dispose, o setup novo falharia com JobHandlerConflictError.
+    const result = await b.config.setOverrides('agenda', { versao: 'v2' });
+    expect(result?.entry.status).toBe('loaded');
+    await vi.waitFor(() => expect(runs).toEqual(['v1', 'v2']));
+  });
+
+  it('reload de plugin com listener e serviço: o listener antigo sai e o serviço é provido de novo', async () => {
+    const transport = new RecordingTransport();
+    const heard: string[] = [];
+    const ouvinte = definePlugin({
+      name: 'ouvinte',
+      version: '1.0.0',
+      engine: ENGINE,
+      config: z.object({ versao: z.string().default('v1') }),
+      setup(ctx) {
+        const { versao } = ctx.config;
+        // Sem tirar o serviço no dispose, o setup novo falharia com ServiceConflictError.
+        ctx.services.provide('saudacao', { saudar: (nome) => `${versao} ${nome}` });
+        ctx.events.on('message', (e) => {
+          heard.push(`${versao}:${e.payload.text}`);
+        });
+      },
+    });
+    const b = bot({ transport, plugins: [ouvinte] });
+    await b.start();
+
+    const result = await b.config.setOverrides('ouvinte', { versao: 'v2' });
+    expect(result?.entry.status).toBe('loaded');
+    transport.emit('message', message('oi'));
+    await vi.waitFor(() => expect(heard).toEqual(['v2:oi']));
+  });
+
+  it('reload: falha no teardown da instância anterior vira plugin.error (phase teardown)', async () => {
+    const transport = new RecordingTransport();
+    const boom = new Error('teardown quebrou');
+    const errors: PluginErrorEvent[] = [];
+    const observador = definePlugin({
+      name: 'observador',
+      version: '1.0.0',
+      engine: ENGINE,
+      setup(ctx) {
+        ctx.events.on('plugin.error', (e) => {
+          errors.push(e.payload);
+        });
+      },
+    });
+    const fragil = definePlugin({
+      name: 'fragil',
+      version: '1.0.0',
+      engine: ENGINE,
+      config: z.object({ versao: z.string().default('v1') }),
+      setup: () => undefined,
+      teardown() {
+        throw boom;
+      },
+    });
+    const b = bot({ transport, plugins: [observador, fragil] });
+    await b.start();
+
+    await b.config.setOverrides('fragil', { versao: 'v2' });
+    await vi.waitFor(() =>
+      expect(errors).toEqual([
+        expect.objectContaining({ plugin: 'fragil', phase: 'teardown', error: boom }),
+      ]),
+    );
+  });
+
+  it('reload: setup novo que falha vira plugin.error (phase setup)', async () => {
+    const transport = new RecordingTransport();
+    const boom = new Error('setup quebrou');
+    const errors: PluginErrorEvent[] = [];
+    const observador = definePlugin({
+      name: 'observador',
+      version: '1.0.0',
+      engine: ENGINE,
+      setup(ctx) {
+        ctx.events.on('plugin.error', (e) => {
+          errors.push(e.payload);
+        });
+      },
+    });
+    const instavel = definePlugin({
+      name: 'instavel',
+      version: '1.0.0',
+      engine: ENGINE,
+      config: z.object({ quebrar: z.boolean().default(false) }),
+      setup(ctx) {
+        if (ctx.config.quebrar) throw boom;
+      },
+    });
+    const b = bot({ transport, plugins: [observador, instavel] });
+    await b.start();
+
+    const result = await b.config.setOverrides('instavel', { quebrar: true });
+    expect(result?.entry.status).toBe('skipped');
+    await vi.waitFor(() =>
+      expect(errors).toEqual([
+        expect.objectContaining({ plugin: 'instavel', phase: 'setup', error: boom }),
+      ]),
+    );
+  });
+
   it('o SecretSet do bot é o mesmo da config de plugin: o logger censura os segredos', async () => {
     const transport = new RecordingTransport();
     const lines: string[] = [];
@@ -543,6 +665,60 @@ describe('Bot: shutdown', () => {
       'disconnect',
     ]);
     expect(b.state).toBe('stopped');
+  });
+
+  it('stop() para o scheduler: o timer do job agendado não sobrevive', async () => {
+    vi.useFakeTimers();
+    try {
+      const transport = new RecordingTransport();
+      const fired = vi.fn();
+      const agenda = definePlugin({
+        name: 'agenda',
+        version: '1.0.0',
+        engine: ENGINE,
+        async setup(ctx) {
+          ctx.scheduler.on('depois', fired);
+          await ctx.scheduler.at(Date.now() + 60_000, 'depois');
+        },
+      });
+      const b = bot({ transport, plugins: [agenda] });
+      await b.start();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(vi.getTimerCount()).toBeGreaterThan(0);
+
+      // O dispose do plugin já tira o handler; sem o stop do scheduler, o timer ficaria armado.
+      await b.stop();
+      expect(vi.getTimerCount()).toBe(0);
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(fired).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('stop() fecha o storage e solta os eventos do transport', async () => {
+    const storage = createMemoryStorage();
+    const close = vi.spyOn(storage, 'close');
+    let subscribed = 0;
+    // Conta as assinaturas vivas: cada `on` soma, cada unsubscribe devolvido subtrai.
+    class CountingTransport extends RecordingTransport {
+      override on: RecordingTransport['on'] = (event, handler) => {
+        subscribed++;
+        const off = super.on(event, handler);
+        return () => {
+          subscribed--;
+          off();
+        };
+      };
+    }
+    const transport = new CountingTransport();
+    const b = bot({ transport, storage });
+    await b.start();
+    expect(subscribed).toBeGreaterThan(0);
+
+    await b.stop();
+    expect(subscribed).toBe(0);
+    expect(close).toHaveBeenCalledOnce();
   });
 
   it('falha no teardown chega ao AggregateError do stop()', async () => {
