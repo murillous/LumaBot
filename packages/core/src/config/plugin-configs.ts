@@ -45,6 +45,11 @@ export interface ResolvedPluginConfig {
 export interface PluginConfigView {
   readonly config: unknown;
   readonly messages: PluginMessages;
+  /**
+   * Fonte de cada folha da config (`"openai.token"`) e de cada mensagem (`"messages.done"`).
+   * Mostra ao dashboard quando um override não vale porque o arquivo ou o env decide o campo.
+   */
+  readonly sources: Readonly<Record<string, ConfigSource>>;
 }
 
 /**
@@ -82,6 +87,8 @@ export interface PluginConfigs {
    * Valida a config resultante antes de salvar:
    * se inválida, rejeita com `PluginConfigError` e nada muda — o plugin segue rodando. Se
    * válida, salva e chama `reload` (devolve o resultado dele; `undefined` sem `reload`).
+   * Campo do override que o arquivo ou o env já definem não tem efeito: é salvo mesmo assim
+   * (vale se a camada de cima sair) e gera um aviso no log com os caminhos sombreados.
    */
   setOverrides(plugin: string, overrides: JsonObject): Promise<PluginReloadResult | undefined>;
   /** Config atual com os segredos mascarados. Lança `PluginConfigError` se inválida. */
@@ -137,6 +144,15 @@ function provides(layer: PlainObject, path: readonly PropertyKey[]): boolean {
     node = (node as Record<PropertyKey, unknown>)[key];
   }
   return node !== undefined;
+}
+
+/** Caminhos das folhas: objetos simples abrem; o resto (arrays inclusive) é folha. */
+function leafPaths(value: PlainObject, prefix: readonly string[] = []): string[][] {
+  return Object.entries(value).flatMap(([key, child]) => {
+    if (child === undefined) return [];
+    const path = [...prefix, key];
+    return isPlainObject(child) && Object.keys(child).length > 0 ? leafPaths(child, path) : [path];
+  });
 }
 
 const startsWith = (path: readonly PropertyKey[], prefix: readonly string[]): boolean =>
@@ -235,7 +251,12 @@ interface Layer {
 }
 
 type Computed =
-  | { ok: true; resolved: ResolvedPluginConfig; secrets: string[] }
+  | {
+      ok: true;
+      resolved: ResolvedPluginConfig;
+      secrets: string[];
+      sources: Record<string, ConfigSource>;
+    }
   | { ok: false; error: PluginConfigError };
 
 /** Cria a config dos plugins. Não lê storage nem ambiente até a primeira chamada. */
@@ -366,6 +387,9 @@ export function createPluginConfigs(options: PluginConfigsOptions): PluginConfig
 
     const base = definition.messages ?? {};
     const messages: Record<string, string> = { ...base };
+    const messageSources: Record<string, ConfigSource> = Object.fromEntries(
+      Object.keys(base).map((key) => [`${MESSAGES_KEY}.${key}`, 'default' as const]),
+    );
     const messageLayers = [
       ...layers.map((layer) => ({
         entries: Object.entries(layer.messages),
@@ -392,7 +416,10 @@ export function createPluginConfigs(options: PluginConfigsOptions): PluginConfig
           });
         } else if (typeof text !== 'string') {
           issues.push({ ...at, message: 'deve ser texto' });
-        } else messages[key] = text;
+        } else {
+          messages[key] = text;
+          messageSources[at.path] = at.source;
+        }
       }
     }
 
@@ -404,7 +431,17 @@ export function createPluginConfigs(options: PluginConfigsOptions): PluginConfig
         return value;
       });
     }
-    return { ok: true, resolved: { config, messages: Object.freeze(messages) }, secrets };
+    // Pelos caminhos da saída: é o que o plugin recebe, defaults inclusive.
+    const sources: Record<string, ConfigSource> = {};
+    if (isPlainObject(config)) {
+      for (const path of leafPaths(config)) sources[path.join('.')] = sourceOf(path).source;
+    }
+    return {
+      ok: true,
+      resolved: { config, messages: Object.freeze(messages) },
+      secrets,
+      sources: { ...sources, ...messageSources },
+    };
   }
 
   /**
@@ -459,12 +496,39 @@ export function createPluginConfigs(options: PluginConfigsOptions): PluginConfig
     options.secrets?.set(SECRETS_OWNER(definition.name), result.secrets);
   }
 
-  async function current(name: string): Promise<ResolvedPluginConfig> {
+  async function current(name: string): Promise<Computed & { ok: true }> {
     const definition = definitionOf(name);
     const result = compute(definition, dropLegacySecrets(definition, await kv.get(name)));
     if (!result.ok) throw result.error;
     trackSecrets(definition, result);
-    return result.resolved;
+    return result;
+  }
+
+  /**
+   * O dashboard diria "salvo" para um campo que o arquivo ou o env decidem (precedência do
+   * ADR 0017/0032). Avisa com caminho e fonte; o valor fica de fora (pode ser sensível).
+   */
+  function warnShadowed(
+    name: string,
+    overrides: JsonObject,
+    sources: Readonly<Record<string, ConfigSource>>,
+  ): void {
+    const fields = leafPaths(overrides).flatMap((path) => {
+      const label = path.join('.');
+      // Folha do override que virou objeto mais em cima: vale a fonte das folhas de baixo.
+      const below = Object.entries(sources).filter(
+        ([key]) => key === label || key.startsWith(`${label}.`),
+      );
+      const [first] = below;
+      if (!first || below.some(([, source]) => source === 'override')) return [];
+      return [{ path: label, source: first[1] }];
+    });
+    if (fields.length === 0) return;
+    log.warn(
+      `override do plugin "${name}" sem efeito em ` +
+        `${fields.map((field) => `"${field.path}" (vale ${field.source})`).join(', ')}`,
+      { plugin: name, fields },
+    );
   }
 
   async function runSetOverrides(
@@ -486,6 +550,7 @@ export function createPluginConfigs(options: PluginConfigsOptions): PluginConfig
     if (secretIssues.length > 0) throw new PluginConfigError(name, secretIssues);
     const result = compute(definition, overrides);
     if (!result.ok) throw result.error;
+    warnShadowed(name, overrides, result.sources);
     // Antes de salvar e de recarregar: o reload loga, e o segredo novo já precisa sair censurado.
     trackSecrets(definition, result);
     if (Object.keys(overrides).length === 0) await kv.delete(name);
@@ -494,7 +559,7 @@ export function createPluginConfigs(options: PluginConfigsOptions): PluginConfig
   }
 
   return {
-    resolve: current,
+    resolve: async (name) => (await current(name)).resolved,
 
     setOverrides(name: string, overrides: JsonObject): Promise<PluginReloadResult | undefined> {
       // Uma mudança por vez: duas gravações concorrentes reordenariam save e reload.
@@ -508,11 +573,12 @@ export function createPluginConfigs(options: PluginConfigsOptions): PluginConfig
 
     async describe(name: string): Promise<PluginConfigView> {
       const definition = definitionOf(name);
-      const { config, messages } = await current(name);
+      const { resolved, sources } = await current(name);
+      const { config, messages } = resolved;
       const masked = definition.config
         ? mapSecrets(definition.config, config, () => SECRET_MASK)
         : config;
-      return { config: masked, messages };
+      return { config: masked, messages, sources };
     },
 
     jsonSchema(name: string): PluginConfigJsonSchema | undefined {

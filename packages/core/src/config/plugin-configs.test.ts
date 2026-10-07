@@ -303,6 +303,76 @@ describe('createPluginConfigs: setOverrides', () => {
     });
   });
 
+  it('describe informa a fonte de cada campo e de cada mensagem', async () => {
+    const { configs } = await setup({
+      overrides: { sticker: { c: 'override', messages: { done: 'Feito' } } },
+      file: { sticker: { b: 'file' } },
+      env: { ZAPFORGE_STICKER__A: 'env' },
+    });
+    const view = await configs.describe('sticker');
+    expect(view.sources).toEqual({
+      a: 'env',
+      b: 'file',
+      c: 'override',
+      d: 'default',
+      quality: 'default',
+      'messages.needMedia': 'default',
+      'messages.done': 'override',
+    });
+  });
+
+  it('describe informa a fonte de campos aninhados', async () => {
+    const { configs } = await setup({
+      env: { ZAPFORGE_AI__API_KEY: 'sk-secreta-123' },
+      file: { ai: { openai: { token: 'tok-abc' } } },
+    });
+    expect((await configs.describe('ai')).sources).toEqual({
+      model: 'default',
+      apiKey: 'env',
+      'openai.token': 'file',
+    });
+  });
+
+  it('avisa dos campos do override sombreados por arquivo ou env, sem o valor', async () => {
+    const logger = recordingLogger();
+    const configs = createPluginConfigs({
+      plugins: [sticker],
+      storage: createMemoryStorage(),
+      env: { ZAPFORGE_STICKER__A: 'env' },
+      file: { sticker: { quality: 30, messages: { done: 'Arquivo' } } },
+      log: logger,
+    });
+    await configs.setOverrides('sticker', {
+      a: 'valor-a',
+      quality: 20,
+      d: 'override',
+      messages: { done: 'Feito' },
+    });
+    const warnings = logger.lines.filter((line) => line.level === 'warn');
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]?.fields).toMatchObject({
+      plugin: 'sticker',
+      fields: [
+        { path: 'a', source: 'env' },
+        { path: 'quality', source: 'file' },
+        { path: 'messages.done', source: 'file' },
+      ],
+    });
+    expect(JSON.stringify(warnings)).not.toContain('valor-a');
+  });
+
+  it('override sem campo sombreado não avisa', async () => {
+    const logger = recordingLogger();
+    const configs = createPluginConfigs({
+      plugins: [sticker],
+      storage: createMemoryStorage(),
+      file: { sticker: { quality: 30 } },
+      log: logger,
+    });
+    await configs.setOverrides('sticker', { d: 'override' });
+    expect(logger.lines.filter((line) => line.level === 'warn')).toEqual([]);
+  });
+
   it('override com segredo rejeita, não grava e não mexe no SecretSet', async () => {
     const { configs, secrets, kv } = await setup();
     const before = secrets.values();

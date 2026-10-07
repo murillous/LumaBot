@@ -67,8 +67,10 @@ O tipo vem de importar o pacote do provedor (ou só o tipo dele): é esse import
 ## Regras
 
 - **Um provedor por nome.** Se outro plugin já provê o nome, `provide` lança
-  `ServiceConflictError` citando os dois plugins (campos `service`, `existing`, `incoming`),
-  e o primeiro continua valendo.
+  `ServiceConflictError` citando os dois plugins (campos `service`, `existing`, `incoming`).
+  No `Bot`, esse erro no `setup` derruba o boot, como conflito de comando
+  ([ADR 0035](../../../docs/adr/0035-papeis-nomeados-por-plugin.md)); num reload, o plugin
+  recarregado fica ignorado e o primeiro continua valendo.
 - **Sem re-prover.** O mesmo plugin chamar `provide` duas vezes para o mesmo nome também é
   `ServiceConflictError`: quem já fez `get` ficaria com a instância antiga sem saber. Trocar a
   implementação é recarregar o plugin.

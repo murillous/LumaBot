@@ -270,6 +270,21 @@ describe('Bot: reconexão', () => {
     expect(clearSession).toHaveBeenCalledOnce();
   });
 
+  it('QR só sai com o valor em debug; em info vai o aviso sem ele', async () => {
+    const transport = new RecordingTransport();
+    const logger = recordingLogger();
+    const b = bot({ transport, logger });
+    await b.start();
+
+    transport.emit('connection.qr', { qr: 'QR-SECRETO' });
+    const withValue = logger.lines.filter((line) => JSON.stringify(line).includes('QR-SECRETO'));
+    expect(withValue.map((line) => line.level)).toEqual(['debug']);
+    const notice = logger.lines.find(
+      (line) => line.level === 'info' && line.message.includes('QR'),
+    );
+    expect(notice).toBeDefined();
+  });
+
   it('reconnection: false desliga a reconexão', async () => {
     const transport = new RecordingTransport();
     const b = bot({ transport, reconnection: false });

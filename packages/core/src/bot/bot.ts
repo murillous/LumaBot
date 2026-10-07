@@ -1,4 +1,5 @@
 import { CommandConflictError } from '#commands/registry.ts';
+import { RoleConflictError } from '#commands/roles.ts';
 import { createCommandRouter, type IsGroupAdmin } from '#commands/router.ts';
 import type { ConfigEnv } from '#config/env.ts';
 import { BotConfigError, normalizeOwners } from '#config/owners.ts';
@@ -35,7 +36,7 @@ import { collectPlugins } from '#plugin/sources.ts';
 import type { PluginDefinition } from '#plugin/types.ts';
 import { InboundQueue, type InboundQueueOptions, type InboundQueueStats } from '#queue/inbound.ts';
 import { createSchedulerService } from '#scheduler/service.ts';
-import { createServiceRegistry } from '#services/registry.ts';
+import { createServiceRegistry, ServiceConflictError } from '#services/registry.ts';
 import { createMemoryStorage } from '#storage/memory.ts';
 import { DEFAULT_SESSION, sessionStorage } from '#storage/namespace.ts';
 import type { StoragePort } from '#storage/types.ts';
@@ -538,7 +539,10 @@ export function createBot(config: BotConfig): Bot {
       }),
       transport.on('connection.qr', (payload) => {
         reconnector?.onQr();
-        log.info('QR de pareamento recebido', { qr: payload.qr });
+        // Quem lê o log em info (agregador, arquivo) pareia o número com o QR enquanto ele vale:
+        // o valor fica em debug e no barramento (`connection.qr`), para quem exibe a tela.
+        log.info('QR de pareamento recebido; exiba-o pelo evento connection.qr');
+        log.debug('valor do QR de pareamento', { qr: payload.qr });
         void bus.emit('connection.qr', payload);
       }),
     ];
@@ -673,8 +677,9 @@ export function createBot(config: BotConfig): Bot {
     for (const entry of table) {
       if (entry.status !== 'skipped' || entry.reason.kind !== 'setup-failed') continue;
       const { error } = entry.reason;
-      // Conflito de comando é erro no boot (ADR 0007), não "plugin ignorado".
-      if (error.cause instanceof CommandConflictError) throw error.cause;
+      // Conflito de nome é erro no boot (ADR 0007 e 0035), não "plugin ignorado": quem
+      // respondesse ao comando, papel ou serviço dependeria da ordem de carga.
+      if (isBootConflict(error.cause)) throw error.cause;
       emitLifecycleError(error);
     }
   }
@@ -879,6 +884,12 @@ export function createBot(config: BotConfig): Bot {
 }
 
 /** Nome de sessão no formato de nome de plugin: vira prefixo de namespace no storage. */
+/** Erros de `setup` que derrubam o boot em vez de só ignorar o plugin. */
+const isBootConflict = (error: unknown): boolean =>
+  error instanceof CommandConflictError ||
+  error instanceof RoleConflictError ||
+  error instanceof ServiceConflictError;
+
 function validateSession(session: string): string {
   if (!PLUGIN_NAME_PATTERN.test(session)) {
     throw new BotConfigError(

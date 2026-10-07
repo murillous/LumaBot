@@ -232,6 +232,14 @@ e `scheduler.on` (lançam `PluginHostStateError`), para nada ficar órfão, e `s
 coleções) e `scheduler.at`/`cancel` (rejeitam com `ContextExpiredError`), para nenhum efeito sair
 de um plugin que já desceu. O `ctx.signal` do plugin aborta no descarte.
 
+**Janela do reload**: entre o teardown e o fim do `setup` novo, os comandos do plugin não estão
+no registro. Uma mensagem que chega nessa janela (`!sticker` durante o reload do `sticker`) não
+casa com comando nenhum e segue para os listeners de `message` como texto comum; um plugin de
+conversa pode respondê-la. Comando de outro plugin que exige papel do plugin recarregando é
+recusado (o papel some junto). A janela dura o `setup` do plugin (e dos dependentes em cascata);
+no bot, o reload vem do `config.setOverrides`, não do caminho normal da mensagem.
+Listener que não deve responder a comandos pode ignorar o texto que começa com o prefixo.
+
 Destino dos erros de plugin — todos viram `plugin.error` no barramento e linha de log:
 
 | Fase | Origem |
@@ -243,9 +251,11 @@ Destino dos erros de plugin — todos viram `plugin.error` no barramento e linha
 | `listener` | listener lançou, rejeitou ou estourou o prazo |
 | `scheduler` | handler de job lançou, rejeitou ou estourou o prazo |
 
-**Conflito de comando derruba o boot** ([ADR 0007](../../../docs/adr/0007-plugins-via-npm-e-pasta.md)):
-se o `setup` de um plugin falha com `CommandConflictError`, o `start()` encerra o que subiu e
-rejeita com esse erro. Os demais erros de `setup` só ignoram o plugin.
+**Conflito de nome derruba o boot** ([ADR 0007](../../../docs/adr/0007-plugins-via-npm-e-pasta.md),
+[ADR 0035](../../../docs/adr/0035-papeis-nomeados-por-plugin.md)): se o `setup` de um plugin falha
+com `CommandConflictError`, `RoleConflictError` ou `ServiceConflictError`, o `start()` encerra o
+que subiu e rejeita com esse erro. Os demais erros de `setup`, e os conflitos num `reload`, só
+ignoram o plugin.
 
 ## Prazos e cancelamento (`ctx.signal`)
 
@@ -329,15 +339,15 @@ Em ordem (plano §5.3):
    (sem `storage`) avisa que os dados estão em memória.
 2. Assina os eventos do transport e empilha os ganchos de parada internos.
 3. Carrega os plugins: coleta (`plugins` + `pluginDirs`) → config → `setup` de cada um → tabela
-   de boot no log → checagem de conflito de comando.
+   de boot no log → checagem de conflito de comando, papel e serviço.
 4. **Só se o boot dos plugins deu certo**, chama `transport.connect()`; conectado, liga a
    reconexão automática.
 5. Liga o scheduler (dispara os jobs vencidos no downtime) e passa a `running`.
 
-Plugin quebrado (conflito de comando, manifesto inválido, ciclo, `pluginDirs` ilegível) derruba
-o boot **antes** de o transport abrir sessão: sem QR nem handshake à toa. Mensagens que chegam
-durante o handshake aguardam na fila de entrada e são processadas no fim do boot; se o boot
-falha, são descartadas.
+Plugin quebrado (conflito de comando, papel ou serviço, manifesto inválido, ciclo, `pluginDirs`
+ilegível) derruba o boot **antes** de o transport abrir sessão: sem QR nem handshake à toa.
+Mensagens que chegam durante o handshake aguardam na fila de entrada e são processadas no fim do
+boot; se o boot falha, são descartadas.
 
 **Falha no boot**: o bot roda o shutdown e termina em `stopped`. Se a falha foi dos plugins, o
 transport nunca conectou e o `disconnect()` não é chamado. Se foi do `connect()`, o shutdown
@@ -423,8 +433,9 @@ O transport avisa as quedas por `connection.status`; a `ReconnectionPolicy`
   de novo, com a tentativa seguinte do backoff.
 - Há no máximo um timer de reconexão por vez, e nenhum sobrevive ao `stop()`. O `closed` que o
   próprio `disconnect()` do shutdown gera não reconecta.
-- `connection.qr` conta para o limite de QRs da política, vai para o log em `info` (campo `qr`) e
-  para o barramento (um plugin pode desenhar o QR).
+- `connection.qr` conta para o limite de QRs da política e vai para o barramento (um plugin pode
+  desenhar o QR). O log em `info` só avisa que chegou um QR; o valor (campo `qr`) sai em `debug`,
+  porque quem lê o log (agregador, arquivo) pareia o número enquanto o QR vale.
 - `connection.status`/`connection.qr` também chegam aos listeners.
 - Do `closed` ao `open`, a fila de saída fica pausada: as respostas esperam a reconexão em vez de
   esgotar o retry, até `outbound.maxPauseMs` (padrão 60 s; depois, rejeitam com
