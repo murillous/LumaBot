@@ -61,6 +61,11 @@ export interface PluginSubscriberOptions {
    * camada de protótipo no caminho quente.
    */
   readonly view?: (event: BotEventName) => ListenerView | undefined;
+  /**
+   * `Deadline` de vida do plugin: o de cada listener é filho dele, então o descarte do plugin
+   * aborta o `signal` e recusa o `reply` dos listeners ainda em andamento.
+   */
+  readonly lifetime?: Deadline;
 }
 
 export interface EventBus {
@@ -97,6 +102,7 @@ interface Entry {
   /** Tipos aceitos em `quoted`; `null` sem filtro. */
   readonly quoted: ReadonlySet<MessageType> | null;
   readonly view: ListenerView | undefined;
+  readonly lifetime: Deadline | undefined;
 }
 
 const NO_ENTRIES: readonly Entry[] = [];
@@ -160,7 +166,7 @@ export function createEventBus(options: EventBusOptions): EventBus {
 
   function subscribe(
     plugin: string,
-    view: ListenerView | undefined,
+    options: PluginSubscriberOptions | undefined,
     event: BotEventName,
     first: unknown,
     second: unknown,
@@ -180,7 +186,8 @@ export function createEventBus(options: EventBusOptions): EventBus {
       timeoutMs: opts?.timeoutMs === undefined ? defaultTimeoutMs : validTimeout(opts.timeoutMs),
       seq: seq++,
       quoted: quotedSet(opts?.quoted),
-      view,
+      view: options?.view?.(event),
+      lifetime: options?.lifetime,
     };
     changed(event, [...(byEvent.get(event) ?? NO_ENTRIES), entry].sort(compare));
     return () => {
@@ -291,7 +298,7 @@ export function createEventBus(options: EventBusOptions): EventBus {
         if (!quoted || !entry.quoted.has(quoted.type)) continue;
       }
       listeners++;
-      const deadline = new Deadline();
+      const deadline = new Deadline(entry.lifetime);
       const view: { [DEADLINE]?: Deadline } =
         entry.view === undefined ? Object.create(ctx) : entry.view(ctx);
       view[DEADLINE] = deadline;
@@ -320,7 +327,7 @@ export function createEventBus(options: EventBusOptions): EventBus {
     forPlugin(plugin, options) {
       return {
         on(event: BotEventName, first: unknown, second?: unknown): Unsubscribe {
-          return subscribe(plugin, options?.view?.(event), event, first, second);
+          return subscribe(plugin, options, event, first, second);
         },
       } as EventSubscriber;
     },

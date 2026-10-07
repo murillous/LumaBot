@@ -91,7 +91,8 @@ export function createPluginContextFactory(deps: PluginContextDeps): PluginConte
     // Um `setup` que estourou o prazo segue rodando em segundo plano (não há como abortá-lo).
     // Depois do `dispose`, tudo o que ele registrar ficaria órfão e todo efeito (envio,
     // storage, agendamento) viria de um plugin que já desceu: o contexto recusa, e o `signal`
-    // dele aborta (ADR 0033).
+    // dele aborta (ADR 0033). Comandos, papéis, listeners e jobs ainda em andamento têm
+    // `Deadline` filho deste: o `dispose` os expira junto (#200).
     const lifetime = new Deadline();
     const guard = (what: string): void => {
       if (lifetime.expired) {
@@ -122,9 +123,10 @@ export function createPluginContextFactory(deps: PluginContextDeps): PluginConte
     // do plugin; o barramento a cria (uma por listener) e pendura nela o `Deadline`.
     const events = deps.bus.forPlugin(name, {
       view: (event) => (isMessageEvent(event) ? listenerView : undefined),
+      lifetime,
     });
     const services = deps.services.forPlugin(name);
-    const scheduler = deps.scheduler.forPlugin(name);
+    const scheduler = deps.scheduler.forPlugin(name, lifetime);
 
     const context: PluginContext = {
       plugin: { name, version: plugin.version, messages },
@@ -136,7 +138,10 @@ export function createPluginContextFactory(deps: PluginContextDeps): PluginConte
       commands: {
         add(definition: CommandDefinition): void {
           guard('commands.add');
-          deps.router.registry.add(name, wrapCommand(name, definition, commandViews, deps));
+          deps.router.registry.add(
+            name,
+            wrapCommand(name, definition, commandViews, lifetime, deps),
+          );
         },
       },
       roles: {
@@ -145,7 +150,7 @@ export function createPluginContextFactory(deps: PluginContextDeps): PluginConte
           deps.router.roles.define(
             name,
             role,
-            wrapRoleCheck(name, role, check, roleView, log, deps),
+            wrapRoleCheck(name, role, check, roleView, log, lifetime, deps),
           );
         },
       },
@@ -248,17 +253,18 @@ type AnySubscribe = (event: BotEventName, first: unknown, second: unknown) => Un
 /**
  * Comando com o `log` do plugin dono no contexto de `run` e `onReject`, e os dois com prazo: um
  * deles preso seguraria o chat na fila de entrada para sempre (ADR 0005). Cada um tem o próprio
- * `Deadline`, que dá o `signal` e prende o `reply` (ADR 0033).
+ * `Deadline`, filho do de vida do plugin, que dá o `signal` e prende o `reply` (ADR 0033).
  */
 function wrapCommand(
   plugin: string,
   definition: CommandDefinition,
   views: CommandViews,
+  lifetime: Deadline,
   deps: Pick<PluginContextDeps, 'commandTimeoutMs' | 'onLateCommandError'>,
 ): CommandDefinition {
   const { run, onReject, name } = definition;
   const timed = <R>(stage: CommandStage, execute: (deadline: Deadline) => R): R => {
-    const deadline = new Deadline();
+    const deadline = new Deadline(lifetime);
     return settleWithin(
       execute(deadline),
       deps.commandTimeoutMs,
@@ -291,6 +297,7 @@ function wrapRoleCheck(
   check: RoleCheck,
   view: ReturnType<typeof roleViewFactory>,
   log: Logger,
+  lifetime: Deadline,
   deps: Pick<PluginContextDeps, 'commandTimeoutMs' | 'onRoleError'>,
 ): RoleCheck {
   const refuse = (error: unknown): false => {
@@ -304,7 +311,7 @@ function wrapRoleCheck(
     return false;
   };
   return (ctx) => {
-    const deadline = new Deadline();
+    const deadline = new Deadline(lifetime);
     let result: unknown;
     try {
       result = check(view(ctx, deadline));

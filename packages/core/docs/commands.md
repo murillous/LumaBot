@@ -209,7 +209,8 @@ roda (`failed`), nunca é liberado por falta de resposta.
 ### `ctx.signal` e o que acontece depois do prazo
 
 No bot, o contexto do `run` traz `signal: AbortSignal`, que aborta quando o prazo estoura
-(`reason` = o `CommandTimeoutError`). Repasse-o a `fetch` e SDKs, para o trabalho parar junto
+(`reason` = o `CommandTimeoutError`) ou quando o plugin é descartado (teardown, reload), com o
+motivo do descarte. Repasse-o a `fetch` e SDKs, para o trabalho parar junto
 ([ADR 0033](../../../docs/adr/0033-cancelamento-cooperativo.md)):
 
 ```ts

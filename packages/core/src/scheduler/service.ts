@@ -36,6 +36,12 @@ type JobDocument = {
 
 type StoredJob = WithId<JobDocument>;
 
+interface RegisteredHandler {
+  readonly handler: JobHandler;
+  /** `Deadline` de vida do plugin: pai do `Deadline` de cada execução do handler. */
+  readonly lifetime: Deadline | undefined;
+}
+
 export interface SchedulerServiceOptions {
   /** Storage do bot; os jobs ficam em `kernelStorage(storage, 'scheduler')`. */
   readonly storage: StoragePort;
@@ -68,8 +74,12 @@ export interface SchedulerServiceOptions {
 }
 
 export interface SchedulerService {
-  /** Scheduler em nome do plugin (`ctx.scheduler`): jobs e handlers no namespace dele. */
-  forPlugin(plugin: string): Scheduler;
+  /**
+   * Scheduler em nome do plugin (`ctx.scheduler`): jobs e handlers no namespace dele. Com
+   * `lifetime` (o `Deadline` de vida do plugin), o descarte do plugin aborta o `signal` dos jobs
+   * dele ainda em andamento.
+   */
+  forPlugin(plugin: string, lifetime?: Deadline): Scheduler;
   /**
    * Remove os handlers do plugin (teardown e reload). Os jobs persistidos ficam: disparam
    * quando o plugin registrar o handler de novo.
@@ -176,8 +186,8 @@ export function createSchedulerService(options: SchedulerServiceOptions): Schedu
     { indexes: ['fireAt'] },
   );
 
-  // plugin → job → handler.
-  const handlers = new Map<string, Map<string, JobHandler>>();
+  // plugin → job → handler (com o `Deadline` de vida do plugin que o registrou).
+  const handlers = new Map<string, Map<string, RegisteredHandler>>();
   // id → handler em andamento (resolve quando o job saiu do storage). Impede entrega dupla
   // enquanto o handler roda e responde ao `cancel` de job já disparado.
   const inFlight = new Map<string, Promise<void>>();
@@ -291,10 +301,10 @@ export function createSchedulerService(options: SchedulerServiceOptions): Schedu
 
   function dispatch(doc: StoredJob): void {
     if (inFlight.has(doc.id)) return;
-    const handler = handlers.get(doc.plugin)?.get(doc.job);
+    const registered = handlers.get(doc.plugin)?.get(doc.job);
     // Plugin desabilitado ou ainda no setup: o job fica pendente no storage.
-    if (handler === undefined) return;
-    const done = run(doc, handler)
+    if (registered === undefined) return;
+    const done = run(doc, registered)
       // Abandonado no shutdown, o job não terminou: fica no storage para a próxima subida.
       .then(async (finished) => {
         if (finished) await jobs.delete(doc.id);
@@ -330,8 +340,8 @@ export function createSchedulerService(options: SchedulerServiceOptions): Schedu
    * rejeita: toda falha já foi entregue ao `onError`. Estourado o prazo (ou abandonado), o
    * `signal` do job aborta (ADR 0033).
    */
-  function run(doc: StoredJob, handler: JobHandler): Promise<boolean> {
-    const deadline = new Deadline();
+  function run(doc: StoredJob, { handler, lifetime }: RegisteredHandler): Promise<boolean> {
+    const deadline = new Deadline(lifetime);
     const job: JobContext = {
       get signal(): AbortSignal {
         return deadline.signal;
@@ -388,7 +398,7 @@ export function createSchedulerService(options: SchedulerServiceOptions): Schedu
     });
   }
 
-  function forPlugin(plugin: string): Scheduler {
+  function forPlugin(plugin: string, lifetime?: Deadline): Scheduler {
     return {
       async at(when, job, payload = null) {
         const fireAt = toEpoch(when);
@@ -419,12 +429,13 @@ export function createSchedulerService(options: SchedulerServiceOptions): Schedu
           handlers.set(plugin, byJob);
         }
         if (byJob.has(job)) throw new JobHandlerConflictError(plugin, job);
-        byJob.set(job, handler);
+        const registered: RegisteredHandler = { handler, lifetime };
+        byJob.set(job, registered);
         // Pode haver jobs vencidos esperando por este handler.
         wake();
         return () => {
           const current = handlers.get(plugin);
-          if (current?.get(job) !== handler) return;
+          if (current?.get(job) !== registered) return;
           current.delete(job);
           if (current.size === 0) handlers.delete(plugin);
         };

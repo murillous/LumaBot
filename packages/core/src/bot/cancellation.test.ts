@@ -2,6 +2,7 @@
 // e recusa das operações de um contexto expirado.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { z } from 'zod';
 import { command } from '#commands/command.ts';
 import {
   ContextExpiredError,
@@ -15,7 +16,13 @@ import { PluginLifecycleError } from '#plugin/report.ts';
 import type { PluginContext } from '#plugin/types.ts';
 import type { BotConfig } from './bot.ts';
 import { type Bot, createBot } from './bot.ts';
-import { message, RecordingTransport, recordingLogger, sentTexts } from './harness.test-support.ts';
+import {
+  deferred,
+  message,
+  RecordingTransport,
+  recordingLogger,
+  sentTexts,
+} from './harness.test-support.ts';
 import { CommandTimeoutError } from './plugin-context.ts';
 
 const ENGINE = '>=0.0.0';
@@ -467,5 +474,208 @@ describe('recusa de contexto expirado sem log duplicado', () => {
     );
     expect(expired).toHaveLength(1);
     expect(expired[0]?.level).toBe('warn');
+  });
+});
+
+describe('descarte do plugin com execuções em andamento (#200)', () => {
+  /** Plugin com config `versao`: `setOverrides` o recarrega, descartando a instância anterior. */
+  const versioned = { config: z.object({ versao: z.string().default('v1') }) };
+
+  it('reload: comando em andamento da instância antiga aborta e o reply é recusado', async () => {
+    const transport = new RecordingTransport();
+    const logger = recordingLogger();
+    const gate = deferred();
+    let pluginSignal: AbortSignal | undefined;
+    let signal: AbortSignal | undefined;
+    let replyAfter: Promise<unknown> | undefined;
+    const plugin = definePlugin({
+      name: 'lento',
+      version: '1.0.0',
+      engine: ENGINE,
+      ...versioned,
+      setup(ctx) {
+        pluginSignal ??= ctx.signal;
+        ctx.commands.add(
+          command({
+            name: 'lento',
+            run: async (c) => {
+              signal = c.signal;
+              await gate.promise;
+              replyAfter = c.reply('depois do reload');
+              await replyAfter.catch(() => undefined);
+            },
+          }),
+        );
+      },
+    });
+    const b = bot({ transport, logger, plugins: [plugin] });
+    await b.start();
+
+    transport.emit('message', message('!lento'));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(signal?.aborted).toBe(false);
+
+    await b.config.setOverrides('lento', { versao: 'v2' });
+    expect(signal?.aborted).toBe(true);
+    // O motivo é o do descarte, não um timeout: o plugin distingue os dois com `instanceof`.
+    expect(signal?.reason).toBe(pluginSignal?.reason);
+    expect(signal?.reason).not.toBeInstanceOf(ExecutionTimeoutError);
+
+    gate.resolve();
+    await vi.advanceTimersByTimeAsync(0);
+    const error: unknown = await replyAfter?.catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ContextExpiredError);
+    expect(error).toMatchObject({ plugin: 'lento', operation: 'reply' });
+    await vi.runAllTimersAsync();
+    expect(sentTexts(transport)).toEqual([]);
+  });
+
+  it('reload: listener em andamento da instância antiga aborta e o reply é recusado', async () => {
+    const transport = new RecordingTransport();
+    const gate = deferred();
+    let signal: AbortSignal | undefined;
+    let replyAfter: Promise<unknown> | undefined;
+    const plugin = definePlugin({
+      name: 'ouvinte',
+      version: '1.0.0',
+      engine: ENGINE,
+      ...versioned,
+      setup(ctx) {
+        if (ctx.config.versao !== 'v1') return;
+        ctx.events.on('message', async (e) => {
+          signal = e.signal;
+          await gate.promise;
+          replyAfter = e.reply('depois do reload');
+          await replyAfter.catch(() => undefined);
+        });
+      },
+    });
+    const b = bot({ transport, logger: recordingLogger(), plugins: [plugin] });
+    await b.start();
+
+    transport.emit('message', message('oi'));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(signal?.aborted).toBe(false);
+
+    await b.config.setOverrides('ouvinte', { versao: 'v2' });
+    expect(signal?.aborted).toBe(true);
+
+    gate.resolve();
+    await vi.advanceTimersByTimeAsync(0);
+    await expect(replyAfter).rejects.toBeInstanceOf(ContextExpiredError);
+    await vi.runAllTimersAsync();
+    expect(sentTexts(transport)).toEqual([]);
+  });
+
+  it('reload: job em andamento da instância antiga recebe o signal abortado', async () => {
+    let signal: AbortSignal | undefined;
+    const plugin = definePlugin({
+      name: 'agenda',
+      version: '1.0.0',
+      engine: ENGINE,
+      ...versioned,
+      async setup(ctx) {
+        if (ctx.config.versao !== 'v1') return;
+        ctx.scheduler.on('lembrar', async (_payload, job) => {
+          signal = job.signal;
+          await forever();
+        });
+        await ctx.scheduler.at(Date.now(), 'lembrar');
+      },
+    });
+    const b = bot({
+      transport: new RecordingTransport(),
+      logger: recordingLogger(),
+      plugins: [plugin],
+    });
+    await b.start();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(signal?.aborted).toBe(false);
+
+    await b.config.setOverrides('agenda', { versao: 'v2' });
+    expect(signal?.aborted).toBe(true);
+    expect(signal?.reason).not.toBeInstanceOf(ExecutionTimeoutError);
+  });
+
+  it('reload: checagem de papel em andamento do plugin dono recebe o signal abortado', async () => {
+    const transport = new RecordingTransport();
+    let signal: AbortSignal | undefined;
+    const moderacao = definePlugin({
+      name: 'moderacao',
+      version: '1.0.0',
+      engine: ENGINE,
+      ...versioned,
+      setup(ctx) {
+        ctx.roles.define('moderador', async (c) => {
+          signal ??= c.signal;
+          await forever();
+          return true;
+        });
+      },
+    });
+    const painel = definePlugin({
+      name: 'painel',
+      version: '1.0.0',
+      engine: ENGINE,
+      dependsOn: { moderacao: '^1.0.0' },
+      setup(ctx) {
+        ctx.commands.add(command({ name: 'banir', role: 'moderador', run: () => undefined }));
+      },
+    });
+    const b = bot({ transport, logger: recordingLogger(), plugins: [moderacao, painel] });
+    await b.start();
+
+    transport.emit('message', message('!banir'));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(signal?.aborted).toBe(false);
+
+    await b.config.setOverrides('moderacao', { versao: 'v2' });
+    expect(signal?.aborted).toBe(true);
+  });
+
+  it('stop com a drenagem estourada: o descarte no teardown aborta o comando ainda vivo', async () => {
+    const transport = new RecordingTransport();
+    let signal: AbortSignal | undefined;
+    let replyAfter: Promise<unknown> | undefined;
+    const gate = deferred();
+    const plugin = definePlugin({
+      name: 'lento',
+      version: '1.0.0',
+      engine: ENGINE,
+      setup(ctx) {
+        ctx.commands.add(
+          command({
+            name: 'lento',
+            run: async (c) => {
+              signal = c.signal;
+              await gate.promise;
+              replyAfter = c.reply('depois do stop');
+              await replyAfter.catch(() => undefined);
+            },
+          }),
+        );
+      },
+    });
+    // O prazo do comando (60 s) é maior que o da drenagem da fila de entrada (4 s).
+    const b = bot({
+      transport,
+      logger: recordingLogger(),
+      plugins: [plugin],
+      timeouts: { commandMs: 60_000 },
+    });
+    await b.start();
+    transport.emit('message', message('!lento'));
+    await vi.advanceTimersByTimeAsync(0);
+
+    // A drenagem estoura o prazo: o stop rejeita com o StopHookError dela, e o teardown roda.
+    const stopped = b.stop().catch((e: unknown) => e);
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(await stopped).toBeInstanceOf(AggregateError);
+    expect(signal?.aborted).toBe(true);
+
+    gate.resolve();
+    await vi.advanceTimersByTimeAsync(0);
+    await expect(replyAfter).rejects.toBeInstanceOf(ContextExpiredError);
+    expect(sentTexts(transport)).toEqual([]);
   });
 });
