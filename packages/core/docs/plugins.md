@@ -198,10 +198,11 @@ detalhes em [Bot](bot.md#prazos-e-cancelamento-ctxsignal)).
 
 - `ctx.signal` (no `setup`) aborta quando o contexto é descartado: repasse ao trabalho de fundo
   do plugin (timers, conexões, streams) e pare-o no `abort`.
-- `c.signal` (comando), `e.signal` (listener) e `{ signal }` (job) abortam no prazo da execução:
-  repasse a `fetch`/SDKs e confira `signal.aborted` antes de efeitos.
+- `c.signal` (comando), `e.signal` (listener) e `{ signal }` (job) abortam no prazo da execução
+  ou no descarte do plugin, o que vier antes: repasse a `fetch`/SDKs e confira `signal.aborted`
+  antes de efeitos.
 - Depois do prazo, o `reply` daquele contexto rejeita com `ContextExpiredError`; depois do
-  descarte, `send`/`storage`/`scheduler.at` do plugin também.
+  descarte, o `reply` de toda execução do plugin e `send`/`storage`/`scheduler.at` também.
 - Código síncrono travado (laço, CPU pesada) bloqueia o processo inteiro: nenhum prazo resolve.
 
 ## Versão do core

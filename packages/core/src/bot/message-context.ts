@@ -138,7 +138,8 @@ interface ExpiringView {
 
 /**
  * Descritor do `reply` de uma execução com prazo (comando ou listener): o `reply` de `base`,
- * recusado com `ContextExpiredError` (e uma linha de log) depois que o `Deadline` expira.
+ * recusado com `ContextExpiredError` (e uma linha de log) depois que o `Deadline` expira — no
+ * prazo, ou no descarte do plugin.
  * Criado no primeiro acesso e fixado no próprio objeto, como o `log`.
  */
 function expiringReplyDescriptor<V extends ExpiringView>(
@@ -155,7 +156,7 @@ function expiringReplyDescriptor<V extends ExpiringView>(
       const refuse: Refuse = (operation) => {
         const { label, fields } = scope(this);
         const error = new ContextExpiredError(plugin, operation, label, deadline.reason);
-        this.log.warn(`${operation} recusado: ${label} já estourou o prazo`, {
+        this.log.warn(`${operation} recusado: ${label} já expirou`, {
           ...fields,
           operation,
           err: error,

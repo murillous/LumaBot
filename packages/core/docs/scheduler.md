@@ -62,7 +62,8 @@ Jobs vencidos disparam em ordem de horário e sem esperar um pelo outro.
 
 O segundo argumento do handler (`JobContext`) traz `signal: AbortSignal`, que aborta quando o
 handler estoura o prazo (`timeouts.jobMs`, padrão 30 s), com `reason` = `JobTimeoutError`
-(`plugin`, `job`, `timeoutMs`).
+(`plugin`, `job`, `timeoutMs`), ou quando o plugin é descartado (teardown, reload), com o motivo
+do descarte.
 Handlers de um parâmetro só continuam valendo. Repasse o `signal` a `fetch`/SDKs e confira
 `signal.aborted` antes de efeitos que não o recebem: o `ctx.send`/`ctx.storage` do `setup` são do
 plugin e não sabem do prazo do job ([ADR 0033](../../../docs/adr/0033-cancelamento-cooperativo.md)).

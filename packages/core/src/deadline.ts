@@ -6,36 +6,51 @@
 /**
  * Prazo de uma execução de código de plugin. Quem expira é o dono do timer que já existe (o
  * barramento, o roteador, o scheduler, o host); aqui não há timer.
+ *
+ * Com `parent` (o `Deadline` de vida do plugin), a execução expira também quando o pai expira:
+ * o descarte do plugin alcança os comandos, listeners e jobs dele ainda em andamento (ADR 0033).
+ * O pai não guarda os filhos: `expired` e `reason` consultam o pai na leitura, e o `signal` só o
+ * escuta quando alguém o lê — o caminho quente não paga nada a mais.
  */
 export class Deadline {
+  readonly #parent: Deadline | undefined;
   #expired = false;
   #reason: unknown;
   // Criado só quando alguém lê `signal`: a maioria das execuções nem olha para ele, e o
   // `AbortController` é a parte cara (EventTarget) no caminho quente de cada mensagem.
   #controller: AbortController | undefined;
+  #signal: AbortSignal | undefined;
+
+  constructor(parent?: Deadline) {
+    this.#parent = parent;
+  }
 
   /** O prazo estourou (ou o contexto foi descartado). */
   get expired(): boolean {
-    return this.#expired;
+    return this.#expired || this.#parent?.expired === true;
   }
 
-  /** Motivo da expiração (o erro de timeout); `undefined` enquanto no prazo. */
+  /** Motivo da expiração (o erro de timeout ou do descarte); `undefined` enquanto no prazo. */
   get reason(): unknown {
-    return this.#reason;
+    return this.#expired ? this.#reason : this.#parent?.reason;
   }
 
-  /** Aborta quando o prazo estoura, com `reason` = o erro de timeout. */
+  /** Aborta quando o prazo estoura (ou o pai expira), com `reason` = o motivo. */
   get signal(): AbortSignal {
-    if (this.#controller === undefined) {
+    if (this.#signal === undefined) {
       this.#controller = new AbortController();
       if (this.#expired) this.#controller.abort(this.#reason);
+      const own = this.#controller.signal;
+      // `any` guarda o filho por referência fraca no pai: execuções que terminam não se
+      // acumulam no `signal` do plugin.
+      this.#signal = this.#parent === undefined ? own : AbortSignal.any([own, this.#parent.signal]);
     }
-    return this.#controller.signal;
+    return this.#signal;
   }
 
-  /** Marca como expirado e aborta o `signal`. Só a primeira chamada vale. */
+  /** Marca como expirado e aborta o `signal`. Só a primeira expiração vale, a do pai inclusive. */
   expire(reason: unknown): void {
-    if (this.#expired) return;
+    if (this.expired) return;
     this.#expired = true;
     this.#reason = reason;
     this.#controller?.abort(reason);
