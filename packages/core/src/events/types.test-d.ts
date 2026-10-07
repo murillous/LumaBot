@@ -5,6 +5,7 @@ import type { EmittableEventName, EventBus } from '#events/bus.ts';
 import type {
   BotEventName,
   BotEvents,
+  CommandEvent,
   EventSubscriber,
   ListenerContext,
   PluginErrorEvent,
@@ -31,6 +32,7 @@ describe('eventos do §6.4', () => {
       | 'contact.updated'
       | 'connection.status'
       | 'connection.qr'
+      | 'command'
       | 'plugin.error';
     expectTypeOf<BotEventName>().toEqualTypeOf<Planned>();
   });
@@ -43,6 +45,7 @@ describe('eventos do §6.4', () => {
     expectTypeOf<BotEvents['connection.status']>().toEqualTypeOf<ConnectionStatus>();
     expectTypeOf<BotEvents['plugin.error']>().toEqualTypeOf<PluginErrorEvent>();
     expectTypeOf<BotEvents['connection.qr']>().toEqualTypeOf<{ readonly qr: string }>();
+    expectTypeOf<BotEvents['command']>().toEqualTypeOf<CommandEvent>();
   });
 });
 
@@ -55,6 +58,13 @@ describe('on()', () => {
     });
     events.on('group.joined', (ctx) => {
       expectTypeOf(ctx.payload.groupId).toEqualTypeOf<string>();
+    });
+  });
+
+  it('`command` só observa: o contexto não tem `reply` (ADR 0049)', () => {
+    events.on('command', (ctx) => {
+      expectTypeOf(ctx.payload.message).toEqualTypeOf<Message>();
+      expectTypeOf(ctx).not.toHaveProperty('reply');
     });
   });
 

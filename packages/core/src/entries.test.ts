@@ -76,6 +76,7 @@ const entries: Record<string, { file: string; load: () => Promise<object> } & En
       'CollectionOptions',
       'CommandContext',
       'CommandDefinition',
+      'CommandEvent',
       'CommandInfo',
       'CommandRejection',
       'CommandRole',
