@@ -3,8 +3,11 @@
 // mesmo quando os ganchos internos estouram o prazo ou nem rodam.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { command } from '#commands/command.ts';
+import type { PluginErrorEvent } from '#events/types.ts';
 import { OutboundQueueError } from '#outbound/queue.ts';
 import { definePlugin } from '#plugin/define.ts';
+import type { PluginContext } from '#plugin/types.ts';
 import { createMemoryStorage } from '#storage/memory.ts';
 import { kernelStorage, sessionStorage } from '#storage/namespace.ts';
 import type { StoragePort } from '#storage/types.ts';
@@ -261,5 +264,85 @@ describe('stop() durante o setup dos plugins (#202)', () => {
 
     expect(transport.calls).toEqual([]);
     expect(b.state).toBe('stopped');
+  });
+});
+
+describe('stop() com handler preso (#247)', () => {
+  const never = (): Promise<never> => new Promise(() => undefined);
+  const group = { id: 'g@test', isGroup: true };
+
+  // Cada caso arma um prazo (do roteador, do papel, da consulta de admin ou do barramento) que
+  // só o timer ou o próprio handler desarmariam.
+  const cases: {
+    name: string;
+    setup: (ctx: PluginContext) => void;
+    text: string;
+    inGroup?: boolean;
+  }[] = [
+    {
+      name: 'run de comando',
+      setup: (ctx) => ctx.commands.add(command({ name: 'preso', run: never })),
+      text: '!preso',
+    },
+    {
+      name: 'onReject de comando',
+      setup: (ctx) =>
+        ctx.commands.add(
+          command({ name: 'dono', role: 'owner', onReject: never, run: () => undefined }),
+        ),
+      text: '!dono',
+    },
+    {
+      name: 'checagem de papel',
+      setup(ctx) {
+        ctx.roles.define('moderador', never);
+        ctx.commands.add(command({ name: 'ban', role: 'moderador', run: () => undefined }));
+      },
+      text: '!ban',
+    },
+    {
+      name: 'consulta de admin do grupo',
+      setup: (ctx) =>
+        ctx.commands.add(command({ name: 'ban', role: 'group-admin', run: () => undefined })),
+      text: '!ban',
+      inGroup: true,
+    },
+    {
+      name: 'listener',
+      setup: (ctx) => ctx.events.on('message', never),
+      text: 'oi',
+    },
+  ];
+
+  it.each(cases)('$name: o timer do prazo não sobrevive ao stop()', async (scenario) => {
+    transport = new RecordingTransport(['send.text', 'quoted', 'groups']);
+    transport.getGroupMetadata = never;
+    const errors: PluginErrorEvent[] = [];
+    const preso = definePlugin({
+      name: 'preso',
+      version: '1.0.0',
+      engine: ENGINE,
+      setup(ctx) {
+        scenario.setup(ctx);
+        ctx.events.on('plugin.error', (e) => {
+          errors.push(e.payload);
+        });
+      },
+    });
+    const b = bot({ plugins: [preso], shutdown: { timeoutMs: 100 } });
+    await b.start();
+    const incoming = message(scenario.text);
+    transport.emit('message', scenario.inGroup ? { ...incoming, chat: group } : incoming);
+    await vi.advanceTimersByTimeAsync(0);
+
+    const stopped = b.stop().catch(() => undefined);
+    await vi.advanceTimersByTimeAsync(100);
+    await stopped;
+
+    expect(vi.getTimerCount()).toBe(0);
+    // Nada dispara depois: nem o timeout no log, nem `plugin.error` de um bot já parado.
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(errors).toEqual([]);
+    expect(lines.filter((line) => line.message.includes('excedeu'))).toEqual([]);
   });
 });

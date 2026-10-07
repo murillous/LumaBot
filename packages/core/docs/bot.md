@@ -388,8 +388,10 @@ registrado com o bot rodando). Por isso, depois dos ganchos e antes do `disconne
 abandona tudo o que restou: solta os eventos do transport, para a reconexão, descarta o que
 aguarda nas filas de entrada e de saída, abandona os jobs em andamento e o `teardown` em curso,
 pula os `teardown` restantes e faz o `dispose` de todos os plugins (o kernel desfaz comandos,
-listeners e handlers; o contexto do plugin passa a recusar operações). Quando o `stop()`
-termina, nenhum timer do bot fica vivo. Os `teardown` pulados ou abandonados viram
+listeners e handlers; o contexto do plugin passa a recusar operações). Também desarma o prazo
+de todo middleware, comando (`run` e `onReject`), checagem de papel, consulta de admin e listener
+ainda presos: a execução abandonada não vira timeout nem `plugin.error`, porque o bot já parou.
+Quando o `stop()` termina, nenhum timer do bot fica vivo. Os `teardown` pulados ou abandonados viram
 `PluginLifecycleError` com `timedOut: true` no log. O que o código do plugin ainda estiver
 rodando (um `teardown` travado, um job) o JS não interrompe: ele recebe o `signal` abortado e
 o que tentar pelo contexto é recusado.

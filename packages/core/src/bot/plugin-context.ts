@@ -7,7 +7,13 @@ import type { RegisteredCommand } from '#commands/registry.ts';
 import { type RoleCheck, RoleTimeoutError } from '#commands/roles.ts';
 import type { CommandRouter } from '#commands/router.ts';
 import type { PluginConfigs } from '#config/plugin-configs.ts';
-import { ContextExpiredError, Deadline, ExecutionTimeoutError, settleWithin } from '#deadline.ts';
+import {
+  type ArmedTimers,
+  ContextExpiredError,
+  Deadline,
+  ExecutionTimeoutError,
+  settleWithin,
+} from '#deadline.ts';
 import type { EventBus } from '#events/bus.ts';
 import type { BotEventName, EventSubscriber, PluginErrorEvent } from '#events/types.ts';
 import type { Groups } from '#groups/groups.ts';
@@ -61,6 +67,8 @@ export interface PluginContextDeps {
   readonly onLateCommandError: (plugin: string, command: string, error: unknown) => void;
   /** Checagem de papel custom que lançou, rejeitou ou estourou o prazo (`phase: 'role'`). */
   readonly onRoleError: (event: PluginErrorEvent) => void;
+  /** Prazos armados de comandos e papéis, para o shutdown desarmá-los. */
+  readonly armed: ArmedTimers;
 }
 
 /** Parte do comando que roda código de plugin com prazo. */
@@ -303,7 +311,7 @@ function wrapCommand(
   definition: CommandDefinition,
   views: CommandViews,
   lifetime: Deadline,
-  deps: Pick<PluginContextDeps, 'commandTimeoutMs' | 'onLateCommandError'>,
+  deps: Pick<PluginContextDeps, 'commandTimeoutMs' | 'onLateCommandError' | 'armed'>,
 ): CommandDefinition {
   const { run, onReject, name } = definition;
   const timeoutMs = definition.timeoutMs ?? deps.commandTimeoutMs;
@@ -318,6 +326,7 @@ function wrapCommand(
         return error;
       },
       (error) => deps.onLateCommandError(plugin, name, error),
+      deps.armed,
     ) as R;
   };
   return {
@@ -342,7 +351,7 @@ function wrapRoleCheck(
   view: ReturnType<typeof roleViewFactory>,
   log: Logger,
   lifetime: Deadline,
-  deps: Pick<PluginContextDeps, 'commandTimeoutMs' | 'onRoleError'>,
+  deps: Pick<PluginContextDeps, 'commandTimeoutMs' | 'onRoleError' | 'armed'>,
 ): RoleCheck {
   const refuse = (error: unknown): false => {
     deps.onRoleError({
@@ -371,6 +380,7 @@ function wrapRoleCheck(
         return error;
       },
       (error) => log.error(`papel "${role}" rejeitou depois do prazo`, { role, err: error }),
+      deps.armed,
     );
     if (!(settled instanceof Promise)) return settled === true;
     return settled.then((granted) => granted === true, refuse);
