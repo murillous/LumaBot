@@ -133,6 +133,8 @@ decisão anterior.
 | D33 | **Cancelamento cooperativo** (detalha D05): `signal: AbortSignal` em comando, listener, job e `PluginContext`, abortado pelos timers de prazo existentes; contexto expirado recusa efeitos com `ContextExpiredError`; `reason` tipado (`ExecutionTimeoutError`) | Worker threads; `AsyncLocalStorage` por execução; só documentar | O JS não mata promise: o plugin precisa saber do prazo, e o kernel não pode aceitar efeito atrasado |
 | D34 | **ZapForge é uma biblioteca, sem runner**: o app importa `@zapforge/core` e compõe com `createBot`; sem CLI de execução nem `defineConfig`; API pública por público (`@zapforge/core` para plugin e app, `@zapforge/core/adapter` para transports/storages), internos fora do `index.ts` | Runner/CLI com `defineConfig`; um único ponto de entrada com tudo exportado | Quem usa o ZapForge escreve plugins e não precisa conhecer o kernel; tudo que é exportado fica preso ao ciclo de depreciação após a 1.0 |
 | D35 | **Papéis custom nomeados por plugin** (substitui parte de D12/D24): `ctx.roles.define(nome, check)`, comando usa `role: nome`, tipado por declaration merging (`Roles`); o roteador avalia com prazo e recusa em erro (fail-closed); `owner` passa em todos | `ctx.middleware` de plugin; middleware + papéis; nada na v1 | Middleware roda antes do roteador e não sabe o comando; papel custom precisa caber num plugin |
+| D36 | **Escopo de sessão** (detalha D04/D14): `createBot({ session })`, padrão `'default'`; namespaces de plugin, jobs, overrides de config e auth state no escopo da sessão, aplicado pelo kernel sem mudar o `StoragePort`; a mesma sessão não roda duas vezes (recusa no processo, `DisconnectReason` `'replaced'` entre processos) | Um banco por número como regra, sem escopo no core; sessão como parâmetro do port | Dois bots no mesmo banco disparavam os mesmos jobs e dividiam dados; um banco compartilhado por vários números passa a ser seguro |
+| D37 | **Transport por fábrica** (detalha D03): `transport` aceita `Transport` ou `(deps) => Transport`, com `deps` = `session`, `auth`, `log`; fábrica síncrona e sem I/O; `clean-session` limpa o `auth` sozinho | `attach(deps)` opcional no `Transport`; ligação manual pelo app | O app não liga transport e storage à mão nem repete a sessão; o adapter loga com segredos censurados |
 
 ---
 
@@ -238,7 +240,8 @@ import { sticker } from '@zapforge/plugin-media';
 import { ai } from '@zapforge/plugin-ai';
 
 const bot = createBot({
-  transport: baileys({ pairing: 'qr' }),          // como recebe o storage do auth state: M2-1
+  session: 'principal',                           // padrão 'default' (D36)
+  transport: baileys({ pairing: 'qr' }),          // fábrica: recebe auth state e logger do bot (D37)
   storage: sqlite({ path: './data/bot.sqlite' }),
   owners: ['5511999999999'],
   prefix: '!',
@@ -566,6 +569,15 @@ critérios de aceite. Toda issue herda os critérios gerais:
 - **#M1-19 Papéis custom nomeados** (D35)
   - `ctx.roles.define(nome, check)`, `role: nome` no comando, `Roles` por declaration merging
   - Avaliação no roteador com prazo e fail-closed; conflito de nome = erro no boot
+- **#M1-20 Escopo de sessão** (D36)
+  - `createBot({ session })` com padrão `'default'`; namespaces, jobs, overrides e auth state no
+    escopo da sessão
+  - Sessão repetida no mesmo storage recusada no `createBot`; `DisconnectReason` `'replaced'` sem
+    reconexão
+  - *Aceite*: dois bots com sessões diferentes no mesmo storage não compartilham jobs nem dados
+- **#M1-21 Transport por fábrica** (D37)
+  - `transport: Transport | ((deps: TransportDeps) => Transport)`, `deps` = `session`, `auth`, `log`
+  - `clean-session` limpa o auth state sem `clearSession` configurado
 
 ---
 
@@ -577,7 +589,8 @@ critérios de aceite. Toda issue herda os critérios gerais:
     `Contact.phone` resolvido também para remetentes com LID (M1-16)
   - Envio de todos os tipos; mídia; grupos; reações; presença; edição/deleção
   - Declaração de capabilities (seção 6.10)
-  - Auth state via `StoragePort` (substitui `useMultiFileAuthState`)
+  - Auth state via `StoragePort` (substitui `useMultiFileAuthState`), recebido pela fábrica (D37)
+  - Desconexão por conexão substituída mapeada para `'replaced'` (D36)
   - Mapeamento de eventos Baileys → barramento (contatos, grupos, reações, edições)
 - **#M2-2 `@zapforge/storage-sqlite`**
   - Implementação KV + coleções + auth state; WAL; migrations internas do adapter

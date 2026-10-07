@@ -55,3 +55,5 @@ o anterior, e o antigo passa a apontar para ele no Status.
 | [0033](0033-cancelamento-cooperativo.md) | D33 | Cancelamento cooperativo do código de plugin (detalha D05) | Aceito |
 | [0034](0034-biblioteca-sem-runner.md) | D34 | ZapForge é uma biblioteca, sem runner; API pública por público | Aceito |
 | [0035](0035-papeis-nomeados-por-plugin.md) | D35 | Papéis custom nomeados, definidos por plugin (substitui parte de D12/D24) | Aceito |
+| [0036](0036-escopo-de-sessao.md) | D36 | Escopo de sessão no bot e no storage (detalha D04/D14) | Aceito |
+| [0037](0037-transport-por-fabrica.md) | D37 | Transport recebe as dependências do bot por fábrica (detalha D03) | Aceito |
