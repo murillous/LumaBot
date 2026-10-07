@@ -81,6 +81,43 @@ export {
   sanitize,
 } from '#middleware/sanitize.ts';
 export type { OutboundSendOptions, Sender, SendPriority } from '#outbound/types.ts';
+export {
+  assertPluginDefinition,
+  definePlugin,
+  manifestIssues,
+  PLUGIN_NAME_PATTERN,
+  PluginManifestError,
+} from '#plugin/define.ts';
+export {
+  createPluginHost,
+  DEFAULT_SETUP_TIMEOUT_MS,
+  DEFAULT_TEARDOWN_TIMEOUT_MS,
+  PluginConflictError,
+  type PluginContextFactory,
+  type PluginContextHandle,
+  type PluginHost,
+  type PluginHostOptions,
+  type PluginHostState,
+  PluginHostStateError,
+  type PluginReloadResult,
+} from '#plugin/host.ts';
+export { type OrderableManifest, PluginCycleError, sortPlugins } from '#plugin/order.ts';
+export {
+  describeSkipReason,
+  formatBootTable,
+  PluginLifecycleError,
+  type PluginPhase,
+  type PluginReportEntry,
+  type PluginSkipReason,
+} from '#plugin/report.ts';
+export { isValidRange, satisfies } from '#plugin/semver.ts';
+export {
+  type CollectPluginsOptions,
+  collectPlugins,
+  discoverPlugins,
+  PluginDiscoveryError,
+  type PluginEntry,
+} from '#plugin/sources.ts';
 export type {
   PluginContext,
   PluginDefinition,
@@ -142,3 +179,4 @@ export type {
   Unsubscribe,
 } from '#transport/types.ts';
 export type { Unsafe } from '#unsafe/types.ts';
+export { CORE_VERSION } from '#version.ts';
