@@ -61,3 +61,4 @@ o anterior, e o antigo passa a apontar para ele no Status.
 | [0039](0039-fila-de-saida-e-conexao.md) | D39 | Fila de saída pausa com a conexão caída e tem prazo por envio (detalha D19) | Aceito |
 | [0040](0040-acoes-do-transport-no-plugin.md) | D40 | Ações e leituras do transport chegam ao plugin pela API pública (detalha D16/D19) | Aceito |
 | [0041](0041-reload-em-cascata.md) | D41 | Reload de plugin em cascata pelos dependentes (detalha D17/D18) | Aceito |
+| [0042](0042-handler-lento-segura-o-chat.md) | D42 | Comando e listener lentos seguram o chat (detalha D05/D12) | Aceito |

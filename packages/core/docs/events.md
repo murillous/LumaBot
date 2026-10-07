@@ -114,6 +114,30 @@ ctx.events.on('message', { priority: -10 }, async (e) => {
 Um `claim()` depois de um `await` vale (e aparece no resultado do `emit`), mas os de prioridade
 menor provavelmente já começaram sem vê-lo. Cada emissão tem o próprio `claim()`.
 
+## Trabalho longo: solte o chat
+
+O bot só passa à próxima mensagem do chat quando todos os listeners da atual terminam ou estouram
+o prazo ([ADR 0042](../../../docs/adr/0042-handler-lento-segura-o-chat.md)). Um listener que
+espera um LLM por 15 s segura o chat por 15 s, inclusive os comandos. Se o trabalho não precisa de
+ordem com as mensagens seguintes, reivindique e responda sem `await`:
+
+```ts
+ctx.events.on('message', (e) => {
+  if (e.claimed || !mencionou(e.message)) return;
+  e.claim();
+  void (async () => {
+    const resposta = await llm(e.text, { signal: AbortSignal.timeout(60_000) });
+    await e.reply(resposta);
+  })().catch((err: unknown) => e.log.warn('resposta falhou', { err }));
+});
+```
+
+O contexto continua válido depois que o listener termina: `e.reply`, `e.signal` e o `ctx.send`
+do plugin funcionam até o plugin descer (reload ou `stop()`). Em troca, o trabalho solto sai do prazo do bus e do
+`plugin.error`: ponha o próprio timeout e dê destino ao erro. Duas execuções soltas do mesmo chat
+podem terminar fora de ordem. Quem guarda histórico por conversa e precisa de ordem mantém o
+`await`.
+
 ## Isolamento e `plugin.error`
 
 Exceção síncrona, rejeição ou timeout de um listener não afetam os demais: o bus monta um
