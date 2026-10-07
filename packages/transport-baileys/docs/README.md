@@ -134,6 +134,12 @@ Ficam no `AuthStateStore` da sessão (`storage.authState(session)`), no lugar do
 `BufferJSON` do Baileys. Cada `creds.update` grava as credenciais, em ordem; uma falha na gravação
 vai para o log em `error`.
 
+As chaves de criptografia passam por um cache em memória (o `makeCacheableSignalKeyStore` do
+Baileys, 5 minutos por chave): o Signal lê a sessão do remetente a cada mensagem, e o cache poupa
+essas leituras do storage. Toda gravação vai ao storage na hora. O cache é de cada tentativa de
+conexão: depois que o bot limpa a sessão, a próxima tentativa começa sem ele. Ele não vê o que
+outro processo grava na mesma sessão, o que o bot já impede ([ADR 0036](../../../docs/adr/0036-escopo-de-sessao.md)).
+
 O transport nunca apaga credenciais: quem limpa a sessão é o bot, na decisão `clean-session` da
 política de reconexão.
 
