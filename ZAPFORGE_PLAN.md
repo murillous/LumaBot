@@ -571,6 +571,8 @@ critérios de aceite. Toda issue herda os critérios gerais:
   - *Aceite*: teste que fixa a lista de exports de cada ponto de entrada
 - **#M1-18 Métricas das filas no `Bot`**
   - `bot.stats()` com as métricas da fila de entrada e da fila de saída (M1-4, M1-12)
+  - `bot.settled()` espera a fila de entrada, os listeners e a fila de saída esvaziarem juntos
+    (D44), base do `receive()` do `@zapforge/testing` (M2-3)
 - **#M1-19 Papéis custom nomeados** (D35)
   - `ctx.roles.define(nome, check)`, `role: nome` no comando, `Roles` por declaration merging
   - Avaliação no roteador com prazo e fail-closed; conflito de nome = erro no boot

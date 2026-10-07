@@ -65,6 +65,7 @@ const bot = createBot({
 | `config.describe(nome)` / `config.jsonSchema(nome)` | Config mascarada e JSON Schema, para o dashboard |
 | `plugins()` | Tabela de boot atual (`PluginReportEntry[]`, reflete reloads); vazia antes do `start()` |
 | `stats()` | Métricas das filas (`BotStats`): `inbound` e `outbound` (abaixo) |
+| `settled()` | Espera o bot terminar de processar o que recebeu (abaixo) |
 
 `bot.config` só funciona depois que o `start()` carregou os plugins; antes, lança
 `BotStateError`.
@@ -87,6 +88,42 @@ valores finais (as filas não zeram ao fechar).
 const { inbound, outbound } = bot.stats();
 log.info('filas', { recebidas: inbound.processed, enviadas: outbound.sent });
 ```
+
+### Esperar o bot assentar: `settled()`
+
+`await bot.settled()` resolve quando o bot terminou de processar o que recebeu: a fila de entrada
+está vazia, nenhum listener está em andamento e a fila de saída está vazia, **as três ao mesmo
+tempo**. Como uma realimenta a outra (o comando envia, o prazo de um listener estoura e vira
+`plugin.error`, cujo listener envia), a espera se repete até uma conferência achar as três
+ociosas. Serve para testes, inclusive para afirmar que **nada** foi enviado, sem `vi.waitFor`
+nem polling em `stats()` ([ADR 0044](../../../docs/adr/0044-espera-pelo-bot-assentar.md)).
+
+```ts
+transport.emit('message', mensagem('!ping'));
+await bot.settled();
+expect(transport.sent).toHaveLength(1);
+```
+
+O que entra e o que fica de fora:
+
+- **Entra**: mensagens e edições (fila de entrada, middlewares, comando, listeners), eventos
+  diretos (`reaction`, grupos, `contact.updated`; ADR 0038), `plugin.error`, `connection.*` e
+  tudo o que já está na fila de saída, inclusive em espera de re-tentativa.
+- **Fica de fora**: jobs do scheduler (não foram recebidos; dispare o job e espere o efeito dele)
+  e trabalho que o plugin agenda por conta própria (`setTimeout`, promise solta que só depois
+  envia).
+- **Fila de saída pausada** (conexão caída): espera a reconexão ou o `maxPauseMs` descartar o que
+  aguarda. Para não esperar, junte com um prazo seu (`Promise.race`).
+- **Durante o boot**: espera os plugins subirem e o que chegou nesse meio-tempo. Antes do
+  `start()` e depois do `stop()`, resolve na hora. Nunca rejeita.
+- Listener que estoura o prazo deixa de contar (ele segue em segundo plano, ADR 0042); um preso
+  segura o `settled()` até o prazo, 30 s por padrão.
+
+Com os intervalos padrão da fila de saída (300 ms global, 1000 ms por chat), cada envio espera de
+verdade: em teste, zere `outbound.globalIntervalMs` e `outbound.chatIntervalMs`.
+
+Só roda quando chamado: o caminho da mensagem não paga nada além de um contador por listener
+assíncrono.
 
 ## Fluxo de uma mensagem
 

@@ -88,6 +88,10 @@ export interface EventBus {
     ...extras: EmitExtras<E>
   ): Promise<EmitResult>;
   listenerCount(event: BotEventName): number;
+  /** Nenhum listener assíncrono em andamento (os que estouraram o prazo já não contam). */
+  readonly idle: boolean;
+  /** Resolve quando `idle`. Não impede novas emissões. */
+  onIdle(): Promise<void>;
 }
 
 export const DEFAULT_LISTENER_TIMEOUT_MS = 30_000;
@@ -148,6 +152,18 @@ export function createEventBus(options: EventBusOptions): EventBus {
   // `message` + `message:<tipo>` já mesclados por tipo; refeito só quando as assinaturas mudam.
   const messageEntries = new Map<MessageType, readonly Entry[]>();
   let seq = 0;
+  // Listeners assíncronos em andamento, para o `bot.settled()`: eventos diretos e `plugin.error`
+  // são emitidos sem ninguém esperar, então só o barramento sabe que ainda há trabalho.
+  let running = 0;
+  let idleWaiters: (() => void)[] = [];
+
+  function settle(): void {
+    running--;
+    if (running > 0 || idleWaiters.length === 0) return;
+    const waiters = idleWaiters;
+    idleWaiters = [];
+    for (const resolve of waiters) resolve();
+  }
 
   function changed(event: string, entries: readonly Entry[]): void {
     if (entries.length === 0) byEvent.delete(event);
@@ -228,12 +244,14 @@ export function createEventBus(options: EventBusOptions): EventBus {
     result: PromiseLike<unknown>,
     deadline: Deadline,
   ): Promise<boolean> {
+    running++;
     return new Promise<boolean>((resolve) => {
       let settled = false;
       const disarm = (): void => {
         settled = true;
         clearTimeout(timer);
         armed.delete(disarm);
+        settle();
       };
       const timer = setTimeout(() => {
         disarm();
@@ -351,6 +369,15 @@ export function createEventBus(options: EventBusOptions): EventBus {
 
     listenerCount(event) {
       return byEvent.get(event)?.length ?? 0;
+    },
+
+    get idle() {
+      return running === 0;
+    },
+
+    onIdle() {
+      if (running === 0) return Promise.resolve();
+      return new Promise((resolve) => idleWaiters.push(resolve));
     },
   };
 }
