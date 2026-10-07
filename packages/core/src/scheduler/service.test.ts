@@ -440,6 +440,116 @@ describe('falhas', () => {
   });
 });
 
+type AnyJobs = Collection<{ readonly [key: string]: JsonValue }>;
+
+/** Storage cuja coleção de jobs passa por `wrap`: espiona ou quebra `find`/`delete`. */
+function wrappedStorage(wrap: (jobs: AnyJobs) => Partial<AnyJobs>): StoragePort {
+  const real = kernelStorage(port, 'scheduler').collection('jobs');
+  return {
+    ...port,
+    forNamespace(namespace) {
+      const storage = port.forNamespace(namespace);
+      return {
+        kv: storage.kv,
+        collection: <T extends { readonly [key: string]: JsonValue }>() =>
+          ({ ...real, ...wrap(real) }) as unknown as Collection<T>,
+      };
+    },
+  };
+}
+
+describe('concorrência e paginação', () => {
+  it('limita os handlers simultâneos e entrega todos os vencidos, em ordem de fireAt', async () => {
+    const service = create({ maxConcurrentJobs: 5 });
+    const scheduler = service.forPlugin('p');
+    let running = 0;
+    let peak = 0;
+    const done: number[] = [];
+    scheduler.on('job', async (payload) => {
+      running++;
+      peak = Math.max(peak, running);
+      await new Promise((r) => setTimeout(r, 20));
+      running--;
+      done.push(payload as number);
+    });
+    for (let i = 0; i < 300; i++) await scheduler.at(i, 'job', i);
+    service.start();
+
+    await vi.advanceTimersByTimeAsync(20 * 60 + 100);
+
+    expect(peak).toBe(5);
+    expect(done).toHaveLength(300);
+    expect(done.slice(0, 5)).toEqual([0, 1, 2, 3, 4]);
+    expect(await storedJobs()).toEqual([]);
+  });
+
+  it('lê os vencidos em páginas, nunca a coleção inteira', async () => {
+    const limits: (number | undefined)[] = [];
+    const service = create({
+      maxConcurrentJobs: 5,
+      storage: wrappedStorage((jobs) => ({
+        find: (query) => {
+          limits.push(query?.limit);
+          return jobs.find(query);
+        },
+      })),
+    });
+    const scheduler = service.forPlugin('p');
+    scheduler.on('job', () => new Promise((r) => setTimeout(r, 10)));
+    for (let i = 0; i < 300; i++) await scheduler.at(0, 'job');
+    service.start();
+    await vi.advanceTimersByTimeAsync(10 * 60 + 100);
+
+    expect(limits.length).toBeGreaterThan(0);
+    expect(limits.every((limit) => limit !== undefined && limit <= 100)).toBe(true);
+  });
+
+  it('vencidos sem handler (plugin desligado) não travam os dos outros plugins', async () => {
+    const service = create({ maxConcurrentJobs: 5 });
+    const off = service.forPlugin('desligado');
+    for (let i = 0; i < 250; i++) await off.at(0, 'job');
+    const handler = vi.fn();
+    service.forPlugin('p').on('job', handler);
+    await service.forPlugin('p').at(1, 'job');
+    service.start();
+    await settle();
+
+    expect(handler).toHaveBeenCalledOnce();
+  });
+
+  it('remoção que falha depois do handler rearma o loop: o job é entregue de novo', async () => {
+    let failures = 1;
+    const service = create({
+      storageRetryMs: 1000,
+      storage: wrappedStorage((jobs) => ({
+        delete: async (target) => {
+          if (failures > 0) {
+            failures--;
+            throw new Error('storage fora');
+          }
+          return jobs.delete(target);
+        },
+      })),
+    });
+    const handler = vi.fn();
+    service.forPlugin('p').on('j', handler);
+    await service.forPlugin('p').at(T0, 'j');
+    service.start();
+    await settle();
+    expect(handler).toHaveBeenCalledOnce();
+    expect(storageErrors).toHaveLength(1);
+
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(handler).toHaveBeenCalledTimes(2);
+    expect(await storedJobs()).toEqual([]);
+  });
+
+  it('recusa maxConcurrentJobs inválido', () => {
+    expect(() => create({ maxConcurrentJobs: 0 })).toThrow(RangeError);
+    expect(() => create({ maxConcurrentJobs: 1.5 })).toThrow(RangeError);
+  });
+});
+
 describe('validação de at', () => {
   it('recusa horário inválido', async () => {
     const scheduler = create().forPlugin('p');
