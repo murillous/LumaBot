@@ -19,7 +19,7 @@ Só `transport` é obrigatório; `createBot({ transport })` sobe um bot sem plug
 
 | Opção | Padrão | O que faz |
 | --- | --- | --- |
-| `transport` | — | O canal (`Transport`) |
+| `transport` | — | O canal: um `Transport` pronto ou a fábrica `(deps) => Transport` ([Transport por fábrica](#transport-por-fábrica)) |
 | `session` | `'default'` | Sessão (o número) que o bot opera; kebab-case. Escopo de tudo o que ele persiste ([Sessão](#sessão)) |
 | `storage` | memória, com aviso no log | `StoragePort` de plugins, scheduler e overrides de config. O bot o fecha no `stop()` (o último a parar, se vários o dividem) |
 | `plugins` | `[]` | Plugins da config (pacotes npm que o app importa) |
@@ -319,7 +319,8 @@ O transport avisa as quedas por `connection.status`; a `ReconnectionPolicy`
 | --- | --- |
 | `reconnect` | espera `delayMs` e chama `transport.connect()` |
 | `clean-session` com `clearSession` | espera `delayMs`, chama `clearSession()` e reconecta |
-| `clean-session` sem `clearSession` | loga em `error` que a sessão precisa de novo pareamento e para o bot (`stop()`) |
+| `clean-session`, transport por fábrica, sem `clearSession` | espera `delayMs`, limpa o `auth` que a fábrica recebeu e reconecta |
+| `clean-session`, instância pronta, sem `clearSession` | loga em `error` que a sessão precisa de novo pareamento e para o bot (`stop()`) |
 | `stop` (motivo `replaced`) | loga em `error` que outra conexão assumiu a sessão e para o bot, sem reconectar nem limpar |
 
 - Um `connect()` de reconexão que falha conta como queda (`connection-lost`): a política decide
@@ -332,15 +333,18 @@ O transport avisa as quedas por `connection.status`; a `ReconnectionPolicy`
 
 ```ts
 createBot({
-  transport,
+  transport: baileys({ pairing: 'qr' }), // fábrica: o clean-session limpa o auth sozinho
   storage,
   reconnection: {
     maxReconnectAttempts: 5,
     backoff: (attempt) => Math.min(1_000 * 2 ** attempt, 30_000),
-    clearSession: () => storage.authState('default').clear(), // o mesmo nome do `session`
   },
 });
 ```
+
+Com um transport pronto (instância), o bot não sabe onde estão as credenciais: passe
+`clearSession: () => storage.authState('<sessão>').clear()`. Com fábrica, `clearSession`
+substitui a limpeza padrão (ex.: para também apagar arquivos do adapter).
 
 `replaced` é o caso de dois processos com o mesmo número: reconectar derrubaria a outra conexão,
 que derrubaria esta, em laço. O bot para e deixa a outra seguir.
@@ -454,8 +458,33 @@ const suporte = createBot({ transport: transportSuporte, storage, session: 'supo
   `BotConfigError`, sem afetar o primeiro. Depois do `stop()` a sessão fica livre.
 - Entre processos o storage não sabe quem está vivo; ali quem protege é o transport, com
   `DisconnectReason` `'replaced'` ([Reconexão](#reconexão)).
-- O auth state do transport segue o mesmo nome: `storage.authState('<sessão>')`.
+- O auth state do transport segue o mesmo nome: `storage.authState('<sessão>')`, que o transport
+  por fábrica já recebe pronto em `deps.auth`.
 - Um storage compartilhado só fecha quando o último bot que o usa para.
+
+## Transport por fábrica
+
+`transport` aceita uma fábrica `(deps: TransportDeps) => Transport`
+([ADR 0037](../../../docs/adr/0037-transport-por-fabrica.md)). É a forma dos adapters oficiais:
+o app escreve `transport: baileys({ ... })` e o bot entrega ao adapter o que é dele, sem o app
+ligar transport e storage à mão nem repetir a sessão.
+
+| `deps` | O que é |
+| --- | --- |
+| `session` | A `session` do bot |
+| `auth` | `storage.authState(session)` |
+| `log` | Logger do bot com `{ transport: name }`, com a censura de segredos |
+
+- O `createBot` chama a fábrica **uma vez**, na hora. Ela só monta o objeto: a conexão começa no
+  `connect()`, que o `start()` chama. Se a fábrica lança, o `createBot` lança `BotConfigError`
+  com o erro original em `cause`.
+- O logger real só nasce no `start()`; até lá, o `deps.log` descarta as linhas. Depois, a mesma
+  referência passa a escrever no logger do bot: o adapter pode guardá-la no construtor.
+- Com fábrica, o `clean-session` da reconexão limpa o `deps.auth` sem configuração
+  ([Reconexão](#reconexão)).
+- Uma instância pronta continua aceita (testes, adapters que não precisam do bot).
+
+Como escrever um adapter com fábrica: [Transport](transport.md#adapter-com-fábrica).
 
 ## Várias instâncias
 

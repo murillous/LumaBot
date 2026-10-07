@@ -42,6 +42,7 @@ export type {
   GroupParticipant,
   Presence,
   Transport,
+  TransportDeps,
   TransportEventHandler,
   TransportEventName,
   TransportEvents,

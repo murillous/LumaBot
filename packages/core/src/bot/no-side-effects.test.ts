@@ -74,3 +74,16 @@ it('createBot() não tem side effect até o start()', async () => {
   });
   expectNoSideEffect(before);
 });
+
+// ADR 0037: a fábrica do transport roda no createBot, e o logger que ela recebe não pode nascer ali.
+it('createBot() com transport por fábrica não tem side effect até o start()', async () => {
+  const { createBot } = await import('@zapforge/core');
+  const before = snapshot();
+  createBot({
+    transport: ({ log }) => {
+      log.info('montando');
+      return new TestTransport([]);
+    },
+  });
+  expectNoSideEffect(before);
+});
