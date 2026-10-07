@@ -79,6 +79,8 @@ export interface MessageListenerFields<M extends Message = Message> {
   readonly text: string | null;
   /** Responde no chat da mensagem, citando-a, pela fila de saída. */
   readonly reply: Reply;
+  /** Reage à mensagem (ver `BotMessageContext.react`). */
+  react(emoji: string | null): Promise<void>;
   /** Logger com `plugin` e `chatId` no contexto. */
   readonly log: Logger;
 }

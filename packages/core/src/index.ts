@@ -23,6 +23,7 @@ export type {
   AcceptSpec,
   CommandContext,
   CommandDefinition,
+  CommandInfo,
   CommandRejection,
   CommandRole,
   RejectContext,
@@ -67,6 +68,7 @@ export type {
   PluginErrorEvent,
   SubscribeOptions,
 } from '#events/types.ts';
+export type { Groups } from '#groups/groups.ts';
 export { createLogger, type LogDestination, type LoggerOptions } from '#logger/logger.ts';
 export { createSecretSet, type SecretSet, type SecretSource } from '#logger/secrets.ts';
 export type { LogFields, Logger, LogLevel } from '#logger/types.ts';
@@ -106,6 +108,8 @@ export {
 } from '#middleware/sanitize.ts';
 export { OutboundQueueError, type OutboundQueueStats } from '#outbound/queue.ts';
 export type {
+  ActionOptions,
+  Outbound,
   OutboundSendOptions,
   Reply,
   ReplyAudioOptions,
@@ -162,10 +166,13 @@ export { type Capability, UnsupportedError } from '#transport/capabilities.ts';
 export type {
   ConnectionStatus,
   DisconnectReason,
+  GroupMetadata,
+  GroupParticipant,
   GroupParticipantAction,
   MediaInput,
   MessageKey,
   OutgoingContent,
+  Presence,
   SendOptions,
   Transport,
   Unsubscribe,

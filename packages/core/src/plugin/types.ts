@@ -3,11 +3,13 @@
 // (M1-16). Os campos do contexto vêm dos contratos de cada módulo.
 
 import type { z } from 'zod';
-import type { CommandDefinition } from '#commands/command.ts';
+import type { CommandDefinition, CommandInfo } from '#commands/command.ts';
 import type { RoleCheck, RoleName } from '#commands/roles.ts';
 import type { EventSubscriber } from '#events/types.ts';
+import type { Groups } from '#groups/groups.ts';
 import type { Logger } from '#logger/types.ts';
-import type { Sender } from '#outbound/types.ts';
+import type { Contact } from '#message/types.ts';
+import type { Outbound } from '#outbound/types.ts';
 import type { Scheduler } from '#scheduler/types.ts';
 import type { ServiceAccess } from '#services/types.ts';
 import type { PluginStorage } from '#storage/types.ts';
@@ -53,11 +55,15 @@ export interface PluginContext<
   /**
    * Aborta quando o contexto é descartado: no `teardown`/reload, ou quando o `setup` falha ou
    * estoura o prazo (`reason` = o erro do `setup`). Repasse ao trabalho de fundo do plugin
-   * (ADR 0033). Descartado o contexto, `send`, `storage` e `scheduler.at`/`cancel` rejeitam
-   * com `ContextExpiredError`.
+   * (ADR 0033). Descartado o contexto, `send` (com as ações), `groups`, `storage` e
+   * `scheduler.at`/`cancel` rejeitam com `ContextExpiredError`.
    */
   readonly signal: AbortSignal;
-  readonly commands: { add(definition: CommandDefinition): void };
+  readonly commands: {
+    add(definition: CommandDefinition): void;
+    /** Comandos registrados por todos os plugins carregados, na ordem de registro (ADR 0040). */
+    list(): CommandInfo[];
+  };
   /**
    * Papéis custom (ADR 0035): `define('moderador', check)` deixa qualquer plugin exigir
    * `role: 'moderador'`. O nome vem de `Roles` (declaration merging). Nome reservado lança
@@ -68,7 +74,20 @@ export interface PluginContext<
   readonly services: ServiceAccess;
   readonly storage: PluginStorage;
   readonly scheduler: Scheduler;
-  readonly send: Sender;
+  /**
+   * Envio e ações sobre mensagens e chats (`react`, `edit`, `delete`, `presence`), todos pela
+   * fila de saída (ADR 0040).
+   */
+  readonly send: Outbound;
+  /** Metadados e participantes de grupo (ADR 0040). */
+  readonly groups: Groups;
+  /**
+   * O que o transport suporta. Para recurso opcional: confira aqui em vez de exigir em
+   * `requires` (ex.: reagir se der, responder em texto se não).
+   */
+  readonly capabilities: ReadonlySet<Capability>;
+  /** Contato da própria sessão; `null` até a primeira conexão aberta. */
+  readonly self: Contact | null;
   readonly unsafe: Unsafe;
 }
 

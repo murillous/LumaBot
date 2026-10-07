@@ -80,6 +80,7 @@ nenhum prazo resolve isso.
 | `group.joined` / `group.left` | `{ groupId }` |
 | `group.participants` | `{ groupId, action, participants, actor }` |
 | `group.updated` | `{ groupId }` + só os campos alterados |
+| `contact.updated` | `{ id }` + só os campos alterados (`name?`, `phone?`) |
 | `connection.status` / `connection.qr` | `ConnectionStatus` / `{ qr }` |
 | `plugin.error` | `PluginErrorEvent`: `{ plugin, phase, event, error, timedOut }` |
 

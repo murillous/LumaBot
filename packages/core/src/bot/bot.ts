@@ -11,6 +11,7 @@ import type { BotMessageContext } from '#context.ts';
 import { ContextExpiredError, settleWithin } from '#deadline.ts';
 import { createEventBus, type EmittableEventName } from '#events/bus.ts';
 import type { BotEvents, ListenerExtras, PluginErrorEvent } from '#events/types.ts';
+import { createGroups } from '#groups/groups.ts';
 import { createDeferredLogger } from '#logger/deferred.ts';
 import { createLogger, createNoopLogger } from '#logger/logger.ts';
 import { createSecretSet, type SecretSet } from '#logger/secrets.ts';
@@ -21,12 +22,12 @@ import { ignoreSelf } from '#middleware/ignore-self.ts';
 import { type Middleware, MiddlewarePipeline } from '#middleware/pipeline.ts';
 import { type RateLimitOptions, rateLimit } from '#middleware/rate-limit.ts';
 import { type SanitizeOptions, sanitize } from '#middleware/sanitize.ts';
+import { createOutbound, enqueueAction } from '#outbound/actions.ts';
 import {
   OutboundQueue,
   type OutboundQueueOptions,
   type OutboundQueueStats,
 } from '#outbound/queue.ts';
-import type { Sender } from '#outbound/types.ts';
 import { PLUGIN_NAME_PATTERN } from '#plugin/define.ts';
 import { createPluginHost, type PluginHost, type PluginReloadResult } from '#plugin/host.ts';
 import type { PluginLifecycleError, PluginReportEntry } from '#plugin/report.ts';
@@ -38,7 +39,7 @@ import { createServiceRegistry } from '#services/registry.ts';
 import { createMemoryStorage } from '#storage/memory.ts';
 import { DEFAULT_SESSION, sessionStorage } from '#storage/namespace.ts';
 import type { StoragePort } from '#storage/types.ts';
-import { hasCapability } from '#transport/capabilities.ts';
+import { type Capability, hasCapability } from '#transport/capabilities.ts';
 import type { Transport, TransportDeps } from '#transport/types.ts';
 import { createUnsafeAccess } from '#unsafe/access.ts';
 import {
@@ -230,6 +231,7 @@ type DirectEvent = Extract<
   | 'group.left'
   | 'group.participants'
   | 'group.updated'
+  | 'contact.updated'
 >;
 
 /** O que os filtros do ADR 0038 leem de um evento; `chatId: null` = não passa pelo `chatFilter`. */
@@ -250,6 +252,8 @@ const DIRECT_EVENTS: { readonly [E in DirectEvent]: (payload: BotEvents[E]) => E
   'group.left': () => ALWAYS_PASSES,
   'group.participants': (payload) => ({ chatId: payload.groupId, fromMe: false }),
   'group.updated': (payload) => ({ chatId: payload.groupId, fromMe: false }),
+  // Contato não é de um chat: bloquear um chat não esconde quem está nele de outros chats.
+  'contact.updated': () => ALWAYS_PASSES,
 };
 
 const MIDDLEWARE_PRIORITY = { ignoreSelf: 1000, chatFilter: 900, rateLimit: 800, sanitize: 700 };
@@ -329,10 +333,11 @@ export function createBot(config: BotConfig): Bot {
     ...config.outbound,
     transport,
   });
-  // O plugin vê só `send`: a fila (close, stats) fica com o kernel.
-  const send: Sender = {
-    send: (chatId, content, options) => outbound.send(chatId, content, options),
-  };
+  // O plugin vê o envio e as ações (ADR 0040): a fila (close, stats) fica com o kernel.
+  const send = createOutbound(outbound, transport);
+  const groups = createGroups(transport, enqueueAction(outbound, transport));
+  // Cópia: o plugin recebe um `ReadonlySet`, mas um cast não deve alterar o do transport.
+  const capabilities: ReadonlySet<Capability> = new Set(transport.capabilities);
   const scheduler = createSchedulerService({
     storage: scoped,
     jobTimeoutMs: timeouts.jobMs,
@@ -607,6 +612,13 @@ export function createBot(config: BotConfig): Bot {
       storage: scoped,
       scheduler,
       send,
+      groups,
+      transport: {
+        capabilities,
+        get self() {
+          return transport.self;
+        },
+      },
       unsafe: createUnsafeAccess({ transport, log }),
       commandTimeoutMs,
       onRoleError: (event) => {

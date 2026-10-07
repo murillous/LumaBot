@@ -51,6 +51,7 @@ Os eventos chegam já normalizados (`TransportEvents`):
 | `group.joined` / `group.left` | `{ groupId }` (o bot entrou/saiu) |
 | `group.participants` | `{ groupId, action, participants, actor }` |
 | `group.updated` | `{ groupId, subject?, description?, announce?, restrict? }` |
+| `contact.updated` | `{ id, name?, phone? }` (nome ou telefone de um contato mudou; só os campos alterados) |
 | `connection.status` | `{ status: 'connecting' \| 'open' }` ou `{ status: 'closed', reason, error }` |
 | `connection.qr` | `{ qr }` |
 

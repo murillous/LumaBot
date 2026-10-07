@@ -2,15 +2,18 @@
 // nome do plugin, e desfaz tudo no `dispose`. É a única peça que conhece todos os serviços; o
 // host de plugins só recebe a fábrica.
 
-import type { CommandDefinition } from '#commands/command.ts';
+import type { CommandDefinition, CommandInfo } from '#commands/command.ts';
+import type { RegisteredCommand } from '#commands/registry.ts';
 import { type RoleCheck, RoleTimeoutError } from '#commands/roles.ts';
 import type { CommandRouter } from '#commands/router.ts';
 import type { PluginConfigs } from '#config/plugin-configs.ts';
 import { ContextExpiredError, Deadline, ExecutionTimeoutError, settleWithin } from '#deadline.ts';
 import type { EventBus } from '#events/bus.ts';
 import type { BotEventName, EventSubscriber, PluginErrorEvent } from '#events/types.ts';
+import type { Groups } from '#groups/groups.ts';
 import type { Logger } from '#logger/types.ts';
-import type { OutboundSendOptions, Sender } from '#outbound/types.ts';
+import type { Contact } from '#message/types.ts';
+import type { Outbound } from '#outbound/types.ts';
 import { type PluginContextFactory, PluginHostStateError } from '#plugin/host.ts';
 import type { PluginContext } from '#plugin/types.ts';
 import type { SchedulerService } from '#scheduler/service.ts';
@@ -26,7 +29,8 @@ import type {
   PluginStorage,
   StoragePort,
 } from '#storage/types.ts';
-import type { OutgoingContent, Unsubscribe } from '#transport/types.ts';
+import type { Capability } from '#transport/capabilities.ts';
+import type { Unsubscribe } from '#transport/types.ts';
 import type { UnsafeAccess } from '#unsafe/access.ts';
 import {
   type CommandViews,
@@ -43,7 +47,13 @@ export interface PluginContextDeps {
   readonly services: ServiceRegistry;
   readonly storage: StoragePort;
   readonly scheduler: SchedulerService;
-  readonly send: Sender;
+  readonly send: Outbound;
+  readonly groups: Groups;
+  /** Capabilities e contato da sessão, lidos do transport a cada acesso. */
+  readonly transport: {
+    readonly capabilities: ReadonlySet<Capability>;
+    readonly self: Contact | null;
+  };
   readonly unsafe: UnsafeAccess;
   /** Prazo do `run` e do `onReject` de cada comando, em ms (ADR 0005). */
   readonly commandTimeoutMs: number;
@@ -143,6 +153,7 @@ export function createPluginContextFactory(deps: PluginContextDeps): PluginConte
             wrapCommand(name, definition, commandViews, lifetime, deps),
           );
         },
+        list: () => deps.router.registry.list().map(commandInfo),
       },
       roles: {
         define(role, check) {
@@ -179,12 +190,18 @@ export function createPluginContextFactory(deps: PluginContextDeps): PluginConte
           return scheduler.on(job, handler);
         },
       } satisfies Scheduler,
-      send: {
-        send: live(
-          'send',
-          (chatId: string, content: OutgoingContent, options?: OutboundSendOptions) =>
-            deps.send.send(chatId, content, options),
+      send: liveOutbound(deps.send, live),
+      groups: {
+        metadata: live('groups.metadata', (groupId: string) => deps.groups.metadata(groupId)),
+        updateParticipants: live(
+          'groups.updateParticipants',
+          (...args: Parameters<Groups['updateParticipants']>) =>
+            deps.groups.updateParticipants(...args),
         ),
+      } satisfies Groups,
+      capabilities: deps.transport.capabilities,
+      get self(): Contact | null {
+        return deps.transport.self;
       },
       unsafe: deps.unsafe.forPlugin(plugin),
     };
@@ -210,6 +227,32 @@ type Live = <A extends unknown[], R>(
   operation: string,
   fn: (...args: A) => Promise<R>,
 ) => (...args: A) => Promise<R>;
+
+/** Comando como os plugins o veem: os dados da definição, sem `run` nem `onReject`. */
+function commandInfo({ plugin, definition }: RegisteredCommand): CommandInfo {
+  return {
+    plugin,
+    name: definition.name,
+    aliases: [...(definition.aliases ?? [])],
+    description: definition.description ?? null,
+    role: definition.role ?? 'everyone',
+  };
+}
+
+/** `ctx.send` com o envio e cada ação recusados depois do `dispose`. */
+function liveOutbound(outbound: Outbound, live: Live): Outbound {
+  return {
+    send: live('send', (...args: Parameters<Outbound['send']>) => outbound.send(...args)),
+    react: live('send.react', (...args: Parameters<Outbound['react']>) => outbound.react(...args)),
+    edit: live('send.edit', (...args: Parameters<Outbound['edit']>) => outbound.edit(...args)),
+    delete: live('send.delete', (...args: Parameters<Outbound['delete']>) =>
+      outbound.delete(...args),
+    ),
+    presence: live('send.presence', (...args: Parameters<Outbound['presence']>) =>
+      outbound.presence(...args),
+    ),
+  };
+}
 
 /**
  * Storage do plugin com cada operação (KV e coleções) recusada depois do `dispose`. A checagem é

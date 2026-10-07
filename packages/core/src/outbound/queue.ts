@@ -9,7 +9,7 @@ import type {
   SendOptions,
   Transport,
 } from '#transport/types.ts';
-import type { OutboundSendOptions, Sender, SendPriority } from './types.ts';
+import type { ActionOptions, OutboundSendOptions, Sender, SendPriority } from './types.ts';
 
 /** O que a fila usa do transport. */
 export type OutboundTransport = Pick<Transport, 'name' | 'capabilities' | 'send' | 'sendPresence'>;
@@ -182,12 +182,16 @@ class Fifo<T> {
 }
 
 interface Job {
-  readonly content: OutgoingContent;
-  readonly options: SendOptions | undefined;
+  /** A chamada ao transport: o envio ou a ação de `enqueue`. */
+  readonly run: () => Promise<unknown>;
+  /** Conteúdo do envio, para a humanização; `null` nas ações. */
+  readonly content: OutgoingContent | null;
+  /** O que é a chamada, para a mensagem do prazo estourado. */
+  readonly what: string;
   readonly priority: PriorityIndex;
   /** Tentativas já feitas. */
   attempts: number;
-  readonly resolve: (key: MessageKey) => void;
+  readonly resolve: (value: unknown) => void;
   readonly reject: (error: unknown) => void;
 }
 
@@ -318,10 +322,42 @@ export class OutboundQueue implements Sender {
     content: OutgoingContent,
     options?: OutboundSendOptions,
   ): Promise<MessageKey> {
+    let sendOptions: SendOptions | undefined;
+    if (options !== undefined) {
+      const { priority: _priority, ...rest } = options;
+      sendOptions = rest;
+    }
+    return this.#push(chatId, options?.priority, {
+      run: () => this.#transport.send(chatId, content, sendOptions),
+      content,
+      what: `envio para ${chatId}`,
+      // Capability ausente nunca vira tentativa: falha já, sem ocupar a fila.
+      check: () => assertCanSend(this.#transport, content, sendOptions),
+    }) as Promise<MessageKey>;
+  }
+
+  /**
+   * Enfileira uma ação que gera tráfego sem ser envio (reação, edição, presença, participantes de
+   * grupo; ADR 0040), com as mesmas regras do envio: intervalos, prioridade, retry, pausa e prazo.
+   * Sem humanização. Quem chama confere a capability antes: a fila não conhece a ação.
+   */
+  enqueue<T>(chatId: string, action: () => Promise<T>, options?: ActionOptions): Promise<T> {
+    return this.#push(chatId, options?.priority, {
+      run: action,
+      content: null,
+      what: `ação em ${chatId}`,
+    }) as Promise<T>;
+  }
+
+  #push(
+    chatId: string,
+    requested: SendPriority | undefined,
+    spec: Pick<Job, 'run' | 'content' | 'what'> & { readonly check?: () => void },
+  ): Promise<unknown> {
     if (this.#closed) {
       this.#dropped++;
       return Promise.reject(
-        new OutboundQueueError('closed', `fila de saída fechada: envio para ${chatId} recusado`),
+        new OutboundQueueError('closed', `fila de saída fechada: ${spec.what} recusado`),
       );
     }
     if (this.#offline) {
@@ -329,22 +365,16 @@ export class OutboundQueue implements Sender {
       return Promise.reject(
         new OutboundQueueError(
           'disconnected',
-          `conexão caída há mais de ${this.#maxPauseMs} ms: envio para ${chatId} recusado`,
+          `conexão caída há mais de ${this.#maxPauseMs} ms: ${spec.what} recusado`,
         ),
       );
     }
-    const priority = PRIORITY_INDEX.get(options?.priority ?? 'normal');
+    const priority = PRIORITY_INDEX.get(requested ?? 'normal');
     if (priority === undefined) {
-      return Promise.reject(new TypeError(`prioridade inválida: ${String(options?.priority)}`));
-    }
-    let sendOptions: SendOptions | undefined;
-    if (options !== undefined) {
-      const { priority: _priority, ...rest } = options;
-      sendOptions = rest;
+      return Promise.reject(new TypeError(`prioridade inválida: ${String(requested)}`));
     }
     try {
-      // Capability ausente nunca vira tentativa: falha já, sem ocupar a fila.
-      assertCanSend(this.#transport, content, sendOptions);
+      spec.check?.();
     } catch (error) {
       return Promise.reject(error);
     }
@@ -354,13 +384,21 @@ export class OutboundQueue implements Sender {
       return Promise.reject(
         new OutboundQueueError(
           'full',
-          `fila de saída cheia (${this.#maxPending} aguardando com prioridade ${String(options?.priority ?? 'normal')}): envio para ${chatId} recusado`,
+          `fila de saída cheia (${this.#maxPending} aguardando com prioridade ${requested ?? 'normal'}): ${spec.what} recusado`,
         ),
       );
     }
 
-    return new Promise<MessageKey>((resolve, reject) => {
-      const job: Job = { content, options: sendOptions, priority, attempts: 0, resolve, reject };
+    return new Promise<unknown>((resolve, reject) => {
+      const job: Job = {
+        run: spec.run,
+        content: spec.content,
+        what: spec.what,
+        priority,
+        attempts: 0,
+        resolve,
+        reject,
+      };
       const chat = this.#chatFor(chatId);
       chat.jobs[priority].push(job);
       chat.pending++;
@@ -546,13 +584,12 @@ export class OutboundQueue implements Sender {
   async #execute(chat: ChatState, job: Job): Promise<void> {
     job.attempts++;
     try {
-      if (this.#humanize !== null) await this.#simulate(chat.id, job.content, this.#humanize);
-      const key = await this.#withTimeout(
-        this.#transport.send(chat.id, job.content, job.options),
-        `envio para ${chat.id}`,
-      );
+      if (this.#humanize !== null && job.content !== null) {
+        await this.#simulate(chat.id, job.content, this.#humanize);
+      }
+      const result = await this.#withTimeout(job.run(), job.what);
       this.#sent++;
-      job.resolve(key);
+      job.resolve(result);
     } catch (error) {
       this.#handleFailure(chat, job, error);
     }
