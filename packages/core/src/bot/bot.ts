@@ -197,6 +197,14 @@ export interface Bot {
    * zeros antes do `start()`, valores finais depois do `stop()`. Devolve uma cópia.
    */
   stats(): BotStats;
+  /**
+   * Resolve quando o bot terminou de processar o que recebeu: fila de entrada vazia, nenhum
+   * listener em andamento (inclusive de eventos diretos e `plugin.error`) e fila de saída vazia,
+   * as três ao mesmo tempo (ADR 0044). Chamado durante o boot, espera o boot assentar. Não
+   * espera jobs do scheduler; com a fila de saída pausada (conexão caída), espera a reconexão ou
+   * o `maxPauseMs`. Resolve na hora antes do `start()` e depois do `stop()`; nunca rejeita.
+   */
+  settled(): Promise<void>;
 }
 
 export interface BotStats {
@@ -809,6 +817,21 @@ export function createBot(config: BotConfig): Bot {
     }
   }
 
+  /**
+   * As três fontes de trabalho se realimentam (o comando envia, o envio rejeitado vira
+   * `plugin.error`, o listener envia de novo): repete a espera até as três estarem ociosas na
+   * mesma conferência síncrona. Só roda quando chamado: o caminho da mensagem não paga nada.
+   */
+  async function settled(): Promise<void> {
+    // Eventos diretos que chegam no boot esperam o `readyPromise` fora do barramento.
+    if (state === 'starting') await readyPromise;
+    while (!(inbound.stats().activeChats === 0 && bus.idle && outbound.stats().activeChats === 0)) {
+      await inbound.onIdle();
+      await bus.onIdle();
+      await outbound.onIdle();
+    }
+  }
+
   const pluginConfigs: BotPluginConfigs = {
     setOverrides: (plugin, overrides) =>
       requireConfigs('setOverrides').setOverrides(plugin, overrides),
@@ -837,6 +860,8 @@ export function createBot(config: BotConfig): Bot {
     stats(): BotStats {
       return { inbound: inbound.stats(), outbound: outbound.stats() };
     },
+
+    settled,
 
     start(): Promise<void> {
       switch (state) {
