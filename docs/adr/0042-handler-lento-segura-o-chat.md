@@ -50,7 +50,9 @@ Alternativas consideradas:
 
 - A ordem por chat continua garantida para comandos e listeners, como no legacy.
 - O prazo (30 s, ou o `timeoutMs` do handler) é o teto de quanto um handler preso segura o chat. Num grupo com mais de 100
-  mensagens nesse intervalo, as excedentes são perdidas.
+  mensagens nesse intervalo, as excedentes são perdidas. Middleware do app não tinha prazo e
+  escapava desse teto; o [ADR 0043](0043-prazo-de-middleware.md) deu um a ele
+  (`timeouts.middlewareMs`).
 - Trabalho solto sai do prazo do bus e do `plugin.error`: o plugin responde pelo próprio timeout
   (`AbortSignal.timeout`) e pelo destino do erro. Duas execuções soltas do mesmo chat podem
   terminar fora de ordem.

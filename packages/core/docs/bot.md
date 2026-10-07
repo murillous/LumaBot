@@ -36,7 +36,7 @@ Só `transport` é obrigatório; `createBot({ transport })` sobe um bot sem plug
 | `inbound` | `{ maxPendingPerChat: 100 }` | [Fila de entrada](inbound-queue.md) |
 | `outbound` | padrões da fila | [Fila de saída](outbound-queue.md): taxa, `maxPending`, `retry`, `humanize`, `maxPauseMs`, `sendTimeoutMs` |
 | `reconnection` | ligada | Opções da `ReconnectionPolicy` + `clearSession`; `false` desliga ([Reconexão](#reconexão)) |
-| `timeouts` | `setupMs` 10000, `teardownMs` 5000, `commandMs` 30000, `listenerMs` 30000, `jobMs` 30000 | Prazos do código de plugin |
+| `timeouts` | `setupMs` 10000, `teardownMs` 5000, `commandMs` 30000, `listenerMs` 30000, `jobMs` 30000, `middlewareMs` 30000 | Prazos do código de plugin e dos middlewares |
 | `shutdown` | `hookTimeoutMs` 5000, `timeoutMs` 15000 | Prazos dos ganchos de parada |
 
 Opção inválida (prefixo vazio, `maxPendingPerChat` negativo, prioridade `NaN`…) lança já no
@@ -111,6 +111,9 @@ ctx.reply()/ctx.send → fila de saída → transport
 - **Comando e listeners rodam dentro dos middlewares**: o código depois de `await next()` roda
   quando eles terminam, então um middleware mede o tratamento inteiro, mantém o "digitando" ou
   libera um recurso no fim. A volta espera também os prazos (`commandMs`, `listenerMs`).
+- **Middleware tem prazo** (`timeouts.middlewareMs`, 30 s; [ADR 0043](../../../docs/adr/0043-prazo-de-middleware.md)),
+  contado fora do `next()`. Estourado, a mensagem é descartada com `MiddlewareTimeoutError` no
+  log e o chat segue ([Middlewares](middleware.md#prazo)).
 - **Handler lento segura o chat** ([ADR 0042](../../../docs/adr/0042-handler-lento-segura-o-chat.md)):
   a fila de entrada só passa à próxima mensagem do chat quando o comando ou **todos** os
   listeners terminam (ou estouram o prazo). Uma chamada de LLM de 15 s num listener faz o

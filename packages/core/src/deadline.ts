@@ -136,7 +136,7 @@ export function deadlineOf(ctx: object): Deadline | undefined {
   return (ctx as WithDeadline)[DEADLINE];
 }
 
-function isThenable(value: unknown): value is PromiseLike<unknown> {
+export function isThenable(value: unknown): value is PromiseLike<unknown> {
   return (
     value !== null &&
     (typeof value === 'object' || typeof value === 'function') &&
