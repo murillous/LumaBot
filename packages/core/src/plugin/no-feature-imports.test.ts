@@ -19,8 +19,14 @@ const specifiers = (code: string): string[] =>
 it('nenhum arquivo do core importa outro pacote @zapforge/*', () => {
   const offenders = sources.flatMap((file) =>
     specifiers(readFileSync(file, 'utf8'))
-      // O teste de side effect importa o próprio pacote pelo nome.
-      .filter((specifier) => specifier.startsWith('@zapforge/') && specifier !== '@zapforge/core')
+      // O próprio pacote (e seus subpaths, ex. `@zapforge/core/storage-contract`) pode aparecer:
+      // o teste de side effect o importa pelo nome, e a suíte de contrato o cita no JSDoc.
+      .filter(
+        (specifier) =>
+          specifier.startsWith('@zapforge/') &&
+          specifier !== '@zapforge/core' &&
+          !specifier.startsWith('@zapforge/core/'),
+      )
       .map((specifier) => `${file}: ${specifier}`),
   );
   expect(sources.length).toBeGreaterThan(0);
