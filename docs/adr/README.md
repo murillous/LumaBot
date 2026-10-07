@@ -31,7 +31,7 @@ o anterior, e o antigo passa a apontar para ele no Status.
 | [0009](0009-modelo-de-mensagem-normalizado.md) | D09 | Modelo de mensagem normalizado | Aceito |
 | [0010](0010-capabilities-do-transporte.md) | D10 | Capabilities do transporte + `requires` | Aceito |
 | [0011](0011-escape-hatch-unsafe-native.md) | D11 | Escape hatch `ctx.unsafe.native` | Aceito |
-| [0012](0012-pipeline-de-3-estagios.md) | D12 | Pipeline de 3 estágios | Aceito |
+| [0012](0012-pipeline-de-3-estagios.md) | D12 | Pipeline de 3 estágios | Aceito (papéis custom: ADR 0035) |
 | [0013](0013-escopo-do-core.md) | D13 | Escopo do core | Aceito |
 | [0014](0014-storage-port-sqlite-postgres.md) | D14 | `StoragePort` com SQLite e Postgres na v1; auth state no port | Aceito |
 | [0015](0015-storage-kv-e-colecoes.md) | D15 | Storage: KV com namespace + coleções | Aceito |
@@ -43,7 +43,7 @@ o anterior, e o antigo passa a apontar para ele no Status.
 | [0021](0021-dashboard-vira-plugin.md) | D21 | Dashboard vira plugin | Aceito |
 | [0022](0022-kit-de-autor.md) | D22 | Kit de autor na v1 | Aceito |
 | [0023](0023-migracao-incremental-legacy.md) | D23 | Migração incremental (`legacy/`) | Aceito |
-| [0024](0024-papeis-no-core.md) | D24 | Papéis no core | Aceito |
+| [0024](0024-papeis-no-core.md) | D24 | Papéis no core | Aceito (papéis custom: ADR 0035) |
 | [0025](0025-sem-i18n-objeto-messages.md) | D25 | Sem i18n formal na v1; objeto `messages` | Aceito |
 | [0026](0026-tooling.md) | D26 | Tooling: Node 24, pnpm, tsdown, Vitest, Biome | Aceito |
 | [0027](0027-releases-changesets.md) | D27 | Releases com Changesets | Aceito |
@@ -53,3 +53,5 @@ o anterior, e o antigo passa a apontar para ele no Status.
 | [0031](0031-nome-zapforge.md) | D31 | Nome: ZapForge | Aceito |
 | [0032](0032-camadas-da-config-de-plugin.md) | D32 | Camadas e convenções da config de plugin (detalha D17) | Aceito |
 | [0033](0033-cancelamento-cooperativo.md) | D33 | Cancelamento cooperativo do código de plugin (detalha D05) | Aceito |
+| [0034](0034-biblioteca-sem-runner.md) | D34 | ZapForge é uma biblioteca, sem runner; API pública por público | Aceito |
+| [0035](0035-papeis-nomeados-por-plugin.md) | D35 | Papéis custom nomeados, definidos por plugin (substitui parte de D12/D24) | Aceito |

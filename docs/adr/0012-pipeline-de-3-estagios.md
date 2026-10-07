@@ -1,6 +1,6 @@
 # ADR 0012 — Pipeline de 3 estágios
 
-**Status:** Aceito (2026-10-06) · Decisão **D12** do [plano](../../ZAPFORGE_PLAN.md#4-decisões)
+**Status:** Aceito (2026-10-06) · Decisão **D12** do [plano](../../ZAPFORGE_PLAN.md#4-decisões) · Papéis custom no estágio de middlewares: substituído pelo [ADR 0035](0035-papeis-nomeados-por-plugin.md)
 
 ## Contexto
 

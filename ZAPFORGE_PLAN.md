@@ -121,7 +121,7 @@ decisão anterior.
 | D21 | **Dashboard vira plugin** (`plugin-dashboard`), lendo eventos do barramento e schemas de config; fim do protocolo stdout | Supervisor separado | Protocolo de stdout é frágil; plugin pesado valida a API. Dashboard central multi-número = projeto comercial futuro |
 | D22 | **Kit de autor na v1**: `@zapforge/testing` (FakeTransport, `createTestBot`), `create-zapforge-plugin`, docs "primeiro plugin em 5 min" + referência via TypeDoc | Só docs | Sem kit de testes o ecossistema fica frágil; o próprio core usa o kit |
 | D23 | **Migração incremental**: LumaBot atual em `legacy/` em produção, testes intactos; plugins portados por complexidade; virada na paridade | Big-bang | Produção não para; paridade é critério de aceite objetivo |
-| D24 | **Papéis no core**: `owner` / `group-admin` / `everyone` verificados pelo roteador; allow/blocklist de chats como middleware oficial; papéis custom via middleware de plugin | Sem papéis | Hoje qualquer um pode alterar personas/config |
+| D24 | **Papéis no core**: `owner` / `group-admin` / `everyone` verificados pelo roteador; allow/blocklist de chats como middleware oficial; papéis custom via middleware de plugin (substituído por D35) | Sem papéis | Hoje qualquer um pode alterar personas/config |
 | D25 | **Sem i18n formal na v1**; mensagens ao usuário isoladas num objeto `messages` sobrescrevível pela config do plugin | `ctx.t()` na v1 | Público inicial BR; i18n entra depois sem quebrar |
 | D26 | **Tooling**: Node 24 LTS+, pnpm, TS executado direto no Node em dev e `tsdown` para publicar (JS + `.d.ts`), Vitest, Biome | Node 18/20/22; tsup (em manutenção); ESLint + Prettier | LTS mais longo; pnpm estrito evita dependência fantasma em plugins; Biome = uma ferramenta, rápida |
 | D27 | **Releases com Changesets**; `0.x` livre; após 1.0, remoção só após ciclo `@deprecated` de ≥ 1 minor; APIs novas podem nascer `@experimental` | Versionamento manual | Comunidade depende de `engine: '^1.0.0'` |
@@ -131,6 +131,8 @@ decisão anterior.
 | D31 | **Nome: ZapForge** (`@zapforge/*`) | zapcore (conflita com `go.uber.org/zap/zapcore`) | Org `zapforge` criada no npm em 2026-10-06; kernel e plugins públicos no GitHub sob a conta pessoal `murillous`; plugins privados ficam na `thera-org` (ver D29) |
 | D32 | **Camadas da config de plugin** (detalha D17): env `ZAPFORGE_<PLUGIN>__<CAMPO>`; "arquivo" = `pluginConfig` do app; `messages` como chave reservada; `secret()` como metadado do Zod, só em campo de `z.object`; config inválida ignora só o plugin; segredo nunca entra por override | Env sem prefixo; `pluginMessages` separado; segredo por lista de caminhos; config inválida derruba o boot | Contrato estável para quem configura; erro isolado no plugin; storage em texto puro não guarda segredo |
 | D33 | **Cancelamento cooperativo** (detalha D05): `signal: AbortSignal` em comando, listener, job e `PluginContext`, abortado pelos timers de prazo existentes; contexto expirado recusa efeitos com `ContextExpiredError`; `reason` tipado (`ExecutionTimeoutError`) | Worker threads; `AsyncLocalStorage` por execução; só documentar | O JS não mata promise: o plugin precisa saber do prazo, e o kernel não pode aceitar efeito atrasado |
+| D34 | **ZapForge é uma biblioteca, sem runner**: o app importa `@zapforge/core` e compõe com `createBot`; sem CLI de execução nem `defineConfig`; API pública por público (`@zapforge/core` para plugin e app, `@zapforge/core/adapter` para transports/storages), internos fora do `index.ts` | Runner/CLI com `defineConfig`; um único ponto de entrada com tudo exportado | Quem usa o ZapForge escreve plugins e não precisa conhecer o kernel; tudo que é exportado fica preso ao ciclo de depreciação após a 1.0 |
+| D35 | **Papéis custom nomeados por plugin** (substitui parte de D12/D24): `ctx.roles.define(nome, check)`, comando usa `role: nome`, tipado por declaration merging (`Roles`); o roteador avalia com prazo e recusa em erro (fail-closed); `owner` passa em todos | `ctx.middleware` de plugin; middleware + papéis; nada na v1 | Middleware roda antes do roteador e não sabe o comando; papel custom precisa caber num plugin |
 
 ---
 
@@ -199,9 +201,9 @@ Transport (Baileys) ── evento bruto
    Fila de entrada por chat
         │
    Middlewares (onion, por prioridade)      ← ignore-self, rate limit, allow/blocklist,
-        │                                     sanitização, papéis custom...
+        │                                     sanitização (middlewares do app)...
    Comando casou? (token inicial exato)
-     ├─ sim → valida role + accepts → run()  → mensagem consumida
+     ├─ sim → valida role (inclui papéis custom, D35) + accepts → run()  → mensagem consumida
      └─ não → listeners em paralelo (try/catch + timeout cada)
                  └─ ctx.claim() sinaliza "já respondi" aos de menor prioridade
         │
@@ -224,16 +226,19 @@ Transport (Baileys) ── evento bruto
 
 ### 6.1 Composição do bot
 
+O ZapForge é uma biblioteca (D34): o app importa o core, compõe o bot e cuida do processo. Não
+há runner nem arquivo de config descoberto por convenção.
+
 ```ts
-// apps/lumabot/zapforge.config.ts
-import { defineConfig } from '@zapforge/core';
+// apps/lumabot/src/main.ts
+import { createBot } from '@zapforge/core';
 import { baileys } from '@zapforge/transport-baileys';
 import { sqlite } from '@zapforge/storage-sqlite';
 import { sticker } from '@zapforge/plugin-media';
 import { ai } from '@zapforge/plugin-ai';
 
-export const config = defineConfig({
-  transport: baileys({ pairing: 'qr' }),
+const bot = createBot({
+  transport: baileys({ pairing: 'qr' }),          // como recebe o storage do auth state: M2-1
   storage: sqlite({ path: './data/bot.sqlite' }),
   owners: ['5511999999999'],
   prefix: '!',
@@ -242,6 +247,9 @@ export const config = defineConfig({
   disabledPlugins: [],
   pluginConfig: { sticker: { quality: 90 } },     // env ZAPFORGE_STICKER__QUALITY vence (D32)
 });
+
+await bot.start();
+process.once('SIGTERM', () => void bot.stop());
 ```
 
 ### 6.2 Definição de plugin (manifesto)
@@ -369,6 +377,10 @@ ctx.http.route('POST', '/webhook', handler);          // → /plugins/<name>/web
 
 command({ name: 'config', role: 'owner', run });
 command({ name: 'ban', role: 'group-admin', run });   // requer capability 'groups'
+
+// Papel custom (D35): definido por um plugin, usado por qualquer outro
+ctx.roles.define('moderador', async (c) => moderadores.has(c.message.sender.id));
+command({ name: 'mute', role: 'moderador', run });
 ```
 
 ### 6.9 Testes de plugin
@@ -545,6 +557,15 @@ critérios de aceite. Toda issue herda os critérios gerais:
     `reply`/`send`/`storage`/`scheduler` de contexto expirado rejeitam com `ContextExpiredError`
   - *Aceite*: mensagem de um `Transport` de teste percorre os estágios até o comando ou os
     listeners (teste de ponta a ponta sem transporte real)
+- **#M1-17 API pública por público** (D34)
+  - `@zapforge/core` com a API de plugin e de composição do app; `@zapforge/core/adapter` para
+    transports e storages; internos fora do `index.ts`
+  - *Aceite*: teste que fixa a lista de exports de cada ponto de entrada
+- **#M1-18 Métricas das filas no `Bot`**
+  - `bot.stats()` com as métricas da fila de entrada e da fila de saída (M1-4, M1-12)
+- **#M1-19 Papéis custom nomeados** (D35)
+  - `ctx.roles.define(nome, check)`, `role: nome` no comando, `Roles` por declaration merging
+  - Avaliação no roteador com prazo e fail-closed; conflito de nome = erro no boot
 
 ---
 
