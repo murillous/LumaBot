@@ -147,4 +147,9 @@ export type {
   TransportEvents,
   Unsubscribe,
 } from '#transport/types.ts';
+export {
+  createUnsafeAccess,
+  type UnsafeAccess,
+  type UnsafeAccessOptions,
+} from '#unsafe/access.ts';
 export type { Unsafe } from '#unsafe/types.ts';
