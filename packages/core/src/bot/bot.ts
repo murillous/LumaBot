@@ -39,7 +39,7 @@ import {
   type MessageContextDeps,
   messageExtras,
 } from './message-context.ts';
-import { createPluginContextFactory } from './plugin-context.ts';
+import { CommandTimeoutError, createPluginContextFactory } from './plugin-context.ts';
 import { type BotReconnectionOptions, createReconnector, type Reconnector } from './reconnect.ts';
 import {
   type RegisteredStopHook,
@@ -85,6 +85,8 @@ export interface BotTimeouts {
   readonly setupMs?: number;
   /** `teardown` e limpeza de cada plugin. Padrão: 5000. */
   readonly teardownMs?: number;
+  /** `run` de cada comando; estourado, o chat é liberado e sai `plugin.error`. Padrão: 30000. */
+  readonly commandMs?: number;
   /** Cada listener de evento. Padrão: 30000. */
   readonly listenerMs?: number;
   /** Cada handler de job do scheduler. Padrão: 30000. */
@@ -171,6 +173,9 @@ export class BotStateError extends Error {
     this.state = state;
   }
 }
+
+/** Prazo padrão do `run` de um comando: o mesmo dos listeners. */
+const DEFAULT_COMMAND_TIMEOUT_MS = 30_000;
 
 /** Prazos dos ganchos de parada internos (o total segue `shutdown.timeoutMs`). */
 const STOP_TIMEOUTS = {
@@ -332,7 +337,7 @@ export function createBot(config: BotConfig): Bot {
         phase: 'command',
         event: result.command.name,
         error: result.error,
-        timedOut: false,
+        timedOut: result.error instanceof CommandTimeoutError,
       };
       logPluginError(event);
       void bus.emit('plugin.error', event);
@@ -446,6 +451,13 @@ export function createBot(config: BotConfig): Bot {
       scheduler,
       send,
       unsafe: createUnsafeAccess({ transport, log }),
+      commandTimeoutMs: timeouts.commandMs ?? DEFAULT_COMMAND_TIMEOUT_MS,
+      onLateCommandError: (plugin, command, error) =>
+        log.error(`comando "${command}" rejeitou depois do prazo`, {
+          plugin,
+          command,
+          err: error,
+        }),
     });
     const pluginHost = createPluginHost({
       plugins: entries,

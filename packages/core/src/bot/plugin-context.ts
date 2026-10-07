@@ -31,6 +31,25 @@ export interface PluginContextDeps {
   readonly scheduler: SchedulerService;
   readonly send: Sender;
   readonly unsafe: UnsafeAccess;
+  /** Prazo do `run` de cada comando, em ms (ADR 0005). */
+  readonly commandTimeoutMs: number;
+  /** Destino da rejeição de um `run` que chegou depois do prazo (já reportado como timeout). */
+  readonly onLateCommandError: (plugin: string, command: string, error: unknown) => void;
+}
+
+/** O `run` de um comando estourou o prazo. Vai em `plugin.error` com `timedOut: true`. */
+export class CommandTimeoutError extends Error {
+  override readonly name = 'CommandTimeoutError';
+  readonly plugin: string;
+  readonly command: string;
+  readonly timeoutMs: number;
+
+  constructor(plugin: string, command: string, timeoutMs: number) {
+    super(`comando "${command}" do plugin "${plugin}" excedeu ${timeoutMs} ms`);
+    this.plugin = plugin;
+    this.command = command;
+    this.timeoutMs = timeoutMs;
+  }
 }
 
 /** Eventos cujo payload é uma `Message`: os listeners deles recebem os campos de mensagem. */
@@ -70,7 +89,7 @@ export function createPluginContextFactory(deps: PluginContextDeps): PluginConte
       commands: {
         add(definition: CommandDefinition): void {
           guard('commands.add');
-          deps.router.registry.add(name, withPluginLog(definition, commandView));
+          deps.router.registry.add(name, wrapCommand(name, definition, commandView, deps));
         },
       },
       events: {
@@ -122,15 +141,68 @@ export function createPluginContextFactory(deps: PluginContextDeps): PluginConte
 
 type AnySubscribe = (event: BotEventName, first: unknown, second: unknown) => Unsubscribe;
 
-/** Comando com o `log` do plugin dono no contexto de `run` e `onReject`. */
-function withPluginLog(
+/**
+ * Comando com o `log` do plugin dono no contexto de `run` e `onReject`, e `run` com prazo: um
+ * `run` preso seguraria o chat na fila de entrada para sempre (ADR 0005).
+ */
+function wrapCommand(
+  plugin: string,
   definition: CommandDefinition,
   view: <C extends object>(ctx: C) => C,
+  deps: Pick<PluginContextDeps, 'commandTimeoutMs' | 'onLateCommandError'>,
 ): CommandDefinition {
-  const { run, onReject } = definition;
+  const { run, onReject, name } = definition;
   return {
     ...definition,
-    run: (ctx) => run(view(ctx)),
+    run: (ctx) =>
+      withDeadline(run(view(ctx)), deps.commandTimeoutMs, plugin, name, deps.onLateCommandError),
     ...(onReject && { onReject: (ctx, rejection) => onReject(view(ctx), rejection) }),
   };
+}
+
+function isThenable(value: unknown): value is PromiseLike<unknown> {
+  return (
+    value !== null &&
+    (typeof value === 'object' || typeof value === 'function') &&
+    typeof (value as PromiseLike<unknown>).then === 'function'
+  );
+}
+
+/**
+ * Corre o resultado do `run` contra o prazo. O `run` não tem como ser cancelado e segue em
+ * segundo plano; o chat é liberado. Uma rejeição depois do prazo vai para `onLate`, nunca vira
+ * rejeição não tratada. `run` síncrono passa direto, sem timer.
+ */
+function withDeadline(
+  result: unknown,
+  timeoutMs: number,
+  plugin: string,
+  command: string,
+  onLate: PluginContextDeps['onLateCommandError'],
+): unknown {
+  if (!isThenable(result)) return result;
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const timer = setTimeout(() => {
+      settled = true;
+      reject(new CommandTimeoutError(plugin, command, timeoutMs));
+    }, timeoutMs);
+    result.then(
+      (value) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error: unknown) => {
+        if (settled) {
+          onLate(plugin, command, error);
+          return;
+        }
+        settled = true;
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
 }

@@ -8,6 +8,7 @@ export type {
   BotTimeouts,
 } from '#bot/bot.ts';
 export { BotStateError, createBot } from '#bot/bot.ts';
+export { CommandTimeoutError } from '#bot/plugin-context.ts';
 export type { BotReconnectionOptions } from '#bot/reconnect.ts';
 export type { ShutdownOptions, StopHook, StopHookOptions } from '#bot/stop-hooks.ts';
 export { StopHookError } from '#bot/stop-hooks.ts';

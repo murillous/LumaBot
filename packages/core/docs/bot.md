@@ -35,7 +35,7 @@ Só `transport` é obrigatório; `createBot({ transport })` sobe um bot sem plug
 | `inbound` | `{ maxPendingPerChat: 100 }` | [Fila de entrada](inbound-queue.md) |
 | `outbound` | padrões da fila | [Fila de saída](outbound-queue.md): taxa, `maxPending`, `retry`, `humanize` |
 | `reconnection` | ligada | Opções da `ReconnectionPolicy` + `clearSession`; `false` desliga ([Reconexão](#reconexão)) |
-| `timeouts` | `setupMs` 10000, `teardownMs` 5000, `listenerMs` 30000, `jobMs` 30000 | Prazos do código de plugin |
+| `timeouts` | `setupMs` 10000, `teardownMs` 5000, `commandMs` 30000, `listenerMs` 30000, `jobMs` 30000 | Prazos do código de plugin |
 | `shutdown` | `hookTimeoutMs` 5000, `timeoutMs` 15000 | Prazos dos ganchos de parada |
 
 Opção inválida (prefixo vazio, `maxPendingPerChat` negativo, prioridade `NaN`…) lança já no
@@ -88,6 +88,11 @@ ctx.reply()/ctx.send → fila de saída → transport
 - **Comando que casa consome** a mensagem, mesmo recusado (papel, `accepts`) ou com erro. A
   resposta de `onReject` sai pelo `ctx.reply`. Comando que lança vira `plugin.error`
   (`phase: 'command'`, `event` = nome do comando) e uma linha de log em `error`; o chat segue.
+- **Prazo de comando** (`timeouts.commandMs`, padrão 30 s, [ADR 0005](../../../docs/adr/0005-plugins-no-mesmo-processo.md)):
+  um `run` que não termina no prazo vira `plugin.error` com `timedOut: true` e erro
+  `CommandTimeoutError` (`plugin`, `command`, `timeoutMs`), e o chat passa para a próxima
+  mensagem. O `run` não é cancelado (não há como) e segue em segundo plano; se ele rejeitar
+  depois, o erro vai só para o log. O prazo vale para o `run`, não para `onReject`.
 - **Listeners** de eventos de mensagem recebem, além de `payload`/`claimed`/`claim()`, os campos
   `message`, `text`, `reply` e `log` (este com `plugin` e `chatId`).
 - `message.edited` vai direto aos listeners (com os mesmos campos), sem middlewares nem comandos.
@@ -156,7 +161,7 @@ Destino dos erros de plugin — todos viram `plugin.error` no barramento e linha
 | --- | --- |
 | `setup` | fábrica de contexto ou `setup` lançou/estourou o prazo (o plugin fica ignorado na tabela) |
 | `teardown` | `teardown`/limpeza no reload ou no `stop()` (no `stop()`, também no `AggregateError`) |
-| `command` | `run`, `onReject` ou a consulta de admin lançou |
+| `command` | `run`, `onReject` ou a consulta de admin lançou, ou o `run` estourou `timeouts.commandMs` (`timedOut: true`) |
 | `listener` | listener lançou, rejeitou ou estourou o prazo |
 | `scheduler` | handler de job lançou, rejeitou ou estourou o prazo |
 

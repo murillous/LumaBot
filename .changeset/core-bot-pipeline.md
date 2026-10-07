@@ -8,7 +8,9 @@ Pipeline integrado no `Bot` (M1-16): `createBot()` passa a aceitar `storage`, `p
 M1: a mensagem do transport passa pela fila de entrada, pelos middlewares (`ignoreSelf` e
 `sanitize` ligados por padrão), pelo roteador e, se não for comando, pelos listeners, com
 `reply` e `log` no contexto; os plugins sobem com o contexto real (config, comandos, eventos,
-serviços, storage, scheduler, `send`, `unsafe`), e conflito de comando derruba o boot. O
+serviços, storage, scheduler, `send`, `unsafe`), e conflito de comando derruba o boot. O `run`
+de cada comando tem prazo (`timeouts.commandMs`, padrão 30 s): estourado, sai `plugin.error`
+com `timedOut: true` (`CommandTimeoutError`) e o chat é liberado. O
 `stop()` drena a fila de entrada, faz o `teardown` dos plugins, para o scheduler, drena a fila
 de saída, desconecta e fecha o storage. A `ReconnectionPolicy` é executada pelo bot
 (`reconnection.clearSession`), e `bot.config` expõe `setOverrides`/`describe`/`jsonSchema`.

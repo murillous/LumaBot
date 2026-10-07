@@ -157,6 +157,11 @@ mensagem.
 `command` é `{ plugin, name, invokedAs }`. Quem chama decide o destino do erro de `failed`; no
 bot, vira `plugin.error` (`phase: 'command'`) e log em `error`.
 
+O roteador em si não tem prazo. No bot, o `run` de cada comando tem prazo de
+`timeouts.commandMs` (padrão 30 s): estourado, `dispatch` devolve `failed` com um
+`CommandTimeoutError`, o `plugin.error` sai com `timedOut: true` e o chat é liberado. O `run`
+segue em segundo plano; uma rejeição tardia vai só para o log ([Bot](bot.md#fluxo-de-uma-mensagem)).
+
 ## Conflitos
 
 Nome e aliases são únicos no bot inteiro, sem diferenciar caixa. `registry.add` lança
