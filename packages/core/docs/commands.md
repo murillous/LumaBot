@@ -37,10 +37,12 @@ No teardown/reload os comandos do plugin saem sozinhos.
 createBot({ transport, prefix: '!', owners: ['+55 11 99999-9999'], plugins: [media] });
 ```
 
-## Montar o roteador (fora do bot)
+## O roteador por dentro
+
+Peça interno do kernel, não exportado ([ADR 0034](../../../docs/adr/0034-biblioteca-sem-runner.md)). Como o `Bot` o monta:
 
 ```ts
-import { createCommandRouter } from '@zapforge/core';
+import { createCommandRouter } from '#commands/router.ts';
 
 const router = createCommandRouter({
   prefix: '!',                         // padrão '!'; não pode ser vazio
@@ -101,7 +103,7 @@ vira um argumento só, sem as aspas: `!persona criar "Luma séria"` → `['criar
 - `""` gera argumento vazio; aspa sem fechamento vai até o fim do texto.
 - Sem escape (`\"`): quem precisa do texto literal usa `rawArgs`.
 
-`parseArgs(texto)` é exportado para quem quiser o mesmo parse em subcomandos.
+Para subcomandos, use `ctx.args` direto: `const [sub, ...resto] = ctx.args`.
 
 ## `accepts` e `ctx.media`
 

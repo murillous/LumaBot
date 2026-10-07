@@ -9,7 +9,7 @@ normalizados. Porquê: [ADR 0003](../../../docs/adr/0003-transport-abstrato.md),
 ## A interface
 
 ```ts
-import type { Transport } from '@zapforge/core';
+import type { Transport } from '@zapforge/core/adapter';
 
 interface Transport {
   readonly name: string;                         // 'baileys'
@@ -69,7 +69,7 @@ Use o `TypedEmitter`. Um handler que lança ou rejeita não interrompe os demais
 o adapter: o erro vai para o `onError` passado no construtor.
 
 ```ts
-import { TypedEmitter, type TransportEvents } from '@zapforge/core';
+import { TypedEmitter, type TransportEvents } from '@zapforge/core/adapter';
 
 class BaileysTransport implements Transport {
   readonly #events = new TypedEmitter<TransportEvents>((error, event) =>
@@ -100,7 +100,7 @@ await transport.send(chatId, { type: 'poll', name: 'Pizza?', options: ['sim', 'n
 `messageKey(message)`:
 
 ```ts
-import { messageKey } from '@zapforge/core';
+import { messageKey } from '@zapforge/core/adapter';
 await transport.react(messageKey(ctx.message), '👍');
 ```
 
@@ -118,7 +118,9 @@ criador) e `isSuperAdmin`. É o que o roteador usa para `role: 'group-admin'`; o
 `send.video`, `send.audio`, `send.voice`, `send.sticker`, `send.document`, `media.download`,
 `message.edit`, `message.delete`, `polls`, `quoted`.
 
-O transport declara o subconjunto que suporta em `capabilities`. Helpers:
+O transport declara o subconjunto que suporta em `capabilities`. Helpers (de
+`@zapforge/core/adapter`; o plugin só vê o tipo `Capability` e o `UnsupportedError`, de
+`@zapforge/core`):
 
 | Função | Uso |
 | --- | --- |
@@ -142,7 +144,7 @@ para um `DisconnectReason` (`qr-timeout`, `logged-out`, `auth-failed`, `server-e
 `connection-lost`, `unknown`).
 
 ```ts
-import { ReconnectionPolicy } from '@zapforge/core';
+import { ReconnectionPolicy } from '@zapforge/core/adapter';
 
 const policy = new ReconnectionPolicy({
   backoff: (attempt) => Math.min(1_000 * 2 ** attempt, 30_000), // padrão: 5 s × n, até 15 s

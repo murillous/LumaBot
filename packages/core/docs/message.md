@@ -57,7 +57,7 @@ O campo é obrigatório no tipo: o transport precisa decidir, e `null` é uma re
 O transport mapeia o formato nativo para `MessageInit` e chama `createMessage`:
 
 ```ts
-import { createMessage } from '@zapforge/core';
+import { createMessage } from '@zapforge/core/adapter';
 
 const quoted = createMessage({ /* ... */ });   // citada: construída do mesmo jeito
 
@@ -87,8 +87,8 @@ const msg = createMessage({
 - Padrões: `quoted: null`, `mentions: []`, flags `false` (inclusive para `undefined`
   explícito). `fromMe` é obrigatório: esquecê-lo faria o bot responder a si mesmo.
 - `media` recebe um `MediaSource` (o loader nativo); `createMessage` o embrulha com
-  `createMedia`, que aplica laziness e cache. `createMedia` também é exportado para quem
-  precisar de uma `Media` avulsa.
+  `createMedia`, que aplica laziness e cache. `createMedia` também sai de
+  `@zapforge/core/adapter` para quem precisar de uma `Media` avulsa.
 
 ## Testes de tipo
 

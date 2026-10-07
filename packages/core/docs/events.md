@@ -121,14 +121,14 @@ do bus e emite `plugin.error` para quem quiser assinar (ex.: dashboard).
 - Falha num listener de `plugin.error` vai só para o `onError`: virar outro `plugin.error`
   geraria um loop.
 
-## Montar o bus (kernel)
+## O bus por dentro
 
 O `Bot` monta um único bus e entrega a cada plugin uma assinatura em nome dele. As mensagens que
 nenhum comando consumiu, as edições e os demais eventos do transport chegam por `emit`; falha de
-listener vai para o log do bot. Para montar à mão:
+listener vai para o log do bot. Por dentro (interno do kernel, não exportado ([ADR 0034](../../../docs/adr/0034-biblioteca-sem-runner.md))):
 
 ```ts
-import { createEventBus } from '@zapforge/core';
+import { createEventBus } from '#events/bus.ts';
 
 const bus = createEventBus({
   onError: (e) => log.error({ plugin: e.plugin, event: e.event, err: e.error }, 'listener falhou'),

@@ -53,12 +53,14 @@ problemas encontrados. Regras:
 Faixas aceitas: `^`, `~`, `>=`, `>`, `<=`, `<`, `=`, curingas (`*`, `x`, `1.x`, `1.2`),
 comparadores separados por espaço (E) e `||` (OU) — a semântica do npm, inclusive a de
 pré-release: `^1.0.0` não aceita `1.1.0-beta`. Faixas com hífen (`1.0.0 - 2.0.0`) não são
-aceitas. `satisfies(version, range)` e `isValidRange(range)` estão exportados.
+aceitas.
 
 ## Fontes: config e `pluginDirs`
 
+O `Bot` faz isto no `start()` com `plugins` e `pluginDirs` da config. Por dentro (interno do kernel, não exportado ([ADR 0034](../../../docs/adr/0034-biblioteca-sem-runner.md))):
+
 ```ts
-import { collectPlugins } from '@zapforge/core';
+import { collectPlugins } from '#plugin/sources.ts';
 import { sticker } from '@zapforge/plugin-media';
 
 const plugins = await collectPlugins({
@@ -85,10 +87,10 @@ pasta na ordem dada. Convenção de pasta (`discoverPlugins(dir)`):
 ## Subir e derrubar: `createPluginHost`
 
 O `Bot` faz tudo isto no `start()`/`stop()` ([Bot → Plugins](bot.md#plugins)), com a fábrica de
-contexto ligada aos serviços da instância. Para montar à mão:
+contexto ligada aos serviços da instância. Por dentro (interno do kernel, não exportado ([ADR 0034](../../../docs/adr/0034-biblioteca-sem-runner.md))):
 
 ```ts
-import { createPluginHost } from '@zapforge/core';
+import { createPluginHost } from '#plugin/host.ts';
 
 const host = createPluginHost({
   plugins,                                  // de collectPlugins
@@ -137,7 +139,7 @@ const errors = await host.stop();           // PluginLifecycleError[]
    boot segue.
 
 A tabela volta de `start()` como dado (`PluginReportEntry[]`, na ordem de carga) e vai para o
-log formatada (`formatBootTable`) — em `info` se tudo carregou, `warn` se algo foi ignorado —
+log formatada — em `info` se tudo carregou, `warn` se algo foi ignorado —
 com os mesmos dados em `fields.plugins`:
 
 ```

@@ -82,14 +82,15 @@ secrets.delete('plugin:ai');
 ```
 
 Limites: com lista fixa, os segredos são fixados na criação (filhos herdam); um segredo comum
-censura também o texto que coincidir com ele. Valores com menos de `MIN_SECRET_LENGTH` (4)
+censura também o texto que coincidir com ele. Valores com menos de 4
 caracteres são ignorados: censurar `"1"` ou `"on"` apagaria pedaços de todo log, e um valor tão
 curto não protege nada de qualquer forma.
 
 ## Logger silencioso
 
-`createNoopLogger()` descarta tudo sem ler os campos nem alocar — para testes e como padrão
-quando ninguém passou logger. `child()` devolve o próprio no-op.
+`createNoopLogger()` (interno do kernel, não exportado ([ADR 0034](../../../docs/adr/0034-biblioteca-sem-runner.md))) descarta tudo sem ler os campos nem
+alocar — para os testes do core e como padrão quando ninguém passou logger. `child()` devolve o
+próprio no-op.
 
 ## Desempenho
 

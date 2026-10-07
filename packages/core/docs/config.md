@@ -65,7 +65,7 @@ Plugin kebab-case e campos camelCase viram SCREAMING_SNAKE; `__` separa os níve
 | `user-names` | `openai.apiKey` | `ZAPFORGE_USER_NAMES__OPENAI__API_KEY` |
 | `ai` | `messages.thinking` | `ZAPFORGE_AI__MESSAGES__THINKING` |
 
-`envName(plugin, path)` devolve o nome. Só campos declarados no schema são lidos. O texto é
+Só campos declarados no schema são lidos. O texto é
 convertido para o tipo do campo: número (`'42'`), booleano (`true/false`, `1/0`, `yes/no`,
 `on/off`), literal, e JSON para arrays, records e uniões (`'["a","b"]'`). Texto que não converte
 segue cru e o Zod rejeita, apontando a variável.
@@ -79,10 +79,11 @@ O ambiente é injetável (`env`); sem ele, vale `process.env`, lido só em `src/
 ## `createPluginConfigs`
 
 O `Bot` faz isto no `start()` com `pluginConfig`, `storage`, `env` e `secrets` da config dele, e
-expõe `setOverrides`/`describe`/`jsonSchema` em `bot.config`. Para montar à mão:
+expõe `setOverrides`/`describe`/`jsonSchema` em `bot.config`. Por dentro (interno do kernel, não exportado ([ADR 0034](../../../docs/adr/0034-biblioteca-sem-runner.md))):
 
 ```ts
-import { createLogger, createPluginConfigs, createSecretSet } from '@zapforge/core';
+import { createLogger, createSecretSet } from '@zapforge/core';
+import { createPluginConfigs } from '#config/plugin-configs.ts';
 
 const secrets = createSecretSet();
 const log = createLogger({ secrets });          // mesma fonte de segredos
@@ -101,7 +102,7 @@ const configs = createPluginConfigs({
 | --- | --- |
 | `resolve(name)` | `{ config, messages }` atuais e validados; registra os segredos no `SecretSet`. Lança `PluginConfigError` |
 | `setOverrides(name, overrides)` | Recusa campo `secret`; valida a config resultante; se válida, salva (substitui; `{}` remove) e chama `reload`. Inválida rejeita sem salvar |
-| `describe(name)` | Config atual com segredos trocados por `SECRET_MASK` (`'********'`) |
+| `describe(name)` | Config atual com segredos trocados por `'********'` |
 | `jsonSchema(name)` | JSON Schema (entrada) para gerar formulário; segredos com `x-zapforge-override: false`; `undefined` sem `config` |
 
 `pluginConfig` citando plugin que não existe gera `warn` (provável erro de digitação).
@@ -157,7 +158,7 @@ censura, sem máscara e aceito por override. Para uma lista secreta, marque o ca
 - `resolve`/`setOverrides` põem os valores no `SecretSet` (dono `plugin:<nome>`, trocados a cada
   resolução). O logger criado com `secrets: secretSet` censura esses valores em qualquer linha —
   mesmo os resolvidos depois da criação do logger ou alterados num reload. Ver
-  [Logger](logger.md#segredos). Um segredo com menos de `MIN_SECRET_LENGTH` (4) caracteres não
+  [Logger](logger.md#segredos). Um segredo com menos de 4 caracteres não
   é censurado; a resolução avisa uma vez por campo, com plugin e caminho (nunca o valor).
 
 ### Segredo não entra por override
@@ -206,8 +207,8 @@ bot normaliza a lista no `createBot` e o roteador compara com `sender.phone`
 ([Comandos](commands.md#role)):
 
 ```ts
-normalizeOwners(['+55 11 99999-9999', '5511999999999']); // ['5511999999999']
-normalizePhone('5511999999999@s.whatsapp.net');         // BotConfigError
+createBot({ transport, owners: ['+55 11 99999-9999', '5511999999999'] }); // ['5511999999999']
+createBot({ transport, owners: ['5511999999999@s.whatsapp.net'] });        // BotConfigError
 ```
 
 Aceita espaço, `+`, `-`, `.`, `(` e `)`; o resto (letras, `@` de JID) é `BotConfigError`, assim
