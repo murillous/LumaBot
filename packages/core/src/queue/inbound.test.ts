@@ -204,6 +204,24 @@ describe('InboundQueue', () => {
     await expect(queue.close()).resolves.toBeUndefined();
   });
 
+  it('close({ drain: false }) descarta as que aguardam e espera só as que rodam', async () => {
+    const { queue } = newQueue();
+    const block = deferred();
+    const queued = vi.fn();
+    queue.enqueue('a', () => block.promise);
+    queue.enqueue('a', queued);
+    queue.enqueue('b', vi.fn());
+
+    const closing = queue.close();
+    // Abortar a drenagem já em curso também vale.
+    const aborted = queue.close({ drain: false });
+    expect(queue.stats()).toMatchObject({ pending: 0, dropped: 1 });
+
+    block.resolve();
+    await Promise.all([closing, aborted]);
+    expect(queued).not.toHaveBeenCalled();
+  });
+
   it('tarefa que enfileira no próprio chat roda depois dela', async () => {
     const { queue } = newQueue();
     const log: string[] = [];

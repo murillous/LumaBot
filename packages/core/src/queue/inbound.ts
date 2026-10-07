@@ -112,10 +112,18 @@ export class InboundQueue {
 
   /**
    * Shutdown gracioso: para de aceitar tarefas (novas viram `'closed'`) e resolve quando as já
-   * aceitas terminarem. Idempotente.
+   * aceitas terminarem. Com `drain: false`, descarta as que aguardam (contam em `dropped`); as
+   * que já rodam terminam. Pode ser chamado de novo com `drain: false` para abortar uma drenagem.
    */
-  close(): Promise<void> {
+  close(options: { readonly drain?: boolean } = {}): Promise<void> {
     this.#closed = true;
+    if (options.drain === false) {
+      for (const waiting of this.#chats.values()) {
+        this.#dropped += waiting.length;
+        this.#pending -= waiting.length;
+        waiting.length = 0;
+      }
+    }
     return this.onIdle();
   }
 

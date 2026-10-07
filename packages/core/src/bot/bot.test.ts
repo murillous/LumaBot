@@ -131,10 +131,11 @@ describe('createBot', () => {
     const hook = vi.fn();
     bot.onStop(hook);
     const started = bot.start();
+    // Durante o connect: antes dele, o stop() impediria a conexão (#202).
+    await vi.waitFor(() => expect(transport.calls).toContain('connect'));
     const stopped = bot.stop();
     expect(bot.stop()).toBe(stopped);
     expect(bot.state).toBe('starting');
-    await vi.waitFor(() => expect(transport.calls).toContain('connect'));
     transport.finishConnect();
     await expect(started).rejects.toBeInstanceOf(BotStateError);
     await stopped;
@@ -163,8 +164,8 @@ describe('createBot', () => {
     const transport = fakeTransport({ manualConnect: true });
     const bot = createBot({ transport });
     const started = bot.start();
-    const stopped = bot.stop();
     await vi.waitFor(() => expect(transport.calls).toContain('connect'));
+    const stopped = bot.stop();
     transport.finishConnect(new Error('sem rede'));
     await expect(started).rejects.toThrow('sem rede');
     await stopped;

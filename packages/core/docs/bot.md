@@ -269,7 +269,9 @@ tolerar isso). O `start()` rejeita com o erro do boot; se o encerramento também
 `AggregateError` cujo primeiro item é esse erro.
 
 **`stop()` durante o `start()`**: o `stop()` espera o boot assentar e então encerra; o `start()`
-pendente rejeita com `BotStateError`, porque o bot nunca chegou a `running`.
+pendente rejeita com `BotStateError`, porque o bot nunca chegou a `running`. Se o `stop()` chega
+enquanto os plugins sobem, o transport nem conecta (sem QR nem handshake à toa) e o
+`disconnect()` não é chamado.
 
 ## Shutdown gracioso (`stop`)
 
@@ -279,14 +281,31 @@ pendente rejeita com `BotStateError`, porque o bot nunca chegou a `running`.
 
 | # | Gancho | Prazo | O que faz |
 | --- | --- | --- | --- |
-| 1 | `transporte` | 2 s | Para de ouvir o transport (nada novo entra) e cancela a reconexão (nenhum timer sobra) |
-| 2 | `fila-de-entrada` | 5 s | Drena: as mensagens já aceitas terminam de ser processadas |
-| 3 | `plugins` | 10 s | `teardown` de cada plugin, na ordem inversa da carga |
-| 4 | `scheduler` | 5 s | Desarma o timer e espera os jobs em andamento |
-| 5 | `fila-de-saida` | 5 s | Drena os envios; estourado o prazo, descarta o resto (`close({ drain: false })`) |
+| 1 | `transporte` | 1 s | Para de ouvir o transport (nada novo entra) e cancela a reconexão (nenhum timer sobra) |
+| 2 | `fila-de-entrada` | 4 s | Drena: as mensagens já aceitas terminam de ser processadas; estourado o prazo, descarta as que aguardam |
+| 3 | `scheduler` | 2 s | Desarma o timer e espera os jobs em andamento; estourado o prazo, abandona-os (o job fica no storage e dispara na próxima subida) |
+| 4 | `plugins` | 5 s | `teardown` de cada plugin, na ordem inversa da carga; estourado o prazo, o teardown em curso é abandonado e os seguintes não rodam |
+| 5 | `fila-de-saida` | 3 s | Drena os envios; estourado o prazo, descarta o resto (`close({ drain: false })`) |
 | — | ganchos do app registrados **antes** do `start()` | | |
-| — | `transport.disconnect()` | sem prazo | |
+| — | abandono dos internos | sem prazo | Encerra à força o que os ganchos internos não encerraram (abaixo) |
+| — | `transport.disconnect()` | sem prazo | só se o `connect()` chegou a ser chamado |
 | — | `storage.close()` | sem prazo | só se o bot chegou a dar `start()` e nenhum outro bot (outra sessão) ainda usa o storage |
+
+O scheduler para antes do `teardown`: nenhum job dispara contra um plugin em descida, e o
+`teardown` só começa depois que os jobs em andamento terminam. Os prazos internos somam o total
+padrão (15 s), então cada gancho tem o seu prazo inteiro mesmo que os anteriores o esgotem.
+
+**Nada sobrevive ao `stop()`.** Um gancho interno pode não encerrar o que é dele: estoura o
+prazo, ou nem roda, porque o prazo total acabou antes (por exemplo, gasto por um gancho do app
+registrado com o bot rodando). Por isso, depois dos ganchos e antes do `disconnect()`, o bot
+abandona tudo o que restou: solta os eventos do transport, para a reconexão, descarta o que
+aguarda nas filas de entrada e de saída, abandona os jobs em andamento e o `teardown` em curso,
+pula os `teardown` restantes e faz o `dispose` de todos os plugins (o kernel desfaz comandos,
+listeners e handlers; o contexto do plugin passa a recusar operações). Quando o `stop()`
+termina, nenhum timer do bot fica vivo. Os `teardown` pulados ou abandonados viram
+`PluginLifecycleError` com `timedOut: true` no log. O que o código do plugin ainda estiver
+rodando (um `teardown` travado, um job) o JS não interrompe: ele recebe o `signal` abortado e
+o que tentar pelo contexto é recusado.
 
 Ganchos do app registrados com o bot já rodando ficam acima dos internos e rodam antes deles
 (ainda dá para enviar mensagem); os registrados antes do `start()` rodam depois (bom para fechar

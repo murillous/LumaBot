@@ -159,6 +159,10 @@ um com `teardownTimeoutMs`. Falha ou timeout de um não impede os outros: `stop(
 rejeita por plugin, devolve as falhas (`PluginLifecycleError` com `plugin`, `phase`,
 `timedOut` e `cause`) e as loga. É idempotente e espera um `start`/`reload` em andamento.
 
+`stop(signal)` aceita um `AbortSignal`: abortado, o `teardown` em curso é abandonado e os
+seguintes não rodam (cada um vira falha com `timedOut: true`), mas o `dispose` de todos roda.
+É o que o `Bot` usa quando o prazo de parada acaba.
+
 ### Recarregar um plugin (`reload`)
 
 ```ts

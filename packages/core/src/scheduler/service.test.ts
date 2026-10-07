@@ -582,6 +582,30 @@ describe('stop', () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
+  it('stop abortado abandona o handler: signal abortado, sem timer e job no storage', async () => {
+    const service = create({ jobTimeoutMs: 60_000 });
+    let signal: AbortSignal | undefined;
+    service.forPlugin('p').on('j', (_payload, job) => {
+      signal = job.signal;
+      return new Promise(() => undefined);
+    });
+    service.start();
+    await service.forPlugin('p').at(T0, 'j');
+    await settle();
+
+    const controller = new AbortController();
+    const stopping = service.stop(controller.signal);
+    await vi.advanceTimersByTimeAsync(100);
+    controller.abort();
+    await stopping;
+
+    expect(signal?.aborted).toBe(true);
+    expect(errors).toEqual([]);
+    expect(vi.getTimerCount()).toBe(0);
+    // Não terminou: fica para a próxima subida (pelo menos uma vez).
+    expect(await storedJobs()).toHaveLength(1);
+  });
+
   it('at depois do stop persiste sem armar timer; start de novo retoma', async () => {
     const service = create();
     const handler = vi.fn();

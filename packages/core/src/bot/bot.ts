@@ -194,13 +194,17 @@ export class BotStateError extends Error {
 /** Prazo padrão do `run` de um comando: o mesmo dos listeners. */
 const DEFAULT_COMMAND_TIMEOUT_MS = 30_000;
 
-/** Prazos dos ganchos de parada internos (o total segue `shutdown.timeoutMs`). */
+/**
+ * Prazos dos ganchos de parada internos. Somam o total padrão (`shutdown.timeoutMs`, 15 s): um
+ * gancho lento não deixa os seguintes sem prazo. O que um gancho não encerrar a tempo é
+ * abandonado no fim do shutdown (`abandonInternals`).
+ */
 const STOP_TIMEOUTS = {
-  reconnection: 2000,
-  inbound: 5000,
-  plugins: 10_000,
-  scheduler: 5000,
-  outbound: 5000,
+  reconnection: 1000,
+  inbound: 4000,
+  scheduler: 2000,
+  plugins: 5000,
+  outbound: 3000,
 } as const;
 
 /** Eventos do transport que vão direto ao barramento, sem tratamento do kernel. */
@@ -250,6 +254,10 @@ export function createBot(config: BotConfig): Bot {
     log: createDeferredLogger(() => transportLog ?? log),
   });
   let releaseSession: ReleaseSession | undefined;
+  // `connect()` já foi chamado: só então o shutdown desconecta.
+  let connectCalled = false;
+  // Desfaz a assinatura dos eventos do transport; existe depois que o start() a fez.
+  let unsubscribe: (() => void) | undefined;
   const timeouts = config.timeouts ?? {};
 
   const bus = createEventBus({
@@ -430,14 +438,17 @@ export function createBot(config: BotConfig): Bot {
     ];
     for (const event of DIRECT_EVENTS) offs.push(forward(event));
     return () => {
-      for (const off of offs) off();
+      for (const off of offs.splice(0)) off();
     };
   }
 
   // --- Boot ---------------------------------------------------------------------------------
 
-  /** Ganchos internos, empilhados para o LIFO rodar na ordem do shutdown (docs/bot.md). */
-  function registerInternalHooks(unsubscribe: () => void): void {
+  /**
+   * Ganchos internos, empilhados para o LIFO rodar na ordem do shutdown (docs/bot.md). Estourado
+   * o prazo, cada um abandona o que falta (o `signal` aborta) em vez de seguir em segundo plano.
+   */
+  function registerInternalHooks(): void {
     const push = (name: string, timeoutMs: number, hook: StopHook): void => {
       hooks.push({ name, timeoutMs, hook });
     };
@@ -448,20 +459,46 @@ export function createBot(config: BotConfig): Bot {
       });
       return outbound.close();
     });
-    push('scheduler', STOP_TIMEOUTS.scheduler, () => scheduler.stop());
-    push('plugins', STOP_TIMEOUTS.plugins, async () => {
-      const errors = (await host?.stop()) ?? [];
+    // Desce depois do scheduler: o teardown não corre junto com um job do próprio plugin.
+    push('plugins', STOP_TIMEOUTS.plugins, async (signal) => {
+      const errors = (await host?.stop(signal)) ?? [];
       if (errors.length > 0) {
         throw new AggregateError(errors, `teardown: ${errors.length} falha(s) de plugin`);
       }
     });
-    push('fila-de-entrada', STOP_TIMEOUTS.inbound, () => inbound.close());
+    push('scheduler', STOP_TIMEOUTS.scheduler, (signal) => scheduler.stop(signal));
+    push('fila-de-entrada', STOP_TIMEOUTS.inbound, (signal) => {
+      signal.addEventListener('abort', () => void inbound.close({ drain: false }), {
+        once: true,
+      });
+      return inbound.close();
+    });
     push('transporte', STOP_TIMEOUTS.reconnection, async () => {
       // Para de aceitar eventos (nada novo entra na fila) e de reconectar.
-      unsubscribe();
+      unsubscribe?.();
       settleReady(false);
       await reconnector?.stop();
     });
+  }
+
+  /**
+   * Passo obrigatório do shutdown, sem prazo: abandona o que os ganchos internos não encerraram
+   * (estouraram o prazo, ou nem rodaram porque o prazo total acabou antes). Depois dele nenhum
+   * timer do bot fica vivo e as filas estão fechadas; jobs abandonados ficam no storage e
+   * disparam na próxima subida. Num shutdown limpo, não acha nada a fazer.
+   */
+  async function abandonInternals(): Promise<void> {
+    if (unsubscribe === undefined) return;
+    unsubscribe();
+    settleReady(false);
+    const aborted = AbortSignal.abort();
+    // Sem await: o que resta delas é trabalho já em andamento, e nenhuma das três rejeita.
+    void reconnector?.stop();
+    void inbound.close({ drain: false });
+    await scheduler.stop(aborted);
+    // Teardown pulado ou abandonado vira falha que o host loga; o `dispose` roda para todos.
+    await host?.stop(aborted);
+    void outbound.close({ drain: false });
   }
 
   async function bootPlugins(): Promise<void> {
@@ -540,10 +577,11 @@ export function createBot(config: BotConfig): Bot {
       if (config.storage === undefined) {
         log.warn('sem storage configurado: usando memória, os dados somem ao reiniciar');
       }
-      registerInternalHooks(subscribeTransport());
+      unsubscribe = subscribeTransport();
+      registerInternalHooks();
     } catch (error) {
       // Nada conectou ainda: só desfaz o que foi registrado.
-      await shutdown(false).catch((cleanup: unknown) =>
+      await shutdown().catch((cleanup: unknown) =>
         log.error('falha ao encerrar após erro no start', { err: cleanup }),
       );
       throw error;
@@ -557,32 +595,36 @@ export function createBot(config: BotConfig): Bot {
     } catch (error) {
       log.error('falha ao carregar os plugins; encerrando', { err: error });
       // O transport nunca conectou: o encerramento não chama `disconnect()`.
-      await failBoot(error, false);
+      await failBoot(error);
     }
+
+    // stop() chegou durante o boot: quem chamou stop() conduz o encerramento. Conferido também
+    // antes do connect, para não abrir sessão (QR, handshake) só para fechá-la em seguida.
+    const stoppedDuringBoot = (): BotStateError =>
+      new BotStateError('start(): bot parado durante a inicialização', state);
+    if (stopRequested) throw stoppedDuringBoot();
 
     // Mensagens que chegarem durante o handshake esperam na fila de entrada (`readyPromise`)
     // até o fim do boot. Conectado, uma queda já é reconectada.
     try {
+      // O transport pode conectar pela metade: daqui em diante o encerramento desconecta.
+      connectCalled = true;
       await callConnect(transport);
       reconnector?.activate();
     } catch (error) {
-      // O transport pode ter conectado pela metade: o encerramento desconecta.
-      await failBoot(error, true);
+      await failBoot(error);
     }
 
-    if (stopRequested) {
-      // stop() chegou durante o boot: quem chamou stop() conduz o encerramento.
-      throw new BotStateError('start(): bot parado durante a inicialização', state);
-    }
+    if (stopRequested) throw stoppedDuringBoot();
     scheduler.start();
     settleReady(true);
     state = 'running';
   }
 
   /** Encerra o que o boot já subiu e relança `failure` (ou o `AggregateError` com a limpeza). */
-  async function failBoot(failure: unknown, disconnect: boolean): Promise<never> {
+  async function failBoot(failure: unknown): Promise<never> {
     try {
-      await shutdown(disconnect);
+      await shutdown();
     } catch (cleanupError) {
       const cleanup = cleanupError instanceof AggregateError ? cleanupError.errors : [];
       throw new AggregateError([failure, ...cleanup], 'start(): falha no boot e ao encerrar');
@@ -592,17 +634,18 @@ export function createBot(config: BotConfig): Bot {
 
   // --- Shutdown -----------------------------------------------------------------------------
 
-  function shutdown(disconnect: boolean): Promise<void> {
-    shutdownPromise ??= runShutdown(disconnect);
+  function shutdown(): Promise<void> {
+    shutdownPromise ??= runShutdown();
     return shutdownPromise;
   }
 
-  async function runShutdown(disconnect: boolean): Promise<void> {
+  async function runShutdown(): Promise<void> {
     state = 'stopping';
     // LIFO: quem subiu por último depende de quem subiu antes, então desce primeiro.
     const errors: unknown[] = await runStopHooks(hooks.toReversed(), config.shutdown);
     hooks.length = 0;
-    if (disconnect) {
+    await abandonInternals();
+    if (connectCalled) {
       try {
         await transport.disconnect();
       } catch (error) {
@@ -669,17 +712,17 @@ export function createBot(config: BotConfig): Bot {
     stop(): Promise<void> {
       switch (state) {
         case 'idle':
-          return shutdown(false);
+          return shutdown();
         case 'starting': {
           stopRequested = true;
           // Espera o boot assentar (sucesso ou falha) e só então encerra; se o start já
           // encerrou por falha, `shutdown` devolve a mesma promise.
-          const afterStart = (): Promise<void> => shutdown(true);
+          const afterStart = (): Promise<void> => shutdown();
           stopAfterStart ??= (startPromise ?? Promise.resolve()).then(afterStart, afterStart);
           return stopAfterStart;
         }
         case 'running':
-          return shutdown(true);
+          return shutdown();
         case 'stopping':
           return stopAfterStart ?? shutdownPromise ?? Promise.resolve();
         case 'stopped':

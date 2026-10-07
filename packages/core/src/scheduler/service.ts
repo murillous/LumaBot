@@ -69,9 +69,11 @@ export interface SchedulerService {
   start(): void;
   /**
    * Desarma o timer e espera os handlers em andamento (cada um limitado pelo prazo de job).
-   * Depois dele não sobra timer vivo. Idempotente.
+   * Abortado o `signal`, abandona os que ainda rodam: o `signal` do job aborta, o prazo dele é
+   * desarmado e o documento fica no storage, para disparar de novo na próxima subida. Depois
+   * dele não sobra timer vivo. Idempotente.
    */
-  stop(): Promise<void>;
+  stop(signal?: AbortSignal): Promise<void>;
 }
 
 /** Dois handlers para o mesmo job do mesmo plugin: o job seria consumido por um só. */
@@ -165,6 +167,8 @@ export function createSchedulerService(options: SchedulerServiceOptions): Schedu
   // id → handler em andamento (resolve quando o job saiu do storage). Impede entrega dupla
   // enquanto o handler roda e responde ao `cancel` de job já disparado.
   const inFlight = new Map<string, Promise<void>>();
+  // id → abandono do handler em andamento, usado pelo `stop` abortado.
+  const abandons = new Map<string, (reason: unknown) => void>();
 
   let started = false;
   let timer: NodeJS.Timeout | undefined;
@@ -246,7 +250,8 @@ export function createSchedulerService(options: SchedulerServiceOptions): Schedu
     // Plugin desabilitado ou ainda no setup: o job fica pendente no storage.
     if (handler === undefined) return;
     const done = run(doc, handler)
-      .then(() => jobs.delete(doc.id))
+      // Abandonado no shutdown, o job não terminou: fica no storage para a próxima subida.
+      .then((finished) => (finished ? jobs.delete(doc.id) : undefined))
       .then(
         () => undefined,
         // O job fica no storage e é entregue de novo na próxima volta (pelo menos uma vez).
@@ -263,10 +268,11 @@ export function createSchedulerService(options: SchedulerServiceOptions): Schedu
   }
 
   /**
-   * Roda o handler contra o prazo. Nunca rejeita: toda falha já foi entregue ao `onError`.
-   * Estourado o prazo, o `signal` do job aborta (ADR 0033).
+   * Roda o handler contra o prazo e resolve `false` só se ele foi abandonado no `stop`. Nunca
+   * rejeita: toda falha já foi entregue ao `onError`. Estourado o prazo (ou abandonado), o
+   * `signal` do job aborta (ADR 0033).
    */
-  function run(doc: StoredJob, handler: JobHandler): Promise<void> {
+  function run(doc: StoredJob, handler: JobHandler): Promise<boolean> {
     const deadline = new Deadline();
     const job: JobContext = {
       get signal(): AbortSignal {
@@ -278,30 +284,34 @@ export function createSchedulerService(options: SchedulerServiceOptions): Schedu
       result = handler(doc.payload, job);
     } catch (error) {
       fail(doc, error, false);
-      return Promise.resolve();
+      return Promise.resolve(true);
     }
-    if (!isThenable(result)) return Promise.resolve();
-    return new Promise<void>((resolve) => {
+    if (!isThenable(result)) return Promise.resolve(true);
+    return new Promise<boolean>((resolve) => {
       let settled = false;
-      const timeout = setTimeout(() => {
+      const settle = (finished: boolean): void => {
         settled = true;
+        clearTimeout(timeout);
+        abandons.delete(doc.id);
+        resolve(finished);
+      };
+      const timeout = setTimeout(() => {
         const error = new JobTimeoutError(doc.plugin, doc.job, jobTimeoutMs);
+        settle(true);
         deadline.expire(error);
         fail(doc, error, true);
-        resolve();
       }, jobTimeoutMs);
+      abandons.set(doc.id, (reason) => {
+        settle(false);
+        deadline.expire(reason);
+      });
       result.then(
         () => {
-          if (settled) return;
-          settled = true;
-          clearTimeout(timeout);
-          resolve();
+          if (!settled) settle(true);
         },
         (error: unknown) => {
           if (!settled) {
-            settled = true;
-            clearTimeout(timeout);
-            resolve();
+            settle(true);
             fail(doc, error, false);
             return;
           }
@@ -377,9 +387,14 @@ export function createSchedulerService(options: SchedulerServiceOptions): Schedu
       wake();
     },
 
-    async stop() {
+    async stop(signal) {
       started = false;
       disarm();
+      const abandon = (): void => {
+        for (const fn of abandons.values()) fn(signal?.reason);
+      };
+      if (signal?.aborted) abandon();
+      else signal?.addEventListener('abort', abandon, { once: true });
       await loop;
       // Um `at` pode ter rearmado enquanto o loop terminava; nada pode sobrar vivo.
       disarm();
