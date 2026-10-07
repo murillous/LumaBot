@@ -10,3 +10,4 @@ Como usar o kernel. O porquê das decisões está nos [ADRs](../../../docs/adr/R
 | [Fila de entrada](inbound-queue.md) | `InboundQueue`: mesmo chat em série, backlog, métricas, shutdown |
 | [Middlewares](middleware.md) | Pipeline em onion com prioridade e os middlewares oficiais |
 | [Comandos](commands.md) | `command()`, prefixo, aliases, args, `accepts`, `role`, conflitos |
+| [Escape hatch](unsafe.md) | `ctx.unsafe.native`, aviso no log e `transports` no manifesto |
