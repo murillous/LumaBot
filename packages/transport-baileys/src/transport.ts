@@ -128,15 +128,12 @@ export class BaileysTransport implements Transport {
     // `connect()` duas vezes. Os eventos dele deixam de valer a partir daqui.
     this.#endSocket();
     const version = await this.#driver.version();
-    const { state, saveCreds } = await loadAuthState(this.#deps.auth);
+    const logger = toBaileysLogger(this.#log.child({ lib: 'baileys' }));
+    const { state, saveCreds } = await loadAuthState(this.#deps.auth, logger);
     // `disconnect()` ou outro `connect()` enquanto as credenciais carregavam.
     if (attempt !== this.#attempt) return;
 
-    const socket = this.#driver.makeSocket({
-      auth: state,
-      logger: toBaileysLogger(this.#log.child({ lib: 'baileys' })),
-      version,
-    });
+    const socket = this.#driver.makeSocket({ auth: state, logger, version });
     this.#socket = socket;
     const current = (): boolean => this.#socket === socket;
     // Gravações em fila: uma `creds.update` não pode sobrescrever a seguinte fora de ordem.
@@ -155,7 +152,7 @@ export class BaileysTransport implements Transport {
     // Em fila: a normalização é assíncrona (telefone de LID) e não pode inverter a ordem de
     // chegada, que a fila de entrada do bot preserva por chat.
     let inbound = Promise.resolve();
-    const env = this.#normalizeEnv(socket, state);
+    const env = this.#normalizeEnv(socket, state, logger);
     socket.ev.on('messages.upsert', ({ messages, type }) => {
       if (!current()) return;
       // `append` é histórico e cópia de sincronização; só `notify` é mensagem nova.
@@ -227,8 +224,7 @@ export class BaileysTransport implements Transport {
     });
   }
 
-  #normalizeEnv(socket: BaileysSocket, state: AuthenticationState): NormalizeEnv {
-    const logger = toBaileysLogger(this.#log.child({ lib: 'baileys' }));
+  #normalizeEnv(socket: BaileysSocket, state: AuthenticationState, logger: ILogger): NormalizeEnv {
     const media = { reuploadRequest: (m: WAMessage) => socket.updateMediaMessage(m), logger };
     return {
       // Lido a cada mensagem: no primeiro pareamento o `me` só chega depois do socket criado.

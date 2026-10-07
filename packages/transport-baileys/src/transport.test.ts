@@ -283,6 +283,44 @@ describe('BaileysTransport: credenciais', () => {
     expect(k?.constructor.name).toBe('AppStateSyncKeyData');
     expect(Buffer.from(k?.keyData ?? [])).toEqual(Buffer.from([7, 8]));
   });
+
+  it('chave lida uma vez fica em cache; gravação vai ao storage', async () => {
+    const auth = createMemoryStorage().authState('default');
+    const reads: string[][] = [];
+    const counting: AuthStateStore = {
+      ...auth,
+      getKeys: (type, ids) => {
+        reads.push([...ids]);
+        return auth.getKeys(type, ids);
+      },
+    };
+    const preKey = { public: new Uint8Array([1]), private: new Uint8Array([2]) };
+    await auth.setKeys({ 'pre-key': { '1': { public: 'x', private: 'y' } } });
+    const { driver, transport } = setup('qr', counting);
+    await transport.connect();
+    const { keys } = driver.last.config.auth;
+
+    await keys.get('pre-key', ['1']);
+    await keys.get('pre-key', ['1']);
+    expect(reads).toEqual([['1']]);
+
+    await keys.set({ 'pre-key': { '2': preKey } });
+    expect(await keys.get('pre-key', ['2'])).toHaveProperty('2');
+    expect(reads).toEqual([['1']]);
+    expect(Object.keys(await auth.getKeys('pre-key', ['2']))).toEqual(['2']);
+  });
+
+  it('o cache é da tentativa: depois de limpar a sessão, a próxima não vê as chaves antigas', async () => {
+    const auth = createMemoryStorage().authState('default');
+    const { driver, transport } = setup('qr', auth);
+    await transport.connect();
+    const preKey = { public: new Uint8Array([1]), private: new Uint8Array([2]) };
+    await driver.last.config.auth.keys.set({ 'pre-key': { '1': preKey } });
+
+    await auth.clear();
+    await transport.connect();
+    expect(await driver.last.config.auth.keys.get('pre-key', ['1'])).toEqual({});
+  });
 });
 
 describe('BaileysTransport: reconexão e desconexão', () => {
