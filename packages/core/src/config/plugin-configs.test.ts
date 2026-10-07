@@ -302,9 +302,110 @@ describe('createPluginConfigs: setOverrides', () => {
     });
   });
 
-  it('registra o segredo novo antes de salvar', async () => {
-    const { configs, secrets } = await setup();
-    await configs.setOverrides('ai', { apiKey: 'nova-chave-1' });
-    expect(secrets.values()).toContain('nova-chave-1');
+  it('override com segredo rejeita, não grava e não mexe no SecretSet', async () => {
+    const { configs, secrets, kv } = await setup();
+    const before = secrets.values();
+    const error = await configError(configs.setOverrides('ai', { apiKey: 'nova-chave-1' }));
+    expect(error.issues).toEqual([expect.objectContaining({ path: 'apiKey', source: 'override' })]);
+    expect(await kv.get('ai')).toBeUndefined();
+    expect(secrets.values()).toEqual(before);
+    expect(secrets.values()).not.toContain('nova-chave-1');
+  });
+});
+
+describe('createPluginConfigs: segredos fora do override', () => {
+  const env = { ZAPFORGE_AI__API_KEY: 'sk-secreta-123' };
+
+  it('rejeita segredo raso e aninhado, aponta env e arquivo, e nada é gravado', async () => {
+    const { configs, kv } = await setup({ env, overrides: { ai: { model: 'pro' } } });
+    const error = await configError(
+      configs.setOverrides('ai', {
+        model: 'ultra',
+        apiKey: 'sk-override-1',
+        openai: { token: 'tok-override' },
+      }),
+    );
+    expect(error.issues).toEqual([
+      expect.objectContaining({ path: 'apiKey', source: 'override' }),
+      expect.objectContaining({ path: 'openai.token', source: 'override' }),
+    ]);
+    expect(error.message).toContain('campo secreto não pode ser definido por override');
+    expect(error.message).toContain('ZAPFORGE_AI__API_KEY');
+    expect(error.message).toContain('ZAPFORGE_AI__OPENAI__TOKEN');
+    expect(error.message).toContain('pluginConfig["ai"].openai.token');
+    expect(error.message).not.toMatch(/sk-override-1|tok-override/);
+    expect(await kv.get('ai')).toEqual({ model: 'pro' });
+    expect((await configs.resolve('ai')).config).toMatchObject({ model: 'pro' });
+  });
+
+  it('override só de campo comum continua gravando e recarregando', async () => {
+    const reloaded: string[] = [];
+    const storage = createMemoryStorage();
+    const configs = createPluginConfigs({
+      plugins: [ai],
+      storage,
+      env,
+      reload: async (name) => {
+        reloaded.push(name);
+        return {
+          entry: { name, version: '1.0.0', origin: 'config', status: 'loaded' },
+          errors: [],
+        };
+      },
+    });
+    await configs.setOverrides('ai', { model: 'pro', openai: {} });
+    expect(reloaded).toEqual(['ai']);
+    expect(await kernelStorage(storage, 'config').kv.get('ai')).toEqual({
+      model: 'pro',
+      openai: {},
+    });
+    expect((await configs.resolve('ai')).config).toMatchObject({
+      model: 'pro',
+      apiKey: 'sk-secreta-123',
+    });
+  });
+
+  it('override legado com segredo é ignorado com aviso, sem logar o valor', async () => {
+    const storage = createMemoryStorage();
+    await kernelStorage(storage, 'config').kv.set('ai', {
+      model: 'pro',
+      apiKey: 'sk-legado-777',
+      openai: { token: 'tok-legado-888' },
+    });
+    const raw: string[] = [];
+    const configs = createPluginConfigs({
+      plugins: [ai],
+      storage,
+      env,
+      log: createLogger({ destination: { write: (line) => raw.push(line) } }),
+    });
+
+    const { config } = await configs.resolve('ai');
+    // O campo comum do override vale; os secretos saem de env (apiKey) ou ficam ausentes.
+    expect(config).toEqual({ model: 'pro', apiKey: 'sk-secreta-123', openai: {} });
+    await configs.resolve('ai');
+
+    const output = raw.join('');
+    expect(output).not.toMatch(/sk-legado-777|tok-legado-888/);
+    expect(output).toContain('campo secreto \\"apiKey\\", ignorado');
+    expect(output).toContain('campo secreto \\"openai.token\\", ignorado');
+    // Um aviso por campo, não um por resolve.
+    expect(raw).toHaveLength(2);
+  });
+
+  it('JSON Schema marca segredos como não editáveis por override', async () => {
+    const { configs } = await setup();
+    const schema = configs.jsonSchema('ai') as {
+      properties: Record<
+        string,
+        Record<string, unknown> & { properties?: Record<string, Record<string, unknown>> }
+      >;
+    };
+    expect(schema.properties['apiKey']).toMatchObject({ 'x-zapforge-override': false });
+    expect(schema.properties['openai']?.properties?.['token']).toMatchObject({
+      secret: true,
+      'x-zapforge-override': false,
+    });
+    expect(schema.properties['model']).not.toHaveProperty('x-zapforge-override');
   });
 });

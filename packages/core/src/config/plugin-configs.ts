@@ -2,7 +2,8 @@
 // salvo no storage (dashboard) < arquivo (config do app) < env —, valida com o schema Zod do
 // plugin, mescla os `messages` sobrescritos e mantém os valores secretos no `SecretSet` que o
 // logger consulta. Quem monta o `PluginContext` (M1-16) chama `resolve` a cada setup; uma
-// mudança de override é validada antes de salvar e dispara o reload do plugin.
+// mudança de override é validada antes de salvar e dispara o reload do plugin. Campo `secret` não
+// entra por override: o storage guarda em texto puro (ADR 0032).
 
 import type { z } from 'zod';
 import { createNoopLogger } from '#logger/logger.ts';
@@ -39,7 +40,10 @@ export interface PluginConfigView {
   readonly messages: PluginMessages;
 }
 
-/** JSON Schema (draft 2020-12) da entrada da config; campos secretos com `secret: true`. */
+/**
+ * JSON Schema (draft 2020-12) da entrada da config; campos secretos com `secret: true`,
+ * `writeOnly: true` e `x-zapforge-override: false` (não editáveis por override).
+ */
 export type PluginConfigJsonSchema = Readonly<Record<string, unknown>>;
 
 export interface PluginConfigsOptions {
@@ -66,7 +70,9 @@ export interface PluginConfigs {
    */
   resolve(plugin: string): Promise<ResolvedPluginConfig>;
   /**
-   * Substitui os overrides do plugin (`{}` remove). Valida a config resultante antes de salvar:
+   * Substitui os overrides do plugin (`{}` remove). Campo `secret` (em qualquer nível) é
+   * recusado com `PluginConfigError` (fonte `override`): segredo vem de env ou do arquivo.
+   * Valida a config resultante antes de salvar:
    * se inválida, rejeita com `PluginConfigError` e nada muda — o plugin segue rodando. Se
    * válida, salva e chama `reload` (devolve o resultado dele; `undefined` sem `reload`).
    */
@@ -150,6 +156,34 @@ function mapSecrets(
   return copy;
 }
 
+/**
+ * Caminhos dos campos `secret` presentes em `value`, seguindo o schema. Mesmo critério de
+ * `mapSecrets`: só objetos declarados; `undefined` é ausência.
+ */
+function secretPaths(
+  schema: z.ZodType,
+  value: unknown,
+  prefix: readonly string[] = [],
+): string[][] {
+  const shape = objectShape(schema);
+  if (!shape || !isPlainObject(value)) return [];
+  return Object.entries(shape).flatMap(([key, field]) => {
+    if (value[key] === undefined) return [];
+    const path = [...prefix, key];
+    return isSecretSchema(field) ? [path] : secretPaths(field, value[key], path);
+  });
+}
+
+/** Cópia de `value` sem o campo em `path` (os objetos do caminho são copiados, não alterados). */
+function withoutPath(value: PlainObject, path: readonly string[]): PlainObject {
+  const [key, ...rest] = path as [string, ...string[]];
+  const copy: PlainObject = { ...value };
+  const next = copy[key];
+  if (rest.length === 0) delete copy[key];
+  else if (isPlainObject(next)) copy[key] = withoutPath(next, rest);
+  return copy;
+}
+
 /** Valores de um campo secreto como texto, para o logger achá-los na linha. */
 function secretStrings(value: unknown, into: string[]): void {
   if (typeof value === 'string') into.push(value);
@@ -158,16 +192,26 @@ function secretStrings(value: unknown, into: string[]): void {
   else if (isPlainObject(value)) for (const item of Object.values(value)) secretStrings(item, into);
 }
 
-/** Troca `default` de campo secreto pela máscara no JSON Schema exportado. */
-function maskSecretDefaults(node: unknown): void {
+/** Anotação do JSON Schema que diz ao dashboard que o campo não aceita override. */
+const OVERRIDE_ANNOTATION = 'x-zapforge-override';
+
+/**
+ * No JSON Schema exportado, marca campo secreto como não editável por override e troca o
+ * `default` dele pela máscara. `x-zapforge-override` em vez de `readOnly`: o campo já é
+ * `writeOnly`, e `readOnly` + `writeOnly` juntos se contradizem no JSON Schema.
+ */
+function markSecrets(node: unknown): void {
   if (Array.isArray(node)) {
-    for (const item of node) maskSecretDefaults(item);
+    for (const item of node) markSecrets(item);
     return;
   }
   if (typeof node !== 'object' || node === null) return;
   const record = node as PlainObject;
-  if (record['secret'] === true && 'default' in record) record['default'] = SECRET_MASK;
-  for (const value of Object.values(record)) maskSecretDefaults(value);
+  if (record['secret'] === true) {
+    record[OVERRIDE_ANNOTATION] = false;
+    if ('default' in record) record['default'] = SECRET_MASK;
+  }
+  for (const value of Object.values(record)) markSecrets(value);
 }
 
 interface Layer {
@@ -195,6 +239,8 @@ export function createPluginConfigs(options: PluginConfigsOptions): PluginConfig
   }
 
   let queue: Promise<unknown> = Promise.resolve();
+  // Avisa uma vez por campo: `resolve` roda a cada setup/reload/describe.
+  const warnedLegacy = new Set<string>();
 
   function definitionOf(name: string): PluginDefinition {
     const definition = byName.get(name);
@@ -330,9 +376,33 @@ export function createPluginConfigs(options: PluginConfigsOptions): PluginConfig
     return { ok: true, resolved: { config, messages: Object.freeze(messages) }, secrets };
   }
 
+  /**
+   * Override salvo antes da regra de segredos (ou escrito direto no banco) pode ter campo
+   * `secret`. O valor é ignorado com aviso em vez de falhar a config: um dado legado não deve
+   * desligar o plugin, e o segredo de verdade continua vindo de env ou do arquivo.
+   */
+  function dropLegacySecrets(definition: PluginDefinition, stored: unknown): unknown {
+    if (!definition.config || !isPlainObject(stored)) return stored;
+    let clean = stored;
+    for (const path of secretPaths(definition.config, stored)) {
+      clean = withoutPath(clean, path);
+      const label = path.join('.');
+      const key = `${definition.name}:${label}`;
+      if (warnedLegacy.has(key)) continue;
+      warnedLegacy.add(key);
+      // Só o caminho: o valor é segredo e ainda não está no `SecretSet`.
+      log.warn(
+        `override do plugin "${definition.name}" tem o campo secreto "${label}", ignorado; ` +
+          `defina pela env ${envName(definition.name, path)} ou pelo arquivo`,
+        { plugin: definition.name, field: label },
+      );
+    }
+    return clean;
+  }
+
   async function current(name: string): Promise<ResolvedPluginConfig> {
     const definition = definitionOf(name);
-    const result = compute(definition, await kv.get(name));
+    const result = compute(definition, dropLegacySecrets(definition, await kv.get(name)));
     if (!result.ok) throw result.error;
     options.secrets?.set(SECRETS_OWNER(name), result.secrets);
     return result.resolved;
@@ -342,7 +412,20 @@ export function createPluginConfigs(options: PluginConfigsOptions): PluginConfig
     name: string,
     overrides: JsonObject,
   ): Promise<PluginReloadResult | undefined> {
-    const result = compute(definitionOf(name), overrides);
+    const definition = definitionOf(name);
+    // O storage guarda o override em texto puro (banco, backups): segredo não entra (ADR 0032).
+    const secretIssues: PluginConfigIssue[] = definition.config
+      ? secretPaths(definition.config, overrides).map((path) => ({
+          path: path.join('.'),
+          message:
+            'campo secreto não pode ser definido por override (o storage guarda em texto ' +
+            `puro); defina pela env ${envName(name, path)} ou pelo arquivo ` +
+            `pluginConfig["${name}"].${path.join('.')}`,
+          source: 'override',
+        }))
+      : [];
+    if (secretIssues.length > 0) throw new PluginConfigError(name, secretIssues);
+    const result = compute(definition, overrides);
     if (!result.ok) throw result.error;
     // Antes de salvar e de recarregar: o reload loga, e o segredo novo já precisa sair censurado.
     options.secrets?.set(SECRETS_OWNER(name), result.secrets);
@@ -379,7 +462,7 @@ export function createPluginConfigs(options: PluginConfigsOptions): PluginConfig
       // `input`: o formulário preenche a entrada (campos com default são opcionais). Transform
       // não tem JSON Schema; vira `{}` em vez de lançar.
       const json = schema.toJSONSchema({ io: 'input', unrepresentable: 'any' });
-      maskSecretDefaults(json);
+      markSecrets(json);
       return json as PluginConfigJsonSchema;
     },
   };

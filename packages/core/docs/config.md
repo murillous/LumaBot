@@ -42,7 +42,7 @@ mesclam entre camadas, arrays e valores simples substituem.
 | --- | --- |
 | env | `ZAPFORGE_<PLUGIN>__<CAMPO>[__<SUBCAMPO>…]` |
 | arquivo | `file[plugin]` — o `pluginConfig` que o app passa na config do bot |
-| overrides | `kernelStorage(storage, 'config').kv`, chave = nome do plugin (dashboard) |
+| overrides | `kernelStorage(storage, 'config').kv`, chave = nome do plugin (dashboard); nunca segredos |
 | default | `.default(...)` do schema |
 
 ```ts
@@ -94,9 +94,9 @@ const configs = createPluginConfigs({
 | Método | O que faz |
 | --- | --- |
 | `resolve(name)` | `{ config, messages }` atuais e validados; registra os segredos no `SecretSet`. Lança `PluginConfigError` |
-| `setOverrides(name, overrides)` | Valida a config resultante; se válida, salva (substitui; `{}` remove) e chama `reload`. Inválida rejeita sem salvar |
+| `setOverrides(name, overrides)` | Recusa campo `secret`; valida a config resultante; se válida, salva (substitui; `{}` remove) e chama `reload`. Inválida rejeita sem salvar |
 | `describe(name)` | Config atual com segredos trocados por `SECRET_MASK` (`'********'`) |
-| `jsonSchema(name)` | JSON Schema (entrada) para gerar formulário; `undefined` sem `config` |
+| `jsonSchema(name)` | JSON Schema (entrada) para gerar formulário; segredos com `x-zapforge-override: false`; `undefined` sem `config` |
 
 `pluginConfig` citando plugin que não existe gera `warn` (provável erro de digitação).
 
@@ -140,13 +140,33 @@ A mensagem nunca traz o valor recebido (pode ser secreto).
 `secret(schema)` marca o campo (em qualquer nível, sobrevive a `.optional()`/`.default()`):
 
 - `describe` mostra `'********'`;
-- o JSON Schema sai com `secret: true` e `writeOnly: true`, e um `default` secreto vira máscara;
+- o JSON Schema sai com `secret: true`, `writeOnly: true` e `x-zapforge-override: false` (o
+  dashboard não deve oferecer edição), e um `default` secreto vira máscara;
 - `resolve`/`setOverrides` põem os valores no `SecretSet` (dono `plugin:<nome>`, trocados a cada
   resolução). O logger criado com `secrets: secretSet` censura esses valores em qualquer linha —
   mesmo os resolvidos depois da criação do logger ou alterados num reload. Ver
   [Logger](logger.md#segredos).
 
-Overrides ficam em texto puro no storage, segredos inclusive.
+### Segredo não entra por override
+
+O override fica em texto puro no storage (banco, backups), então segredo vem **só de env ou do
+arquivo** ([ADR 0032](../../../docs/adr/0032-camadas-da-config-de-plugin.md)):
+
+```ts
+await configs.setOverrides('ai', { model: 'pro', openai: { token: 'x' } });
+// PluginConfigError, nada é salvo e o plugin segue com a config atual:
+// - openai.token: campo secreto não pode ser definido por override (o storage guarda em texto
+//   puro); defina pela env ZAPFORGE_AI__OPENAI__TOKEN ou pelo arquivo pluginConfig["ai"].openai.token
+//   (fonte: override salvo no storage)
+```
+
+A checagem vale em qualquer nível de objeto e vem antes da validação. Override **legado** com
+segredo (gravado antes desta regra ou escrito direto no banco) não derruba o plugin: em
+`resolve`, o campo secreto é descartado e sai um `warn` com plugin e caminho — nunca o valor —,
+uma vez por campo; o resto do override vale. Para limpar, grave o override de novo sem o campo.
+`describe` só mascara: não informa de onde veio o segredo.
+
+Cifrar segredos no storage, para o dashboard editá-los, fica para o M5 com ADR próprio.
 
 ## `messages` sobrescrevível
 
