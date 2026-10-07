@@ -272,6 +272,21 @@ setup(ctx) {
 
 ## Versão do core
 
-`CORE_VERSION` é a versão conferida contra `engine`. Um teste a compara com o `package.json`:
-o PR de versão do changesets precisa atualizá-la junto. `createPluginHost({ coreVersion })`
-sobrescreve só em testes.
+`CORE_VERSION` é a versão conferida contra `engine`. Não se edita à mão: o PR de versão sai de
+`pnpm version-packages`, que roda o `changeset version` e depois `scripts/sync-version.ts`,
+reescrevendo a constante com a versão nova do `package.json`. Um teste compara as duas.
+`createPluginHost({ coreVersion })` sobrescreve só em testes.
+
+### Qual `engine` declarar no 0.x
+
+Pela regra do `^` no npm, o primeiro dígito diferente de zero é o que trava: `^1.2.0` aceita
+até `<2.0.0`, mas `^0.2.0` só aceita `0.2.x` e `^0.0.3` só aceita exatamente `0.0.3`. O core
+está em `0.0.0` até o primeiro release (que sai `0.1.0`, porque há changesets `minor`
+pendentes), então um plugin com `engine: '^0.0.0'` deixa de carregar no primeiro bump.
+
+- **Plugins do monorepo** declaram `engine: '>=0.1.0 <1.0.0'` enquanto o core estiver no 0.x.
+  Eles sobem junto com o core e o CI os testa contra o core do mesmo commit, então a faixa só
+  precisa barrar o salto para a 1.0; `^0.1.0` os quebraria a cada minor.
+- **Plugins de fora** declaram `^0.M.0`, com o minor contra o qual foram testados: no 0.x um
+  minor pode quebrar a API.
+- Na 1.0, todos passam a `^1.0.0`.
