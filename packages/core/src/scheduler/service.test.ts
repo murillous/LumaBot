@@ -517,6 +517,47 @@ describe('concorrência e paginação', () => {
     expect(handler).toHaveBeenCalledOnce();
   });
 
+  it('vencidos sem handler não são relidos a cada disparo (#228)', async () => {
+    const read: { plugin: string; job: string }[] = [];
+    const service = create({
+      storage: wrappedStorage((jobs) => ({
+        find: async (query) => {
+          const docs = await jobs.find(query);
+          read.push(...(docs as unknown as { plugin: string; job: string }[]));
+          return docs;
+        },
+      })),
+    });
+    // Órfãos dos dois jeitos: plugin sem handler nenhum e job sem handler de plugin vivo.
+    const off = service.forPlugin('desligado');
+    for (let i = 0; i < 300; i++) await off.at(T0 - 1000, 'y');
+    const live = service.forPlugin('vivo');
+    for (let i = 0; i < 300; i++) await live.at(T0 - 1000, 'renomeado');
+    const handler = vi.fn();
+    live.on('y', handler);
+    service.start();
+    for (let i = 0; i < 20; i++) await live.at(T0 - 1, 'y');
+    await settle();
+
+    expect(handler).toHaveBeenCalledTimes(20);
+    expect(read.filter((doc) => doc.plugin === 'desligado')).toEqual([]);
+    expect(read.filter((doc) => doc.job === 'renomeado')).toEqual([]);
+  });
+
+  it('job futuro sem handler não arma timer; o on do plugin o encontra', async () => {
+    const service = create();
+    const scheduler = service.forPlugin('p');
+    await scheduler.at(T0 + 5000, 'job');
+    service.start();
+    await settle();
+    expect(vi.getTimerCount()).toBe(0);
+
+    const handler = vi.fn();
+    scheduler.on('job', handler);
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(handler).toHaveBeenCalledOnce();
+  });
+
   it('remoção que falha depois do handler rearma o loop: o job é entregue de novo', async () => {
     let failures = 1;
     const service = create({

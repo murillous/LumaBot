@@ -127,8 +127,13 @@ await scheduler.stop();                           // gancho de parada
   plugins) rodam ao mesmo tempo. Depois de um downtime longo, ou com muitos jobs no mesmo
   horário, os vencidos esperam vaga em ordem de `fireAt` (FIFO, sem cota por plugin), e o fim de
   cada handler puxa o próximo. A leitura dos vencidos é paginada (100 por consulta), então a
-  coleção nunca vem inteira para a memória. Vencidos sem handler (plugin desligado ou no setup)
-  não ocupam vaga nem travam os de trás.
+  coleção nunca vem inteira para a memória.
+- **Jobs sem handler ficam fora das consultas.** O loop só lê do storage jobs de plugin e nome
+  com `on` registrado (`plugin in [...]` e `job in [...]`). Os órfãos (plugin desligado,
+  removido ou no setup, job renomeado) não ocupam vaga, não travam os de trás, não armam timer e
+  não são relidos a cada disparo: acumular milhares deles não encarece o loop. O `on` acorda o
+  loop, que os encontra. Exceção rara: um órfão cujo nome de job coincide com o de um handler de
+  outro plugin passa pelo filtro e é pulado em memória.
 - **Rejeição depois do prazo.** O job já saiu como timeout no `onError`; a rejeição que chega
   depois vai ao `onLateError` (padrão: o próprio `onError`). O `Bot` a liga só ao log, para ela
   não virar um segundo `plugin.error`. Uma `ContextExpiredError` tardia não é repassada: a recusa

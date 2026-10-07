@@ -8,7 +8,7 @@
 import { ContextExpiredError, Deadline, JobTimeoutError } from '#deadline.ts';
 import type { PluginErrorEvent } from '#events/types.ts';
 import { kernelStorage } from '#storage/namespace.ts';
-import type { Collection, JsonValue, StoragePort, WithId } from '#storage/types.ts';
+import type { Collection, JsonValue, StoragePort, Where, WithId } from '#storage/types.ts';
 import type { Unsubscribe } from '#transport/types.ts';
 import type { JobContext, JobHandler, Scheduler } from './types.ts';
 
@@ -250,6 +250,20 @@ export function createSchedulerService(options: SchedulerServiceOptions): Schedu
     });
   }
 
+  /**
+   * Filtro dos jobs que têm handler, ou `undefined` sem nenhum. Sem ele, os órfãos (plugin
+   * desligado, job renomeado) seriam relidos do storage a cada volta, e o custo de cada disparo
+   * cresceria com o lixo acumulado (#228). Como `Where` só combina campos com E, o filtro é o
+   * produto `plugin × job`: um órfão só passa se outro plugin tiver handler com o mesmo nome de
+   * job, e o `dispatch` o pula.
+   */
+  function withHandler(): Where<JobDocument> | undefined {
+    if (handlers.size === 0) return undefined;
+    const names = new Set<string>();
+    for (const byJob of handlers.values()) for (const job of byJob.keys()) names.add(job);
+    return { plugin: { in: [...handlers.keys()] }, job: { in: [...names] } };
+  }
+
   async function tick(): Promise<void> {
     const now = Date.now();
     // Esta volta já reentrega o que a remoção não tirou do storage.
@@ -257,12 +271,16 @@ export function createSchedulerService(options: SchedulerServiceOptions): Schedu
     let next: number | undefined;
     try {
       await exclusive(() => dispatchDue(now));
-      // Job vencido sem handler não arma timer: espera o `on` do plugin, que acorda o loop.
-      const [upcoming] = await jobs.find({
-        where: { fireAt: { gt: now } },
-        orderBy: 'fireAt',
-        limit: 1,
-      });
+      // Job sem handler não arma timer: espera o `on` do plugin, que acorda o loop.
+      const filter = withHandler();
+      const [upcoming] =
+        filter === undefined
+          ? []
+          : await jobs.find({
+              where: { ...filter, fireAt: { gt: now } },
+              orderBy: 'fireAt',
+              limit: 1,
+            });
       next = upcoming?.fireAt;
     } catch (error) {
       onStorageError(error);
@@ -273,16 +291,18 @@ export function createSchedulerService(options: SchedulerServiceOptions): Schedu
   }
 
   /**
-   * Despacha os vencidos em ordem de `fireAt` até acabarem as vagas, lendo uma página por vez.
-   * Os que estão em andamento ou sem handler não ocupam vaga e são pulados pelo `offset`, para
-   * não travarem os de trás. Se um handler terminar no meio da varredura e o `offset` pular um
+   * Despacha os vencidos com handler em ordem de `fireAt` até acabarem as vagas, lendo uma
+   * página por vez. Os que estão em andamento não ocupam vaga e são pulados pelo `offset`, para
+   * não travarem os de trás (no máximo `maxConcurrent` deles). Se um handler terminar no meio da varredura e o `offset` pular um
    * vencido, a volta extra que esse término pede (`wake`) o encontra.
    */
   async function dispatchDue(now: number): Promise<void> {
     backlog = false;
+    const filter = withHandler();
+    if (filter === undefined) return;
     for (let offset = 0; started; offset += DUE_PAGE_SIZE) {
       const page = await jobs.find({
-        where: { fireAt: { lte: now } },
+        where: { ...filter, fireAt: { lte: now } },
         orderBy: 'fireAt',
         limit: DUE_PAGE_SIZE,
         offset,
@@ -302,7 +322,7 @@ export function createSchedulerService(options: SchedulerServiceOptions): Schedu
   function dispatch(doc: StoredJob): void {
     if (inFlight.has(doc.id)) return;
     const registered = handlers.get(doc.plugin)?.get(doc.job);
-    // Plugin desabilitado ou ainda no setup: o job fica pendente no storage.
+    // Órfão que passou pelo filtro (ver `withHandler`): fica pendente no storage.
     if (registered === undefined) return;
     const done = run(doc, registered)
       // Abandonado no shutdown, o job não terminou: fica no storage para a próxima subida.
