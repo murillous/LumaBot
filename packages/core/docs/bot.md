@@ -229,6 +229,14 @@ e `scheduler.on` (lançam `PluginHostStateError`), para nada ficar órfão, e `s
 coleções) e `scheduler.at`/`cancel` (rejeitam com `ContextExpiredError`), para nenhum efeito sair
 de um plugin que já desceu. O `ctx.signal` do plugin aborta no descarte.
 
+**Janela do reload**: entre o teardown e o fim do `setup` novo, os comandos do plugin não estão
+no registro. Uma mensagem que chega nessa janela (`!sticker` durante o reload do `sticker`) não
+casa com comando nenhum e segue para os listeners de `message` como texto comum; um plugin de
+conversa pode respondê-la. Comando de outro plugin que exige papel do plugin recarregando é
+recusado (o papel some junto). A janela dura o `setup` do plugin (e dos dependentes em cascata);
+no bot, o reload vem do `config.setOverrides`, não do caminho normal da mensagem.
+Listener que não deve responder a comandos pode ignorar o texto que começa com o prefixo.
+
 Destino dos erros de plugin — todos viram `plugin.error` no barramento e linha de log:
 
 | Fase | Origem |
