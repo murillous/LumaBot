@@ -34,6 +34,14 @@ inválida derrubar o boot.
   `PluginConfigError`, que vira `setup-failed` (fase `context`) com o motivo na tabela de boot.
   Numa mudança em runtime, a config nova é validada antes de salvar; inválida é recusada e o
   plugin segue com a anterior.
+- **Segredo não entra por override**: o storage guarda o override em texto puro (SQLite,
+  Postgres, backups), então `setOverrides` recusa qualquer campo `secret`, inclusive aninhado,
+  com `PluginConfigError` (fonte `override`) apontando a env e o caminho no arquivo. Segredo vem
+  só de env ou do arquivo. Override legado com segredo (gravado antes desta regra ou direto no
+  banco) tem o campo ignorado na leitura, com `warn` sem o valor, em vez de falhar o plugin: um
+  dado antigo não deve desligar o plugin. O JSON Schema marca o campo com
+  `x-zapforge-override: false` (e não `readOnly`, que contradiz o `writeOnly` já presente) para
+  o dashboard não oferecer a edição.
 - **Segredos no log** chegam por uma fonte viva (`SecretSet`) compartilhada entre a config e o
   logger, porque a config é resolvida depois que o logger existe e muda no reload.
 
@@ -42,5 +50,7 @@ inválida derrubar o boot.
 - Renomear um campo de config muda o nome da variável de ambiente: é quebra para quem configura.
 - Uma config errada desliga só aquele plugin; o operador vê o campo e a fonte do erro na tabela
   de boot (em `warn`) em vez de o bot inteiro não subir.
-- Overrides ficam em texto puro no storage, inclusive segredos: proteger o banco é do operador.
+- Overrides ficam em texto puro no storage, mas sem segredos: o dashboard não edita segredo, e
+  trocar uma chave exige mexer em env ou no arquivo e reiniciar (ou recarregar) o plugin.
+  Cifrar segredos no storage, para o dashboard poder editá-los, fica para o M5, com ADR próprio.
 - Erros de validação nunca carregam o valor recebido, que pode ser secreto.

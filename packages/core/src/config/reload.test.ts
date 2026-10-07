@@ -122,9 +122,12 @@ describe('reload por mudança de config', () => {
   });
 
   it('o segredo inicial e o alterado no reload nunca aparecem no log', async () => {
-    const { host, configs, raw } = harness();
+    // Segredo não entra por override (ADR 0032): vem do arquivo, e o reload é disparado por
+    // um override de campo comum.
+    const { host, configs, raw, calls } = harness({ echo: { token: 'tok-novo-999' } });
     await host.start();
-    await configs.setOverrides('echo', { token: 'tok-novo-999' });
+    await configs.setOverrides('echo', { greeting: 'e aí' });
+    expect(calls).toContain('setup:e aí:Olá');
     const output = raw.join('');
     expect(output).toContain('config carregada');
     expect(output).not.toMatch(/tok-inicial|tok-novo-999/);
