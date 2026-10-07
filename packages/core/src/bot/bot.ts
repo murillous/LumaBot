@@ -8,7 +8,7 @@ import {
   type PluginConfigs,
 } from '#config/plugin-configs.ts';
 import type { BotMessageContext } from '#context.ts';
-import { ContextExpiredError } from '#deadline.ts';
+import { ContextExpiredError, settleWithin } from '#deadline.ts';
 import { createEventBus, type EmittableEventName } from '#events/bus.ts';
 import type { BotEvents, ListenerExtras, PluginErrorEvent } from '#events/types.ts';
 import { createDeferredLogger } from '#logger/deferred.ts';
@@ -259,6 +259,7 @@ export function createBot(config: BotConfig): Bot {
   // Desfaz a assinatura dos eventos do transport; existe depois que o start() a fez.
   let unsubscribe: (() => void) | undefined;
   const timeouts = config.timeouts ?? {};
+  const commandTimeoutMs = timeouts.commandMs ?? DEFAULT_COMMAND_TIMEOUT_MS;
 
   const bus = createEventBus({
     listenerTimeoutMs: timeouts.listenerMs,
@@ -268,7 +269,9 @@ export function createBot(config: BotConfig): Bot {
   const router = createCommandRouter({
     prefix: config.prefix,
     owners: normalizeOwners(config.owners ?? []),
-    isGroupAdmin: groupAdminPort(transport),
+    isGroupAdmin: groupAdminPort(transport, commandTimeoutMs, (error) =>
+      log.warn('consulta de admin do grupo falhou depois do prazo', { err: error }),
+    ),
   });
   const pipeline = createPipeline(config.middlewares ?? {}, getLog);
   const inbound = new InboundQueue({
@@ -383,7 +386,9 @@ export function createBot(config: BotConfig): Bot {
         phase: 'command',
         event: result.command.name,
         error: result.error,
-        timedOut: result.error instanceof CommandTimeoutError,
+        timedOut:
+          result.error instanceof CommandTimeoutError ||
+          result.error instanceof GroupAdminTimeoutError,
       };
       logPluginError(event);
       void bus.emit('plugin.error', event);
@@ -526,7 +531,7 @@ export function createBot(config: BotConfig): Bot {
       scheduler,
       send,
       unsafe: createUnsafeAccess({ transport, log }),
-      commandTimeoutMs: timeouts.commandMs ?? DEFAULT_COMMAND_TIMEOUT_MS,
+      commandTimeoutMs,
       onLateCommandError: (plugin, command, error) => {
         // A recusa de um contexto expirado já foi logada quando aconteceu (ADR 0033).
         if (error instanceof ContextExpiredError) return;
@@ -780,11 +785,40 @@ function callConnect(transport: Transport): Promise<void> {
   }
 }
 
-/** Porta `isGroupAdmin` do roteador, a partir do transport (capability `groups`). */
-function groupAdminPort(transport: Transport): IsGroupAdmin | undefined {
+/**
+ * A consulta de admin do grupo ao transport (`role: 'group-admin'`) estourou o prazo do comando.
+ * O comando não roda e sai `plugin.error` com `timedOut: true` no plugin dono do comando.
+ */
+export class GroupAdminTimeoutError extends Error {
+  override readonly name = 'GroupAdminTimeoutError';
+  readonly chatId: string;
+  readonly timeoutMs: number;
+
+  constructor(chatId: string, timeoutMs: number) {
+    super(`consulta de admin do grupo "${chatId}" ao transport excedeu ${timeoutMs} ms`);
+    this.chatId = chatId;
+    this.timeoutMs = timeoutMs;
+  }
+}
+
+/**
+ * Porta `isGroupAdmin` do roteador, a partir do transport (capability `groups`). Com o prazo do
+ * comando: um `getGroupMetadata` que nunca resolve seguraria o chat na fila de entrada para
+ * sempre. O timer só existe para quem não é owner pedindo comando de admin num grupo.
+ */
+function groupAdminPort(
+  transport: Transport,
+  timeoutMs: number,
+  onLate: (error: unknown) => void,
+): IsGroupAdmin | undefined {
   if (!hasCapability(transport, 'groups')) return undefined;
   return async (chatId, senderId) => {
-    const metadata = await transport.getGroupMetadata(chatId);
+    const metadata = (await settleWithin(
+      transport.getGroupMetadata(chatId),
+      timeoutMs,
+      () => new GroupAdminTimeoutError(chatId, timeoutMs),
+      onLate,
+    )) as Awaited<ReturnType<Transport['getGroupMetadata']>>;
     return metadata.participants.some(
       (participant) => participant.id === senderId && participant.isAdmin,
     );

@@ -91,11 +91,17 @@ ctx.reply()/ctx.send → fila de saída → transport
   (`phase: 'command'`, `event` = nome do comando) e uma linha de log em `error`; o chat segue.
 - **Prazo de comando** (`timeouts.commandMs`, padrão 30 s, [ADR 0005](../../../docs/adr/0005-plugins-no-mesmo-processo.md)):
   um `run` que não termina no prazo vira `plugin.error` com `timedOut: true` e erro
-  `CommandTimeoutError` (`plugin`, `command`, `timeoutMs`), e o chat passa para a próxima
-  mensagem. O `run` não é cancelado (não há como) e segue em segundo plano; se ele rejeitar
-  depois, o erro vai só para o log. O prazo vale para o `run`, não para `onReject`. O
-  `ctx.signal` do comando aborta nesse momento e o `reply` dele passa a ser recusado (ver
-  [Prazos e cancelamento](#prazos-e-cancelamento-ctxsignal)).
+  `CommandTimeoutError` (`plugin`, `command`, `timeoutMs`, `stage: 'run'`), e o chat passa para
+  a próxima mensagem. O `run` não é cancelado (não há como) e segue em segundo plano; se ele
+  rejeitar depois, o erro vai só para o log. O `ctx.signal` do comando aborta nesse momento e o
+  `reply` dele passa a ser recusado (ver [Prazos e cancelamento](#prazos-e-cancelamento-ctxsignal)).
+  O `onReject` tem o mesmo prazo, contado à parte (`stage: 'onReject'`, com `signal` e `reply`
+  próprios). A consulta de admin ao transport (`role: 'group-admin'`) também: estourada, o
+  comando não roda e sai `plugin.error` com `timedOut: true` e `GroupAdminTimeoutError`
+  (`chatId`, `timeoutMs`).
+- **Middlewares do app não têm prazo**: são código do app, não de plugin (ADR 0005 isola
+  plugins). Um middleware que nunca chama `next()` nem resolve segura o chat dele na fila de
+  entrada; quem escreve middleware assíncrono responde por limitar o próprio I/O.
 - **Listeners** de eventos de mensagem recebem, além de `payload`/`claimed`/`claim()`/`signal`,
   os campos `message`, `text`, `reply` e `log` (este com `plugin` e `chatId`).
 - `message.edited` vai direto aos listeners (com os mesmos campos), sem middlewares nem comandos.
@@ -167,7 +173,7 @@ Destino dos erros de plugin — todos viram `plugin.error` no barramento e linha
 | --- | --- |
 | `setup` | fábrica de contexto ou `setup` lançou/estourou o prazo (o plugin fica ignorado na tabela) |
 | `teardown` | `teardown`/limpeza no reload ou no `stop()` (no `stop()`, também no `AggregateError`) |
-| `command` | `run`, `onReject` ou a consulta de admin lançou, ou o `run` estourou `timeouts.commandMs` (`timedOut: true`) |
+| `command` | `run`, `onReject` ou a consulta de admin lançou, ou um deles estourou `timeouts.commandMs` (`timedOut: true`) |
 | `listener` | listener lançou, rejeitou ou estourou o prazo |
 | `scheduler` | handler de job lançou, rejeitou ou estourou o prazo |
 
@@ -183,7 +189,7 @@ oferece **cancelamento cooperativo** ([ADR 0033](../../../docs/adr/0033-cancelam
 
 | Onde | `signal` | Aborta quando | `reason` |
 | --- | --- | --- | --- |
-| Comando (`run`) | `c.signal` | `timeouts.commandMs` estoura | `CommandTimeoutError` |
+| Comando (`run` e `onReject`) | `c.signal` | `timeouts.commandMs` estoura (cada um conta o seu) | `CommandTimeoutError` |
 | Listener (todo evento) | `e.signal` | o prazo **deste** listener estoura | `ListenerTimeoutError` |
 | Job do scheduler | `handler(payload, { signal })` | `timeouts.jobMs` estoura | `JobTimeoutError` |
 | Plugin (`setup`) | `ctx.signal` | o contexto é descartado (teardown, reload, `setup` que falhou/estourou) | erro do `setup`, ou `PluginHostStateError` no descarte normal |

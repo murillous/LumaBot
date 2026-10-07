@@ -80,6 +80,15 @@ describe('createCommandRegistry', () => {
     ).not.toThrow();
   });
 
+  it('valida nome e aliases mesmo sem passar por command()', () => {
+    const registry = createCommandRegistry();
+    expect(() => registry.add('p', { name: 'a b', run: noop })).toThrow(TypeError);
+    expect(() => registry.add('p', { name: '', run: noop })).toThrow(TypeError);
+    expect(() => registry.add('p', { name: 'ok', aliases: ['x y'], run: noop })).toThrow(TypeError);
+    expect(registry.find('ok')).toBeUndefined();
+    expect(registry.list()).toEqual([]);
+  });
+
   it('removePlugin libera os tokens do plugin e preserva os dos outros', () => {
     const registry = createCommandRegistry();
     registry.add('media', command({ name: 'sticker', aliases: ['s'], run: noop }));
