@@ -11,6 +11,7 @@ import type { BotMessageContext } from '#context.ts';
 import { ContextExpiredError } from '#deadline.ts';
 import { createEventBus, type EmittableEventName } from '#events/bus.ts';
 import type { BotEvents, ListenerExtras, PluginErrorEvent } from '#events/types.ts';
+import { createDeferredLogger } from '#logger/deferred.ts';
 import { createLogger, createNoopLogger } from '#logger/logger.ts';
 import { createSecretSet, type SecretSet } from '#logger/secrets.ts';
 import type { Logger, LogLevel } from '#logger/types.ts';
@@ -34,7 +35,7 @@ import { createMemoryStorage } from '#storage/memory.ts';
 import { DEFAULT_SESSION, sessionStorage } from '#storage/namespace.ts';
 import type { StoragePort } from '#storage/types.ts';
 import { hasCapability } from '#transport/capabilities.ts';
-import type { Transport } from '#transport/types.ts';
+import type { Transport, TransportDeps } from '#transport/types.ts';
 import { createUnsafeAccess } from '#unsafe/access.ts';
 import {
   createMessageContext,
@@ -98,7 +99,11 @@ export interface BotTimeouts {
 }
 
 export interface BotConfig {
-  readonly transport: Transport;
+  /**
+   * O transport, ou a fábrica que o monta com o que o bot fornece (`session`, `auth`, `log`;
+   * ADR 0037). O `createBot` chama a fábrica uma vez; ela só monta o objeto, sem I/O.
+   */
+  readonly transport: Transport | ((deps: TransportDeps) => Transport);
   /**
    * Sessão (o número) que este bot opera; kebab-case, como nome de plugin. Tudo o que o bot
    * persiste fica no escopo dela (ADR 0036), então trocar o nome "esquece" os dados da anterior.
@@ -214,10 +219,10 @@ const MIDDLEWARE_PRIORITY = { ignoreSelf: 1000, chatFilter: 900, rateLimit: 800,
 /**
  * Cria um bot. Valida a config e monta as peças sem efeito colateral (sem conexão, timer,
  * logger ou leitura de disco): o efeito começa em `start()`. Lança `BotConfigError` para
- * `owners` ou `session` malformados e `TypeError`/`RangeError` para opções inválidas.
+ * `owners` ou `session` malformados ou fábrica de transport que lança, e `TypeError`/`RangeError`
+ * para opções inválidas.
  */
 export function createBot(config: BotConfig): Bot {
-  const { transport } = config;
   const session = validateSession(config.session ?? DEFAULT_SESSION);
   // Todo o estado vive neste closure (ADR 0004): duas instâncias nunca se enxergam.
   const hooks: RegisteredStopHook[] = [];
@@ -235,6 +240,15 @@ export function createBot(config: BotConfig): Bot {
   const storage = config.storage ?? createMemoryStorage();
   // O escopo da sessão é aplicado aqui, uma vez: scheduler, config e plugins só veem esta visão.
   const scoped = sessionStorage(storage, session);
+  const auth = storage.authState(session);
+  // A fábrica recebe o logger antes de ele existir: este delega ao filho `{ transport }` que o
+  // start() cria e, até lá, ao no-op.
+  let transportLog: Logger | undefined;
+  const transport = resolveTransport(config.transport, {
+    session,
+    auth,
+    log: createDeferredLogger(() => transportLog ?? log),
+  });
   let releaseSession: ReleaseSession | undefined;
   const timeouts = config.timeouts ?? {};
 
@@ -284,7 +298,14 @@ export function createBot(config: BotConfig): Bot {
       : createReconnector({
           transport,
           log: getLog,
-          options: config.reconnection ?? {},
+          options: {
+            ...config.reconnection,
+            // Com fábrica, o auth do transport é o do bot: o kernel sabe limpá-lo sozinho. Com
+            // instância pronta, não sabe onde estão as credenciais.
+            clearSession:
+              config.reconnection?.clearSession ??
+              (typeof config.transport === 'function' ? () => auth.clear() : undefined),
+          },
           giveUp: () => {
             // Chamado de dentro de um handler do transport: o stop corre em paralelo.
             bot.stop().catch((error: unknown) => log.error('falha ao parar o bot', { err: error }));
@@ -512,6 +533,7 @@ export function createBot(config: BotConfig): Bot {
   async function runStart(): Promise<void> {
     try {
       log = config.logger ?? createLogger({ level: config.logLevel ?? 'info', secrets });
+      transportLog = log.child({ transport: transport.name });
       // Antes de `booted`: um bot recusado aqui não fecha o storage do bot que usa a sessão.
       releaseSession = claimSession(storage, session);
       booted = true;
@@ -692,6 +714,18 @@ function validateSession(session: string): string {
     );
   }
   return session;
+}
+
+/** Instância pronta, ou a que a fábrica monta; fábrica que lança é erro de config. */
+function resolveTransport(transport: BotConfig['transport'], deps: TransportDeps): Transport {
+  if (typeof transport !== 'function') return transport;
+  try {
+    return transport(deps);
+  } catch (error) {
+    throw new BotConfigError('transport: a fábrica lançou ao montar o transport', {
+      cause: error,
+    });
+  }
 }
 
 /** `transport.connect()` com um throw síncrono do adapter virando rejeição. */

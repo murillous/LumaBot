@@ -2,7 +2,9 @@
 // (`@zapforge/transport-baileys` etc.) traduz o formato nativo para os tipos daqui, então os
 // eventos chegam ao kernel já normalizados.
 
+import type { Logger } from '#logger/types.ts';
 import type { Chat, Contact, Message } from '#message/types.ts';
+import type { AuthStateStore } from '#storage/types.ts';
 import type { Capability } from './capabilities.ts';
 
 /** Cancela a assinatura feita com `on()`. Chamar mais de uma vez é inofensivo. */
@@ -197,4 +199,20 @@ export interface Transport {
     participantIds: readonly string[],
     action: GroupParticipantAction,
   ): Promise<void>;
+}
+
+/**
+ * O que o bot entrega à fábrica do transport (ADR 0037). Campos novos só entram por adição, para
+ * não quebrar adapters existentes.
+ */
+export interface TransportDeps {
+  /** Sessão do bot (ADR 0036). */
+  readonly session: string;
+  /** Auth state da sessão no storage do bot (`storage.authState(session)`). */
+  readonly auth: AuthStateStore;
+  /**
+   * Logger do bot com `{ transport: name }`, com a censura de segredos do bot. Antes do
+   * `start()` descarta as linhas: o logger real só nasce lá.
+   */
+  readonly log: Logger;
 }

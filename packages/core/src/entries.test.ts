@@ -219,6 +219,7 @@ const entries: Record<string, { file: string; load: () => Promise<object> } & En
       'ReconnectionState',
       'StoragePort',
       'Transport',
+      'TransportDeps',
       'TransportEventHandler',
       'TransportEventName',
       'TransportEvents',

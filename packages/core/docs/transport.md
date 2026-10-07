@@ -84,6 +84,31 @@ class BaileysTransport implements Transport {
 }
 ```
 
+## Adapter com fábrica
+
+Um adapter que precisa do bot (credenciais, logger) exporta uma fábrica, não a classe:
+`BotConfig.transport` aceita `(deps: TransportDeps) => Transport`
+([ADR 0037](../../../docs/adr/0037-transport-por-fabrica.md); uso em
+[Bot → Transport por fábrica](bot.md#transport-por-fábrica)).
+
+```ts
+import type { Transport, TransportDeps } from '@zapforge/core/adapter';
+
+export function baileys(options: BaileysOptions): (deps: TransportDeps) => Transport {
+  // Valide `options` aqui: um erro na fábrica vira `BotConfigError` no `createBot`.
+  return ({ session, auth, log }) => new BaileysTransport(options, { session, auth, log });
+}
+```
+
+- `auth` é o `AuthStateStore` da sessão (`getCreds`/`setCreds`/`getKeys`/`setKeys`/`clear`): o
+  adapter converte o formato nativo para JSON e guarda ali, sem arquivo próprio.
+- `log` já vem com `{ transport: name }` e passa pela censura de segredos do bot. Antes do
+  `start()` descarta as linhas; guarde a referência, ela passa a valer sozinha.
+- A fábrica roda dentro do `createBot`, que não pode ter efeito colateral (ADR 0004): **só monte o
+  objeto**. Socket, timer, leitura de credenciais e qualquer I/O ficam no `connect()`. O
+  transport sai da fábrica pronto para `connect()`, sem passo de inicialização extra.
+- `TransportDeps` só cresce por adição: desestruture o que usa.
+
 ## Envio
 
 ```ts

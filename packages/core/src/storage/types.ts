@@ -149,7 +149,10 @@ export interface StoragePort {
    * recebem o deles via `pluginStorage`; o kernel usa `kernelStorage` (namespace reservado).
    */
   forNamespace(namespace: string): PluginStorage;
-  /** Auth state de uma sessão do transport, isolado das outras sessões e dos namespaces. */
+  /**
+   * Auth state de uma sessão do transport, isolado das outras sessões e dos namespaces. Só monta
+   * o objeto, sem I/O: o `createBot` o chama para entregar à fábrica do transport (ADR 0037).
+   */
   authState(session: string): AuthStateStore;
   /** Libera recursos. Idempotente; depois dele toda operação rejeita com `StorageClosedError`. */
   close(): Promise<void>;

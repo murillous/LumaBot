@@ -205,7 +205,10 @@ contrato.
 
 ### Escrevendo um adapter
 
-Implemente `StoragePort` (`forNamespace`, `authState`, `close`). `@zapforge/core/adapter` exporta as peças que
+Implemente `StoragePort` (`forNamespace`, `authState`, `close`). `authState(session)` só monta o
+objeto, sem I/O: o `createBot` o chama para entregar o auth à fábrica do transport
+([ADR 0037](../../../docs/adr/0037-transport-por-fabrica.md)), onde não pode haver efeito
+colateral; a leitura fica nos métodos. `@zapforge/core/adapter` exporta as peças que
 deixam os erros e a validação iguais aos dos outros adapters:
 
 | Função | Para quê |
