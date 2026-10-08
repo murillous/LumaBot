@@ -71,3 +71,4 @@ o anterior, e o antigo passa a apontar para ele no Status.
 | [0049](0049-evento-de-comando.md) | D49 | Evento `command`: o plugin observa o comando que consumiu a mensagem (detalha D12/D40) | Aceito |
 | [0050](0050-codigo-de-pareamento.md) | D50 | Código de pareamento chega por evento, como o QR (detalha D03/D13) | Aceito |
 | [0051](0051-sqlite-via-node-sqlite.md) | D51 | SQLite pelo `node:sqlite`, com schema único e migrations do adapter (detalha D14/D15) | Aceito |
+| [0052](0052-kit-de-testes-sobre-o-vitest.md) | D52 | Kit de testes sobre o Vitest, com `receive()` que espera o bot assentar (detalha D22/D44) | Aceito |

@@ -1,0 +1,29 @@
+{
+  "name": "@zapforge/testing",
+  "version": "0.0.0",
+  "description": "Kit de testes do ZapForge: bot com transport falso e matchers para o Vitest.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "imports": {
+    "#*": "./src/*"
+  },
+  "exports": {
+    ".": {
+      "@zapforge/source": "./src/index.ts",
+      "types": "./dist/index.d.mts",
+      "default": "./dist/index.mjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsdown"
+  },
+  "dependencies": {
+    "@zapforge/core": "workspace:*"
+  },
+  "peerDependencies": {
+    "vitest": "^5.0.0"
+  }
+}

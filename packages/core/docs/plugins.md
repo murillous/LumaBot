@@ -290,3 +290,9 @@ pendentes), então um plugin com `engine: '^0.0.0'` deixa de carregar no primeir
 - **Plugins de fora** declaram `^0.M.0`, com o minor contra o qual foram testados: no 0.x um
   minor pode quebrar a API.
 - Na 1.0, todos passam a `^1.0.0`.
+
+## Testando o plugin
+
+O [`@zapforge/testing`](../../testing/docs/README.md) sobe o plugin num bot real sobre um
+transport falso: `createTestBot({ plugins })`, `bot.receive({ text })` e matchers como
+`expect(bot.sent).toHaveReplied(...)`.
