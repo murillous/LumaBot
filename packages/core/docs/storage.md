@@ -203,6 +203,9 @@ async function authFromStorage(port: StoragePort, session: string) {
 próprios), descarta tudo no `close()`. Serve para testes e é a referência executável do
 contrato.
 
+Para produção, o adapter padrão é o `sqlite({ path })` do
+[`@zapforge/storage-sqlite`](../../storage-sqlite/docs/README.md).
+
 ### Escrevendo um adapter
 
 Implemente `StoragePort` (`forNamespace`, `authState`, `close`). `authState(session)` só monta o

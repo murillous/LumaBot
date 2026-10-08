@@ -70,3 +70,4 @@ o anterior, e o antigo passa a apontar para ele no Status.
 | [0048](0048-connect-resolve-ao-iniciar.md) | D48 | `connect()` resolve ao iniciar a tentativa; queda antes do fim não se perde (detalha D03/D39/D45) | Aceito |
 | [0049](0049-evento-de-comando.md) | D49 | Evento `command`: o plugin observa o comando que consumiu a mensagem (detalha D12/D40) | Aceito |
 | [0050](0050-codigo-de-pareamento.md) | D50 | Código de pareamento chega por evento, como o QR (detalha D03/D13) | Aceito |
+| [0051](0051-sqlite-via-node-sqlite.md) | D51 | SQLite pelo `node:sqlite`, com schema único e migrations do adapter (detalha D14/D15) | Aceito |
