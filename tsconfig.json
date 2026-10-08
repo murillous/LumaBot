@@ -15,6 +15,7 @@
   "references": [
     { "path": "packages/core" },
     { "path": "packages/transport-baileys" },
-    { "path": "packages/storage-sqlite" }
+    { "path": "packages/storage-sqlite" },
+    { "path": "packages/testing" }
   ]
 }
