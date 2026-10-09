@@ -11,6 +11,7 @@ import type {
   GroupParticipantAction,
   Message,
   MessageKey,
+  OutgoingAction,
   OutgoingContent,
   Presence,
   SendOptions,
@@ -37,6 +38,11 @@ export interface SentMessage {
   readonly quoted: Message | null;
   /** IDs mencionados. */
   readonly mentions: readonly string[];
+  /**
+   * Botões enviados (capability `actions`, ADR 0062); ausente sem botões. O `click()` do
+   * `TestBot` clica num deles pelo rótulo.
+   */
+  readonly actions?: readonly OutgoingAction[];
   /** A chave devolvida ao bot, para casar com `reactions`, `edits` e `deletions`. */
   readonly key: MessageKey;
 }
@@ -135,6 +141,7 @@ export class FakeTransport implements Transport {
       content,
       quoted: options?.quoted ?? null,
       mentions: options?.mentions ?? [],
+      ...(options?.actions && { actions: options.actions }),
       key,
     });
     return key;

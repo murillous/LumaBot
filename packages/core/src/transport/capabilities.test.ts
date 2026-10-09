@@ -20,7 +20,7 @@ const holder: CapabilityHolder = {
 
 describe('CAPABILITIES', () => {
   it('lista as capabilities iniciais do plano §6.10, sem repetição', () => {
-    expect(CAPABILITIES).toHaveLength(19);
+    expect(CAPABILITIES).toHaveLength(20);
     expect(new Set(CAPABILITIES).size).toBe(CAPABILITIES.length);
   });
 
@@ -101,6 +101,17 @@ describe('capabilitiesForSend / assertCanSend', () => {
       'mentions',
     ]);
     expect(capabilitiesForSend({ type: 'text', text: 'oi' }, { mentions: [] })).toEqual([
+      'send.text',
+    ]);
+  });
+
+  it('botões exigem `actions`; lista vazia não exige nada (ADR 0062)', () => {
+    const actions = [{ id: 'a1', label: 'Notas' }];
+    expect(capabilitiesForSend({ type: 'text', text: 'oi' }, { actions })).toEqual([
+      'send.text',
+      'actions',
+    ]);
+    expect(capabilitiesForSend({ type: 'text', text: 'oi' }, { actions: [] })).toEqual([
       'send.text',
     ]);
   });

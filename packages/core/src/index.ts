@@ -3,6 +3,7 @@
 // transports e storages usam `@zapforge/core/adapter`. A lista de exports é fixada em
 // `entries.test.ts`: export novo é decisão explícita.
 
+export type { CommandAction, MessageAction, StepAction } from '#actions/actions.ts';
 export type {
   Bot,
   BotConfig,
@@ -128,6 +129,7 @@ export type {
   ReplyMediaOptions,
   ReplyOptions,
   ReplyPollOptions,
+  ReplyTextOptions,
   Sender,
   SendPriority,
 } from '#outbound/types.ts';
@@ -196,6 +198,7 @@ export type {
   GroupParticipantAction,
   MediaInput,
   MessageKey,
+  OutgoingAction,
   OutgoingContent,
   Presence,
   SendOptions,

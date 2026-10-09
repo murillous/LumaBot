@@ -80,6 +80,9 @@ ctx.conversations.define('bimestre', async (c) => {
 - **Expiração silenciosa.** Passado o `ttlMs`, a espera some sem aviso, e a próxima mensagem
   segue o fluxo normal.
 - **Edição não responde.** Só mensagem nova (`message`) consome a espera.
+- **O menu numerado também é uma espera.** Sem botões, as [ações](actions.md) de um `reply`
+  registram uma espera do kernel para o remetente. Um `expectReply` depois do `reply` com ações a
+  substitui, e o número deixa de valer. O clique num botão cancela a espera de quem clicou.
 
 ## Prazo e erros
 

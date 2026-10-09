@@ -15,4 +15,9 @@ export {
   type IncomingMedia,
   type IncomingMessage,
 } from './incoming.ts';
-export { createTestBot, type TestBot, type TestBotOptions } from './test-bot.ts';
+export {
+  type ClickOptions,
+  createTestBot,
+  type TestBot,
+  type TestBotOptions,
+} from './test-bot.ts';

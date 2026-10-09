@@ -16,7 +16,7 @@ interface Transport {
   readonly capabilities: ReadonlySet<Capability>;
   readonly self: Contact | null;                 // null até a primeira conexão aberta
   readonly native: unknown;                      // escape hatch (ctx.unsafe.native)
-  readonly limits?: TextLimits;                  // opcional: tamanho máximo de texto e legenda
+  readonly limits?: TextLimits;                  // opcional: tamanho de texto e legenda, botões
 
   connect(): Promise<void>;
   disconnect(): Promise<void>;
@@ -90,6 +90,7 @@ Os eventos chegam já normalizados (`TransportEvents`):
 | `connection.status` | `{ status: 'connecting' \| 'open' }` ou `{ status: 'closed', reason, error }` |
 | `connection.qr` | `{ qr }` |
 | `connection.pairing-code` | `{ code }` (código de pareamento, a alternativa ao QR; quem pareia por código não emite `connection.qr`) |
+| `interaction` | `{ id, chat, sender, actionId, timestamp }` (clique num botão; ver [Botões](#botões)) |
 
 `message:<type>` e `plugin.error` (plano §6.4) são gerados pelo kernel, não pelo transport.
 
@@ -207,6 +208,38 @@ O Telegram conta o texto visível, então o padrão serve (`{ text: 4096, captio
 Discord conta a marcação (`**`, `<@id>`) e precisa do `measure`. Sem `limits`, nada é dividido:
 é o caso do WhatsApp. Um limite que não é inteiro ≥ 1 faz o `createBot` lançar `RangeError`.
 
+### Botões
+
+Com a capability `actions`, o `SendOptions.actions` traz os botões da mensagem, na ordem, como
+`{ id, label }` ([ADR 0062](../../../docs/adr/0062-acoes-e-botoes.md)). Eles só vêm com
+`type: 'text'`, e num texto dividido, só na última parte. O transport os renderiza do jeito da
+plataforma (teclado inline no Telegram, componentes no Discord, botões ou lista no WhatsApp
+oficial).
+
+O `id` é opaco, com até 16 caracteres ASCII, e cabe no `callback_data` de 64 bytes do Telegram. O
+clique volta pelo evento `interaction`:
+
+```ts
+// No callback_query do Telegram, por exemplo:
+await api.answerCallbackQuery(query.id); // confirma na hora, antes de entregar
+emitter.emit('interaction', {
+  id: query.id,                 // vira o ID da mensagem do clique; o `ctx.reply` a cita
+  chat: toChat(query.message.chat),
+  sender: toContact(query.from),
+  actionId: query.data,         // o `id` do botão, como o kernel o enviou
+  timestamp: Date.now(),
+});
+```
+
+A confirmação é do transport: o kernel processa o clique na fila do chat, sem prazo de
+plataforma. A resposta do plugin chega por `send` com `quoted` igual à mensagem do clique (`id` =
+o `id` da interação), e o transport decide como responder a ela (follow-up no Discord, mensagem
+nova no Telegram).
+
+`limits.actions` diz quantos botões cabem numa mensagem (no WhatsApp Cloud API, 3). Acima dele, ou
+sem a capability, o kernel envia o menu em texto numerado e o transport não vê botão nenhum. Um
+limite que não é inteiro ≥ 1 faz o `createBot` lançar `RangeError`.
+
 ### Texto da entrada
 
 Entregue `message.text` como a pessoa o lê, com as menções legíveis (no Discord, `<@123>` vira
@@ -253,7 +286,7 @@ mantém cache por grupo e o invalida em `group.participants` e `group.updated` (
 
 `CAPABILITIES` lista as capabilities suportadas pelo kernel (plano §6.10):
 
-`groups`, `groups.add`, `groups.remove`, `groups.promote`, `mentions`, `reactions`, `presence`,
+`actions`, `groups`, `groups.add`, `groups.remove`, `groups.promote`, `mentions`, `reactions`, `presence`,
 `send.text`, `send.image`, `send.video`, `send.audio`, `send.voice`, `send.sticker`, `send.document`, `media.download`,
 `message.edit`, `message.delete`, `polls`, `quoted`.
 

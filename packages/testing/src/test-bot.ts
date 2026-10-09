@@ -1,7 +1,23 @@
-import { type Bot, type BotConfig, createBot, createLogger, type Message } from '@zapforge/core';
+import {
+  type Bot,
+  type BotConfig,
+  type Chat,
+  type Contact,
+  createBot,
+  createLogger,
+  type Message,
+} from '@zapforge/core';
 import type { TransportEvents } from '@zapforge/core/adapter';
 import { FakeTransport, type SentMessage } from './fake-transport.ts';
-import { buildMessage, type IncomingMessage } from './incoming.ts';
+import { buildMessage, DEFAULT_SENDER, type IncomingMessage } from './incoming.ts';
+
+/** Quem clica e onde, no `click()`. */
+export interface ClickOptions {
+  /** Campos do remetente que diferem de `DEFAULT_SENDER`. */
+  readonly sender?: Partial<Contact>;
+  /** Padrão: o chat da mensagem que o envio cita ou, sem citação, conversa privada no `chatId`. */
+  readonly chat?: Chat;
+}
 
 export interface TestBotOptions extends Omit<BotConfig, 'transport'> {
   /** Padrão: um `FakeTransport` com todas as capabilities. */
@@ -19,6 +35,12 @@ export interface TestBot {
    * ela causou já em `sent`. Devolve a mensagem entregue.
    */
   receive(input: IncomingMessage): Promise<Message>;
+  /**
+   * Clica no botão de rótulo `label` do envio (ADR 0062) e espera o bot assentar. Lança se o
+   * envio não tem esse botão: num transport sem a capability `actions`, o menu sai em texto, e o
+   * teste responde com o número pelo `receive()`.
+   */
+  click(sent: SentMessage, label: string, options?: ClickOptions): Promise<void>;
   /** Simula outro evento do canal (reação, entrada em grupo...) e espera o bot assentar. */
   emit<E extends keyof TransportEvents>(event: E, payload: TransportEvents[E]): Promise<void>;
   /** Para o bot (teardown dos plugins, storage fechado). */
@@ -42,6 +64,7 @@ export async function createTestBot(options: TestBotOptions = {}): Promise<TestB
     transport,
   });
   await bot.start();
+  let clicks = 0;
   return {
     bot,
     transport,
@@ -51,6 +74,24 @@ export async function createTestBot(options: TestBotOptions = {}): Promise<TestB
       transport.emit('message', message);
       await bot.settled();
       return message;
+    },
+    async click(sent, label, options = {}) {
+      const action = sent.actions?.find((candidate) => candidate.label === label);
+      if (action === undefined) {
+        const labels = sent.actions?.map((candidate) => candidate.label) ?? [];
+        throw new Error(
+          `click: o envio não tem o botão ${JSON.stringify(label)} (botões: ${JSON.stringify(labels)})`,
+        );
+      }
+      clicks++;
+      transport.emit('interaction', {
+        id: `click-${clicks}`,
+        chat: options.chat ?? sent.quoted?.chat ?? { id: sent.chatId, isGroup: false },
+        sender: { ...DEFAULT_SENDER, ...options.sender },
+        actionId: action.id,
+        timestamp: Date.now(),
+      });
+      await bot.settled();
     },
     async emit(event, payload) {
       transport.emit(event, payload);

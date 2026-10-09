@@ -85,8 +85,19 @@ export interface CommandRouter {
    * trabalho (`ctx.text`); padrão: `message.text`.
    */
   match(message: Message, text?: string | null): CommandMatch | null;
-  /** Casa, valida papel e `accepts` e roda. Nunca rejeita: erros vêm em `status: 'failed'`. */
-  dispatch(ctx: MessageContext): Promise<DispatchResult>;
+  /**
+   * Casa, valida papel e `accepts` e roda. Nunca rejeita: erros vêm em `status: 'failed'`. Com
+   * `invocation`, roda o comando dado sem casar o texto (o clique num botão, ADR 0062).
+   */
+  dispatch(ctx: MessageContext, invocation?: CommandInvocation): Promise<DispatchResult>;
+}
+
+/** Comando a rodar sem casar o texto. */
+export interface CommandInvocation {
+  /** Nome ou alias, sem o prefixo. */
+  readonly command: string;
+  /** Vão como vieram em `ctx.args`; o `rawArgs` é a junção por espaços. */
+  readonly args: readonly string[];
 }
 
 export interface CommandMatch {
@@ -153,6 +164,12 @@ export function createCommandRouter(options: CommandRouterOptions = {}): Command
     return { entry, invokedAs: token, rawArgs };
   }
 
+  function invoke({ command, args }: CommandInvocation): CommandMatch | null {
+    const token = command.toLowerCase();
+    const entry = registry.find(token);
+    return entry ? { entry, invokedAs: token, rawArgs: args.join(' ') } : null;
+  }
+
   async function hasRole(
     role: CommandRole,
     ctx: RoleContext,
@@ -194,13 +211,15 @@ export function createCommandRouter(options: CommandRouterOptions = {}): Command
     roles,
     match,
 
-    async dispatch(ctx) {
+    async dispatch(ctx, invocation) {
       // O texto de trabalho (M1-16.2) vem do contexto: um middleware pode tê-lo reescrito.
       const text = ctx.text === undefined ? ctx.message.text : ctx.text;
-      const found = match(ctx.message, text);
+      const found = invocation === undefined ? match(ctx.message, text) : invoke(invocation);
       if (!found) return { consumed: false, status: 'no-match' };
 
       const { entry, invokedAs, rawArgs } = found;
+      // Os argumentos do botão vão como o plugin os deu: reparseá-los partiria um com espaço.
+      const args = invocation === undefined ? parseArgs(rawArgs) : [...invocation.args];
       const { definition } = entry;
       const command: MatchedCommand = { plugin: entry.plugin, name: definition.name, invokedAs };
       const message = ctx.message;
@@ -214,7 +233,7 @@ export function createCommandRouter(options: CommandRouterOptions = {}): Command
           text,
           command: definition.name,
           invokedAs,
-          args: parseArgs(rawArgs),
+          args,
           rawArgs,
         });
 

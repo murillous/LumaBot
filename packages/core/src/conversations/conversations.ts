@@ -148,6 +148,11 @@ export class ConversationRegistry<C> {
     return { plugin: wait.plugin, step: wait.step, data: wait.data, run };
   }
 
+  /** O passo do plugin, para rodar sem espera (o clique num botão, ADR 0062). */
+  find(plugin: string, step: string): KernelStep<C> | undefined {
+    return this.#steps.get(plugin)?.get(step);
+  }
+
   /** Tira os passos e as esperas do plugin (teardown/reload), com os timers. */
   removePlugin(plugin: string): void {
     this.#steps.delete(plugin);
