@@ -8,6 +8,8 @@ export interface MediaSource {
   readonly mimetype: string;
   /** Tamanho em bytes, quando o transport informa. */
   readonly size?: number | null;
+  /** Nome do arquivo, quando a plataforma informa. */
+  readonly fileName?: string;
   /** Baixa o conteúdo inteiro. Chamado no máximo uma vez por sucesso. */
   download(): Promise<Buffer>;
   /**
@@ -43,6 +45,8 @@ export function createMedia(source: MediaSource): Media {
   return {
     mimetype: source.mimetype,
     size: source.size ?? null,
+    // Só quando informado: `fileName` ausente diz que a plataforma não deu nome.
+    ...(source.fileName === undefined ? null : { fileName: source.fileName }),
     download,
     async stream() {
       // Download já feito ou em andamento: reaproveita em vez de baixar de novo.

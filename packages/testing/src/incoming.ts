@@ -2,14 +2,19 @@
 // só o que importa (`{ text: '!s', image }`) e o resto sai com padrões coerentes.
 
 import type { Chat, Contact, Message } from '@zapforge/core';
-import { createMessage, type MessageInit } from '@zapforge/core/adapter';
+import { createMessage, type MediaSource, type MessageInit } from '@zapforge/core/adapter';
 
 /** Mídia de entrada: os bytes ou os bytes com o mimetype. */
 export type IncomingMedia = Buffer | { readonly data: Buffer; readonly mimetype: string };
 
+/** Anexo além da mídia principal (ADR 0065): os bytes ou os bytes com mimetype e nome. */
+export type IncomingAttachment =
+  | Buffer
+  | { readonly data: Buffer; readonly mimetype: string; readonly fileName?: string };
+
 /**
  * Mensagem que chega ao bot. Com uma mídia, `text` vira a legenda; sem mídia, é uma mensagem de
- * texto. No máximo uma mídia por mensagem.
+ * texto. No máximo uma mídia principal por mensagem; as outras vão em `attachments`.
  */
 export interface IncomingMessage {
   readonly text?: string;
@@ -21,6 +26,11 @@ export interface IncomingMessage {
   readonly document?: IncomingMedia;
   /** Nome do arquivo de `document`. */
   readonly fileName?: string;
+  /**
+   * Anexos depois da mídia principal, na ordem, como os outros arquivos de uma mensagem do
+   * Discord. Exige uma mídia principal, que dá o `type`. Sem mimetype, `application/octet-stream`.
+   */
+  readonly attachments?: readonly IncomingAttachment[];
   /** ID do chat (conversa privada) ou o chat completo. Padrão: `DEFAULT_CHAT`. */
   readonly chat?: string | Chat;
   /** Campos do remetente que diferem de `DEFAULT_SENDER`. */
@@ -84,14 +94,26 @@ export function buildMessage(input: IncomingMessage): Message {
   const type = mediaTypes[0];
   if (type === undefined) {
     if (input.text === undefined) throw new TypeError('receive(): informe `text` ou uma mídia');
+    if (input.attachments !== undefined && input.attachments.length > 0) {
+      throw new TypeError('receive(): `attachments` exige uma mídia principal (`image`, ...)');
+    }
     return createMessage({ ...base, type: 'text', text: input.text });
   }
   const media = mediaSource(input[type] as IncomingMedia, DEFAULT_MIMETYPES[type]);
   const text = input.text ?? null;
+  const extra =
+    input.attachments === undefined
+      ? {}
+      : {
+          attachments: [
+            media,
+            ...input.attachments.map((a) => mediaSource(a, 'application/octet-stream')),
+          ],
+        };
   const init: MessageInit =
     type === 'document'
-      ? { ...base, type, text, media, fileName: input.fileName ?? null }
-      : { ...base, type, text, media };
+      ? { ...base, type, text, media, ...extra, fileName: input.fileName ?? null }
+      : { ...base, type, text, media, ...extra };
   return createMessage(init);
 }
 
@@ -100,9 +122,14 @@ function toMessage(input: IncomingMessage | Message): Message {
   return 'is' in input ? input : buildMessage(input);
 }
 
-function mediaSource(media: IncomingMedia, defaultMimetype: string) {
-  const { data, mimetype } = Buffer.isBuffer(media)
-    ? { data: media, mimetype: defaultMimetype }
+function mediaSource(media: IncomingAttachment, defaultMimetype: string): MediaSource {
+  const { data, mimetype, fileName } = Buffer.isBuffer(media)
+    ? { data: media, mimetype: defaultMimetype, fileName: undefined }
     : media;
-  return { mimetype, size: data.length, download: async () => data };
+  return {
+    mimetype,
+    size: data.length,
+    ...(fileName === undefined ? null : { fileName }),
+    download: async () => data,
+  };
 }

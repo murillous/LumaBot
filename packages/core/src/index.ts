@@ -125,6 +125,7 @@ export type {
   Outbound,
   OutboundSendOptions,
   Reply,
+  ReplyAlbumOptions,
   ReplyAudioOptions,
   ReplyDocumentOptions,
   ReplyMediaOptions,
@@ -192,6 +193,7 @@ export {
 } from '#text/format.ts';
 export { type Capability, UnsupportedError } from '#transport/capabilities.ts';
 export type {
+  AlbumItem,
   ConnectionStatus,
   DisconnectReason,
   GroupMetadata,

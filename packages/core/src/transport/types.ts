@@ -196,6 +196,19 @@ export type TransportEventHandler<E extends TransportEventName> = (
 export type MediaInput = Buffer | { readonly url: string };
 
 /**
+ * Item de um álbum (ADR 0065). Sem legenda própria: a legenda é do álbum. O documento leva nome e
+ * mimetype, como no envio avulso.
+ */
+export type AlbumItem =
+  | { readonly type: 'image' | 'video'; readonly media: MediaInput; readonly mimetype?: string }
+  | {
+      readonly type: 'document';
+      readonly media: MediaInput;
+      readonly fileName: string;
+      readonly mimetype: string;
+    };
+
+/**
  * Conteúdo a enviar. `text` e `caption` são o texto cru, que vai como veio. Com a árvore neutra
  * (ADR 0061), o core preenche `formatted`/`formattedCaption` e põe em `text`/`caption` o texto
  * visível dela: quem renderiza a árvore usa o campo novo, e quem não conhece envia o visível.
@@ -220,6 +233,17 @@ export type OutgoingContent =
       readonly media: MediaInput;
       readonly fileName: string;
       readonly mimetype: string;
+      readonly caption?: string;
+      readonly formattedCaption?: FormattedText;
+    }
+  | {
+      /**
+       * Várias mídias numa mensagem só (capability `send.album`, ADR 0065). O transport só o
+       * recebe se declarar a capability, com no máximo `limits.album` itens e nunca menos de dois;
+       * o que a plataforma não aceita junto (documento com foto, no Telegram) ele divide.
+       */
+      readonly type: 'album';
+      readonly items: readonly AlbumItem[];
       readonly caption?: string;
       readonly formattedCaption?: FormattedText;
     }
@@ -251,6 +275,11 @@ export interface TextLimits {
    * texto numerado (ADR 0062). Ausente: sem limite.
    */
   readonly actions?: number;
+  /**
+   * Máximo de itens num álbum (capability `send.album`). Acima dele, a fila divide em lotes
+   * (ADR 0065). Ausente: sem limite.
+   */
+  readonly album?: number;
 }
 
 /**

@@ -1,4 +1,4 @@
-import { bold, fmt, mention } from '@zapforge/core';
+import { bold, fmt, mention, UnsupportedError } from '@zapforge/core';
 import { createMessage } from '@zapforge/core/adapter';
 import type { GroupMetadata as BaileysGroupMetadata, WAMessage } from 'baileys';
 import { describe, expect, it } from 'vitest';
@@ -82,6 +82,14 @@ describe('toContent', () => {
       mentions: [ALICE],
     });
     expect(toContent({ type: 'text', text: 'oi' }, { mentions: [] })).toEqual({ text: 'oi' });
+  });
+
+  it('álbum lança UnsupportedError: sem send.album, a fila envia item a item (ADR 0065)', () => {
+    const items = [
+      { type: 'image', media },
+      { type: 'image', media },
+    ] as const;
+    expect(() => toContent({ type: 'album', items })).toThrow(UnsupportedError);
   });
 });
 

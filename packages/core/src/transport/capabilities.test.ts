@@ -20,7 +20,7 @@ const holder: CapabilityHolder = {
 
 describe('CAPABILITIES', () => {
   it('lista as capabilities iniciais do plano §6.10, sem repetição', () => {
-    expect(CAPABILITIES).toHaveLength(20);
+    expect(CAPABILITIES).toHaveLength(21);
     expect(new Set(CAPABILITIES).size).toBe(CAPABILITIES.length);
   });
 
@@ -114,6 +114,16 @@ describe('capabilitiesForSend / assertCanSend', () => {
     expect(capabilitiesForSend({ type: 'text', text: 'oi' }, { actions: [] })).toEqual([
       'send.text',
     ]);
+  });
+
+  it('álbum exige a capability de cada tipo de item, sem repetir, e não send.album (ADR 0065)', () => {
+    const media = Buffer.from('x');
+    const items = [
+      { type: 'image', media },
+      { type: 'document', media, fileName: 'a.pdf', mimetype: 'application/pdf' },
+      { type: 'image', media },
+    ] as const;
+    expect(capabilitiesForSend({ type: 'album', items })).toEqual(['send.image', 'send.document']);
   });
 
   it('assertCanSend lança na primeira capability faltante', () => {

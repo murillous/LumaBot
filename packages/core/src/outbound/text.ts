@@ -44,7 +44,8 @@ function measureVisible(text: MessageText): number {
   return typeof text === 'string' ? text.length : plainText(text).length;
 }
 
-function positiveLimit(name: string, value: number | undefined): number {
+/** O limite do transport validado; ausente vira `Infinity`. */
+export function positiveLimit(name: string, value: number | undefined): number {
   if (value === undefined) return Number.POSITIVE_INFINITY;
   if (!(Number.isInteger(value) && value >= 1)) {
     throw new RangeError(`limits.${name} do transport deve ser inteiro >= 1 (recebido: ${value})`);
@@ -84,7 +85,10 @@ export class TextLimiter {
       first = textContent(parts[0] as MessageText);
       rest = parts.slice(1);
     } else if (
-      (content.type === 'image' || content.type === 'video' || content.type === 'document') &&
+      (content.type === 'image' ||
+        content.type === 'video' ||
+        content.type === 'document' ||
+        content.type === 'album') &&
       content.caption !== undefined
     ) {
       const parts = this.#split(content.formattedCaption ?? content.caption, this.#caption);

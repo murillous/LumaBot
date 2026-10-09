@@ -92,6 +92,16 @@ por mensagem. Quando a mídia vem só como `Buffer`, o mimetype é o que o Whats
 `image/jpeg`, `video/mp4`, `audio/mpeg`, `audio/ogg; codecs=opus`, `image/webp` e
 `application/octet-stream`. O `quoted` aceita uma descrição como esta ou uma `Message` pronta.
 
+Os outros arquivos da mesma mensagem, como numa mensagem do Discord, vão em `attachments`, depois
+da mídia principal, que dá o `type`. Sem mimetype, o anexo é `application/octet-stream`:
+
+```ts
+await bot.receive({
+  image: buffer,
+  attachments: [{ data: pdf, mimetype: 'application/pdf', fileName: 'nota.pdf' }],
+});
+```
+
 ## Botões
 
 O `FakeTransport` tem a capability `actions` por padrão, e o envio com botões traz `actions` no

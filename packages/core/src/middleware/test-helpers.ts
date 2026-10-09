@@ -35,6 +35,7 @@ export function fakeContext(init: FakeMessageInit = {}): MessageContext {
     fromMe,
     quoted: null,
     mentions: [],
+    attachments: [],
     isForwarded: false,
     isViewOnce: false,
     isEdited: false,

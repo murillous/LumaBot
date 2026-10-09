@@ -229,6 +229,11 @@ await transport.send(chatId, { type: 'text', text: 'oi @fulano' }, {
 await transport.send(chatId, { type: 'image', media: buffer, caption: 'legenda' });
 await transport.send(chatId, { type: 'document', media: { url }, fileName, mimetype });
 await transport.send(chatId, { type: 'poll', name: 'Pizza?', options: ['sim', 'não'] });
+await transport.send(chatId, {
+  type: 'album',                 // capability `send.album`
+  items: [{ type: 'image', media: foto1 }, { type: 'image', media: foto2 }],
+  caption: 'legenda',
+});
 ```
 
 ### Texto formatado
@@ -312,6 +317,32 @@ nova no Telegram).
 sem a capability, o kernel envia o menu em texto numerado e o transport não vê botão nenhum. Um
 limite que não é inteiro ≥ 1 faz o `createBot` lançar `RangeError`.
 
+### Álbum
+
+Com a capability `send.album`, o transport recebe `{ type: 'album', items, caption? }`, com os
+itens `image`, `video` ou `document` na ordem
+([ADR 0065](../../../docs/adr/0065-varios-anexos-e-albuns.md)). A fila nunca entrega menos de
+dois itens nem mais que `limits.album`, e só entrega o álbum a quem declara a capability: sem
+ela, envia item a item.
+
+```ts
+readonly capabilities = new Set<Capability>(['send.image', 'send.document', 'send.album' /* ... */]);
+readonly limits = { album: 10 }; // sendMediaGroup do Telegram, anexos do Discord
+```
+
+O que a plataforma não aceita junto é do transport. No Telegram, documento não se mistura com foto
+ou vídeo: separe em dois `sendMediaGroup`, a legenda no primeiro, e devolva a chave do primeiro.
+Um transport com `switch` exaustivo sobre `content.type` precisa do caso `album` mesmo sem a
+capability, nem que seja para lançar `UnsupportedError`.
+
+### Vários anexos na entrada
+
+Entregue todas as mídias da mensagem em `attachments` ([Mensagem](message.md#vários-anexos)). O
+`type` é o do primeiro anexo. O álbum do Telegram chega como vários updates com o mesmo
+`media_group_id`: junte-os no transport e emita uma `message` só. Espere uma janela curta
+(algumas centenas de ms) desde o último update do grupo, e limpe os timers no `disconnect()`, para
+nada ser emitido depois dele. O core não conhece o `media_group_id`.
+
 ### Texto da entrada
 
 Entregue `message.text` como a pessoa o lê, com as menções legíveis (no Discord, `<@123>` vira
@@ -359,7 +390,7 @@ mantém cache por grupo e o invalida em `group.participants` e `group.updated` (
 `CAPABILITIES` lista as capabilities suportadas pelo kernel (plano §6.10):
 
 `actions`, `groups`, `groups.add`, `groups.remove`, `groups.promote`, `mentions`, `reactions`, `presence`,
-`send.text`, `send.image`, `send.video`, `send.audio`, `send.voice`, `send.sticker`, `send.document`, `media.download`,
+`send.text`, `send.image`, `send.video`, `send.audio`, `send.voice`, `send.sticker`, `send.document`, `send.album`, `media.download`,
 `message.edit`, `message.delete`, `polls`, `quoted`.
 
 O transport declara o subconjunto que suporta em `capabilities`. Helpers (de

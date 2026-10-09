@@ -10,6 +10,7 @@ import type {
   SendOptions,
   Transport,
 } from '#transport/types.ts';
+import { AlbumSplitter } from './album.ts';
 import { type SendPart, TextLimiter, toContent } from './text.ts';
 import type { ActionOptions, OutboundSendOptions, Sender, SendPriority } from './types.ts';
 
@@ -239,6 +240,7 @@ interface ReadyEntry {
 export class OutboundQueue implements Sender {
   readonly #transport: OutboundTransport;
   readonly #text: TextLimiter;
+  readonly #album: AlbumSplitter;
   readonly #globalIntervalMs: number;
   readonly #chatIntervalMs: number;
   readonly #maxPending: number;
@@ -290,6 +292,7 @@ export class OutboundQueue implements Sender {
     const retry = options.retry ?? {};
     this.#transport = options.transport;
     this.#text = new TextLimiter(options.transport);
+    this.#album = new AlbumSplitter(options.transport);
     this.#globalIntervalMs = nonNegative(
       'globalIntervalMs',
       options.globalIntervalMs ?? DEFAULTS.globalIntervalMs,
@@ -351,7 +354,13 @@ export class OutboundQueue implements Sender {
     }
     let parts: SendPart[];
     try {
-      parts = this.#text.split(toContent(input), sendOptions);
+      const content = toContent(input);
+      parts =
+        content.type === 'album'
+          ? this.#album
+              .split(content, sendOptions)
+              .flatMap((part) => this.#text.split(part.content, part.options))
+          : this.#text.split(content, sendOptions);
     } catch (error) {
       return Promise.reject(error);
     }

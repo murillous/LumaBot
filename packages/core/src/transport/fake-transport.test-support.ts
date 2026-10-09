@@ -134,6 +134,7 @@ export function textMessage(
     fromMe: false,
     quoted: null,
     mentions: [],
+    attachments: [],
     isForwarded: false,
     isViewOnce: false,
     isEdited: false,
