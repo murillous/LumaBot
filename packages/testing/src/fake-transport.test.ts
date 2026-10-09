@@ -5,7 +5,7 @@ import { buildMessage } from './incoming.ts';
 
 const GROUP = {
   id: 'grupo@fake',
-  subject: 'Grupo',
+  title: 'Grupo',
   description: null,
   ownerId: 'dona@fake',
   participants: [],

@@ -237,7 +237,9 @@ setup(ctx) {
     name: 'todos',
     role: 'group-admin',
     run: async (c) => {
+      // Ausente onde a plataforma não lista membros (Telegram, Discord grande).
       const { participants } = await ctx.groups.metadata(c.message.chat.id);
+      if (!participants) return c.reply('Aqui não dá para listar os membros.');
       await c.reply('@todos', { mentions: participants.map((p) => p.id) });
       await c.react('📣'); // reage à mensagem do comando
     },
@@ -252,8 +254,8 @@ setup(ctx) {
 | `ctx.send.edit(key, text)` | troca o texto | `message.edit` | sim |
 | `ctx.send.delete(key)` | apaga para todos | `message.delete` | sim |
 | `ctx.send.presence(chatId, presence)` | digitando, gravando… | `presence` | sim |
-| `ctx.groups.metadata(groupId)` | assunto, descrição, participantes | `groups` | não (leitura) |
-| `ctx.groups.updateParticipants(groupId, ids, action)` | add, remove, promote, demote | `groups.admin` | sim |
+| `ctx.groups.metadata(groupId)` | nome (`title`), descrição, participantes (se a plataforma lista) | `groups` | não (leitura) |
+| `ctx.groups.updateParticipants(groupId, ids, action)` | add, remove, promote, demote | `groups.add`, `groups.remove` ou `groups.promote` (também para `demote`) | sim |
 | `ctx.commands.list()` | comandos de todos os plugins (`plugin`, `name`, `aliases`, `description`, `role`) | — | — |
 | `ctx.self` | contato da sessão; `null` até a primeira conexão | — | — |
 | `ctx.capabilities` | `ReadonlySet` do que o transport suporta | — | — |

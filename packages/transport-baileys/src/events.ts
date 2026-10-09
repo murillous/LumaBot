@@ -60,7 +60,8 @@ export class ContactBook {
   }
 }
 
-function chatOf(id: string): Chat {
+/** O `Chat` de um JID; os eventos de grupo também o usam (ADR 0059). */
+export function chatOf(id: string): Chat {
   return { id, isGroup: isJidGroup(id) === true };
 }
 
@@ -168,7 +169,7 @@ export async function toParticipantEvents(
   return {
     self,
     others: {
-      groupId: id,
+      chat: chatOf(id),
       action,
       participants: await Promise.all(
         rest.map((p) => contact(p.id, p.phoneNumber, p.notify ?? p.name ?? null)),
@@ -188,13 +189,13 @@ export function toGroupUpdated(
 ): TransportEvents['group.updated'] | null {
   if (!update.id || update.participants) return null;
   const changed: {
-    groupId: string;
-    subject?: string;
+    chat: Chat;
+    title?: string;
     description?: string | null;
     announce?: boolean;
     restrict?: boolean;
-  } = { groupId: update.id };
-  if (update.subject !== undefined) changed.subject = update.subject;
+  } = { chat: chatOf(update.id) };
+  if (update.subject !== undefined) changed.title = update.subject;
   // Descrição removida chega com `desc` presente e vazio.
   if ('desc' in update) changed.description = update.desc || null;
   if (update.announce !== undefined) changed.announce = update.announce;

@@ -290,12 +290,8 @@ const DIRECT_EVENTS: { readonly [E in DirectEvent]: (payload: BotEvents[E]) => E
   // estado, então passam mesmo com o grupo bloqueado.
   'group.joined': () => ALWAYS_PASSES,
   'group.left': () => ALWAYS_PASSES,
-  'group.participants': (payload) => ({
-    chat: { id: payload.groupId },
-    fromMe: false,
-    fromBot: false,
-  }),
-  'group.updated': (payload) => ({ chat: { id: payload.groupId }, fromMe: false, fromBot: false }),
+  'group.participants': (payload) => ({ chat: payload.chat, fromMe: false, fromBot: false }),
+  'group.updated': (payload) => ({ chat: payload.chat, fromMe: false, fromBot: false }),
   // Contato não é de um chat: bloquear um chat não esconde quem está nele de outros chats.
   'contact.updated': () => ALWAYS_PASSES,
 };
@@ -1019,9 +1015,10 @@ export class GroupAdminTimeoutError extends Error {
 }
 
 /**
- * Porta `isGroupAdmin` do roteador, a partir do transport (capability `groups`). Com o prazo do
- * comando: um `getGroupMetadata` que nunca resolve seguraria o chat na fila de entrada para
- * sempre. O timer só existe para quem não é owner pedindo comando de admin num grupo.
+ * Porta `isGroupAdmin` do roteador, a partir do transport: o `isChatAdmin` dele, se houver, ou a
+ * lista de participantes do `getGroupMetadata` (capability `groups`, ADR 0059). Com o prazo do
+ * comando: uma consulta que nunca resolve seguraria o chat na fila de entrada para sempre. O
+ * timer só existe para quem não é owner pedindo comando de admin num grupo.
  */
 function groupAdminPort(
   transport: Transport,
@@ -1029,15 +1026,24 @@ function groupAdminPort(
   onLate: (error: unknown) => void,
   armed: ArmedTimers,
 ): IsGroupAdmin | undefined {
-  if (!hasCapability(transport, 'groups')) return undefined;
-  return async (chatId, sender) => {
-    const metadata = (await settleWithin(
-      transport.getGroupMetadata(chatId),
+  const within = <T>(work: Promise<T>, chatId: string): Promise<T> =>
+    settleWithin(
+      work,
       timeoutMs,
       () => new GroupAdminTimeoutError(chatId, timeoutMs),
       onLate,
       armed,
-    )) as Awaited<ReturnType<Transport['getGroupMetadata']>>;
+    ) as Promise<T>;
+  if (transport.isChatAdmin) {
+    const isChatAdmin = transport.isChatAdmin.bind(transport);
+    return (chat, sender) => within(isChatAdmin(chat, sender), chat.id);
+  }
+  if (!hasCapability(transport, 'groups')) return undefined;
+  return async (chat, sender) => {
+    const metadata = await within(transport.getGroupMetadata(chat.id), chat.id);
+    // Sem a lista, não há como saber: recusa (fail-closed). Transport que não lista membros
+    // deve implementar `isChatAdmin`.
+    if (!metadata.participants) return false;
     // Casa por id ou, quando os dois lados o têm, por telefone: o remetente pode vir como LID e
     // o participante como JID de telefone, ou o contrário (ADR 0046). Sem telefone de um lado,
     // só o id decide (fail-closed).

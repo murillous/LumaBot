@@ -48,20 +48,30 @@ export interface MessageKey {
   readonly senderId: string | null;
 }
 
+/**
+ * Alteração de participantes. Cada ação tem a sua capability (`groupActionCapability`): fora do
+ * WhatsApp, bot não adiciona ninguém (ADR 0059). `remove` tira a pessoa sem impedir que volte.
+ */
 export type GroupParticipantAction = 'add' | 'remove' | 'promote' | 'demote';
 
 export interface GroupParticipant extends Contact {
-  /** Verdadeiro também para o criador do grupo (`isSuperAdmin`). */
+  /** Verdadeiro também para o dono do grupo (`isSuperAdmin`). */
   readonly isAdmin: boolean;
+  /** Dono ou criador do grupo (no Discord, o dono do servidor). */
   readonly isSuperAdmin: boolean;
 }
 
 export interface GroupMetadata {
   readonly id: string;
-  readonly subject: string;
+  /** Nome do grupo, como o `Chat.title`. */
+  readonly title: string;
   readonly description: string | null;
   readonly ownerId: string | null;
-  readonly participants: readonly GroupParticipant[];
+  /**
+   * Todos os participantes. Ausente quando a plataforma não lista membros (Telegram) ou listar
+   * custa caro (servidor grande do Discord); nunca vem pela metade (ADR 0059).
+   */
+  readonly participants?: readonly GroupParticipant[];
 }
 
 /**
@@ -88,24 +98,27 @@ export interface TransportEvents {
     /** Reação da própria sessão; o `ignoreSelf` a barra (ADR 0038). */
     readonly fromMe: boolean;
   };
-  /** O bot entrou num grupo. */
-  'group.joined': { readonly groupId: string };
-  /** O bot saiu ou foi removido de um grupo. */
-  'group.left': { readonly groupId: string };
+  /**
+   * O bot entrou num grupo. Onde se entra num espaço e não num chat (servidor do Discord), o
+   * `chat` é o espaço: o mesmo ID que os canais dele trazem em `parentId` (ADR 0059).
+   */
+  'group.joined': { readonly chat: Chat };
+  /** O bot saiu ou foi removido de um grupo (ou de um espaço, como no `group.joined`). */
+  'group.left': { readonly chat: Chat };
   'group.participants': {
-    readonly groupId: string;
+    readonly chat: Chat;
     readonly action: GroupParticipantAction;
     readonly participants: readonly Contact[];
     readonly actor: Contact | null;
   };
   /** Só os campos alterados vêm preenchidos. */
   'group.updated': {
-    readonly groupId: string;
-    readonly subject?: string;
+    readonly chat: Chat;
+    readonly title?: string;
     readonly description?: string | null;
-    /** Só admins enviam mensagens. */
+    /** Só admins enviam mensagens (onde a plataforma tem essa configuração). */
     readonly announce?: boolean;
-    /** Só admins editam os dados do grupo. */
+    /** Só admins editam os dados do grupo (onde a plataforma tem essa configuração). */
     readonly restrict?: boolean;
   };
   /**
@@ -216,7 +229,16 @@ export interface Transport {
 
   /** Capability `groups`. */
   getGroupMetadata(groupId: string): Promise<GroupMetadata>;
-  /** Capability `groups.admin`; o bot precisa ser admin do grupo. */
+  /**
+   * Se o contato é admin do chat, do jeito da plataforma (no Discord, permissão no servidor e no
+   * canal; no Telegram, `getChatMember`). Opcional: sem ele, o papel `group-admin` procura o
+   * contato nos `participants` do `getGroupMetadata` (ADR 0059).
+   */
+  isChatAdmin?(chat: Chat, contact: Contact): Promise<boolean>;
+  /**
+   * Capability da ação (`groups.add`, `groups.remove` ou `groups.promote`); o bot precisa ser
+   * admin do grupo.
+   */
   updateGroupParticipants(
     groupId: string,
     participantIds: readonly string[],

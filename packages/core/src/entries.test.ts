@@ -211,6 +211,7 @@ const entries: Record<string, { file: string; load: () => Promise<object> } & En
       'cloneJson',
       'createMedia',
       'createMessage',
+      'groupActionCapability',
       'hasCapability',
       'isCapability',
       'messageKey',

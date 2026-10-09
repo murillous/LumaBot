@@ -53,7 +53,7 @@ describe('assinatura e emissão', () => {
   });
 
   it('sem listeners resolve vazio', async () => {
-    await expect(bus.emit('group.left', { groupId: 'g' })).resolves.toEqual({
+    await expect(bus.emit('group.left', { chat: { id: 'g', isGroup: true } })).resolves.toEqual({
       listeners: 0,
       claimed: false,
       failed: 0,
@@ -136,7 +136,7 @@ describe('assinatura e emissão', () => {
     bus.forPlugin('b').on('message', b);
     bus.removePlugin('a');
     await bus.emit('message', text());
-    await bus.emit('group.joined', { groupId: 'g' });
+    await bus.emit('group.joined', { chat: { id: 'g', isGroup: true } });
     expect(a).not.toHaveBeenCalled();
     expect(b).toHaveBeenCalledTimes(1);
     expect(bus.listenerCount('group.joined')).toBe(0);
@@ -282,7 +282,7 @@ describe('isolamento (M1-7.2)', () => {
       await Promise.resolve();
       after();
     });
-    const result = await bus.emit('group.joined', { groupId: 'g' });
+    const result = await bus.emit('group.joined', { chat: { id: 'g', isGroup: true } });
     expect(after).toHaveBeenCalledTimes(1);
     expect(result.failed).toBe(1);
     expect(pluginErrors).toMatchObject([

@@ -28,7 +28,9 @@ const ALL: Capability[] = [
   'message.delete',
   'presence',
   'groups',
-  'groups.admin',
+  'groups.add',
+  'groups.remove',
+  'groups.promote',
 ];
 
 /** Transport que registra cada ação, na ordem em que chega a ele. */
@@ -127,7 +129,7 @@ describe('ctx.send: ações pela fila de saída', () => {
     await expect(ctx.send.react(key, '👍')).rejects.toBeInstanceOf(UnsupportedError);
     await expect(ctx.groups.metadata('g@test')).rejects.toMatchObject({ capability: 'groups' });
     await expect(ctx.groups.updateParticipants('g@test', ['a'], 'remove')).rejects.toMatchObject({
-      capability: 'groups.admin',
+      capability: 'groups.remove',
     });
     expect(transport.actions).toEqual([]);
   });
@@ -156,9 +158,24 @@ describe('ctx.groups', () => {
     const transport = new ActionTransport(ALL);
     const { ctx } = await withContext(transport);
     const metadata: GroupMetadata = await ctx.groups.metadata('g@test');
-    expect(metadata.participants.map((p) => p.id)).toEqual([transport.admin.id, 'member@test']);
+    expect(metadata.participants?.map((p) => p.id)).toEqual([transport.admin.id, 'member@test']);
     await ctx.groups.updateParticipants('g@test', ['member@test'], 'remove');
     expect(transport.actions).toEqual([['participants', 'g@test', ['member@test'], 'remove']]);
+  });
+});
+
+describe('ctx.groups.updateParticipants por ação (ADR 0059)', () => {
+  it('cada ação exige a sua capability; demote anda com promote', async () => {
+    // Perfil do Telegram/Discord: bot remove e promove, mas não adiciona ninguém.
+    const transport = new ActionTransport(['send.text', 'groups.remove', 'groups.promote']);
+    const { ctx } = await withContext(transport);
+    await ctx.groups.updateParticipants('g@test', ['a'], 'remove');
+    await ctx.groups.updateParticipants('g@test', ['a'], 'promote');
+    await ctx.groups.updateParticipants('g@test', ['a'], 'demote');
+    await expect(ctx.groups.updateParticipants('g@test', ['a'], 'add')).rejects.toMatchObject({
+      capability: 'groups.add',
+    });
+    expect(transport.actions.map((a) => a[3])).toEqual(['remove', 'promote', 'demote']);
   });
 });
 

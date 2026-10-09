@@ -1,12 +1,14 @@
 // Capabilities do transporte (ADR 0010). A lista é API pública: plugins a citam em `requires`,
 // então incluir é barato, mas renomear ou remover é breaking change.
 
-import type { OutgoingContent, SendOptions } from './types.ts';
+import type { GroupParticipantAction, OutgoingContent, SendOptions } from './types.ts';
 
 /** Capabilities iniciais (plano §6.10). */
 export const CAPABILITIES = [
   'groups',
-  'groups.admin',
+  'groups.add',
+  'groups.remove',
+  'groups.promote',
   'mentions',
   'reactions',
   'presence',
@@ -75,6 +77,18 @@ export function missingCapabilities(
     if (!holder.capabilities.has(capability)) missing.add(capability);
   }
   return [...missing];
+}
+
+const groupCapability: { readonly [K in GroupParticipantAction]: Capability } = {
+  add: 'groups.add',
+  remove: 'groups.remove',
+  promote: 'groups.promote',
+  demote: 'groups.promote',
+};
+
+/** Capability de uma alteração de participantes; `demote` anda junto com `promote` (ADR 0059). */
+export function groupActionCapability(action: GroupParticipantAction): Capability {
+  return groupCapability[action];
 }
 
 const sendCapability: { readonly [K in OutgoingContent['type']]: Capability } = {

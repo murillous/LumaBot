@@ -1,6 +1,6 @@
 import type { BotOwner } from '#config/owners.ts';
 import type { BotMessageContext, MessageContext } from '#context.ts';
-import type { Contact, Media, Message } from '#message/types.ts';
+import type { Chat, Contact, Media, Message } from '#message/types.ts';
 import { parseArgs } from './args.ts';
 import type {
   AcceptedMessage,
@@ -15,12 +15,13 @@ import { type CommandRegistry, createCommandRegistry, type RegisteredCommand } f
 import { createRoleRegistry, type RoleContext, type RoleRegistry } from './roles.ts';
 
 /**
- * Porta para consultar admins de grupo. Vem do transport (capability `groups`, M1-2); o core
- * não importa transport, então quem compõe o bot injeta. Recebe o contato inteiro, não só o
- * id: no WhatsApp o id do remetente e o do participante podem vir em espaços diferentes (LID e
- * JID de telefone), e o telefone é o que os liga (ADR 0046).
+ * Porta para consultar admins de grupo. Vem do transport (`isChatAdmin` ou capability `groups`,
+ * ADR 0059); o core não importa transport, então quem compõe o bot injeta. Recebe o chat
+ * inteiro, porque no Discord o admin é do servidor (`parentId`), e o contato inteiro, porque no
+ * WhatsApp o id do remetente e o do participante podem vir em espaços diferentes (LID e JID de
+ * telefone), e o telefone é o que os liga (ADR 0046).
  */
-export type IsGroupAdmin = (chatId: string, sender: Contact) => boolean | Promise<boolean>;
+export type IsGroupAdmin = (chat: Chat, sender: Contact) => boolean | Promise<boolean>;
 
 export interface CommandRouterOptions {
   /** Padrão: `'!'`. Comparado sem diferenciar caixa. */
@@ -174,7 +175,7 @@ export function createCommandRouter(options: CommandRouterOptions = {}): Command
     }
     // `group-admin` fora de grupo não tem a quem se referir: recusa.
     if (!message.chat.isGroup || !isGroupAdmin) return false;
-    return isGroupAdmin(message.chat.id, message.sender);
+    return isGroupAdmin(message.chat, message.sender);
   }
 
   async function reject(

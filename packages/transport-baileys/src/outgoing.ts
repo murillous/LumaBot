@@ -108,7 +108,7 @@ export async function toGroupMetadata(
   );
   return {
     id: native.id,
-    subject: native.subject,
+    title: native.subject,
     description: native.desc ?? null,
     ownerId: native.owner ? jidNormalizedUser(native.owner) || native.owner : null,
     participants,

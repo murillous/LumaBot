@@ -20,6 +20,7 @@ import {
   assertCanSend,
   assertCapability,
   CAPABILITIES,
+  groupActionCapability,
   type TransportEventHandler,
   type TransportEventName,
   type TransportEvents,
@@ -160,7 +161,7 @@ export class FakeTransport implements Transport {
     participantIds: readonly string[],
     action: GroupParticipantAction,
   ): Promise<void> {
-    assertCapability(this, 'groups.admin');
+    assertCapability(this, groupActionCapability(action));
     this.participantUpdates.push({ groupId, participantIds, action });
   }
 

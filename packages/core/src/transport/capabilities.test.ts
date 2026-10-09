@@ -5,6 +5,7 @@ import {
   CAPABILITIES,
   type CapabilityHolder,
   capabilitiesForSend,
+  groupActionCapability,
   hasCapability,
   isCapability,
   missingCapabilities,
@@ -19,7 +20,7 @@ const holder: CapabilityHolder = {
 
 describe('CAPABILITIES', () => {
   it('lista as capabilities iniciais do plano §6.10, sem repetição', () => {
-    expect(CAPABILITIES).toHaveLength(17);
+    expect(CAPABILITIES).toHaveLength(19);
     expect(new Set(CAPABILITIES).size).toBe(CAPABILITIES.length);
   });
 
@@ -32,7 +33,7 @@ describe('CAPABILITIES', () => {
 describe('hasCapability / assertCapability', () => {
   it('reflete o conjunto declarado', () => {
     expect(hasCapability(holder, 'groups')).toBe(true);
-    expect(hasCapability(holder, 'groups.admin')).toBe(false);
+    expect(hasCapability(holder, 'groups.add')).toBe(false);
   });
 
   it('assertCapability lança UnsupportedError com a capability e o transport', () => {
@@ -112,5 +113,14 @@ describe('capabilitiesForSend / assertCanSend', () => {
     expect(() => assertCanSend(holder, { type: 'sticker', media: Buffer.from('x') })).toThrow(
       UnsupportedError,
     );
+  });
+});
+
+describe('groupActionCapability', () => {
+  it('mapeia cada ação; demote usa a mesma de promote (ADR 0059)', () => {
+    expect(groupActionCapability('add')).toBe('groups.add');
+    expect(groupActionCapability('remove')).toBe('groups.remove');
+    expect(groupActionCapability('promote')).toBe('groups.promote');
+    expect(groupActionCapability('demote')).toBe('groups.promote');
   });
 });

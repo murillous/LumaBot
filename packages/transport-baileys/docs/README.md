@@ -137,9 +137,9 @@ Além de `message` e `connection.*`, o transport converte estes eventos do Baile
 | `messages.reaction` | `reaction` (`emoji: null` quando a reação foi removida) |
 | `messages.update` com `editedMessage` | `message.edited`: a `Message` com o conteúdo novo e `isEdited: true` |
 | `messages.update` com `REVOKE` | `message.deleted` (`deletedBy`: quem apagou, o autor ou um admin do grupo) |
-| `group-participants.update` | `group.participants`; a própria sessão adicionada ou removida vira `group.joined`/`group.left` |
+| `group-participants.update` | `group.participants` (com o grupo em `chat`); a própria sessão adicionada ou removida vira `group.joined`/`group.left` |
 | `groups.upsert` (grupo criado com a sessão dentro) | `group.joined` |
-| `groups.update` | `group.updated`, só com os campos alterados (`subject`, `description`, `announce`, `restrict`) |
+| `groups.update` | `group.updated`, só com os campos alterados (`title`, vindo do `subject`; `description`, `announce`, `restrict`) |
 | remetente de uma mensagem nova | `contact.updated` |
 
 Todos passam pela mesma fila das mensagens, na ordem de chegada: a edição ou a reação nunca sai
@@ -186,8 +186,8 @@ uma mensagem que chegou no mesmo lote pode vir incorporada a ela, sem evento pr�
 
 ## Capabilities
 
-O transport declara todas as capabilities do core (plano §6.10): `groups`, `groups.admin`,
-`mentions`, `reactions`, `presence`, `send.text`, `send.image`, `send.video`, `send.audio`,
+O transport declara todas as capabilities do core (plano §6.10): `groups`, `groups.add`,
+`groups.remove`, `groups.promote`, `mentions`, `reactions`, `presence`, `send.text`, `send.image`, `send.video`, `send.audio`,
 `send.voice`, `send.sticker`, `send.document`, `media.download`, `message.edit`,
 `message.delete`, `polls` e `quoted`. Todo plugin que declara `requires` com elas carrega.
 
@@ -223,9 +223,11 @@ A mídia vai como `Buffer` ou `{ url }`, que o Baileys baixa. `mentions` entra e
 
 ## Grupos
 
-`getGroupMetadata` traz assunto, descrição, dono e participantes com `isAdmin`/`isSuperAdmin` e o
-`phone` resolvido como nas mensagens (o `phoneNumber` que o WhatsApp manda junto com um LID ou o
-mapeamento da sessão). É o que o kernel consulta no `role: 'group-admin'`.
+`getGroupMetadata` traz o nome (`title`, o `subject` do WhatsApp), descrição, dono e a lista
+completa de participantes com `isAdmin`/`isSuperAdmin` e o `phone` resolvido como nas mensagens
+(o `phoneNumber` que o WhatsApp manda junto com um LID ou o mapeamento da sessão). O transport não
+implementa `isChatAdmin`, então é esta lista que o kernel consulta no `role: 'group-admin'`
+([ADR 0059](../../../docs/adr/0059-grupos-multiplataforma.md)).
 
 Os metadados ficam em cache por grupo, porque o kernel os pede a cada comando de admin
 ([ADR 0046](../../../docs/adr/0046-ids-de-contato-e-metadata-de-grupo.md)). O cache cai:

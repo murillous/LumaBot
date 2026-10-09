@@ -182,7 +182,7 @@ O `FakeTransport` implementa o `Transport` do core sem rede. Ele também serve p
 ```ts
 const transport = new FakeTransport({
   capabilities: ['send.text', 'quoted'],  // padrão: todas
-  groups: [{ id: 'grupo@fake', subject: 'Grupo', description: null, ownerId: null, participants }],
+  groups: [{ id: 'grupo@fake', title: 'Grupo', description: null, ownerId: null, participants }],
 });
 const bot = await createTestBot({ transport, plugins: [meuPlugin()] });
 ```
@@ -191,7 +191,7 @@ const bot = await createTestBot({ transport, plugins: [meuPlugin()] });
 | --- | --- |
 | `sent` | Envios: `{ chatId, content, quoted, mentions, key }` |
 | `reactions`, `edits`, `deletions` | `react`, `edit` e `delete`, com a `MessageKey` devolvida pelo envio |
-| `presences`, `participantUpdates` | `sendPresence` e `updateGroupParticipants` |
+| `presences`, `participantUpdates` | `sendPresence` e `updateGroupParticipants` (que cobra `groups.add`, `groups.remove` ou `groups.promote`, conforme a ação) |
 | `errors` | Erros lançados pelos handlers de eventos emitidos. O bot trata os próprios erros, então a lista deve ficar vazia |
 | `emit(event, payload)` | Simula um evento do canal sem esperar o bot. Prefira o `bot.emit` |
 | `setGroup(metadata)` | Registra o grupo que `getGroupMetadata` devolve. Um grupo não registrado faz a chamada falhar |

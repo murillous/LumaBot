@@ -18,7 +18,7 @@ setup(ctx) {
 
   // opções no meio (como no plano) ou no fim
   ctx.events.on('message', { quoted: 'audio' }, (e) => { /* respondeu a um áudio */ });
-  ctx.events.on('group.joined', (e) => { /* e.payload.groupId */ }, { priority: 5 });
+  ctx.events.on('group.joined', (e) => { /* e.payload.chat.id */ }, { priority: 5 });
 }
 ```
 
@@ -77,9 +77,9 @@ nenhum prazo resolve isso.
 | `message.edited` | nova versão da `Message`, com `isEdited: true` |
 | `message.deleted` | `{ chat, messageId, deletedBy, fromMe }` |
 | `reaction` | `{ chat, messageId, sender, emoji, fromMe }` (`emoji: null` = removida) |
-| `group.joined` / `group.left` | `{ groupId }` |
-| `group.participants` | `{ groupId, action, participants, actor }` |
-| `group.updated` | `{ groupId }` + só os campos alterados |
+| `group.joined` / `group.left` | `{ chat }` (no Discord, `chat` é o servidor) |
+| `group.participants` | `{ chat, action, participants, actor }` |
+| `group.updated` | `{ chat }` + só os campos alterados (`title?`, `description?`, `announce?`, `restrict?`) |
 | `contact.updated` | `{ id }` + só os campos alterados (`name?`, `phone?`) |
 | `connection.status` / `connection.qr` | `ConnectionStatus` / `{ qr }` |
 | `connection.pairing-code` | `{ code }` (pareamento por código, ADR 0050) |

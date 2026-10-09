@@ -48,6 +48,7 @@ import { loadAuthState } from './auth-state.ts';
 import { toDisconnectReason } from './disconnect-reason.ts';
 import {
   ContactBook,
+  chatOf,
   toDeleted,
   toEdited,
   toGroupUpdated,
@@ -117,7 +118,9 @@ export class BaileysTransport implements Transport {
   /** As capabilities iniciais do Baileys (plano §6.10): todas as do core. */
   readonly capabilities: ReadonlySet<Capability> = new Set<Capability>([
     'groups',
-    'groups.admin',
+    'groups.add',
+    'groups.remove',
+    'groups.promote',
     'mentions',
     'reactions',
     'presence',
@@ -290,7 +293,7 @@ export class BaileysTransport implements Transport {
       if (!current()) return;
       for (const { id } of groups) {
         enqueue(async () => {
-          if (current()) this.#events.emit('group.joined', { groupId: id });
+          if (current()) this.#events.emit('group.joined', { chat: chatOf(id) });
         }, 'falha ao repassar grupo novo');
       }
     });
@@ -311,7 +314,7 @@ export class BaileysTransport implements Transport {
       enqueue(async () => {
         const { self, others } = await toParticipantEvents(update, env, contacts);
         if (!current()) return;
-        if (self !== null) this.#events.emit(self, { groupId: update.id });
+        if (self !== null) this.#events.emit(self, { chat: chatOf(update.id) });
         if (others !== null) this.#events.emit('group.participants', others);
       }, 'falha ao converter alteração de participantes do Baileys; descartada');
     });

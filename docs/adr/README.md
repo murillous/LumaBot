@@ -178,3 +178,4 @@ ADR 0055). Ao serem aceitos, entram aqui e no índice numérico.
 | [0056](0056-owners-por-telefone-ou-id.md) | D56 | Owners por telefone ou por ID do contato (detalha D24/D46) | Aceito |
 | [0057](0057-contact-multiplataforma.md) | D57 | `Contact` multiplataforma: `username`, `isBot` e claims verificados (detalha D09/D38) | Aceito |
 | [0058](0058-chat-multiplataforma.md) | D58 | `Chat` multiplataforma: tipo, espaço e título (detalha D09/D24/D38) | Aceito |
+| [0059](0059-grupos-multiplataforma.md) | D59 | Grupos multiplataforma: admin, participantes, ações e eventos (detalha D24/D46; substitui em parte D10/D38/D40) | Aceito |

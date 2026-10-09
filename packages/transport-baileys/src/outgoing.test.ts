@@ -166,7 +166,7 @@ describe('toGroupMetadata', () => {
 
     expect(metadata).toEqual({
       id: GROUP,
-      subject: 'Família',
+      title: 'Família',
       description: 'grupo da família',
       ownerId: ALICE,
       participants: [
@@ -183,6 +183,6 @@ describe('toGroupMetadata', () => {
       { pnForLid: async () => null },
     );
     expect(metadata).toMatchObject({ description: null, ownerId: null });
-    expect(metadata.participants[2]).toMatchObject({ id: CAROL_LID, phone: null });
+    expect(metadata.participants?.[2]).toMatchObject({ id: CAROL_LID, phone: null });
   });
 });
