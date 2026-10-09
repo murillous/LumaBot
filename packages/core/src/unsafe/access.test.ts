@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { Logger } from '#logger/types.ts';
+import type { Message } from '#message/types.ts';
+import type { Interaction } from '#transport/types.ts';
 import { createUnsafeAccess } from './access.ts';
 
 function fakeLogger() {
@@ -83,5 +85,78 @@ describe('createUnsafeAccess', () => {
     const [message] = log.warn.mock.calls[0] ?? [];
     expect(message).toContain('sem declarar transports');
     expect(message).toContain("transports: ['baileys']");
+  });
+});
+
+describe('createUnsafeAccess: raw (ADR 0066)', () => {
+  const message = { id: 'm1' } as unknown as Message;
+  const interaction = { id: 'i1' } as unknown as Interaction;
+
+  it('devolve o que o transport.raw devolve para a mensagem', () => {
+    const raw = vi.fn((source: Message | Interaction) => (source === message ? { proto: 1 } : 0));
+    const unsafe = createUnsafeAccess({
+      transport: { name: 'baileys', native: {}, raw },
+      log: fakeLogger(),
+    }).forPlugin({ name: 'p', transports: ['baileys'] });
+
+    expect(unsafe.raw(message)).toEqual({ proto: 1 });
+    expect(raw).toHaveBeenCalledWith(message);
+  });
+
+  it('transport sem raw devolve undefined, e o acesso ainda avisa', () => {
+    const log = fakeLogger();
+    const unsafe = createUnsafeAccess({ transport: { name: 'web', native: {} }, log }).forPlugin({
+      name: 'p',
+      transports: ['web'],
+    });
+
+    expect(unsafe.raw(message)).toBeUndefined();
+    expect(log.warn).toHaveBeenCalledTimes(1);
+  });
+
+  it('mensagem montada de uma interação pergunta ao transport pela interação', () => {
+    const raw = vi.fn((source: Message | Interaction) =>
+      source === interaction ? { token: 't' } : undefined,
+    );
+    const access = createUnsafeAccess({
+      transport: { name: 'discord', native: {}, raw },
+      log: fakeLogger(),
+      interactionOf: (m) => (m === message ? interaction : undefined),
+    });
+    const unsafe = access.forPlugin({ name: 'p', transports: ['discord'] });
+
+    expect(unsafe.raw(message)).toEqual({ token: 't' });
+    const other = { id: 'm2' } as unknown as Message;
+    unsafe.raw(other);
+    expect(raw).toHaveBeenLastCalledWith(other);
+  });
+
+  it('raw avisa uma vez por plugin, à parte do native, citando ctx.unsafe.raw()', () => {
+    const log = fakeLogger();
+    const access = createUnsafeAccess({ transport: { name: 'baileys', native: {} }, log });
+    const first = access.forPlugin({ name: 'a', transports: ['baileys'] });
+    const second = access.forPlugin({ name: 'a', transports: ['baileys'] });
+
+    first.raw(message);
+    second.raw(message);
+    expect(log.warn).toHaveBeenCalledTimes(1);
+    const [text, fields] = log.warn.mock.calls[0] ?? [];
+    expect(text).toContain('ctx.unsafe.raw()');
+    expect(fields).toEqual({ plugin: 'a', transport: 'baileys' });
+
+    void first.native;
+    expect(log.warn).toHaveBeenCalledTimes(2);
+    expect(log.warn.mock.calls[1]?.[0]).toContain('ctx.unsafe.native');
+  });
+
+  it('sem transports no manifesto, o aviso de raw diz que o plugin fica preso ao transport', () => {
+    const log = fakeLogger();
+    createUnsafeAccess({ transport: { name: 'telegram', native: {} }, log })
+      .forPlugin({ name: 'p' })
+      .raw(message);
+
+    const [text] = log.warn.mock.calls[0] ?? [];
+    expect(text).toContain('ctx.unsafe.raw() sem declarar transports');
+    expect(text).toContain("transports: ['telegram']");
   });
 });
