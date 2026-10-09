@@ -27,7 +27,7 @@ Só `transport` é obrigatório; `createBot({ transport })` sobe um bot sem plug
 | `disabledPlugins` | `[]` | Nomes que não carregam |
 | `pluginConfig` | — | Config por plugin, a camada "arquivo" ([Config](config.md)) |
 | `env` | `process.env` | Ambiente lido pela config de plugin (`ZAPFORGE_*`) |
-| `owners` | `[]` | Telefones dos donos; aceitos com pontuação (`'+55 11 99999-9999'`), normalizados por `normalizeOwners` — `BotConfigError` já no `createBot` se malformados |
+| `owners` | `[]` | Donos: telefone, aceito com pontuação (`'+55 11 99999-9999'`), ou `{ id }` com o ID nativo do contato ([Config](config.md#owners)) — `BotConfigError` já no `createBot` se malformados |
 | `prefix` | `'!'` | Prefixo de comando |
 | `logger` | criado pelo bot | `Logger` pronto. Sem ele, `createLogger({ level: logLevel, secrets })` no `start()` |
 | `logLevel` | `'info'` | Nível do logger criado pelo bot |

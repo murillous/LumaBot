@@ -1,3 +1,4 @@
+import type { BotOwner } from '#config/owners.ts';
 import type { BotMessageContext, MessageContext } from '#context.ts';
 import type { Contact, Media, Message } from '#message/types.ts';
 import { parseArgs } from './args.ts';
@@ -25,10 +26,10 @@ export interface CommandRouterOptions {
   /** Padrão: `'!'`. Comparado sem diferenciar caixa. */
   readonly prefix?: string;
   /**
-   * Telefones dos donos do bot, só dígitos com DDI (`normalizeOwners`), comparados com
-   * `message.sender.phone`. Remetente sem telefone (`phone: null`) nunca é dono.
+   * Donos do bot, já normalizados (`normalizeOwners`): telefone só com dígitos e DDI, comparado
+   * com `message.sender.phone`, ou `{ id }`, comparado com `message.sender.id`.
    */
-  readonly owners?: readonly string[];
+  readonly owners?: readonly BotOwner[];
   /** Sem a porta, `role: 'group-admin'` recusa todo mundo exceto owners (fail-closed). */
   readonly isGroupAdmin?: IsGroupAdmin;
   /** Registro a usar; padrão: um novo. */
@@ -119,7 +120,14 @@ export function createCommandRouter(options: CommandRouterOptions = {}): Command
     // Prefixo vazio faria a primeira palavra de qualquer conversa virar comando.
     throw new TypeError('O prefixo de comando não pode ser vazio');
   }
-  const owners = new Set(options.owners ?? []);
+  // Dois conjuntos, um por espaço: um ID com texto de telefone não casa com o telefone de
+  // ninguém, e vice-versa (ADR 0056).
+  const ownerPhones = new Set<string>();
+  const ownerIds = new Set<string>();
+  for (const owner of options.owners ?? []) {
+    if (typeof owner === 'string') ownerPhones.add(owner);
+    else ownerIds.add(owner.id);
+  }
   const isGroupAdmin = options.isGroupAdmin;
   const registry = options.registry ?? createCommandRegistry();
   const roles = options.roles ?? createRoleRegistry();
@@ -148,10 +156,11 @@ export function createCommandRouter(options: CommandRouterOptions = {}): Command
   ): Promise<boolean> {
     if (role === 'everyone') return true;
     const { message } = ctx;
-    // Dono é superusuário: passa também em `group-admin`. Compara pelo telefone, não pelo
-    // `sender.id`: no WhatsApp o ID pode ser um LID, de onde não sai o número (M1-16.4).
-    const phone = message.sender.phone;
-    if (phone !== null && owners.has(phone)) return true;
+    // Dono é superusuário: passa também em `group-admin`. Owner por telefone compara com
+    // `sender.phone`, não com o `sender.id`: no WhatsApp o ID pode ser um LID, de onde não sai o
+    // número (M1-16.4). Owner `{ id }` compara com o `sender.id`, para quem não tem telefone.
+    const { id, phone } = message.sender;
+    if (ownerIds.has(id) || (phone !== null && ownerPhones.has(phone))) return true;
     if (role === 'owner') return false;
     if (role !== 'group-admin') {
       // Papel custom: sem dono carregado (plugin desligado, ignorado ou recarregando), recusa.

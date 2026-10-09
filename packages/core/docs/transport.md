@@ -58,8 +58,9 @@ conforme o modo de endereçamento do grupo. O que liga os dois é o `phone`:
 - O adapter preenche `phone` (só dígitos, com DDI) no remetente, nos participantes e no
   `transport.self` sempre que souber resolvê-lo; `null` só quando não souber.
 - Para saber se dois contatos são o mesmo, compare o `id` e, se os dois tiverem, o `phone`. É o
-  que o kernel faz no `role: 'group-admin'` e com os `owners`
-  ([ADR 0046](../../../docs/adr/0046-ids-de-contato-e-metadata-de-grupo.md)).
+  que o kernel faz no `role: 'group-admin'`
+  ([ADR 0046](../../../docs/adr/0046-ids-de-contato-e-metadata-de-grupo.md)). Os `owners` da
+  config dizem qual dos dois comparar: telefone com `phone`, `{ id }` com `id`.
 
 ## Eventos
 

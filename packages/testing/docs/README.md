@@ -129,7 +129,8 @@ ffmpeg -f lavfi -i anullsrc=r=48000:cl=mono -t 1 -c:a libopus -b:a 6k voice.ogg
 ```
 
 Para testar um comando `role: 'owner'`, passe `owners: [DEFAULT_SENDER.phone]` ao
-`createTestBot`.
+`createTestBot`, ou `owners: [{ id: DEFAULT_SENDER.id }]` para simular uma plataforma sem
+telefone.
 
 ## Matchers
 

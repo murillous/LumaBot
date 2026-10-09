@@ -124,7 +124,7 @@ citada.
 | Papel | Quem roda |
 | --- | --- |
 | `everyone` (padrão) | Todo mundo |
-| `owner` | Remetente cujo `sender.phone` está em `owners` |
+| `owner` | Remetente cujo `sender.phone` (ou `sender.id`, para `{ id }`) está em `owners` |
 | `group-admin` | Admin do grupo, segundo a porta `isGroupAdmin(chatId, sender)` |
 
 - Owner passa também em `group-admin`.
@@ -135,12 +135,15 @@ citada.
   ([ADR 0046](../../../docs/adr/0046-ids-de-contato-e-metadata-de-grupo.md)).
 - Sem `isGroupAdmin` (transport sem a capability `groups`), `group-admin` recusa todo mundo
   exceto owners: falha fechada, nunca libera por falta de informação.
-- `owners` são telefones só com dígitos e DDI (`'5511999999999'`), comparados por igualdade com
+- Um owner telefone (`'5511999999999'`, só dígitos e DDI) é comparado por igualdade com
   `message.sender.phone`. O bot normaliza a lista da config com `normalizeOwners`, então lá vale
   `'+55 (11) 99999-9999'`; no roteador solto, normalize antes.
-- Não se usa `sender.id`: no WhatsApp ele pode ser um LID, de onde não sai o telefone. Só o
-  transport sabe resolver o número; quando não sabe, `phone` é `null` e esse remetente **nunca**
-  é owner.
+- O telefone não é comparado com `sender.id`: no WhatsApp ele pode ser um LID, de onde não sai o
+  número. Só o transport sabe resolvê-lo; quando não sabe, `phone` é `null` e esse remetente só
+  é owner se estiver na lista por `{ id }`.
+- Um owner `{ id }` é comparado por igualdade com `message.sender.id`, para plataformas sem
+  telefone (Discord, Telegram, web). Telefone e ID nunca se cruzam
+  ([ADR 0056](../../../docs/adr/0056-owners-por-telefone-ou-id.md)).
 
 ### Papéis custom
 

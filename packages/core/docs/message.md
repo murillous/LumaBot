@@ -51,7 +51,8 @@ if (msg.quoted?.is('sticker')) await msg.quoted.media.download();
 `phone` é o telefone só com dígitos e DDI (`'5511999999999'`), ou `null` se o transport não
 souber. Ele é separado de `id` porque o ID nativo nem sempre carrega o número — no WhatsApp,
 `sender.id` pode ser um LID — e só o transport sabe resolvê-lo. É por `phone` que o roteador
-reconhece os `owners` ([Comandos](commands.md#role)); `null` nunca é owner.
+reconhece os `owners` telefone ([Comandos](commands.md#role)); com `null`, só um owner `{ id }`
+reconhece o remetente.
 
 O campo é obrigatório no tipo: o transport precisa decidir, e `null` é uma resposta explícita.
 

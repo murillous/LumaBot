@@ -24,7 +24,7 @@ export interface Contact {
   /**
    * Telefone só com dígitos, com DDI (`'5511999999999'`), ou `null` se o transport não souber.
    * Fica separado de `id` porque o ID nativo nem sempre carrega o número (no WhatsApp, um LID);
-   * só o transport sabe resolvê-lo. É com ele que o roteador reconhece os `owners`.
+   * só o transport sabe resolvê-lo. É com ele que o roteador reconhece os `owners` telefone.
    */
   readonly phone: string | null;
 }

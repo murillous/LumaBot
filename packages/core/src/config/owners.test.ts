@@ -28,4 +28,30 @@ describe('normalizeOwners', () => {
   it('aponta o índice do item inválido', () => {
     expect(() => normalizeOwners(['5511999999999', 'dono'])).toThrow(/owners\[1\]: "dono"/);
   });
+
+  it('aceita { id } como está, ao lado de telefones, sem repetidos (MP-2)', () => {
+    expect(
+      normalizeOwners([
+        { id: '123456789012345678' },
+        '+55 11 99999-9999',
+        { id: '5511999999999@s.whatsapp.net' },
+        { id: '123456789012345678' },
+        // Mesmo texto de um telefone, mas é outro espaço: não se funde com ele.
+        { id: '5511999999999' },
+      ]),
+    ).toEqual([
+      { id: '123456789012345678' },
+      '5511999999999',
+      { id: '5511999999999@s.whatsapp.net' },
+      { id: '5511999999999' },
+    ]);
+  });
+
+  it('recusa { id } vazio, com espaço nas pontas ou que não é texto, apontando o índice', () => {
+    const invalid: unknown[] = [{ id: '' }, { id: ' dono' }, { id: 123 }, {}, null, 5511999999999];
+    for (const owner of invalid) {
+      expect(() => normalizeOwners(['5511999999999', owner as never])).toThrow(BotConfigError);
+      expect(() => normalizeOwners(['5511999999999', owner as never])).toThrow(/owners\[1\]/);
+    }
+  });
 });
