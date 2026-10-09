@@ -39,11 +39,14 @@ export {
   type ReconnectionState,
 } from '#transport/reconnection.ts';
 export type {
+  ActionInteraction,
+  CommandInteraction,
   GroupMetadata,
   GroupParticipant,
   Interaction,
   Presence,
   Transport,
+  TransportCommands,
   TransportDeps,
   TransportEventHandler,
   TransportEventName,

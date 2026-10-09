@@ -37,6 +37,12 @@ o prefixo do chat (da config ou de `ctx.prefixes`, ver [Prefixo por chat](#prefi
 roteador para cada mensagem que passou pelos middlewares ([Bot](bot.md#fluxo-de-uma-mensagem)).
 No teardown/reload os comandos do plugin saem sozinhos.
 
+Onde a plataforma tem menu de comandos (Discord, Telegram, web), o transport registra o `name` e
+a `description` de cada comando nele, e o `role` decide quem vê: `owner` e papéis custom ficam
+fora do menu, mas seguem funcionando digitados. O comando chamado pelo menu roda como o digitado,
+sem prefixo, com o texto depois dele como argumentos
+([Transport → Comandos nativos](transport.md#comandos-nativos)).
+
 ```ts
 createBot({ transport, prefix: '!', owners: ['+55 11 99999-9999'], plugins: [media] });
 ```

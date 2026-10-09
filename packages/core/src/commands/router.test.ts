@@ -617,6 +617,21 @@ describe('roteador: comando dado, sem casar o texto (ADR 0062)', () => {
     expect(calls[0]?.rawArgs).toBe('a b c');
   });
 
+  it('com rawArgs (comando nativo, ADR 0064), interpreta o texto como o do comando digitado', async () => {
+    const router = createCommandRouter();
+    const { def, calls } = spyCommand();
+    router.registry.add('p', def);
+
+    const result = await router.dispatch(ctxOf({ text: '/sticker' }), {
+      command: 'sticker',
+      rawArgs: '  "a b" c ',
+    });
+
+    expect(result).toMatchObject({ consumed: true, status: 'ran' });
+    expect(calls[0]?.args).toEqual(['a b', 'c']);
+    expect(calls[0]?.rawArgs).toBe('"a b" c ');
+  });
+
   it('comando que não existe não consome', async () => {
     const router = createCommandRouter();
     const result = await router.dispatch(ctxOf({ text: '!sticker' }), {

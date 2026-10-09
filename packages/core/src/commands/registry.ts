@@ -47,7 +47,12 @@ function tokensOf(definition: CommandDefinition): Set<string> {
   return tokens;
 }
 
-export function createCommandRegistry(): CommandRegistry {
+export interface CommandRegistryOptions {
+  /** Chamado a cada comando que entra ou sai (o aviso do `TransportDeps.commands`, ADR 0064). */
+  readonly onChange?: () => void;
+}
+
+export function createCommandRegistry(options: CommandRegistryOptions = {}): CommandRegistry {
   // Um Map por token deixa o match O(1), independente de quantos comandos existem.
   const byToken = new Map<string, RegisteredCommand>();
   const commands = new Set<RegisteredCommand>();
@@ -66,14 +71,19 @@ export function createCommandRegistry(): CommandRegistry {
       }
       for (const token of tokens) byToken.set(token, entry);
       commands.add(entry);
+      options.onChange?.();
     },
 
     removePlugin(plugin) {
+      let removed = false;
       for (const entry of commands) {
         if (entry.plugin !== plugin) continue;
         commands.delete(entry);
         for (const token of tokensOf(entry.definition)) byToken.delete(token);
+        removed = true;
       }
+      // Plugin sem comandos não muda a lista: o transport não precisa conferir nada.
+      if (removed) options.onChange?.();
     },
 
     find(token) {

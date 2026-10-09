@@ -2,6 +2,7 @@
 // (`@zapforge/transport-baileys` etc.) traduz o formato nativo para os tipos daqui, então os
 // eventos chegam ao kernel já normalizados.
 
+import type { CommandInfo } from '#commands/command.ts';
 import type { Logger } from '#logger/types.ts';
 import type { Chat, Contact, Message } from '#message/types.ts';
 import type { AuthStateStore } from '#storage/types.ts';
@@ -140,28 +141,49 @@ export interface TransportEvents {
    */
   'connection.pairing-code': { readonly code: string };
   /**
-   * Clique num botão enviado com `SendOptions.actions` (capability `actions`, ADR 0062). O
-   * transport confirma a interação na plataforma antes de emitir; o kernel resolve o `actionId` e
-   * roda o comando ou o passo da ação. Não chega aos plugins como evento.
+   * Clique num botão enviado com `SendOptions.actions` (capability `actions`, ADR 0062) ou
+   * comando nativo da plataforma, como o slash command do Discord (ADR 0064). O transport
+   * confirma a interação na plataforma antes de emitir; o kernel roda o comando ou o passo. Não
+   * chega aos plugins como evento.
    */
   interaction: Interaction;
 }
 
-/** Clique num botão, como o transport o entrega (ADR 0062). */
-export interface Interaction {
+interface InteractionBase {
   /**
-   * ID da interação, que vira o ID da mensagem do clique. O `ctx.reply` cita essa mensagem, e o
-   * transport decide como responder à interação (follow-up no Discord, por exemplo).
+   * ID da interação, que vira o ID da mensagem do clique ou do comando. O `ctx.reply` cita essa
+   * mensagem, e o transport decide como responder à interação (follow-up no Discord, por
+   * exemplo).
    */
   readonly id: string;
   readonly chat: Chat;
-  /** Quem clicou. */
+  /** Quem clicou ou chamou o comando. */
   readonly sender: Contact;
-  /** O `id` do `OutgoingAction` clicado, como o kernel o enviou. */
-  readonly actionId: string;
   /** Epoch em milissegundos. */
   readonly timestamp: number;
 }
+
+/** Clique num botão (ADR 0062). */
+export interface ActionInteraction extends InteractionBase {
+  /** O `id` do `OutgoingAction` clicado, como o kernel o enviou. */
+  readonly actionId: string;
+  readonly command?: never;
+}
+
+/** Comando nativo da plataforma (ADR 0064): o slash command do Discord, por exemplo. */
+export interface CommandInteraction extends InteractionBase {
+  /** Nome ou alias do comando, sem prefixo. */
+  readonly command: string;
+  /**
+   * Argumentos em texto livre, interpretados como o texto depois do comando digitado (aspas,
+   * `rawArgs`). Vazio quando não há.
+   */
+  readonly args: string;
+  readonly actionId?: never;
+}
+
+/** Interação que o transport entrega: o clique num botão ou o comando nativo. */
+export type Interaction = ActionInteraction | CommandInteraction;
 
 export type TransportEventName = keyof TransportEvents;
 
@@ -335,4 +357,25 @@ export interface TransportDeps {
    * `start()` descarta as linhas: o logger real só nasce lá.
    */
   readonly log: Logger;
+  /**
+   * Comandos do bot, para o menu nativo da plataforma (slash commands do Discord, `setMyCommands`
+   * do Telegram; ADR 0064). Opcional para quem monta o `TransportDeps` fora do `createBot`.
+   */
+  readonly commands?: TransportCommands;
+}
+
+/**
+ * Lista de comandos que o transport registra na plataforma (ADR 0064). O menu mostra só o
+ * `name`, e o `role` decide quem o vê (ver docs/transport.md).
+ */
+export interface TransportCommands {
+  /** Os comandos registrados agora; um array novo a cada chamada. */
+  list(): readonly CommandInfo[];
+  /**
+   * Avisa que a lista mudou: uma vez ao fim de cada reload e uma vez por tick para os comandos
+   * adicionados fora dele. Não avisa no boot, que termina antes do `connect()`, nem a partir do
+   * `stop()`. O aviso não traz a lista: chame `list()` e compare com o que já registrou antes de
+   * chamar a plataforma. Erro do listener vai para o log do bot.
+   */
+  onChange(listener: () => void | Promise<void>): Unsubscribe;
 }
