@@ -1,6 +1,6 @@
 # ADR 0029 — Open core com repo privado
 
-**Status:** Aceito (2026-10-06) · Decisão **D29** do [plano](../../ZAPFORGE_PLAN.md#4-decisões)
+**Status:** Aceito (2026-10-06) · Decisão **D29** do [plano](../../ZAPFORGE_PLAN.md#4-decisões) · Transports Discord, Telegram e web são públicos: [ADR 0055](0055-plataformas-alvo-e-transport-web.md)
 
 ## Contexto
 

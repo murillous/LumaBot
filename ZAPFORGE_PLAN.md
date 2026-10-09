@@ -25,7 +25,8 @@
 
 ## 1. Visão
 
-**ZapForge** é um *kernel* para bots de mensageria (WhatsApp em primeiro lugar) que contém apenas
+**ZapForge** é um *kernel* para bots de mensageria (WhatsApp, Discord, Telegram e sistemas web
+próprios, D55) que contém apenas
 o indispensável — conexão, modelo de mensagem, roteamento, filas, armazenamento, configuração
 e ciclo de vida de plugins. **Todo o resto é plugin.**
 
@@ -34,12 +35,15 @@ Objetivos:
 - **A comunidade cria plugins sem conhecer o funcionamento interno.** O contrato público
   (tipos TypeScript + docs + kit de testes) é o produto.
 - **Máximo de performance**, com metas mensuráveis e benchmark no CI.
-- **Multi-transporte**: Baileys hoje; API Oficial do WhatsApp (Cloud API), Twilio e Zenvia
-  no futuro, para uso comercial.
-- **Open core**: kernel e plugins básicos públicos; transports e plugins comerciais privados.
+- **Multiplataforma**: o core só conhece o contrato do `Transport`; o que é de cada plataforma
+  fica no transport. Baileys no M2 e `transport-web` (chatbot dentro de sistemas próprios, como
+  ERP e gestão escolar) no M3 validam o contrato antes do 1.0; Telegram e Discord vêm depois. API
+  Oficial do WhatsApp (Cloud API), Twilio e Zenvia no futuro, para uso comercial.
+- **Open core**: kernel, plugins básicos e transports Baileys, web, Telegram e Discord públicos;
+  transports comerciais de WhatsApp e integrações privadas.
 
 Analogia guia — **mods de Minecraft**: plugins (mods) são feitos pela comunidade e rodam sobre
-diferentes *runners* (Fabric, Forge, NeoForge ↔ Baileys, Cloud API, Twilio). Nem todo plugin
+diferentes *runners* (Fabric, Forge, NeoForge ↔ Baileys, web, Telegram, Discord). Nem todo plugin
 roda em todo transporte, e o plugin declara o que precisa.
 
 O **LumaBot** deixa de ser o produto e passa a ser o **app de referência**: a Luma (IA com
@@ -100,7 +104,7 @@ decisão anterior.
 |---|---|---|---|
 | D01 | **Monorepo** (pnpm workspaces): `packages/*`, `plugins/*`, `apps/lumabot`, `legacy/` | Repo novo isolado; refatoração in-place | Kernel nasce limpo, LumaBot valida a API como consumidor real |
 | D02 | **TypeScript** no kernel, publicado com `.d.ts`; plugins em TS ou JS | JS + JSDoc; JS puro | O contrato tipado é a DX que permite plugar sem ler o código |
-| D03 | **`Transport` abstrato**, só Baileys na v1 | Multi-transporte já na v1; Baileys exposto | Abstração barata agora; Cloud API/Twilio/Zenvia viram adapters comerciais depois |
+| D03 | **`Transport` abstrato**, só Baileys na v1 (substituído por D55) | Multi-transporte já na v1; Baileys exposto | Abstração barata agora; Cloud API/Twilio/Zenvia viram adapters comerciais depois |
 | D04 | **Uma sessão por processo, zero estado global** | Multi-sessão nativa | Escala com processos; multi-sessão futura = instanciar `Bot` duas vezes |
 | D05 | **Plugins no mesmo processo**, isolados por try/catch + timeout + API restrita (sem socket) | Worker threads; sandbox com permissões | Performance; permissões declarativas só se houver marketplace público |
 | D06 | **Luma é um plugin** (`plugin-ai`); IA não entra no core | IA embutida no kernel | Bot indispensável não exige IA; se a Luma couber como plugin, a API está provada |
@@ -126,7 +130,7 @@ decisão anterior.
 | D26 | **Tooling**: Node 24 LTS+, pnpm, TS executado direto no Node em dev e `tsdown` para publicar (JS + `.d.ts`), Vitest, Biome | Node 18/20/22; tsup (em manutenção); ESLint + Prettier | LTS mais longo; pnpm estrito evita dependência fantasma em plugins; Biome = uma ferramenta, rápida |
 | D27 | **Releases com Changesets**; `0.x` livre; após 1.0, remoção só após ciclo `@deprecated` de ≥ 1 minor; APIs novas podem nascer `@experimental` | Versionamento manual | Comunidade depende de `engine: '^1.0.0'` |
 | D28 | **Licença Apache-2.0** no core e plugins públicos; `legacy/` continua MIT | MIT; AGPL dual | Concessão explícita de patentes, adequada a uso comercial |
-| D29 | **Open core**: plugins/transports comerciais em **repo privado** na org `thera-org` do GitHub, publicados como pacotes privados na org npm da Thera e consumindo os pacotes **públicos** `@zapforge/*` | Pastas privadas no monorepo | Repo privado é o teste definitivo da API pública |
+| D29 | **Open core**: plugins/transports comerciais em **repo privado** na org `thera-org` do GitHub, publicados como pacotes privados na org npm da Thera e consumindo os pacotes **públicos** `@zapforge/*` (transports Discord, Telegram e web públicos: D55) | Pastas privadas no monorepo | Repo privado é o teste definitivo da API pública |
 | D30 | **Metas de performance mensuráveis** com benchmark no CI (seção 7) | "Rápido" sem métrica | Sem régua não há aceite nem detecção de regressão |
 | D31 | **Nome: ZapForge** (`@zapforge/*`) | zapcore (conflita com `go.uber.org/zap/zapcore`) | Org `zapforge` criada no npm em 2026-10-06; kernel e plugins públicos no GitHub sob a conta pessoal `murillous`; plugins privados ficam na `thera-org` (ver D29) |
 | D32 | **Camadas da config de plugin** (detalha D17): env `ZAPFORGE_<PLUGIN>__<CAMPO>`; "arquivo" = `pluginConfig` do app; `messages` como chave reservada; `secret()` como metadado do Zod, só em campo de `z.object`; config inválida ignora só o plugin; segredo nunca entra por override | Env sem prefixo; `pluginMessages` separado; segredo por lista de caminhos; config inválida derruba o boot | Contrato estável para quem configura; erro isolado no plugin; storage em texto puro não guarda segredo |
@@ -152,6 +156,7 @@ decisão anterior.
 | D52 | **Kit de testes sobre o Vitest** (detalha D22/D44): `vitest` como peer dependency e matchers registrados no import do `@zapforge/testing`; `receive()`/`emit()` resolvem depois do `bot.settled()`; `createTestBot` com log `silent`, `env: {}`, fila de saída sem intervalo e sem reconexão; `FakeTransport` com todas as capabilities por padrão | Kit agnóstico sem matchers; matchers num entry `/vitest` separado | O exemplo da §6.9 roda como está; Jest/`node:test` ficam de fora até haver demanda |
 | D53 | **O core se testa sem o kit** (detalha D22/D52): o `@zapforge/core` mantém os apoios internos de teste (`TestTransport`, `RecordingTransport`) e não depende do `@zapforge/testing`; o kit é testado contra o core real; os dois fakes seguem o mesmo contrato do `Transport` e os mesmos `assertCanSend`/`assertCapability` | Entry `@zapforge/core/testing` reexportado pelo kit; testes de ponta a ponta do `Bot` num pacote fora do core; ciclo core ↔ testing só nos testes | Sem ciclo no `tsc -b` nem mudança na API pública; ~100 linhas duplicadas entre os dois fakes |
 | D54 | **Baseline do benchmark no mesmo job** (detalha D30): o job `Benchmark` faz o build do primeiro pai do commit testado num worktree, mede a base e compara (`pnpm bench --baseline`); falha com piora > 10% no sentido da meta ou fora da meta; `memory-growth` só contra a meta (`checksRegression`); cenário sem baseline passa sem comparação; o bench sobe o bot pelo entry `@zapforge/testing/bot`, sem o Vitest | Baseline versionado no repositório; baseline do último push em `develop` como artefato; meta de memória ociosa em 90 MB | Runners diferentes variam mais que 10%; nenhum arquivo de baseline para envelhecer; perto de zero, 10% do heap é ruído; os ~6 MB do Vitest não são do kernel e levavam o RSS ocioso a 80 MB no runner |
+| D55 | **Plataformas-alvo e transport fora do WhatsApp antes do 1.0** (substitui parte de D03, detalha D29): alvo WhatsApp, Discord, Telegram e sistemas web próprios, sem nada de plataforma no core; um transport por `Bot` (D04), vários `Bot`s por processo; `@zapforge/transport-web` mínimo no M3 valida o contrato e o 1.0 espera um plugin portátil rodar no Baileys e no web; Telegram e Discord depois do v1.0, com mudança aditiva; transports Discord, Telegram e web públicos (Apache-2.0); comerciais de WhatsApp e integrações com sistemas do dono no privado; pontos com formato de WhatsApp resolvidos em ADRs por tema (B a F) | Manter D03 e corrigir depois do 1.0; Cloud API como segundo transport; Telegram ou Discord antes do 1.0; vários transports num `Bot` | Depois do 1.0, cada correção custa um ciclo de `@deprecated` (D27); outro WhatsApp não testa o que muda; no web o dono controla as duas pontas e roda no CI sem conta externa |
 
 ---
 
@@ -164,6 +169,9 @@ zapforge/
 ├── packages/
 │   ├── core/                 # @zapforge/core — o kernel
 │   ├── transport-baileys/    # @zapforge/transport-baileys
+│   ├── transport-web/        # @zapforge/transport-web (M3, D55)
+│   ├── transport-telegram/   # @zapforge/transport-telegram (pós-v1)
+│   ├── transport-discord/    # @zapforge/transport-discord (pós-v1)
 │   ├── storage-sqlite/       # @zapforge/storage-sqlite (padrão)
 │   ├── storage-postgres/     # @zapforge/storage-postgres
 │   ├── testing/              # @zapforge/testing — FakeTransport, createTestBot, matchers
@@ -213,7 +221,7 @@ resumo, spontaneous, transcrição) e dashboard.
 ### 5.3 Fluxo de uma mensagem
 
 ```
-Transport (Baileys) ── evento bruto
+Transport (Baileys, web...) ── evento bruto
         │
    normaliza → Message (union discriminada)
         │
@@ -420,6 +428,9 @@ expect(bot.sent).toContainSticker();
 `send.video`, `send.audio`, `send.voice`, `send.sticker`, `send.document`, `media.download`,
 `message.edit`, `message.delete`, `polls`, `quoted`.
 
+Cada transport declara as próprias. As do `transport-web` saem do #287, e as capabilities novas
+para as outras plataformas (typing, threads, `actions`, limites) saem do ADR do tema D (#284).
+
 ---
 
 ## 7. Metas de performance
@@ -439,10 +450,11 @@ Medidas no CI com `FakeTransport` (sem I/O de rede). PR falha se regredir mais d
 ## 8. Governança, licença e modelo comercial
 
 - **Licença**: Apache-2.0 para `packages/*`, `plugins/*`, `apps/*`; `legacy/` permanece MIT.
-- **Open core**: transports comerciais (Cloud API, Twilio, Zenvia), dashboard multi-número e
-  integrações (CRM etc.) vivem num **repo privado** que consome os pacotes publicados num
-  registry privado (GitHub Packages). Se o privado precisar de algo não exportado, falta API
-  no core — nunca atalho interno.
+- **Open core**: transports comerciais de WhatsApp (Cloud API, Twilio, Zenvia), dashboard
+  multi-número e integrações (CRM, sistemas do dono como ERP e gestão escolar) vivem num **repo
+  privado** que consome os pacotes publicados num registry privado (GitHub Packages). Se o
+  privado precisar de algo não exportado, falta API no core — nunca atalho interno. Os
+  transports Discord, Telegram e web são públicos, neste monorepo (D55).
 - **Versionamento**: Changesets; changelog por pacote no formato Keep a Changelog.
 - **Estabilidade**: `0.x` livre até a 1.0; depois, `@deprecated` por ≥ 1 minor antes de remover;
   `@experimental` para APIs novas.
@@ -642,6 +654,9 @@ critérios de aceite. Toda issue herda os critérios gerais:
     escape hatch, testes
   - Referência gerada por TypeDoc
   - Docs do core (COMO): visão geral, módulos, entrypoints, schemas
+- **#M3-5 `@zapforge/transport-web`** (#287, D55)
+  - Chatbot web com JWT do sistema de origem, claims, tenant e ações; rotas no HTTP do M3-2
+  - *Aceite*: um plugin portátil roda sem mudança no Baileys e no web
 
 ---
 
@@ -692,13 +707,15 @@ changeset, item marcado na checklist de paridade (seção 10).
 
 - **#V1-1 Checklist de paridade completa** (seção 10)
 - **#V1-2 Período de produção paralela** e virada do deploy para `apps/lumabot`
-- **#V1-3 Release 1.0.0** de todos os pacotes públicos via Changesets
+- **#V1-3 Release 1.0.0** de todos os pacotes públicos via Changesets, depois do contrato
+  validado pelo `transport-web` (M3-5, D55)
 - **#V1-4 Remoção do `legacy/`** — **somente com autorização explícita do dono do repositório**
 
 ### Pós-v1 (repo privado / backlog)
 
-- Transport Cloud API (WhatsApp oficial): templates, janela de 24h
-- Transports Twilio e Zenvia
+- `@zapforge/transport-telegram` (#288) e `@zapforge/transport-discord` (#289), públicos (D55)
+- Transport Cloud API (WhatsApp oficial, privado): templates, janela de 24h
+- Transports Twilio e Zenvia (privados)
 - Dashboard central multi-número (lendo do Postgres)
 - i18n formal (`ctx.t()`)
 - Permissões declarativas de plugin (se houver marketplace público)
@@ -748,7 +765,8 @@ Levantada do LumaBot v1.5.0 (`src/config/constants.js`, plugins e docs). Revisar
 - Hot-reload de código de plugin (D08)
 - Worker threads / sandbox de plugins (D05)
 - Multi-sessão por processo (D04)
-- Transports além do Baileys (D03, pós-v1 privado)
+- Transports além do Baileys e do web (D55): Telegram e Discord públicos, Cloud API, Twilio e
+  Zenvia no repo privado
 - i18n formal (D25)
 - SQL cru na API pública de storage (D15)
 - Marketplace de plugins
