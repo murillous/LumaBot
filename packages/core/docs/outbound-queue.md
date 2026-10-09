@@ -3,7 +3,7 @@
 `OutboundQueue` é por onde todo envio do bot passa ([ADR 0019](../../../docs/adr/0019-fila-de-saida-anti-ban.md)):
 intervalo mínimo global e por chat, prioridade (comando > broadcast), retry com backoff ou na
 janela que a plataforma informou, e humanização opcional. Ela implementa `Sender`; `createOutbound` monta em cima dela o `ctx.send`
-com as ações (reação, edição, apagar, presença) e `createReply`, o `ctx.reply`. O plugin nunca vê
+com as ações (reação, edição, apagar, "digitando") e `createReply`, o `ctx.reply`. O plugin nunca vê
 a fila.
 
 Peça interno do kernel, não exportado ([ADR 0034](../../../docs/adr/0034-biblioteca-sem-runner.md)): o app só a configura por `createBot({ outbound })`
@@ -35,7 +35,7 @@ await reply.sticker(buffer);
 
 ## Ações que não são envio
 
-Reação, edição, apagar, presença e alteração de participantes de grupo também são tráfego
+Reação, edição, apagar, "digitando" e alteração de participantes de grupo também são tráfego
 ([ADR 0040](../../../docs/adr/0040-acoes-do-transport-no-plugin.md)). `enqueue(chatId, ação,
 { priority })` as põe na fila com as mesmas regras do envio: intervalos, prioridade, backlog,
 retry, pausa e prazo. A humanização não se aplica. Resolve com o retorno da ação; as métricas
@@ -49,10 +49,10 @@ import { createOutbound } from '#outbound/actions.ts';
 
 const outbound = createOutbound(queue, transport);
 await outbound.react(message.key, '👍'); // UnsupportedError sem a capability `reactions`
-await queue.enqueue('123@g.us', () => transport.sendPresence('123@g.us', 'composing'));
+await queue.enqueue('123@g.us', () => transport.sendTyping('123@g.us', 'text'));
 ```
 
-Uma presença explícita ocupa o intervalo do chat: o envio logo depois dela espera
+Um "digitando" explícito ocupa o intervalo do chat: o envio logo depois dele espera
 `chatIntervalMs`.
 
 ## Taxa
@@ -106,7 +106,7 @@ e o custo é zero.
 - **Onde corta:** num parágrafo, depois numa linha, depois num espaço e, por último, num
   caractere, sem partir um par surrogate. O espaço das pontas de cada parte sai. Na árvore
   formatada, um nó partido continua formatado nas duas partes. Uma menção nunca é cortada.
-- **Como sai:** cada parte é um envio, com intervalo, presença e retry próprios. A parte seguinte
+- **Como sai:** cada parte é um envio, com intervalo, "digitando" e retry próprios. A parte seguinte
   vai para a frente do chat, como uma re-tentativa, e outro envio ao mesmo chat não se intromete.
   O retry repete só a parte que falhou.
 - **Opções:** só a primeira parte cita (`quoted`). As `mentions` vão em todas.
@@ -224,24 +224,26 @@ desliga):
 
 - envio: rejeita com `'timeout'` e libera o chat para a próxima mensagem. Não re-tenta, porque o
   transport pode ainda entregar e o reenvio duplicaria. O resultado tardio é ignorado;
-- presença: conta como falha de presença (vai para `onPresenceError`), e o envio segue.
+- "digitando": conta como falha do indicador (vai para `onTypingError`), e o envio segue.
 
 Assim um `transport.send` que nunca resolve não prende o chat nem o fechamento.
 
 ## Humanização
 
 Com `humanize: true` (ou um objeto com `msPerChar`, `minMs`, `maxMs`; padrões 50, 500 e 3000) e
-um transport com a capability `presence`:
+um transport com a capability `typing`:
 
-- texto: presença `composing` por `tamanho × msPerChar`, limitado a `[minMs, maxMs]`;
-- voz: `recording` por `maxMs`;
-- outros tipos: sem presença.
+- texto: "digitando" (`text`) por `tamanho × msPerChar`, limitado a `[minMs, maxMs]`;
+- voz: "gravando" (`voice`) por `maxMs`;
+- outros tipos: sem indicador.
 
 A espera conta dentro do envio: o chat fica ocupado, os outros seguem. O intervalo global espaça
-o início de cada envio (a presença), então com tempos de digitação diferentes duas mensagens
+o início de cada envio (o "digitando"), então com tempos de digitação diferentes duas mensagens
 podem chegar mais próximas que `globalIntervalMs`. Sem a capability, a
-opção é ignorada. Uma falha de presença não impede o envio, que sai na hora; ela vai para
-`onPresenceError(error, chatId)`, se houver, ou é descartada (presença é cosmética).
+opção é ignorada. Uma falha do "digitando" não impede o envio, que sai na hora; ela vai para
+`onTypingError(error, chatId)`, se houver, ou é descartada (o indicador é cosmético). O `maxMs`
+padrão (3 s) cabe na duração do indicador no Telegram (5 s), o menor das plataformas-alvo: acima
+dela, o indicador some antes do envio.
 
 ## Métricas
 
@@ -250,7 +252,7 @@ opção é ignorada. Uma falha de presença não impede o envio, que sai na hora
 | Campo | O que conta |
 | --- | --- |
 | `pending.high/normal/low` | Mensagens aguardando, inclusive em espera de re-tentativa |
-| `inFlight` | Envios em andamento (presença + transport) |
+| `inFlight` | Envios em andamento ("digitando" + transport) |
 | `activeChats` | Chats com mensagem aguardando ou em andamento |
 | `sent` | Envios concluídos |
 | `failed` | Envios que rejeitaram com o erro do transport ou com `'timeout'` |
@@ -264,7 +266,7 @@ opção é ignorada. Uma falha de presença não impede o envio, que sai na hora
 - `close({ drain: false })` rejeita o que aguarda com `OutboundQueueError` `'closed'`, cancela
   re-tentativas e só espera os envios já em andamento. Pode ser chamado durante um `close()`
   para abortar a drenagem.
-- Com humanização, um envio que ainda está na presença ou no "digitando" ainda não chegou ao
+- Com humanização, um envio que ainda está no "digitando" ainda não chegou ao
   transport: o descarte encerra a espera e o rejeita com `'closed'` (conta em `dropped`), sem
   chamar `send`. Um `send` que o transport já recebeu não tem como ser cancelado; o
   `close({ drain: false })` espera a resposta dele, até `sendTimeoutMs`.
@@ -306,7 +308,7 @@ Quem monta o contexto passa `quote: false` quando o transport não tem a capabil
 
 - Um chat só ocupa estado enquanto tem mensagem aguardando ou em andamento; o fim do intervalo
   por chat é lembrado num mapa limpo a cada envio, então chats ociosos não acumulam.
-- Timers só existem com trabalho pendente (intervalo, backoff, janela da plataforma, presença,
+- Timers só existem com trabalho pendente (intervalo, backoff, janela da plataforma, "digitando",
   prazo do envio) ou com
   a fila pausada (teto da pausa). Ociosa, a fila não
   segura o processo. Com trabalho pendente segura, de propósito: mensagem aceita não se perde

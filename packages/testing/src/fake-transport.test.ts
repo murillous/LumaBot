@@ -56,20 +56,20 @@ describe('FakeTransport', () => {
     expect(transport.edits).toEqual([{ key, text: 'b', formatted: bold('b') }]);
   });
 
-  it('registra reações, edições, deleções, presença e participantes', async () => {
+  it('registra reações, edições, deleções, "digitando" e participantes', async () => {
     const transport = new FakeTransport();
     const key = await transport.send('chat@fake', { type: 'text', text: 'a' });
 
     await transport.react(key, '👍');
     await transport.edit(key, 'b');
     await transport.delete(key);
-    await transport.sendPresence('chat@fake', 'composing');
+    await transport.sendTyping('chat@fake', 'text');
     await transport.updateGroupParticipants('grupo@fake', ['x@fake'], 'remove');
 
     expect(transport.reactions).toEqual([{ key, emoji: '👍' }]);
     expect(transport.edits).toEqual([{ key, text: 'b' }]);
     expect(transport.deletions).toEqual([key]);
-    expect(transport.presences).toEqual([{ chatId: 'chat@fake', presence: 'composing' }]);
+    expect(transport.typing).toEqual([{ chatId: 'chat@fake', kind: 'text' }]);
     expect(transport.participantUpdates).toEqual([
       { groupId: 'grupo@fake', participantIds: ['x@fake'], action: 'remove' },
     ]);

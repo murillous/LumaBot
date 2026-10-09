@@ -281,8 +281,8 @@ function liveOutbound(outbound: Outbound, live: Live): Outbound {
     delete: live('send.delete', (...args: Parameters<Outbound['delete']>) =>
       outbound.delete(...args),
     ),
-    presence: live('send.presence', (...args: Parameters<Outbound['presence']>) =>
-      outbound.presence(...args),
+    typing: live('send.typing', (...args: Parameters<Outbound['typing']>) =>
+      outbound.typing(...args),
     ),
   };
 }

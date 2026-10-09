@@ -12,7 +12,8 @@ export const CAPABILITIES = [
   'groups.promote',
   'mentions',
   'reactions',
-  'presence',
+  // "Digitando" no chat; o status online global do WhatsApp não é do contrato (ADR 0070).
+  'typing',
   'send.text',
   'send.image',
   'send.video',

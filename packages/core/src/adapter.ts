@@ -44,11 +44,11 @@ export type {
   GroupMetadata,
   GroupParticipant,
   Interaction,
-  Presence,
   Transport,
   TransportCommands,
   TransportDeps,
   TransportEventHandler,
   TransportEventName,
   TransportEvents,
+  TypingKind,
 } from '#transport/types.ts';

@@ -441,8 +441,8 @@ export function createBot(config: BotConfig): Bot {
     onError: (error, chatId) => log.error('falha ao processar mensagem', { chatId, err: error }),
   });
   const outbound = new OutboundQueue({
-    onPresenceError: (error, chatId) =>
-      log.debug('falha ao enviar presença', { chatId, err: error }),
+    onTypingError: (error, chatId) =>
+      log.debug('falha ao enviar "digitando"', { chatId, err: error }),
     ...config.outbound,
     transport,
   });

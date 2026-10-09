@@ -34,7 +34,7 @@ function setup(capabilities: Capability[], limits?: TextLimits) {
       nextId++;
       return { chatId, id: `m${nextId}`, fromMe: true, senderId: null } satisfies MessageKey;
     }),
-    sendPresence: vi.fn(async () => undefined),
+    sendTyping: vi.fn(async () => undefined),
   };
   const queue = new OutboundQueue({
     transport,

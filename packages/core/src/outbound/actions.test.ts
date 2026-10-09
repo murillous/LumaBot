@@ -2,11 +2,11 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { type Capability, UnsupportedError } from '#transport/capabilities.ts';
-import type { MessageKey, OutgoingContent, Presence } from '#transport/types.ts';
+import type { MessageKey, OutgoingContent, TypingKind } from '#transport/types.ts';
 import { type ActionTransport, createOutbound } from './actions.ts';
 import { OutboundQueue, type OutboundQueueOptions } from './queue.ts';
 
-const ALL: Capability[] = ['send.text', 'reactions', 'message.edit', 'message.delete', 'presence'];
+const ALL: Capability[] = ['send.text', 'reactions', 'message.edit', 'message.delete', 'typing'];
 
 const key = (chatId: string, id = 'm1'): MessageKey => ({
   chatId,
@@ -31,9 +31,7 @@ function setup(options: Partial<OutboundQueueOptions> = {}, capabilities: Capabi
     react: vi.fn(async (k: MessageKey, emoji: string | null) => record(`react:${emoji}`, k.chatId)),
     edit: vi.fn(async (k: MessageKey, text: string) => record(`edit:${text}`, k.chatId)),
     delete: vi.fn(async (k: MessageKey) => record(`delete:${k.id}`, k.chatId)),
-    sendPresence: vi.fn(async (chatId: string, presence: Presence) =>
-      record(`presence:${presence}`, chatId),
-    ),
+    sendTyping: vi.fn(async (chatId: string, kind: TypingKind) => record(`typing:${kind}`, chatId)),
   };
   const queue = new OutboundQueue({
     transport,
@@ -62,13 +60,13 @@ describe('Outbound: ações pela fila de saída', () => {
       outbound.react(key('a'), '👍'),
       outbound.edit(key('a'), 'novo'),
       outbound.delete(key('a', 'm9')),
-      outbound.presence('b', 'composing'),
+      outbound.typing('b', 'text'),
     ];
     await vi.runAllTimersAsync();
     await Promise.all(all);
     expect(calls).toEqual([
       ['oi', 'a', 0],
-      ['presence:composing', 'b', 100],
+      ['typing:text', 'b', 100],
       ['react:👍', 'a', 1000],
       ['edit:novo', 'a', 2000],
       ['delete:m9', 'a', 3000],
@@ -96,8 +94,8 @@ describe('Outbound: ações pela fila de saída', () => {
     await expect(outbound.delete(key('a'))).rejects.toMatchObject({
       capability: 'message.delete',
     });
-    await expect(outbound.presence('a', 'paused')).rejects.toMatchObject({
-      capability: 'presence',
+    await expect(outbound.typing('a', 'voice')).rejects.toMatchObject({
+      capability: 'typing',
     });
     expect(transport.react).not.toHaveBeenCalled();
     expect(queue.stats()).toMatchObject({ activeChats: 0, dropped: 0 });
@@ -113,7 +111,7 @@ describe('Outbound: ações pela fila de saída', () => {
     expect(queue.stats()).toMatchObject({ sent: 1, retries: 1, failed: 0 });
   });
 
-  it('não humaniza a ação: sem presença antes dela', async () => {
+  it('não humaniza a ação: sem "digitando" antes dela', async () => {
     const { outbound, calls } = setup({ humanize: true });
     const edited = outbound.edit(key('a'), 'texto longo o bastante');
     await vi.runAllTimersAsync();
@@ -149,7 +147,7 @@ describe('Outbound: ações pela fila de saída', () => {
     await reacted;
     expect(calls).toHaveLength(1);
     await queue.close();
-    await expect(outbound.presence('a', 'composing')).rejects.toMatchObject({
+    await expect(outbound.typing('a', 'text')).rejects.toMatchObject({
       reason: 'closed',
     });
   });

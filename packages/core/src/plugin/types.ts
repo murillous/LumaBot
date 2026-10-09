@@ -88,7 +88,7 @@ export interface PluginContext<
   readonly storage: PluginStorage;
   readonly scheduler: Scheduler;
   /**
-   * Envio e ações sobre mensagens e chats (`react`, `edit`, `delete`, `presence`), todos pela
+   * Envio e ações sobre mensagens e chats (`react`, `edit`, `delete`, `typing`), todos pela
    * fila de saída (ADR 0040).
    */
   readonly send: Outbound;

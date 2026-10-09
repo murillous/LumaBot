@@ -39,7 +39,7 @@ function setup(limits?: TextLimits, capabilities: Capability[] = ALL, chatInterv
       nextId++;
       return { chatId, id: `m${nextId}`, fromMe: true, senderId: null } satisfies MessageKey;
     }),
-    sendPresence: vi.fn(async () => undefined),
+    sendTyping: vi.fn(async () => undefined),
     react: vi.fn(async () => undefined),
     edit: vi.fn(async (...args: unknown[]) => {
       edits.push(args);
@@ -293,7 +293,7 @@ describe('limites de tamanho', () => {
         capabilities: new Set(ALL),
         limits: { text: 4 },
         send,
-        sendPresence: vi.fn(async () => undefined),
+        sendTyping: vi.fn(async () => undefined),
       },
       globalIntervalMs: 0,
       chatIntervalMs: 0,

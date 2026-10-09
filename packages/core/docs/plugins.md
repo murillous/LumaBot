@@ -253,7 +253,7 @@ setup(ctx) {
 | `ctx.send.react(key, emoji)` | reage; `null` remove | `reactions` | sim |
 | `ctx.send.edit(key, text)` | troca o texto (cru ou formatado; não divide) | `message.edit` | sim |
 | `ctx.send.delete(key)` | apaga para todos | `message.delete` | sim |
-| `ctx.send.presence(chatId, presence)` | digitando, gravando… | `presence` | sim |
+| `ctx.send.typing(chatId, kind)` | "digitando" (`text`) ou "gravando áudio" (`voice`) | `typing` | sim |
 | `ctx.groups.metadata(groupId)` | nome (`title`), descrição, participantes (se a plataforma lista) | `groups` | não (leitura) |
 | `ctx.groups.updateParticipants(groupId, ids, action)` | add, remove, promote, demote | `groups.add`, `groups.remove` ou `groups.promote` (também para `demote`) | sim |
 | `ctx.commands.list()` | comandos de todos os plugins (`plugin`, `name`, `aliases`, `description`, `role`) | — | — |

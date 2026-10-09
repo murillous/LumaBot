@@ -7,10 +7,10 @@ import { assertCanSend, hasCapability, UnsupportedError } from '#transport/capab
 import type {
   MessageKey,
   OutgoingContent,
-  Presence,
   SendOptions,
   Transport,
   TransportPacing,
+  TypingKind,
 } from '#transport/types.ts';
 import { AlbumSplitter } from './album.ts';
 import { type SendPart, TextLimiter, toContent } from './text.ts';
@@ -19,7 +19,7 @@ import type { ActionOptions, OutboundSendOptions, Sender, SendPriority } from '.
 /** O que a fila usa do transport. */
 export type OutboundTransport = Pick<
   Transport,
-  'name' | 'capabilities' | 'send' | 'sendPresence' | 'limits' | 'pacing'
+  'name' | 'capabilities' | 'send' | 'sendTyping' | 'limits' | 'pacing'
 >;
 
 export interface RetryOptions {
@@ -42,9 +42,9 @@ export interface RetryOptions {
 export interface HumanizeOptions {
   /** Tempo "digitando" por caractere do texto, em ms. Padrão: 50. */
   readonly msPerChar?: number;
-  /** Piso do tempo de presença, em ms. Padrão: 500. */
+  /** Piso do tempo de "digitando", em ms. Padrão: 500. */
   readonly minMs?: number;
-  /** Teto do tempo de presença, em ms; voz usa o teto. Padrão: 3000. */
+  /** Teto do tempo de "digitando", em ms; voz usa o teto. Padrão: 3000. */
   readonly maxMs?: number;
 }
 
@@ -66,15 +66,15 @@ export interface OutboundQueueOptions {
   readonly maxPending?: number;
   readonly retry?: RetryOptions;
   /**
-   * Presença `composing`/`recording` antes de texto/voz, se o transport tiver a capability
-   * `presence`. Padrão: desligada.
+   * "Digitando" (`text`) antes de texto e "gravando" (`voice`) antes de voz, se o transport tiver a
+   * capability `typing`. Padrão: desligada.
    */
   readonly humanize?: boolean | HumanizeOptions;
   /**
-   * Destino das falhas de presença, que não impedem o envio. Sem ele, a falha é descartada:
-   * presença é cosmética e quem chamou `send` só se importa com a mensagem.
+   * Destino das falhas do "digitando", que não impedem o envio. Sem ele, a falha é descartada:
+   * o indicador é cosmético e quem chamou `send` só se importa com a mensagem.
    */
-  readonly onPresenceError?: (error: unknown, chatId: string) => void;
+  readonly onTypingError?: (error: unknown, chatId: string) => void;
   /**
    * Quanto o que aguarda pode esperar com a fila pausada (conexão caída), em ms. Estourado, rejeita
    * com `OutboundQueueError` `'disconnected'`, e envios novos rejeitam na hora até o `resume()`.
@@ -82,7 +82,7 @@ export interface OutboundQueueOptions {
    */
   readonly maxPauseMs?: number;
   /**
-   * Prazo de cada chamada ao transport (presença e envio), em ms. Estourado, o envio rejeita com
+   * Prazo de cada chamada ao transport ("digitando" e envio), em ms. Estourado, o envio rejeita com
    * `OutboundQueueError` `'timeout'`, sem re-tentar, e libera o chat. Padrão: 30000. `Infinity`
    * desliga.
    */
@@ -96,7 +96,7 @@ export interface OutboundQueueOptions {
 export interface OutboundQueueStats {
   /** Mensagens aguardando, inclusive as em espera de re-tentativa. */
   readonly pending: { readonly high: number; readonly normal: number; readonly low: number };
-  /** Envios em andamento (presença + transport). */
+  /** Envios em andamento ("digitando" + transport). */
   readonly inFlight: number;
   /** Chats com mensagem aguardando ou em andamento. */
   readonly activeChats: number;
@@ -259,7 +259,7 @@ export class OutboundQueue implements Sender {
   readonly #maxDelayMs: number;
   readonly #isRetryable: (error: unknown) => boolean;
   readonly #humanize: Required<HumanizeOptions> | null;
-  readonly #onPresenceError: ((error: unknown, chatId: string) => void) | undefined;
+  readonly #onTypingError: ((error: unknown, chatId: string) => void) | undefined;
   readonly #maxPauseMs: number;
   readonly #sendTimeoutMs: number;
   readonly #clock: () => number;
@@ -329,7 +329,7 @@ export class OutboundQueue implements Sender {
     this.#maxDelayMs = nonNegative('retry.maxDelayMs', retry.maxDelayMs ?? DEFAULTS.maxDelayMs);
     this.#isRetryable = retry.isRetryable ?? isTransient;
     this.#humanize = resolveHumanize(options.humanize, options.transport);
-    this.#onPresenceError = options.onPresenceError;
+    this.#onTypingError = options.onTypingError;
     const maxPauseMs = options.maxPauseMs ?? DEFAULTS.maxPauseMs;
     if (!(maxPauseMs >= 0)) {
       throw new RangeError(`maxPauseMs deve ser >= 0 ou Infinity (recebido: ${maxPauseMs})`);
@@ -390,7 +390,7 @@ export class OutboundQueue implements Sender {
   }
 
   /**
-   * Enfileira uma ação que gera tráfego sem ser envio (reação, edição, presença, participantes de
+   * Enfileira uma ação que gera tráfego sem ser envio (reação, edição, "digitando", participantes de
    * grupo; ADR 0040), com as mesmas regras do envio: intervalos, prioridade, retry, pausa e prazo.
    * Sem humanização. Quem chama confere a capability antes: a fila não conhece a ação.
    */
@@ -642,7 +642,7 @@ export class OutboundQueue implements Sender {
       if (this.#humanize !== null && job.content !== null) {
         await this.#simulate(chat.id, job.content, this.#humanize);
       }
-      // Descartada durante a presença ou o "digitando": o envio não chegou ao transport e não sai.
+      // Descartada durante o "digitando": o envio não chegou ao transport e não sai.
       if (this.#discarding) {
         this.#dropped++;
         job.reject(
@@ -755,28 +755,25 @@ export class OutboundQueue implements Sender {
     content: OutgoingContent,
     humanize: Required<HumanizeOptions>,
   ): Promise<void> {
-    let presence: Presence;
+    let kind: TypingKind;
     let ms: number;
     if (content.type === 'text') {
-      presence = 'composing';
+      kind = 'text';
       ms = Math.min(
         humanize.maxMs,
         Math.max(humanize.minMs, content.text.length * humanize.msPerChar),
       );
     } else if (content.type === 'voice') {
-      presence = 'recording';
+      kind = 'voice';
       ms = humanize.maxMs;
     } else {
       return;
     }
     try {
-      await this.#withTimeout(
-        this.#transport.sendPresence(chatId, presence),
-        `presença em ${chatId}`,
-      );
+      await this.#withTimeout(this.#transport.sendTyping(chatId, kind), `"digitando" em ${chatId}`);
     } catch (error) {
-      // Presença é cosmética: a falha vai para o destino configurado e o envio segue já.
-      this.#onPresenceError?.(error, chatId);
+      // O indicador é cosmético: a falha vai para o destino configurado e o envio segue já.
+      this.#onTypingError?.(error, chatId);
       return;
     }
     if (ms > 0 && !this.#discarding) await this.#sleep(ms);
@@ -891,7 +888,7 @@ function resolveHumanize(
   transport: OutboundTransport,
 ): Required<HumanizeOptions> | null {
   // Capabilities são fixas na vida do transport: decide uma vez, não a cada envio.
-  if (option === undefined || option === false || !hasCapability(transport, 'presence')) {
+  if (option === undefined || option === false || !hasCapability(transport, 'typing')) {
     return null;
   }
   const custom = option === true ? {} : option;

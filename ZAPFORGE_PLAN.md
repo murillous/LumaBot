@@ -171,6 +171,7 @@ decisão anterior.
 | D67 | **Janela da plataforma no retry e ritmo do transport** (detalha D19/D39/D47): erro do transport com `retryAfterMs` (duck typing, como `retryable`) re-tenta depois dessa janela exata, no lugar do backoff, contando em `maxAttempts`; `retryAfterScope: 'global'` segura todos os chats até a janela, mesmo sem re-tentar; janela acima de `retry.maxDelayMs` rejeita sem re-tentar; fora do `sendTimeoutMs` e do prazo do handler; mapeamento de 4xx para `retryable: false` documentado; `Transport.pacing` opcional dá o ritmo padrão, com a config do bot sobrescrevendo campo a campo e o padrão do core mantido | Classe `RateLimitError` no core; core lendo `retry_after`/status HTTP; janela sem teto; janela longa via `maxPauseMs`; janela global só no envio que re-tenta; `chatIntervalMs` por tipo de `Chat`; transport sobrescrevendo a config | 429 não perde a resposta nem faz os outros chats baterem na plataforma; cada transport traz o ritmo da plataforma sem o app saber dele |
 | D68 | **Desconexão fatal e transport sem pareamento** (detalha D03/D13/D45/D48): `DisconnectReason` ganha `fatal` (erro de configuração: token sem permissão, intents, porta), decisão `stop` com causa `fatal`; capability `pairing` (QR ou código), e sem ela `auth-failed` decide `stop` (causa `auth-failed`) em vez de `clean-session`; `ReconnectionPolicyOptions.pairing` (padrão `true`), preenchida pelo `Bot` a partir da capability; `fatal` e `auth-failed` sem pareamento logam em `fatal`, o `closed` chega aos listeners antes do `stop()` e o código de saída é do app; adapter sobre lib que se reconecta sozinha só emite `closed` na queda terminal; o Baileys declara `pairing` | `Transport.pairing?` com ausente = pareia; `auth-failed` sempre para; `logged-out`/`qr-limit` também param; motivo `rate-limited`; `process.exit` no core; evento `bot.stopped` | Token inválido para o bot com uma linha em `fatal` em vez de limpar a sessão a cada minuto para sempre; WhatsApp segue pareando de novo sozinho |
 | D69 | **Uniões de tipo antes do 1.0** (detalha D09/D10/D27): `MessageType`, `Message` e `OutgoingContent` seguem uniões fechadas; acrescentar membro é minor, também depois do 1.0, se na entrada o caso chegava como `unknown` e na saída vier com capability nova; plugin e transport tratam `unknown` e usam `default` no `switch`, nunca o `never` exaustivo; GIF (`animation`, `gifPlayback`) e recado de vídeo (`video_note`, `ptv`) chegam como `video`, `venue` como `location` com `address?` novo; `dice`/`game`/`invoice`/`story` e mensagem só com embed ficam `unknown` + `ctx.unsafe.raw`; `isViewOnce`/`isForwarded` seguem `boolean` (`false` fora do WhatsApp); `sticker` segue atrás de `send.sticker`; `card` fica para o `transport-web` | Uniões abertas (`string & {}`, perde o narrowing); tipos `animation`/`videoNote`; só capability e raw, sem política; `isViewOnce` opcional; `card` agora | Contrato sem formato de WhatsApp nos tipos, e as adições futuras não exigem major |
+| D70 | **Capabilities multiplataforma** (detalha D10/D16): `presence` vira `typing`, com `sendTyping(chatId, 'text' \| 'voice')` e `ctx.send.typing`, sem status online nem `paused`; a sessão tem uma reação por mensagem (`react` substitui, `null` remove a da sessão), e emoji recusado rejeita com `retryable: false`; enquete com `multiple?: boolean` no lugar de `selectableCount`, voto em issue própria; a lista é só a do core, sem namespace de fornecedor; limites em `Transport.limits`; apagar mensagem de outros sem capability nova; §6.10 vira matriz por transport | Manter `presence` estreitando o tipo; `typing` ao lado de `presence`; `unreact(key, emoji)`; manter `selectableCount`; evento de voto já; namespace `x-<transport>.*` | `presence` misturava status global com "digitando"; Telegram e Discord não contam opções nem param o indicador; o `transports` do manifesto já cobre o plugin específico |
 
 ---
 
@@ -436,14 +437,37 @@ await bot.receive({ text: '!s', image: fixtureBuffer });
 expect(bot.sent).toContainSticker();
 ```
 
-### 6.10 Capabilities iniciais do Baileys
+### 6.10 Capabilities por transport
 
-`groups`, `groups.add`, `groups.remove`, `groups.promote`, `mentions`, `reactions`, `presence`, `send.text`,
-`send.image`, `send.video`, `send.audio`, `send.voice`, `send.sticker`, `send.document`, `media.download`,
-`message.edit`, `message.delete`, `polls`, `quoted`.
+Cada transport declara as próprias (D10). A lista é só a do core, e capability nova entra numa minor
+(D70). Limites de tamanho não são capability: ficam em `Transport.limits` (D61, D65). A coluna do
+Baileys é o que ele declara hoje; as outras são a previsão, confirmada quando cada transport nascer
+(web no #287, Telegram e Discord depois do v1.0).
 
-Cada transport declara as próprias. As do `transport-web` saem do #287, e as capabilities novas
-para as outras plataformas (typing, threads, `actions`, limites) saem do ADR do tema D (#284).
+| Capability | Baileys | Telegram | Discord | web |
+|---|---|---|---|---|
+| `actions` | — | ✓ | ✓ | ✓ |
+| `groups` | ✓ | ✓ | ✓ | — |
+| `groups.add` | ✓ | — | — | — |
+| `groups.remove` | ✓ | ✓ | ✓ | — |
+| `groups.promote` | ✓ | ✓ | — | — |
+| `mentions` | ✓ | ✓ | ✓ | #287 |
+| `reactions` | ✓ | ✓ | ✓ | #287 |
+| `typing` | ✓ | ✓ | ✓ | ✓ |
+| `send.text` | ✓ | ✓ | ✓ | ✓ |
+| `send.image` | ✓ | ✓ | ✓ | ✓ |
+| `send.video` | ✓ | ✓ | ✓ | #287 |
+| `send.audio` | ✓ | ✓ | ✓ | #287 |
+| `send.voice` | ✓ | ✓ | — | — |
+| `send.sticker` | ✓ | ✓ | — | — |
+| `send.document` | ✓ | ✓ | ✓ | ✓ |
+| `send.album` | — | ✓ | ✓ | #287 |
+| `media.download` | ✓ | ✓ | ✓ | ✓ |
+| `message.edit` | ✓ | ✓ | ✓ | #287 |
+| `message.delete` | ✓ | ✓ | ✓ | #287 |
+| `polls` | ✓ | ✓ | ✓ | — |
+| `quoted` | ✓ | ✓ | ✓ | #287 |
+| `pairing` | ✓ | — | — | — |
 
 ---
 

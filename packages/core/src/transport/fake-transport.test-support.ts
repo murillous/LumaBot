@@ -16,12 +16,12 @@ import type {
   GroupParticipantAction,
   MessageKey,
   OutgoingContent,
-  Presence,
   SendOptions,
   Transport,
   TransportEventHandler,
   TransportEventName,
   TransportEvents,
+  TypingKind,
   Unsubscribe,
 } from './types.ts';
 
@@ -93,8 +93,8 @@ export class TestTransport implements Transport {
     assertCapability(this, 'message.delete');
   }
 
-  async sendPresence(_chatId: string, _presence: Presence): Promise<void> {
-    assertCapability(this, 'presence');
+  async sendTyping(_chatId: string, _kind: TypingKind): Promise<void> {
+    assertCapability(this, 'typing');
   }
 
   async getGroupMetadata(groupId: string): Promise<GroupMetadata> {
