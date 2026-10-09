@@ -33,7 +33,7 @@ O nome vai **sem** o prefixo.
 ## No bot
 
 O plugin registra com `ctx.commands.add(definição)` no `setup`; o `Bot` monta o roteador com
-`prefix` e `owners` da config, liga `isGroupAdmin` ao transport (`isChatAdmin` ou capability `groups`) e chama o
+o prefixo do chat (da config ou de `ctx.prefixes`, ver [Prefixo por chat](#prefixo-por-chat)) e `owners`, liga `isGroupAdmin` ao transport (`isChatAdmin` ou capability `groups`) e chama o
 roteador para cada mensagem que passou pelos middlewares ([Bot](bot.md#fluxo-de-uma-mensagem)).
 No teardown/reload os comandos do plugin saem sozinhos.
 
@@ -49,7 +49,8 @@ Peça interno do kernel, não exportado ([ADR 0034](../../../docs/adr/0034-bibli
 import { createCommandRouter } from '#commands/router.ts';
 
 const router = createCommandRouter({
-  prefix: '!',                         // padrão '!'; não pode ser vazio
+  prefix: '!',                         // padrão '!'; vazio é permitido. No bot, uma função do chat
+  selfUsername: () => transport.self?.username, // tira o `@bot` de `/cmd@bot`
   owners: ['5511999999999'],           // já normalizados (normalizeOwners)
   isGroupAdmin: async (chat, sender) => {
     const { participants = [] } = await transport.getGroupMetadata(chat.id);
@@ -82,6 +83,57 @@ o `Bot` monta. Quem usa o roteador solto e quer esses campos os põe no `ctx` pa
   Teclado de celular capitaliza a primeira letra sozinho, e o legacy já comparava em
   minúsculas. Os argumentos mantêm a caixa original.
 - `! sticker` (espaço depois do prefixo) não é comando.
+- **Prefixo vazio:** o token é a primeira palavra. `sticker agora` roda `sticker`.
+- **`cmd@usuario` da própria sessão:** com `username` na sessão (`transport.self.username`), o
+  roteador tira `@usuario` do fim do token. É como o Telegram endereça um comando ao bot num
+  grupo: `/start@MeuBot` casa com `start`, com `invokedAs: 'start'`. `/start@OutroBot` é de outro
+  bot e não casa.
+
+## Prefixo por chat
+
+O padrão vem da config, um para todo chat ou um por tipo de chat
+([ADR 0063](../../../docs/adr/0063-prefixo-por-chat.md)). `group` vale para todo chat que não é
+`dm` (grupo, canal, thread); o tipo omitido fica com `'!'`.
+
+```ts
+// Na conversa individual (o widget do ERP), "notas" basta; no grupo, "!notas".
+createBot({ transport, prefix: { dm: '', group: '!' }, plugins });
+```
+
+Um plugin troca o prefixo de um chat pelo `ctx.prefixes`. O override vale para o bot inteiro e
+fica no storage:
+
+```ts
+setup(ctx) {
+  ctx.commands.add(command({
+    name: 'prefixo',
+    role: 'group-admin',
+    run: async (c) => {
+      const [novo] = c.args;
+      if (novo === undefined) {
+        await ctx.prefixes.reset(c.message.chat.id); // volta ao padrão do tipo de chat
+      } else {
+        await ctx.prefixes.set(c.message.chat.id, novo);
+      }
+      await c.reply(`Prefixo agora: "${ctx.prefixes.get(c.message.chat)}"`);
+    },
+  }));
+}
+```
+
+- `get(chat)` dá o prefixo em vigor, para mostrar `!ajuda` certo numa mensagem.
+- `set` e `reset` gravam no storage e valem na mensagem seguinte. Escritas seguidas terminam na
+  ordem em que foram pedidas. Depois do descarte do contexto, rejeitam com
+  `ContextExpiredError`.
+- Prefixo que começa com espaço em branco lança `TypeError`, na config e no `set`: o texto
+  perde os espaços iniciais antes do match, então ele nunca casaria.
+- Os overrides são lidos inteiros no boot, antes do `setup` dos plugins. O roteador não vai ao
+  storage a cada mensagem.
+
+**Prefixo vazio num grupo.** Toda mensagem que começa com o nome de um comando vira comando:
+"ajuda com a matrícula" roda `ajuda` com os argumentos `com a matrícula`. Numa resposta esperada
+([Conversas](conversations.md)), responder `ajuda` também roda o comando e cancela a espera.
+Prefira o prefixo vazio só na conversa individual.
 
 ## Argumentos
 

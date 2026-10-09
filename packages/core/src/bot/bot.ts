@@ -5,6 +5,7 @@ import {
   numberedMenu,
   pickChoice,
 } from '#actions/actions.ts';
+import { createPrefixStore, type PrefixConfig } from '#commands/prefixes.ts';
 import { CommandConflictError } from '#commands/registry.ts';
 import { RoleConflictError } from '#commands/roles.ts';
 import { createCommandRouter, type DispatchResult, type IsGroupAdmin } from '#commands/router.ts';
@@ -165,8 +166,12 @@ export interface BotConfig {
    * `{ id }` com o ID nativo do contato, para plataformas sem telefone.
    */
   readonly owners?: readonly BotOwner[];
-  /** Prefixo de comando. Padrão: `'!'`. */
-  readonly prefix?: string;
+  /**
+   * Prefixo de comando: um para todo chat (`'!'`) ou um por tipo (`{ dm: '', group: '!' }`,
+   * `group` vale para todo chat que não é `dm`). Vazio é permitido. Padrão: `'!'`. Um plugin
+   * troca o de um chat com `ctx.prefixes.set` (ADR 0063).
+   */
+  readonly prefix?: PrefixConfig;
   /**
    * Logger pronto. Sem ele, o bot cria um (`createLogger`) com `logLevel` e `secrets`. Um
    * logger próprio só censura os segredos da config se for criado com o mesmo `secrets`.
@@ -375,8 +380,10 @@ export function createBot(config: BotConfig): Bot {
     onError: (event) => logPluginError(event),
   });
   const services = createServiceRegistry();
+  const prefixes = createPrefixStore(config.prefix, scoped);
   const router = createCommandRouter({
-    prefix: config.prefix,
+    prefix: (chat) => prefixes.get(chat),
+    selfUsername: () => transport.self?.username,
     owners: normalizeOwners(config.owners ?? []),
     isGroupAdmin: groupAdminPort(
       transport,
@@ -872,6 +879,8 @@ export function createBot(config: BotConfig): Bot {
   }
 
   async function bootPlugins(): Promise<void> {
+    // Antes do `setup`: um plugin pode ler o prefixo do chat já no boot.
+    await prefixes.load();
     const entries = await collectPlugins({
       plugins: config.plugins,
       pluginDirs: config.pluginDirs,
@@ -890,6 +899,7 @@ export function createBot(config: BotConfig): Bot {
       configs,
       log,
       router,
+      prefixes,
       conversations,
       bus,
       services,

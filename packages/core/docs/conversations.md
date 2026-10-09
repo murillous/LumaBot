@@ -74,7 +74,8 @@ ctx.conversations.define('bimestre', async (c) => {
   antes, como para qualquer mensagem (`ignoreSelf`, `chatFilter`, `rateLimit`...).
 - **Um comando digitado cancela a espera.** Se o texto casa com um comando registrado, a espera é
   descartada e o comando roda. Não existe palavra reservada no kernel para "cancelar": se quiser
-  uma, trate-a no passo, porque para o kernel ela é texto comum.
+  uma, trate-a no passo, porque para o kernel ela é texto comum. Com o prefixo vazio
+  ([Comandos](commands.md#prefixo-por-chat)), responder `ajuda` a um passo roda o comando `ajuda`.
 - **A espera vale uma vez.** A resposta a consome. Depois dela, a mensagem seguinte segue o fluxo
   normal, a menos que o passo registre outra espera.
 - **Expiração silenciosa.** Passado o `ttlMs`, a espera some sem aviso, e a próxima mensagem

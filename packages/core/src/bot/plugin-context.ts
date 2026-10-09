@@ -3,6 +3,7 @@
 // host de plugins só recebe a fábrica.
 
 import type { CommandDefinition, CommandInfo } from '#commands/command.ts';
+import type { Prefixes } from '#commands/prefixes.ts';
 import type { RegisteredCommand } from '#commands/registry.ts';
 import { type RoleCheck, RoleTimeoutError } from '#commands/roles.ts';
 import type { CommandRouter } from '#commands/router.ts';
@@ -59,6 +60,7 @@ export interface PluginContextDeps {
   readonly configs: PluginConfigs;
   readonly log: Logger;
   readonly router: CommandRouter;
+  readonly prefixes: Prefixes;
   /** Passos e esperas de conversa (ADR 0060). */
   readonly conversations: ConversationRegistry<KernelMessageContext>;
   readonly bus: EventBus;
@@ -189,6 +191,13 @@ export function createPluginContextFactory(deps: PluginContextDeps): PluginConte
           );
         },
       },
+      prefixes: {
+        get: (chat) => deps.prefixes.get(chat),
+        set: live('prefixes.set', (chatId: string, prefix: string) =>
+          deps.prefixes.set(chatId, prefix),
+        ),
+        reset: live('prefixes.reset', (chatId: string) => deps.prefixes.reset(chatId)),
+      } satisfies Prefixes,
       conversations: {
         define(step: string, handler: StepHandler): void {
           guard('conversations.define');
