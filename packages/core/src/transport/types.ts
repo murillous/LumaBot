@@ -283,6 +283,17 @@ export interface TextLimits {
 }
 
 /**
+ * Ritmo padrão da fila de saída para a plataforma (ADR 0067). A config do bot
+ * (`createBot({ outbound })`) sobrescreve cada campo; o campo ausente cai no padrão do core.
+ */
+export interface TransportPacing {
+  /** Intervalo mínimo entre dois envios quaisquer, em ms. */
+  readonly globalIntervalMs?: number;
+  /** Intervalo mínimo entre dois envios ao mesmo chat, em ms. */
+  readonly chatIntervalMs?: number;
+}
+
+/**
  * Botão a renderizar (capability `actions`, ADR 0062). O `id` é opaco, com até 16 caracteres
  * ASCII (cabe no `callback_data` do Telegram), e volta no `actionId` do evento `interaction`.
  */
@@ -321,6 +332,11 @@ export interface Transport {
   readonly native: unknown;
   /** Limites de tamanho de texto; fixos durante a vida da instância. Ausente: nada é dividido. */
   readonly limits?: TextLimits;
+  /**
+   * Ritmo padrão da fila de saída; fixo durante a vida da instância. Ausente: o padrão do core
+   * (300 ms global, 1000 ms por chat), a política anti-ban do WhatsApp (ADR 0019).
+   */
+  readonly pacing?: TransportPacing;
 
   /**
    * Inicia uma tentativa de conexão e resolve assim que ela começou (socket criado), sem esperar o

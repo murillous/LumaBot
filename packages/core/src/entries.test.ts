@@ -215,6 +215,7 @@ const entries: Record<string, { file: string; load: () => Promise<object> } & En
       'TextNode',
       'TextPart',
       'Transport',
+      'TransportPacing',
       'UnknownMessage',
       'Unsafe',
       'Unsubscribe',

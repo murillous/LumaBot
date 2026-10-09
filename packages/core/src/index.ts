@@ -207,6 +207,7 @@ export type {
   SendOptions,
   TextLimits,
   Transport,
+  TransportPacing,
   Unsubscribe,
 } from '#transport/types.ts';
 export type { Unsafe } from '#unsafe/types.ts';
