@@ -480,6 +480,12 @@ uma pessoa corrige: uma rede instável mapeada para um deles apaga a sessão ou 
 Um transport sem `pairing` não emite `qr-timeout` nem `logged-out`: token revogado é
 `auth-failed`. O erro nativo vai em `error`, e o bot o loga junto com a causa.
 
+Erro de configuração descoberto dentro do `connect()` (a porta ocupada no `listen`, o token
+recusado no login) sai como `closed` com o motivo da tabela, e não como rejeição do `connect()`.
+Um `connect()` de reconexão que rejeita conta como `connection-lost`
+([ADR 0048](../../../docs/adr/0048-connect-resolve-ao-iniciar.md)) e cai no backoff sem limite: o
+bot tentaria de novo para sempre em vez de parar.
+
 ### Lib que se reconecta sozinha
 
 discord.js, grammY e telegraf reconectam por conta própria depois de uma queda de rede. O adapter

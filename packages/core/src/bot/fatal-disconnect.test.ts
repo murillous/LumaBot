@@ -117,7 +117,9 @@ describe("Bot: desconexão 'fatal'", () => {
   it('o closed fatal chega aos listeners antes de o bot parar (o app decide o código de saída)', async () => {
     const transport = new RecordingTransport();
     const seen: ConnectionStatus[] = [];
-    const b = bot({
+    // Estado do bot no momento em que o listener roda: prova a ordem, não só a entrega.
+    const states: Bot['state'][] = [];
+    const b: Bot = bot({
       transport,
       plugins: [
         definePlugin({
@@ -127,6 +129,7 @@ describe("Bot: desconexão 'fatal'", () => {
           setup: (ctx) => {
             ctx.events.on('connection.status', (e) => {
               seen.push(e.payload);
+              states.push(b.state);
             });
           },
         }),
@@ -138,5 +141,6 @@ describe("Bot: desconexão 'fatal'", () => {
     await vi.waitFor(() => expect(b.state).toBe('stopped'));
 
     expect(seen).toContainEqual({ status: 'closed', reason: 'fatal', error: null });
+    expect(states).not.toContain('stopped');
   });
 });

@@ -537,10 +537,11 @@ que derrubaria esta, em laço. O bot para e deixa a outra seguir.
 
 ### Quando o bot para sozinho
 
-Nos três `stop` acima, o `closed` chega aos listeners de `connection.status` antes de o bot
-parar, e o bot termina em `stopped` (os ganchos do `onStop()` rodam). O core não encerra o
-processo nem escolhe o código de saída ([Sinais do processo](#sinais-do-processo)); quem quer sair
-com erro, para o supervisor ou o alerta, olha o motivo num listener:
+Em todo caso da tabela acima em que o bot para (os `stop` e o `clean-session` sem
+`clearSession` com instância pronta), o `closed` chega aos listeners de `connection.status` antes
+de o bot terminar de parar, e ele termina em `stopped` (os ganchos do `onStop()` rodam). O core
+não encerra o processo nem escolhe o código de saída ([Sinais do processo](#sinais-do-processo));
+quem quer sair com erro, para o supervisor ou o alerta, olha o motivo num listener:
 
 ```ts
 const saida = definePlugin({
@@ -549,8 +550,13 @@ const saida = definePlugin({
   engine: '>=0.0.0',
   setup(ctx) {
     ctx.events.on('connection.status', ({ payload }) => {
-      // `auth-failed` só para o bot em transport sem a capability `pairing`.
-      if (payload.status === 'closed' && payload.reason === 'fatal') process.exitCode = 1;
+      if (payload.status !== 'closed') return;
+      // `auth-failed` só para o bot em transport sem a capability `pairing`; com ela, o bot
+      // limpa a sessão e pareia de novo.
+      const parou =
+        payload.reason === 'fatal' ||
+        (payload.reason === 'auth-failed' && !ctx.capabilities.has('pairing'));
+      if (parou) process.exitCode = 1;
     });
   },
 });
