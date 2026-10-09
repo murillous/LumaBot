@@ -24,6 +24,7 @@ import {
   assertCapability,
   CAPABILITIES,
   groupActionCapability,
+  type Interaction,
   type TransportEventHandler,
   type TransportEventName,
   type TransportEvents,
@@ -91,6 +92,8 @@ export class FakeTransport implements Transport {
   #self: Contact | null = null;
   readonly #selfOnConnect: Contact;
   readonly #groups = new Map<string, GroupMetadata>();
+  // Por instância e chaveado pelo objeto emitido, como num transport real (ADR 0066).
+  readonly #raws = new WeakMap<Message | Interaction, unknown>();
   readonly #emitter = new TypedEmitter<TransportEvents>((error) => this.errors.push(error));
   #connected = false;
   #nextId = 0;
@@ -184,6 +187,22 @@ export class FakeTransport implements Transport {
   ): Promise<void> {
     assertCapability(this, groupActionCapability(action));
     this.participantUpdates.push({ groupId, participantIds, action });
+  }
+
+  /**
+   * Objeto bruto registrado com `setRaw` para a mensagem ou interação, que o `ctx.unsafe.raw()`
+   * devolve (ADR 0066); `undefined` sem registro.
+   */
+  raw(source: Message | Interaction): unknown {
+    return this.#raws.get(source);
+  }
+
+  /**
+   * Associa um objeto bruto falso à mensagem ou interação, antes de emiti-la, para testar plugin
+   * específico de plataforma. O `receive()` e o `click()` do `TestBot` o fazem com a opção `raw`.
+   */
+  setRaw(source: Message | Interaction, raw: unknown): void {
+    this.#raws.set(source, raw);
   }
 
   /** Registra (ou substitui) a metadata que `getGroupMetadata` devolve. */

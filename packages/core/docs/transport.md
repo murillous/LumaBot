@@ -16,6 +16,7 @@ interface Transport {
   readonly capabilities: ReadonlySet<Capability>;
   readonly self: Contact | null;                 // null até a primeira conexão aberta
   readonly native: unknown;                      // escape hatch (ctx.unsafe.native)
+  raw?(source: Message | Interaction): unknown;  // opcional: objeto bruto (ctx.unsafe.raw)
   readonly limits?: TextLimits;                  // opcional: tamanho de texto e legenda, botões
 
   connect(): Promise<void>;
@@ -342,6 +343,33 @@ Entregue todas as mídias da mensagem em `attachments` ([Mensagem](message.md#v�
 `media_group_id`: junte-os no transport e emita uma `message` só. Espere uma janela curta
 (algumas centenas de ms) desde o último update do grupo, e limpe os timers no `disconnect()`, para
 nada ser emitido depois dele. O core não conhece o `media_group_id`.
+
+### Objeto bruto da entrada
+
+Implemente `raw(source)` para o `ctx.unsafe.raw()` devolver o objeto de onde a mensagem saiu
+([ADR 0066](../../../docs/adr/0066-objeto-bruto-da-mensagem.md), [escape hatch](unsafe.md)): o
+`WAMessage` no Baileys, a `Message` do discord.js, o `Update` no Telegram. Guarde o objeto num
+`WeakMap` da instância, chaveado pela `Message` ou pela `Interaction` que você emitiu:
+
+```ts
+readonly #raws = new WeakMap<Message | Interaction, unknown>();
+
+// ao normalizar, antes de emitir (também a citada e a versão editada):
+const message = createMessage(init);
+this.#raws.set(message, update);
+
+raw(source: Message | Interaction): unknown {
+  return this.#raws.get(source); // undefined para o que não saiu daqui
+}
+```
+
+- O `WeakMap` some com a mensagem: nada a limpar no `disconnect()`. Não ponha o objeto num campo
+  da `Message`: ele apareceria em spread e em `JSON.stringify`.
+- Registre também a `Interaction` (clique ou comando nativo): o kernel monta a mensagem dela, e o
+  `raw()` dessa mensagem chega ao transport como a própria `Interaction`. É onde mora o token de
+  interação do Discord e a `callback_query` do Telegram.
+- Sem `raw`, o `ctx.unsafe.raw()` devolve `undefined`. Se guardar o objeto custa caro na sua
+  plataforma, deixe o método de fora.
 
 ### Texto da entrada
 
