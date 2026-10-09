@@ -1,8 +1,8 @@
 # Fila de saída
 
 `OutboundQueue` é por onde todo envio do bot passa ([ADR 0019](../../../docs/adr/0019-fila-de-saida-anti-ban.md)):
-intervalo mínimo global e por chat, prioridade (comando > broadcast), retry com backoff e
-humanização opcional. Ela implementa `Sender`; `createOutbound` monta em cima dela o `ctx.send`
+intervalo mínimo global e por chat, prioridade (comando > broadcast), retry com backoff ou na
+janela que a plataforma informou, e humanização opcional. Ela implementa `Sender`; `createOutbound` monta em cima dela o `ctx.send`
 com as ações (reação, edição, apagar, presença) e `createReply`, o `ctx.reply`. O plugin nunca vê
 a fila.
 
@@ -17,8 +17,8 @@ import { createReply } from '#outbound/reply.ts';
 
 const queue = new OutboundQueue({
   transport,
-  globalIntervalMs: 300, // padrão
-  chatIntervalMs: 1000, // padrão
+  globalIntervalMs: 300, // padrão (sem `transport.pacing`)
+  chatIntervalMs: 1000, // padrão (sem `transport.pacing`)
   maxPending: 1000, // padrão, por prioridade
   retry: { maxAttempts: 3, baseDelayMs: 1000, maxDelayMs: 30_000 }, // padrões
   humanize: false, // padrão
@@ -63,8 +63,13 @@ Uma presença explícita ocupa o intervalo do chat: o envio logo depois dela esp
 - Um chat esperando o próprio intervalo não segura os outros: eles só esperam o global.
 - Na fila ociosa, o primeiro envio sai na hora, de forma síncrona, dentro do `send`.
 
-Os padrões são conservadores (≈3 msg/s no total, 1 msg/s por chat). A latência sob carga sobe
-por design: é o preço de não tomar ban.
+Os padrões são conservadores (≈3 msg/s no total, 1 msg/s por chat), a política anti-ban do
+WhatsApp. A latência sob carga sobe por design: é o preço de não tomar ban.
+
+O transport pode dar outro ritmo padrão, o da plataforma dele, em `transport.pacing`
+([Transport](transport.md#ritmo), [ADR 0067](../../../docs/adr/0067-retry-after-e-ritmo-do-transport.md)).
+A ordem é: a opção da fila (`createBot({ outbound })`), depois o `pacing` do transport, depois o
+padrão acima, campo a campo. A fila lê o `pacing` uma vez, na construção.
 
 A espera aqui não conta no prazo do comando ou listener que chamou `ctx.reply`/`ctx.react`: o
 prazo pausa até o envio assentar ([ADR 0047](../../../docs/adr/0047-espera-na-fila-de-saida-fora-do-prazo.md)).
@@ -160,6 +165,7 @@ await queue.send('123@g.us', {
 | Fila fechada | Rejeita com `OutboundQueueError`, `reason: 'closed'` |
 | Conexão caída além de `maxPauseMs` | Rejeita com `OutboundQueueError`, `reason: 'disconnected'` |
 | Transport sem resposta em `sendTimeoutMs` | Rejeita com `OutboundQueueError`, `reason: 'timeout'`, sem re-tentar |
+| Transport falhou com `retryAfterMs` acima de `retry.maxDelayMs` | Rejeita com o erro dele, sem re-tentar |
 | Transport falhou | Re-tenta se transitória; senão rejeita com o erro dele |
 
 A espera antes da re-tentativa `n` é `min(maxDelayMs, baseDelayMs × 2^(n-1))`, com jitter: metade
@@ -168,8 +174,28 @@ primeira tentativa; `1` desliga o retry.
 
 Por padrão toda falha é transitória, exceto `UnsupportedError` e erros com `retryable: false`.
 **Transports**: marquem assim as falhas permanentes (destino inexistente, mídia recusada), para a
-fila não insistir. Para outra regra, passe `retry.isRetryable`; se ele lançar, o envio rejeita
-com um `AggregateError` com os dois erros.
+fila não insistir; o mapeamento das respostas 4xx está em [Transport](transport.md#erros-de-envio).
+Para outra regra, passe `retry.isRetryable`; se ele lançar, o envio rejeita com um
+`AggregateError` com os dois erros.
+
+### Janela da plataforma (`retryAfterMs`)
+
+Num 429, a plataforma diz quando tentar de novo. O transport põe esse tempo no erro, em
+`retryAfterMs` ([ADR 0067](../../../docs/adr/0067-retry-after-e-ritmo-do-transport.md)):
+
+- **Re-tentativa:** espera `retryAfterMs` exato, sem jitter, no lugar do backoff. Conta em
+  `maxAttempts` como qualquer re-tentativa, e só vale para erro transitório: `retryable: false` e o
+  `retry.isRetryable` continuam decidindo.
+- **Teto:** acima de `retry.maxDelayMs`, o envio rejeita com o erro dele, sem re-tentar. A
+  resposta sairia fora de contexto, e tentar antes da janela só gastaria outra recusa.
+- **`retryAfterScope: 'global'`:** nenhum chat envia antes de a janela abrir, inclusive quando o
+  envio que falhou não re-tenta. Os chats que aguardam esperam; os envios em andamento terminam.
+  Depois, o intervalo global espaça a saída, como sempre.
+- **Sem escopo (ou `'chat'`):** só o chat do envio espera, e os outros seguem.
+- **Prazos:** a espera não conta no prazo do comando ou listener que chamou `ctx.reply`
+  ([ADR 0047](../../../docs/adr/0047-espera-na-fila-de-saida-fora-do-prazo.md)) nem no
+  `sendTimeoutMs`, que mede só a chamada ao transport. O `close({ drain: false })` descarta o que
+  espera a janela e cancela os timers.
 
 ## Conexão caída
 
@@ -280,7 +306,8 @@ Quem monta o contexto passa `quote: false` quando o transport não tem a capabil
 
 - Um chat só ocupa estado enquanto tem mensagem aguardando ou em andamento; o fim do intervalo
   por chat é lembrado num mapa limpo a cada envio, então chats ociosos não acumulam.
-- Timers só existem com trabalho pendente (intervalo, backoff, presença, prazo do envio) ou com
+- Timers só existem com trabalho pendente (intervalo, backoff, janela da plataforma, presença,
+  prazo do envio) ou com
   a fila pausada (teto da pausa). Ociosa, a fila não
   segura o processo. Com trabalho pendente segura, de propósito: mensagem aceita não se perde
   em silêncio.

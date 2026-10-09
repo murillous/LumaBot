@@ -357,3 +357,88 @@ describe('createTestBot: botões (ADR 0062)', () => {
     expect(bot.sent).toContainText(`notas de Ana por ${DEFAULT_SENDER.id}`);
   });
 });
+
+describe('createTestBot: objeto bruto no ctx.unsafe.raw() (ADR 0066)', () => {
+  interface Seen {
+    readonly raw: unknown;
+    readonly quoted: unknown;
+  }
+
+  /** Guarda o que o `raw()` devolve para a mensagem e para a citada de cada `!ver`. */
+  const espiao = (seen: Seen[]) =>
+    definePlugin({
+      name: 'espiao',
+      version: '1.0.0',
+      engine: ENGINE,
+      transports: ['fake'],
+      setup(ctx) {
+        ctx.commands.add(
+          command({
+            name: 'ver',
+            run: (c) => {
+              const { quoted } = c.message;
+              seen.push({
+                raw: ctx.unsafe.raw(c.message),
+                quoted: quoted === null ? null : ctx.unsafe.raw(quoted),
+              });
+            },
+          }),
+        );
+        ctx.commands.add(
+          command({
+            name: 'menu',
+            run: (c) => c.reply('Escolha:', { actions: [{ label: 'Ver', command: 'ver' }] }),
+          }),
+        );
+      },
+    });
+
+  it('receive() com raw: o plugin lê o objeto da mensagem e da citada descrita', async () => {
+    const seen: Seen[] = [];
+    const bot = await testBot({ plugins: [espiao(seen)] });
+    await bot.receive({
+      text: '!ver',
+      raw: { update_id: 1 },
+      quoted: { text: 'antes', raw: { update_id: 0 } },
+    });
+
+    expect(seen).toEqual([{ raw: { update_id: 1 }, quoted: { update_id: 0 } }]);
+  });
+
+  it('sem raw, devolve undefined', async () => {
+    const seen: Seen[] = [];
+    const bot = await testBot({ plugins: [espiao(seen)] });
+    await bot.receive({ text: '!ver', quoted: { text: 'antes' } });
+
+    expect(seen).toEqual([{ raw: undefined, quoted: undefined }]);
+  });
+
+  it('a mensagem de um clique devolve o objeto bruto da interação', async () => {
+    const seen: Seen[] = [];
+    const bot = await testBot({ plugins: [espiao(seen)] });
+    await bot.receive({ text: '!menu' });
+
+    await bot.click(bot.sent[0] as NonNullable<(typeof bot.sent)[0]>, 'Ver', {
+      raw: { callback_query: { id: 'cq1' } },
+    });
+
+    expect(seen).toEqual([{ raw: { callback_query: { id: 'cq1' } }, quoted: null }]);
+  });
+
+  it('a mensagem de um comando nativo devolve o objeto bruto da interação', async () => {
+    const seen: Seen[] = [];
+    const bot = await testBot({ plugins: [espiao(seen)] });
+    const interaction = {
+      id: 'slash-1',
+      chat: DEFAULT_CHAT,
+      sender: DEFAULT_SENDER,
+      timestamp: Date.now(),
+      command: 'ver',
+      args: '',
+    };
+    bot.transport.setRaw(interaction, { token: 'tok' });
+    await bot.emit('interaction', interaction);
+
+    expect(seen).toEqual([{ raw: { token: 'tok' }, quoted: null }]);
+  });
+});

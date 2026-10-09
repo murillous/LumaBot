@@ -1,5 +1,6 @@
 // Fila de saída anti-ban (ADR 0019). Todo envio do bot passa por aqui: intervalo mínimo global
-// e por chat, prioridade (comando > broadcast), retry com backoff e humanização opcional.
+// e por chat, prioridade (comando > broadcast), retry com backoff (ou na janela que a plataforma
+// informou, ADR 0067) e humanização opcional.
 
 import type { MessageText } from '#text/format.ts';
 import { assertCanSend, hasCapability, UnsupportedError } from '#transport/capabilities.ts';
@@ -9,6 +10,7 @@ import type {
   Presence,
   SendOptions,
   Transport,
+  TransportPacing,
 } from '#transport/types.ts';
 import { AlbumSplitter } from './album.ts';
 import { type SendPart, TextLimiter, toContent } from './text.ts';
@@ -17,7 +19,7 @@ import type { ActionOptions, OutboundSendOptions, Sender, SendPriority } from '.
 /** O que a fila usa do transport. */
 export type OutboundTransport = Pick<
   Transport,
-  'name' | 'capabilities' | 'send' | 'sendPresence' | 'limits'
+  'name' | 'capabilities' | 'send' | 'sendPresence' | 'limits' | 'pacing'
 >;
 
 export interface RetryOptions {
@@ -25,7 +27,10 @@ export interface RetryOptions {
   readonly maxAttempts?: number;
   /** Espera antes da primeira re-tentativa, em ms; dobra a cada falha. Padrão: 1000. */
   readonly baseDelayMs?: number;
-  /** Teto da espera, em ms. Padrão: 30000. */
+  /**
+   * Teto da espera, em ms. Padrão: 30000. Um erro com `retryAfterMs` acima dele não re-tenta: a
+   * resposta já sairia fora de contexto (ADR 0067).
+   */
   readonly maxDelayMs?: number;
   /**
    * Decide se a falha é transitória. Padrão: tudo, exceto `UnsupportedError` e erros com
@@ -45,9 +50,14 @@ export interface HumanizeOptions {
 
 export interface OutboundQueueOptions {
   readonly transport: OutboundTransport;
-  /** Intervalo mínimo entre dois envios quaisquer, em ms. Padrão: 300. */
+  /**
+   * Intervalo mínimo entre dois envios quaisquer, em ms. Padrão: o `transport.pacing`, ou 300.
+   */
   readonly globalIntervalMs?: number;
-  /** Intervalo mínimo entre dois envios ao mesmo chat, em ms. Padrão: 1000. */
+  /**
+   * Intervalo mínimo entre dois envios ao mesmo chat, em ms. Padrão: o `transport.pacing`, ou
+   * 1000.
+   */
   readonly chatIntervalMs?: number;
   /**
    * Máximo de mensagens aguardando em cada prioridade, somando os chats. Padrão: 1000.
@@ -293,14 +303,11 @@ export class OutboundQueue implements Sender {
     this.#transport = options.transport;
     this.#text = new TextLimiter(options.transport);
     this.#album = new AlbumSplitter(options.transport);
-    this.#globalIntervalMs = nonNegative(
-      'globalIntervalMs',
-      options.globalIntervalMs ?? DEFAULTS.globalIntervalMs,
-    );
-    this.#chatIntervalMs = nonNegative(
-      'chatIntervalMs',
-      options.chatIntervalMs ?? DEFAULTS.chatIntervalMs,
-    );
+    // O ritmo é da plataforma (ADR 0067): a config do bot sobrescreve o do transport, e sem
+    // nenhum dos dois vale o padrão anti-ban do WhatsApp (ADR 0019).
+    const pacing = options.transport.pacing;
+    this.#globalIntervalMs = pace('globalIntervalMs', options.globalIntervalMs, pacing);
+    this.#chatIntervalMs = pace('chatIntervalMs', options.chatIntervalMs, pacing);
     const maxPending = options.maxPending ?? DEFAULTS.maxPending;
     if (
       !(
@@ -682,15 +689,24 @@ export class OutboundQueue implements Sender {
   }
 
   #handleFailure(chat: ChatState, job: Job, error: unknown): void {
+    const now = this.#clock();
+    const hint = this.#discarding ? undefined : retryAfter(error);
+    // Janela global (429 global): nenhum chat envia antes dela, nem quando este envio não
+    // re-tenta. Mandar antes só gastaria requisições recusadas, que a plataforma também pune.
+    if (hint?.global === true) {
+      this.#globalReadyAt = Math.max(this.#globalReadyAt, now + hint.ms);
+    }
     let retryable: boolean;
     try {
       // Prazo estourado não re-tenta: o transport pode ainda entregar, e reenviar duplicaria.
-      // Pausada além do teto, a re-tentativa ficaria parada sem previsão.
+      // Pausada além do teto, a re-tentativa ficaria parada sem previsão. Janela acima do teto
+      // de espera também não: a resposta sairia fora de contexto.
       retryable =
         !this.#discarding &&
         !this.#offline &&
         !(error instanceof OutboundQueueError) &&
         job.attempts < this.#maxAttempts &&
+        (hint === undefined || hint.ms <= this.#maxDelayMs) &&
         this.#isRetryable(error);
     } catch (hookError) {
       this.#failed++;
@@ -706,7 +722,10 @@ export class OutboundQueue implements Sender {
     chat.head = job;
     chat.pending++;
     this.#pendingBy[job.priority]++;
-    chat.readyAt = Math.max(chat.readyAt, this.#clock() + this.#backoff(job.attempts));
+    // A janela informada pela plataforma é exata: sem jitter, e no lugar do backoff, que
+    // tentaria cedo demais e gastaria as tentativas antes de ela abrir.
+    const delay = hint === undefined ? this.#backoff(job.attempts) : hint.ms;
+    chat.readyAt = Math.max(chat.readyAt, now + delay);
   }
 
   /**
@@ -832,6 +851,29 @@ function nonNegative(name: string, value: number): number {
     throw new RangeError(`${name} deve ser um número finito >= 0 (recebido: ${value})`);
   }
   return value;
+}
+
+function pace(
+  name: keyof TransportPacing,
+  configured: number | undefined,
+  pacing: TransportPacing | undefined,
+): number {
+  if (configured !== undefined) return nonNegative(name, configured);
+  const fromTransport = pacing?.[name];
+  if (fromTransport !== undefined) return nonNegative(`transport.pacing.${name}`, fromTransport);
+  return DEFAULTS[name];
+}
+
+/**
+ * Janela que a plataforma informou num erro do transport (ADR 0067): `retryAfterMs` finito e
+ * >= 0, e `retryAfterScope: 'global'` quando ela vale para todos os chats. Duck typing, como o
+ * `retryable`: o transport não precisa de classe do core para lançar o erro nativo enriquecido.
+ */
+function retryAfter(error: unknown): { readonly ms: number; readonly global: boolean } | undefined {
+  if (typeof error !== 'object' || error === null || !('retryAfterMs' in error)) return undefined;
+  const ms = error.retryAfterMs;
+  if (typeof ms !== 'number' || !(Number.isFinite(ms) && ms >= 0)) return undefined;
+  return { ms, global: 'retryAfterScope' in error && error.retryAfterScope === 'global' };
 }
 
 function isTransient(error: unknown): boolean {

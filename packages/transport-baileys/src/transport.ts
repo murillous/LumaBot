@@ -13,6 +13,7 @@ import type {
   GroupMetadata,
   GroupParticipantAction,
   Logger,
+  Message,
   MessageKey,
   OutgoingContent,
   Presence,
@@ -20,6 +21,7 @@ import type {
   Unsubscribe,
 } from '@zapforge/core';
 import {
+  type Interaction,
   type Transport,
   type TransportDeps,
   type TransportEventHandler,
@@ -58,7 +60,7 @@ import {
 } from './events.ts';
 import { renderWhatsApp } from './format.ts';
 import { type ILogger, toBaileysLogger } from './logger.ts';
-import { type NormalizeEnv, toMessage } from './normalize.ts';
+import { type NormalizeEnv, nativeOf, toMessage } from './normalize.ts';
 import { toContent, toGroupMetadata, toQuoted, toWAKey } from './outgoing.ts';
 
 /** Como parear uma sessão sem credenciais: escaneando o QR ou digitando um código no aparelho. */
@@ -177,6 +179,15 @@ export class BaileysTransport implements Transport {
   /** O socket do Baileys (`WASocket`) da tentativa atual, ou `null` sem conexão. */
   get native(): unknown {
     return this.#socket;
+  }
+
+  /**
+   * O `WAMessage` de onde a mensagem saiu (ADR 0066), o mesmo que o envio usa para citar. A citada
+   * devolve o proto montado do `contextInfo`, sem `pushName` nem horário. O Baileys não emite
+   * `interaction`: para ela, e para mensagem que não veio daqui, `undefined`.
+   */
+  raw(source: Message | Interaction): unknown {
+    return 'key' in source ? nativeOf(source) : undefined;
   }
 
   get #log(): Logger {

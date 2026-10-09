@@ -16,7 +16,9 @@ interface Transport {
   readonly capabilities: ReadonlySet<Capability>;
   readonly self: Contact | null;                 // null até a primeira conexão aberta
   readonly native: unknown;                      // escape hatch (ctx.unsafe.native)
+  raw?(source: Message | Interaction): unknown;  // opcional: objeto bruto (ctx.unsafe.raw)
   readonly limits?: TextLimits;                  // opcional: tamanho de texto e legenda, botões
+  readonly pacing?: TransportPacing;             // opcional: ritmo padrão da fila de saída
 
   connect(): Promise<void>;
   disconnect(): Promise<void>;
@@ -343,6 +345,33 @@ Entregue todas as mídias da mensagem em `attachments` ([Mensagem](message.md#v�
 (algumas centenas de ms) desde o último update do grupo, e limpe os timers no `disconnect()`, para
 nada ser emitido depois dele. O core não conhece o `media_group_id`.
 
+### Objeto bruto da entrada
+
+Implemente `raw(source)` para o `ctx.unsafe.raw()` devolver o objeto de onde a mensagem saiu
+([ADR 0066](../../../docs/adr/0066-objeto-bruto-da-mensagem.md), [escape hatch](unsafe.md)): o
+`WAMessage` no Baileys, a `Message` do discord.js, o `Update` no Telegram. Guarde o objeto num
+`WeakMap` da instância, chaveado pela `Message` ou pela `Interaction` que você emitiu:
+
+```ts
+readonly #raws = new WeakMap<Message | Interaction, unknown>();
+
+// ao normalizar, antes de emitir (também a citada e a versão editada):
+const message = createMessage(init);
+this.#raws.set(message, update);
+
+raw(source: Message | Interaction): unknown {
+  return this.#raws.get(source); // undefined para o que não saiu daqui
+}
+```
+
+- O `WeakMap` some com a mensagem: nada a limpar no `disconnect()`. Não ponha o objeto num campo
+  da `Message`: ele apareceria em spread e em `JSON.stringify`.
+- Registre também a `Interaction` (clique ou comando nativo): o kernel monta a mensagem dela, e o
+  `raw()` dessa mensagem chega ao transport como a própria `Interaction`. É onde mora o token de
+  interação do Discord e a `callback_query` do Telegram.
+- Sem `raw`, o `ctx.unsafe.raw()` devolve `undefined`. Se guardar o objeto custa caro na sua
+  plataforma, deixe o método de fora.
+
 ### Texto da entrada
 
 Entregue `message.text` como a pessoa o lê, com as menções legíveis (no Discord, `<@123>` vira
@@ -355,6 +384,61 @@ Entregue `message.text` como a pessoa o lê, com as menções legíveis (no Disc
 import { messageKey } from '@zapforge/core/adapter';
 await transport.react(messageKey(ctx.message), '👍');
 ```
+
+### Erros de envio
+
+A fila de saída re-tenta o que falha ([Fila de saída](outbound-queue.md#erros-e-retry)), a não
+ser que o erro diga o contrário. Lance o erro nativo enriquecido com dois campos opcionais, sem
+classe do core ([ADR 0067](../../../docs/adr/0067-retry-after-e-ritmo-do-transport.md)):
+
+- **`retryable: false`**: falha permanente. A fila rejeita na hora, sem segurar o chat com
+  re-tentativas que vão falhar igual.
+- **`retryAfterMs`**: a plataforma recusou por taxa e disse quando tentar de novo (ms, finito e
+  ≥ 0). A fila espera esse tempo, no lugar do backoff. Com **`retryAfterScope: 'global'`**, a
+  janela vale para todos os chats, e nenhum envio sai antes dela. Sem o campo, ou com `'chat'`,
+  só o chat do envio espera.
+
+```ts
+try {
+  return await api.sendMessage(chatId, text);
+} catch (error) {
+  throw Object.assign(error, classify(error)); // ver o mapeamento abaixo
+}
+```
+
+| Resposta da plataforma | Campos |
+| --- | --- |
+| 429 com espera (`retry_after` do Discord, em s; `parameters.retry_after` do Telegram, em s) | `retryAfterMs: segundos × 1000`; `retryAfterScope: 'global'` quando a plataforma diz que é global (`global: true` no Discord) |
+| 400 (mensagem longa demais, conteúdo inválido) | `retryable: false` |
+| 401 e 403 (bot bloqueado pelo usuário, sem permissão: `50013` e `50007` no Discord) | `retryable: false` |
+| 404 (chat ou mensagem inexistente) | `retryable: false` |
+| 413 (arquivo grande demais) | `retryable: false` |
+| 5xx, queda de rede, timeout do cliente HTTP | nenhum: é transitória, e a fila re-tenta com backoff |
+
+Converta a espera para milissegundos: o core não lê `retry_after` nem código de plataforma. Um
+`retryAfterMs` inválido (negativo, `NaN`, texto) é ignorado, e vale o backoff. Uma espera acima
+de `retry.maxDelayMs` (padrão 30 s) não re-tenta: o envio rejeita com o seu erro.
+
+Um cliente que já respeita a taxa sozinho (o discord.js enfileira por rota) quase não deixa o 429
+chegar à fila. Mesmo assim, lance o `retryAfterMs` quando ele chegar.
+
+### Ritmo
+
+`pacing` dá o ritmo padrão da fila de saída para a plataforma
+([ADR 0067](../../../docs/adr/0067-retry-after-e-ritmo-do-transport.md)). O que o app passa em
+`createBot({ outbound })` sobrescreve cada campo, e o campo ausente cai no padrão do core, a
+política anti-ban do WhatsApp (300 ms global, 1000 ms por chat).
+
+```ts
+// Telegram: 30 mensagens/s no total e cerca de 1/s por chat privado.
+readonly pacing = { globalIntervalMs: 34, chatIntervalMs: 1000 };
+// Discord: o discord.js já limita a taxa, e o intervalo do kernel só somaria latência.
+readonly pacing = { globalIntervalMs: 0, chatIntervalMs: 0 };
+```
+
+O intervalo por chat é um só. O limite mais apertado de um tipo de chat (20 mensagens/min num grupo
+do Telegram) chega como 429 com `retryAfterMs`, e a fila espera a janela. Um valor que não é
+número finito ≥ 0 faz o `createBot` lançar `RangeError`.
 
 ## Grupos
 

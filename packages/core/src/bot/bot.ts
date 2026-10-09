@@ -420,6 +420,10 @@ export function createBot(config: BotConfig): Bot {
   // ou outra espera também o cancelam. O passo nunca roda: o `dispatchMessage` trata a escolha.
   conversations.define(MENU_OWNER, MENU_STEP, () => undefined);
   const actions = new ActionRegistry();
+  // Mensagem montada pelo kernel a partir de um clique ou comando nativo -> a interação de origem,
+  // para o `ctx.unsafe.raw()` pedir ao transport o objeto bruto dela (ADR 0066). Por bot, e some
+  // com a mensagem.
+  const interactions = new WeakMap<Message, Interaction>();
   const buttons = hasCapability(transport, 'actions');
   const maxButtons = buttonLimit(transport);
   const pipeline = createPipeline(
@@ -703,6 +707,7 @@ export function createBot(config: BotConfig): Bot {
       timestamp: interaction.timestamp,
       fromMe: false,
     });
+    interactions.set(message, interaction);
     await admit(message, async (ctx) => {
       // O clique é um comando: cancela a espera do remetente, como o comando digitado (ADR 0060).
       conversations.take(chat.id, sender.id);
@@ -727,6 +732,7 @@ export function createBot(config: BotConfig): Bot {
       timestamp: interaction.timestamp,
       fromMe: false,
     });
+    interactions.set(message, interaction);
     await admit(message, async (ctx) => {
       // Comando cancela a espera do remetente, como o digitado (ADR 0060).
       conversations.take(chat.id, sender.id);
@@ -960,7 +966,11 @@ export function createBot(config: BotConfig): Bot {
           return transport.self;
         },
       },
-      unsafe: createUnsafeAccess({ transport, log }),
+      unsafe: createUnsafeAccess({
+        transport,
+        log,
+        interactionOf: (message) => interactions.get(message),
+      }),
       commandTimeoutMs,
       armed,
       onRoleError: (event) => {

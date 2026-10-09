@@ -736,3 +736,159 @@ describe('OutboundQueue: prazo por envio (#202)', () => {
     ).not.toThrow();
   });
 });
+
+describe('OutboundQueue: retryAfterMs e ritmo do transport (#281)', () => {
+  /** Erro como o transport lança num 429: a janela que a plataforma informou. */
+  const rateLimited = (retryAfterMs: unknown, retryAfterScope?: 'chat' | 'global') =>
+    Object.assign(new Error('429'), { retryAfterMs, retryAfterScope });
+
+  it('re-tenta depois de retryAfterMs, no lugar do backoff', async () => {
+    const { queue, sends, failWith } = newQueue({ chatIntervalMs: 0 });
+    let calls = 0;
+    failWith(() => (++calls === 1 ? rateLimited(20_000) : undefined));
+    const sent = queue.send('a', text('x'));
+    await vi.runAllTimersAsync();
+    await expect(sent).resolves.toMatchObject({ id: 'm1' });
+    // O backoff tentaria aos 1000 ms e desistiria antes de a janela abrir.
+    expect(sends.map((s) => s.at)).toEqual([0, 20_000]);
+    expect(queue.stats()).toMatchObject({ sent: 1, retries: 1, failed: 0 });
+  });
+
+  it('a janela de um chat não segura os outros', async () => {
+    const { queue, sends, failWith } = newQueue({ chatIntervalMs: 0 });
+    let calls = 0;
+    failWith((call) => (call.chatId === 'a' && ++calls === 1 ? rateLimited(5000) : undefined));
+    const all = [queue.send('a', text('a1')), queue.send('b', text('b1'))];
+    await vi.runAllTimersAsync();
+    await Promise.all(all);
+    expect(sends.map((s) => [s.label, s.at])).toEqual([
+      ['a1', 0],
+      ['b1', 100],
+      ['a1', 5000],
+    ]);
+  });
+
+  it('acima de retry.maxDelayMs, rejeita na hora sem re-tentar', async () => {
+    const { queue, sends, failWith } = newQueue({ retry: { maxDelayMs: 10_000 } });
+    const error = rateLimited(60_000);
+    failWith(() => error);
+    const sent = queue.send('a', text('x'));
+    sent.catch(() => undefined);
+    await vi.runAllTimersAsync();
+    await expect(sent).rejects.toBe(error);
+    expect(sends).toHaveLength(1);
+    expect(queue.stats()).toMatchObject({ retries: 0, failed: 1 });
+  });
+
+  it('não re-tenta o que é permanente, mesmo com retryAfterMs, e conta nas tentativas', async () => {
+    const { queue, sends, failWith } = newQueue({
+      chatIntervalMs: 0,
+      retry: { maxAttempts: 2 },
+    });
+    const permanent = Object.assign(rateLimited(1000), { retryable: false });
+    failWith((call) => (call.chatId === 'a' ? permanent : rateLimited(1000)));
+    const a = queue.send('a', text('a'));
+    const b = queue.send('b', text('b'));
+    a.catch(() => undefined);
+    b.catch(() => undefined);
+    await vi.runAllTimersAsync();
+    await expect(a).rejects.toBe(permanent);
+    await expect(b).rejects.toThrow('429');
+    expect(sends.map((s) => [s.chatId, s.at])).toEqual([
+      ['a', 0],
+      ['b', 100],
+      ['b', 1100],
+    ]);
+  });
+
+  it('retryAfterMs inválido cai no backoff', async () => {
+    for (const invalid of [Number.NaN, -1, Number.POSITIVE_INFINITY, '5000']) {
+      const { queue, sends, failWith } = newQueue({ chatIntervalMs: 0 });
+      let calls = 0;
+      failWith(() => (++calls === 1 ? rateLimited(invalid) : undefined));
+      const start = Date.now();
+      const sent = queue.send('a', text('x'));
+      await vi.runAllTimersAsync();
+      await sent;
+      // random = 1: o backoff cheio da primeira re-tentativa.
+      expect(sends.map((s) => s.at - start)).toEqual([0, 1000]);
+    }
+  });
+
+  it('429 global: nenhum chat envia antes de a janela abrir', async () => {
+    const { queue, sends, failWith } = newQueue({ chatIntervalMs: 0 });
+    let calls = 0;
+    failWith(() => (++calls === 1 ? rateLimited(5000, 'global') : undefined));
+    const all = [queue.send('a', text('a1')), queue.send('b', text('b1'))];
+    await vi.runAllTimersAsync();
+    await Promise.all(all);
+    // `b` aguardava o intervalo global (100 ms) quando o 429 chegou: espera a janela toda.
+    expect(sends.map((s) => [s.label, s.at])).toEqual([
+      ['a1', 0],
+      ['b1', 5000],
+      ['a1', 5100],
+    ]);
+  });
+
+  it('429 global segura a fila mesmo quando o envio não re-tenta', async () => {
+    const { queue, sends, failWith } = newQueue({ chatIntervalMs: 0, retry: { maxAttempts: 1 } });
+    failWith((call) => (call.chatId === 'a' ? rateLimited(5000, 'global') : undefined));
+    const a = queue.send('a', text('a1'));
+    a.catch(() => undefined);
+    const b = queue.send('b', text('b1'));
+    await vi.runAllTimersAsync();
+    await expect(a).rejects.toThrow('429');
+    await b;
+    expect(sends.map((s) => [s.label, s.at])).toEqual([
+      ['a1', 0],
+      ['b1', 5000],
+    ]);
+  });
+
+  it('close({ drain: false }) na janela global não deixa timer vivo', async () => {
+    const { queue, failWith } = newQueue({ chatIntervalMs: 0 });
+    failWith(() => rateLimited(20_000, 'global'));
+    const all = [queue.send('a', text('a1')), queue.send('b', text('b1'))];
+    for (const sent of all) sent.catch(() => undefined);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(vi.getTimerCount()).toBeGreaterThan(0);
+    await queue.close({ drain: false });
+    expect(vi.getTimerCount()).toBe(0);
+    for (const sent of all) await expect(sent).rejects.toMatchObject({ reason: 'closed' });
+  });
+
+  it('usa o ritmo do transport como padrão, e as opções da fila sobrescrevem', async () => {
+    const fake = fakeTransport();
+    const transport: OutboundTransport = {
+      ...fake.transport,
+      pacing: { globalIntervalMs: 0, chatIntervalMs: 50 },
+    };
+    const paced = new OutboundQueue({ transport });
+    const first = [
+      paced.send('a', text('a1')),
+      paced.send('a', text('a2')),
+      paced.send('b', text('b1')),
+    ];
+    await vi.runAllTimersAsync();
+    await Promise.all(first);
+    expect(fake.sends.map((s) => [s.label, s.at])).toEqual([
+      ['a1', 0],
+      ['b1', 0],
+      ['a2', 50],
+    ]);
+
+    const overridden = new OutboundQueue({ transport, chatIntervalMs: 200 });
+    const start = Date.now();
+    const second = [overridden.send('c', text('c1')), overridden.send('c', text('c2'))];
+    await vi.runAllTimersAsync();
+    await Promise.all(second);
+    expect(fake.sends.slice(3).map((s) => s.at - start)).toEqual([0, 200]);
+  });
+
+  it('valida o ritmo do transport', () => {
+    const { transport } = fakeTransport();
+    expect(
+      () => new OutboundQueue({ transport: { ...transport, pacing: { chatIntervalMs: -1 } } }),
+    ).toThrow(/transport\.pacing\.chatIntervalMs/);
+  });
+});

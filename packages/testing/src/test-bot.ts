@@ -7,7 +7,7 @@ import {
   createLogger,
   type Message,
 } from '@zapforge/core';
-import type { TransportEvents } from '@zapforge/core/adapter';
+import type { Interaction, TransportEvents } from '@zapforge/core/adapter';
 import { FakeTransport, type SentMessage } from './fake-transport.ts';
 import { buildMessage, DEFAULT_SENDER, type IncomingMessage } from './incoming.ts';
 
@@ -17,6 +17,8 @@ export interface ClickOptions {
   readonly sender?: Partial<Contact>;
   /** Padrão: o chat da mensagem que o envio cita ou, sem citação, conversa privada no `chatId`. */
   readonly chat?: Chat;
+  /** Objeto bruto falso da interação, que o `ctx.unsafe.raw()` devolve (ADR 0066). */
+  readonly raw?: unknown;
 }
 
 export interface TestBotOptions extends Omit<BotConfig, 'transport'> {
@@ -71,6 +73,7 @@ export async function createTestBot(options: TestBotOptions = {}): Promise<TestB
     sent: transport.sent,
     async receive(input) {
       const message = buildMessage(input);
+      registerRaw(transport, message, input);
       transport.emit('message', message);
       await bot.settled();
       return message;
@@ -84,13 +87,15 @@ export async function createTestBot(options: TestBotOptions = {}): Promise<TestB
         );
       }
       clicks++;
-      transport.emit('interaction', {
+      const interaction: Interaction = {
         id: `click-${clicks}`,
         chat: options.chat ?? sent.quoted?.chat ?? { id: sent.chatId, isGroup: false },
         sender: { ...DEFAULT_SENDER, ...options.sender },
         actionId: action.id,
         timestamp: Date.now(),
-      });
+      };
+      if ('raw' in options) transport.setRaw(interaction, options.raw);
+      transport.emit('interaction', interaction);
       await bot.settled();
     },
     async emit(event, payload) {
@@ -99,4 +104,14 @@ export async function createTestBot(options: TestBotOptions = {}): Promise<TestB
     },
     stop: () => bot.stop(),
   };
+}
+
+/** O `raw` da descrição vai para o transport, na mensagem e na citada descrita (ADR 0066). */
+function registerRaw(transport: FakeTransport, message: Message, input: IncomingMessage): void {
+  if ('raw' in input) transport.setRaw(message, input.raw);
+  const quoted = input.quoted;
+  // A citada já pronta (`Message`) não tem descrição: quem a montou registra com `setRaw`.
+  if (quoted !== undefined && !('is' in quoted) && message.quoted !== null) {
+    registerRaw(transport, message.quoted, quoted);
+  }
 }

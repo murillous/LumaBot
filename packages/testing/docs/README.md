@@ -102,6 +102,21 @@ await bot.receive({
 });
 ```
 
+### Objeto bruto (`ctx.unsafe.raw`)
+
+Para testar um plugin específico de plataforma, que lê o objeto bruto com `ctx.unsafe.raw()`
+([escape hatch](../../core/docs/unsafe.md)), passe um objeto falso em `raw`. Ele vale também na
+citada descrita, e o `click()` aceita `raw` nas opções para a interação do clique. Sem `raw`, o
+`ctx.unsafe.raw()` devolve `undefined`:
+
+```ts
+await bot.receive({ text: '!info', raw: { update_id: 1, message: { entities: [] } } });
+await bot.click(bot.sent[0], 'Notas', { raw: { callback_query: { id: 'cq1' } } });
+```
+
+Para outra interação, como um comando nativo emitido com `bot.emit('interaction', ...)`, registre
+o objeto com `bot.transport.setRaw(interaction, raw)` antes de emitir.
+
 ## Botões
 
 O `FakeTransport` tem a capability `actions` por padrão, e o envio com botões traz `actions` no
@@ -229,6 +244,7 @@ const bot = await createTestBot({ transport, plugins: [meuPlugin()] });
 | `errors` | Erros lançados pelos handlers de eventos emitidos. O bot trata os próprios erros, então a lista deve ficar vazia |
 | `emit(event, payload)` | Simula um evento do canal sem esperar o bot. Prefira o `bot.emit` |
 | `setGroup(metadata)` | Registra o grupo que `getGroupMetadata` devolve. Um grupo não registrado faz a chamada falhar |
+| `setRaw(source, raw)` / `raw(source)` | Registra e lê o objeto bruto falso de uma mensagem ou interação, o que o `ctx.unsafe.raw()` devolve. Sem registro, `undefined` |
 | `clear()` | Esvazia os registros de saída |
 
 Um método ligado a uma capability que o transport não declara lança `UnsupportedError`, como no
