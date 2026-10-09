@@ -14,6 +14,11 @@ export interface Scenario {
   readonly target: { readonly max: number } | { readonly min: number };
   /** Execuções, cada uma num processo; o resultado é a mediana. */
   readonly runs: number;
+  /**
+   * Se o CI barra piora > 10% sobre o baseline. Desligado onde a medida fica perto de zero e a
+   * piora relativa seria só ruído; aí vale só a meta (ADR 0054).
+   */
+  readonly checksRegression: boolean;
   readonly run: () => Promise<number>;
 }
 
@@ -163,6 +168,7 @@ export const SCENARIOS: readonly Scenario[] = [
     unit: 'ms',
     target: { max: 1 },
     runs: 3,
+    checksRegression: true,
     run: () => overhead(),
   },
   {
@@ -171,6 +177,7 @@ export const SCENARIOS: readonly Scenario[] = [
     unit: 'msg/s',
     target: { min: 5_000 },
     runs: 3,
+    checksRegression: true,
     run: () => throughput(),
   },
   {
@@ -179,6 +186,7 @@ export const SCENARIOS: readonly Scenario[] = [
     unit: 'MB',
     target: { max: 80 },
     runs: 3,
+    checksRegression: true,
     run: idleMemory,
   },
   {
@@ -188,6 +196,8 @@ export const SCENARIOS: readonly Scenario[] = [
     // "~0" do plano: um objeto de 50 bytes retido por mensagem já dá ~48 MB em 1M.
     target: { max: 5 },
     runs: 1,
+    // Perto de 0 (até negativo), 10% do baseline é menos que o ruído do heap: a meta já é a régua.
+    checksRegression: false,
     run: () => memoryGrowth(),
   },
   {
@@ -196,6 +206,7 @@ export const SCENARIOS: readonly Scenario[] = [
     unit: 'ms',
     target: { max: 500 },
     runs: 5,
+    checksRegression: true,
     run: boot,
   },
 ];
