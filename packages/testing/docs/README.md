@@ -16,14 +16,14 @@ matchers. Não é preciso configurar nada no `vitest.config`.
 ## Primeiro teste
 
 ```ts
-import { createTestBot } from '@zapforge/testing';
+import { createTestBot, fixtures } from '@zapforge/testing';
 import { afterEach, expect, it } from 'vitest';
 import { sticker } from './index.ts';
 
 it('imagem com !s vira figurinha', async () => {
   const bot = await createTestBot({ plugins: [sticker()] });
 
-  await bot.receive({ text: '!s', image: Buffer.from('...') });
+  await bot.receive({ text: '!s', image: fixtures.image() });
 
   expect(bot.sent).toContainSticker();
   await bot.stop();
@@ -90,6 +90,43 @@ As mídias aceitas são `image`, `video`, `audio`, `voice`, `sticker` e `documen
 por mensagem. Quando a mídia vem só como `Buffer`, o mimetype é o que o WhatsApp usa para o tipo:
 `image/jpeg`, `video/mp4`, `audio/mpeg`, `audio/ogg; codecs=opus`, `image/webp` e
 `application/octet-stream`. O `quoted` aceita uma descrição como esta ou uma `Message` pronta.
+
+## Fixtures
+
+Um plugin que decodifica a mídia (sharp, ffmpeg) falha com bytes quaisquer, como
+`Buffer.from('...')`. O `fixtures` tem uma mídia válida e pequena de cada tipo, pronta para o
+`receive()`:
+
+```ts
+import { createTestBot, fixtures } from '@zapforge/testing';
+
+await bot.receive({ text: '!s', image: fixtures.image() });
+await bot.receive({ text: '!s', quoted: { video: fixtures.video() } });
+await bot.receive({ document: fixtures.document(), fileName: 'a.pdf' });
+```
+
+| Fixture | Formato | Mimetype |
+| --- | --- | --- |
+| `image()` | JPEG 16×16 | `image/jpeg` |
+| `video()` | MP4 (H.264) 16×16, 1 s, sem áudio | `video/mp4` |
+| `audio()` | MP3 mono, 1 s de silêncio | `audio/mpeg` |
+| `voice()` | OGG/Opus mono, 1 s de silêncio | `audio/ogg; codecs=opus` |
+| `sticker()` | WebP 512×512 | `image/webp` |
+| `document()` | PDF de uma página em branco | `application/pdf` |
+
+Cada chamada devolve `{ data, mimetype }` com um `Buffer` novo, então alterar os bytes num teste
+não afeta os outros. Para enviar só os bytes, use `fixtures.sticker().data`.
+
+As mídias ficam em base64 em `src/fixtures.ts`, para o pacote não depender de arquivos fora do
+`dist`. Para gerar de novo, use o ffmpeg (o PDF foi escrito à mão):
+
+```sh
+ffmpeg -f lavfi -i color=c=0x3366cc:s=16x16 -frames:v 1 -q:v 10 image.jpg
+ffmpeg -f lavfi -i color=c=0x3366cc:s=512x512 -frames:v 1 -c:v libwebp -lossless 1 sticker.webp
+ffmpeg -f lavfi -i color=c=0x3366cc:s=16x16:r=1 -t 1 -c:v libx264 -pix_fmt yuv420p -movflags +faststart video.mp4
+ffmpeg -f lavfi -i anullsrc=r=8000:cl=mono -t 1 -c:a libmp3lame -b:a 8k audio.mp3
+ffmpeg -f lavfi -i anullsrc=r=48000:cl=mono -t 1 -c:a libopus -b:a 6k voice.ogg
+```
 
 Para testar um comando `role: 'owner'`, passe `owners: [DEFAULT_SENDER.phone]` ao
 `createTestBot`.
