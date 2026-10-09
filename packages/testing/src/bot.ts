@@ -12,6 +12,7 @@ export { fixtures, type MediaFixture } from './fixtures.ts';
 export {
   DEFAULT_CHAT,
   DEFAULT_SENDER,
+  type IncomingAttachment,
   type IncomingMedia,
   type IncomingMessage,
 } from './incoming.ts';

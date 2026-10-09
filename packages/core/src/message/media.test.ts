@@ -21,6 +21,13 @@ describe('createMedia', () => {
     const media = createMedia({ mimetype: 'image/png', download: async () => Buffer.alloc(0) });
     expect(media.mimetype).toBe('image/png');
     expect(media.size).toBeNull();
+    expect('fileName' in media).toBe(false);
+  });
+
+  it('expõe o nome do arquivo quando o transport informa', () => {
+    const download = async () => Buffer.alloc(0);
+    const media = createMedia({ mimetype: 'application/pdf', fileName: 'nota.pdf', download });
+    expect(media.fileName).toBe('nota.pdf');
   });
 
   it('é lazy e cacheia o download', async () => {

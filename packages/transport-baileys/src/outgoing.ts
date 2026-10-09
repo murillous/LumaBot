@@ -1,13 +1,14 @@
 // Envio (M2-1.3): o conteúdo, a chave e os metadados de grupo do core no formato do Baileys, e
 // de volta. Funções puras; quem fala com o socket é o transport.
 
-import type {
-  GroupMetadata,
-  GroupParticipant,
-  Message,
-  MessageKey,
-  OutgoingContent,
-  SendOptions,
+import {
+  type GroupMetadata,
+  type GroupParticipant,
+  type Message,
+  type MessageKey,
+  type OutgoingContent,
+  type SendOptions,
+  UnsupportedError,
 } from '@zapforge/core';
 import {
   type AnyMessageContent,
@@ -80,6 +81,11 @@ export function toContent(content: OutgoingContent, options?: SendOptions): AnyM
         caption,
         ...mentions,
       };
+    case 'album':
+      // O Baileys não monta álbum (o WhatsApp agrupa as imagens em sequência), então o transport
+      // não declara `send.album`, e a fila envia item a item (ADR 0065). Chegar aqui é pular a
+      // checagem.
+      throw new UnsupportedError('send.album', 'baileys');
     case 'poll':
       return {
         poll: {

@@ -70,6 +70,8 @@ export interface Media {
   readonly mimetype: string;
   /** Tamanho em bytes, quando o transport informa. */
   readonly size: number | null;
+  /** Nome do arquivo, quando a plataforma informa (anexos do Discord e do web, por exemplo). */
+  readonly fileName?: string;
   download(): Promise<Buffer>;
   stream(): Promise<ReadableStream<Uint8Array>>;
 }
@@ -92,6 +94,11 @@ interface BaseMessage<T extends MessageType> {
   readonly fromMe: boolean;
   readonly quoted: Message | null;
   readonly mentions: readonly Contact[];
+  /**
+   * Todas as mídias da mensagem, na ordem da plataforma (ADR 0065); vazio sem mídia. Nos tipos de
+   * mídia, o primeiro é o próprio `media`, e o `type` é o dele: imagem seguida de PDF é `image`.
+   */
+  readonly attachments: readonly Media[];
   readonly isForwarded: boolean;
   readonly isViewOnce: boolean;
   readonly isEdited: boolean;

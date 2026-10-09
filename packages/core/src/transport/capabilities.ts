@@ -20,6 +20,7 @@ export const CAPABILITIES = [
   'send.voice',
   'send.sticker',
   'send.document',
+  'send.album',
   'media.download',
   'message.edit',
   'message.delete',
@@ -92,7 +93,7 @@ export function groupActionCapability(action: GroupParticipantAction): Capabilit
   return groupCapability[action];
 }
 
-const sendCapability: { readonly [K in OutgoingContent['type']]: Capability } = {
+const sendCapability: { readonly [K in Exclude<OutgoingContent['type'], 'album'>]: Capability } = {
   text: 'send.text',
   image: 'send.image',
   video: 'send.video',
@@ -105,10 +106,14 @@ const sendCapability: { readonly [K in OutgoingContent['type']]: Capability } = 
 
 /**
  * Capabilities que um envio exige: a do tipo de conteúdo, mais citação, menções e botões se
- * usados.
+ * usados. O álbum exige a de cada tipo de item, e não a `send.album`: sem ela, a fila o envia
+ * item a item (ADR 0065).
  */
 export function capabilitiesForSend(content: OutgoingContent, options?: SendOptions): Capability[] {
-  const required: Capability[] = [sendCapability[content.type]];
+  const required: Capability[] =
+    content.type === 'album'
+      ? [...new Set(content.items.map((item) => sendCapability[item.type]))]
+      : [sendCapability[content.type]];
   if (options?.quoted) required.push('quoted');
   if (options?.mentions && options.mentions.length > 0) required.push('mentions');
   if (options?.actions && options.actions.length > 0) required.push('actions');

@@ -4,6 +4,7 @@
 import type { MessageAction } from '#actions/actions.ts';
 import type { MessageText } from '#text/format.ts';
 import type {
+  AlbumItem,
   MediaInput,
   MessageKey,
   OutgoingContent,
@@ -91,6 +92,11 @@ export interface ReplyDocumentOptions extends ReplyOptions {
   readonly caption?: MessageText;
 }
 
+export interface ReplyAlbumOptions extends ReplyOptions {
+  /** Legenda do álbum, na primeira mensagem quando ele sai em partes. */
+  readonly caption?: MessageText;
+}
+
 export interface ReplyPollOptions extends ReplyOptions {
   /** Quantas opções cada pessoa pode marcar; padrão 1. */
   readonly selectableCount?: number;
@@ -110,5 +116,10 @@ export interface Reply {
   voice(media: MediaInput, options?: ReplyAudioOptions): Promise<MessageKey>;
   sticker(media: MediaInput, options?: ReplyOptions): Promise<MessageKey>;
   document(media: MediaInput, options: ReplyDocumentOptions): Promise<MessageKey>;
+  /**
+   * Várias mídias numa mensagem (ADR 0065). Sem a capability `send.album`, sai um item por
+   * mensagem, a legenda no primeiro; a chave é a da primeira. Álbum vazio rejeita com `TypeError`.
+   */
+  album(items: readonly AlbumItem[], options?: ReplyAlbumOptions): Promise<MessageKey>;
   poll(name: string, choices: readonly string[], options?: ReplyPollOptions): Promise<MessageKey>;
 }

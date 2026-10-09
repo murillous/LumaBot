@@ -97,6 +97,60 @@ describe('createMessage', () => {
   });
 });
 
+describe('createMessage: attachments (ADR 0065)', () => {
+  it('mensagem sem mídia tem attachments vazio', () => {
+    const msg = createMessage({ ...base, type: 'text', text: 'oi' });
+    expect(msg.attachments).toEqual([]);
+  });
+
+  it('sem a lista, attachments é a própria media, o mesmo objeto', () => {
+    const msg = createMessage({ ...base, type: 'image', text: null, media: source() });
+    expect(msg.attachments).toHaveLength(1);
+    expect(msg.attachments[0]).toBe(msg.media);
+  });
+
+  it('com a lista, mantém a ordem, e media divide o cache com o primeiro anexo', async () => {
+    const image = { ...source(), mimetype: 'image/png' };
+    const download = vi.fn(async () => Buffer.from('%PDF'));
+    const pdf = { mimetype: 'application/pdf', fileName: 'nota.pdf', download };
+    const msg = createMessage({
+      ...base,
+      type: 'image',
+      text: 'segue',
+      media: image,
+      attachments: [image, pdf],
+    });
+    expect(msg.type).toBe('image');
+    expect(msg.attachments.map((m) => m.mimetype)).toEqual(['image/png', 'application/pdf']);
+    expect(msg.attachments[0]).toBe(msg.media);
+    expect(msg.attachments[1]?.fileName).toBe('nota.pdf');
+    await msg.attachments[1]?.download();
+    await msg.attachments[1]?.download();
+    expect(download).toHaveBeenCalledOnce();
+  });
+
+  it('lista que não começa pela media lança TypeError', () => {
+    const create = () =>
+      createMessage({
+        ...base,
+        type: 'image',
+        text: null,
+        media: source(),
+        attachments: [source()],
+      });
+    expect(create).toThrow(TypeError);
+  });
+
+  it('anexo num tipo sem mídia lança TypeError; lista vazia passa', () => {
+    expect(() =>
+      createMessage({ ...base, type: 'text', text: 'oi', attachments: [source()] }),
+    ).toThrow(/não tem mídia/);
+    expect(
+      createMessage({ ...base, type: 'text', text: 'oi', attachments: [] }).attachments,
+    ).toEqual([]);
+  });
+});
+
 function source() {
   return { mimetype: 'audio/ogg', download: async () => Buffer.alloc(0) };
 }

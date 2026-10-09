@@ -139,6 +139,7 @@ const REPLY_METHODS = [
   'voice',
   'sticker',
   'document',
+  'album',
   'poll',
 ] as const satisfies readonly (keyof Reply)[];
 

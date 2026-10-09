@@ -119,6 +119,33 @@ await queue.send('123@g.us', textoLongo); // atalho: só o texto, cru ou formata
 
 O `ctx.send.edit` não divide: acima de `limits.text`, rejeita com `RangeError` sem enfileirar.
 
+## Álbum
+
+O conteúdo `{ type: 'album', items, caption? }` envia várias mídias de uma vez
+([ADR 0065](../../../docs/adr/0065-varios-anexos-e-albuns.md)). Os itens são `image`, `video` ou
+`document`, sem legenda própria; a legenda é do álbum.
+
+```ts
+await queue.send('123@g.us', {
+  type: 'album',
+  items: [
+    { type: 'image', media: foto },
+    { type: 'document', media: pdf, fileName: 'boletim.pdf', mimetype: 'application/pdf' },
+  ],
+  caption: 'Boletim do bimestre',
+});
+```
+
+- **Com a capability `send.album`**, o álbum vai ao transport em lotes de até `limits.album`
+  itens (sem o limite, inteiro). A legenda fica no primeiro lote.
+- **Sem ela**, cada item sai como mensagem comum, e a legenda vai no primeiro. O plugin não
+  escreve fallback.
+- **Lote de um item** sai como mensagem comum, porque o Telegram não aceita álbum de um.
+- **Capabilities:** nas duas formas, o envio exige a de cada tipo de item (`send.image`,
+  `send.document`...). Falta uma, e ele rejeita antes de sair.
+- **Partes:** valem as regras do texto longo. Só a primeira cita, as menções vão em todas, a
+  chave é a da primeira, e a legenda acima de `limits.caption` continua em texto.
+
 ## Erros e retry
 
 `send` resolve com a `MessageKey` ou rejeita com o erro final; nunca fica sem destino.
@@ -128,6 +155,7 @@ O `ctx.send.edit` não divide: acima de `limits.text`, rejeita com `RangeError` 
 | Transport sem a capability (`assertCanSend`) | Rejeita na hora com `UnsupportedError`, sem tentar |
 | `priority` inválida | Rejeita na hora com `TypeError` |
 | `limits.measure` do transport lançou | Rejeita na hora com o erro dele |
+| Álbum sem itens | Rejeita na hora com `TypeError` |
 | Backlog da prioridade cheio (`maxPending`) | Rejeita com `OutboundQueueError`, `reason: 'full'` |
 | Fila fechada | Rejeita com `OutboundQueueError`, `reason: 'closed'` |
 | Conexão caída além de `maxPauseMs` | Rejeita com `OutboundQueueError`, `reason: 'disconnected'` |
@@ -239,8 +267,9 @@ prazo do gancho é a rede de segurança.
 
 `createReply(sender, message, { quote })` devolve um `Reply`: chamado com texto (cru ou
 [formatado](text.md)), envia texto; os
-atalhos `text`, `image`, `video`, `audio`, `voice`, `sticker`, `document` e `poll` cobrem cada
-tipo de `OutgoingContent`. Todos enviam no chat de `message`, citando-a, com prioridade `high`
+atalhos `text`, `image`, `video`, `audio`, `voice`, `sticker`, `document`, `album` e `poll`
+cobrem cada tipo de `OutgoingContent`. O `album(items, { caption })` segue as regras do
+[álbum](#álbum). Todos enviam no chat de `message`, citando-a, com prioridade `high`
 (sobrescrevível por `priority`) e aceitam `mentions`.
 
 Quem monta o contexto passa `quote: false` quando o transport não tem a capability `quoted`

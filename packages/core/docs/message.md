@@ -46,6 +46,27 @@ if (msg.quoted?.is('sticker')) await msg.quoted.media.download();
   transport, sem carregar o arquivo inteiro em memória. Streams não são cacheados: cada
   chamada abre um novo. Para APIs do Node que pedem `Readable`, use `Readable.fromWeb(stream)`.
 
+## Vários anexos
+
+`attachments` traz todas as mídias da mensagem, na ordem da plataforma
+([ADR 0065](../../../docs/adr/0065-varios-anexos-e-albuns.md)). Uma mensagem do Discord com
+imagem e PDF, um álbum do Telegram ou os arquivos de uma mensagem do web chegam numa mensagem só.
+
+```ts
+for (const anexo of ctx.message.attachments) {
+  anexo.mimetype;           // 'image/png', 'application/pdf'...
+  anexo.fileName;           // string | undefined: nome do arquivo, quando a plataforma informa
+  const buffer = await anexo.download();
+}
+```
+
+- Sem mídia, `attachments` é vazio. Nos tipos de mídia, `attachments[0]` é o próprio `media`, o
+  mesmo objeto com o mesmo cache.
+- O `type` é o do primeiro anexo: imagem seguida de PDF é `image`. Por isso o `accepts`, o
+  `ctx.media` e o `message:image` tratam a mensagem como antes, pela primeira mídia. O comando que
+  quer os outros lê `ctx.message.attachments`.
+- Cada anexo tem o seu `download()` e `stream()`, lazy e com cache, como o `media`.
+
 ## `Contact.phone`
 
 `phone` é o telefone só com dígitos e DDI (`'5511999999999'`), ou `null` se o transport não
@@ -152,7 +173,24 @@ const msg = createMessage({
   grupo), com a mesma regra de `messageKey`.
 - `media` recebe um `MediaSource` (o loader nativo); `createMessage` o embrulha com
   `createMedia`, que aplica laziness e cache. `createMedia` também sai de
-  `@zapforge/core/adapter` para quem precisar de uma `Media` avulsa.
+  `@zapforge/core/adapter` para quem precisar de uma `Media` avulsa. O `fileName` do
+  `MediaSource` é opcional e vai para o `Media`.
+- Com mais de uma mídia, `attachments` recebe a lista de `MediaSource`, começando pela própria
+  `media`, e o `type` é o do primeiro. Sem a lista, `attachments` sai `[media]`, ou vazio nos tipos
+  sem mídia. O `createMessage` lança `TypeError` se a lista não começar pela `media` ou se vier
+  anexo num tipo sem mídia.
+
+```ts
+const [first, ...rest] = raw.attachments.map(toMediaSource); // ex.: anexos do Discord
+const msg = createMessage({
+  ...base,
+  type: typeOf(first),       // 'image', 'document'...
+  text: raw.content || null,
+  media: first,
+  attachments: [first, ...rest],
+  // `fileName` também, se o primeiro for documento
+});
+```
 
 ## Testes de tipo
 

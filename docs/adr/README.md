@@ -184,3 +184,4 @@ ADR 0055). Ao serem aceitos, entram aqui e no índice numérico.
 | [0062](0062-acoes-e-botoes.md) | D62 | Ações e botões: o clique dispara um comando, com fallback em texto numerado (detalha D12/D49/D60) | Aceito |
 | [0063](0063-prefixo-por-chat.md) | D63 | Prefixo por tipo de chat e por chat, vazio permitido (detalha D12/D60) | Aceito |
 | [0064](0064-comandos-nativos.md) | D64 | Comandos nativos: o transport lê a lista e confirma a interação na hora (detalha D37/D42/D62) | Aceito |
+| [0065](0065-varios-anexos-e-albuns.md) | D65 | Vários anexos na mensagem e envio em álbum (detalha D09/D10/D61) | Aceito |

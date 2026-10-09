@@ -63,4 +63,32 @@ describe('buildMessage', () => {
     );
     expect(() => buildMessage({})).toThrow(/text/);
   });
+
+  it('attachments vêm depois da mídia principal, que dá o type (ADR 0065)', async () => {
+    const message = buildMessage({
+      image: Buffer.from('png'),
+      attachments: [
+        { data: Buffer.from('%PDF'), mimetype: 'application/pdf', fileName: 'nota.pdf' },
+        Buffer.from('bin'),
+      ],
+    });
+
+    expect(message.type).toBe('image');
+    expect(message.attachments.map((m) => [m.mimetype, m.fileName])).toEqual([
+      ['image/jpeg', undefined],
+      ['application/pdf', 'nota.pdf'],
+      ['application/octet-stream', undefined],
+    ]);
+    if (!message.is('image')) throw new Error('esperava image');
+    expect(message.attachments[0]).toBe(message.media);
+    expect((await message.attachments[1]?.download())?.toString()).toBe('%PDF');
+  });
+
+  it('sem anexos, attachments é a mídia ou vazio; anexo sem mídia principal é recusado', () => {
+    expect(buildMessage({ text: 'oi' }).attachments).toEqual([]);
+    expect(buildMessage({ image: Buffer.from('a') }).attachments).toHaveLength(1);
+    expect(() => buildMessage({ text: 'oi', attachments: [Buffer.from('a')] })).toThrow(
+      /mídia principal/,
+    );
+  });
 });

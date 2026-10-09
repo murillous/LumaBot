@@ -94,6 +94,7 @@ export function createReply(
         },
         o,
       ),
+    album: (items, o = {}) => send({ type: 'album', items, ...captionFields(o.caption) }, o),
     poll: (name, choices, o = {}) =>
       send({ type: 'poll', name, options: choices, ...pick(o, 'selectableCount') }, o),
   };
