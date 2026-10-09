@@ -2,12 +2,14 @@ import { globSync, readFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { defineConfig } from 'vitest/config';
 
-// Um projeto por pacote do workspace. Projetos inline herdam esta config (extends: true);
-// por glob ('packages/*') não herdariam o resolve abaixo.
-const projects = globSync('{packages,plugins,apps}/*/package.json').map((manifest) => {
-  const { name } = JSON.parse(readFileSync(manifest, 'utf8')) as { name: string };
-  return { test: { name, root: dirname(manifest) } };
-});
+// Um projeto por pacote do workspace, o `bench/` inclusive. Projetos inline herdam esta config
+// (extends: true); por glob ('packages/*') não herdariam o resolve abaixo.
+const projects = globSync(['{packages,plugins,apps}/*/package.json', 'bench/package.json']).map(
+  (manifest) => {
+    const { name } = JSON.parse(readFileSync(manifest, 'utf8')) as { name: string };
+    return { test: { name, root: dirname(manifest) } };
+  },
+);
 
 export default defineConfig({
   // Resolve @zapforge/* direto no src/ (condição de exports), sem build antes dos testes.

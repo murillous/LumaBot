@@ -185,6 +185,18 @@ importers:
         specifier: ^5.0.3
         version: 5.0.3(@types/node@24.19.1)(vite@8.3.2(@types/node@24.19.1)(yaml@2.9.1))
 
+  bench:
+    dependencies:
+      '@zapforge/core':
+        specifier: workspace:*
+        version: link:../packages/core
+      '@zapforge/testing':
+        specifier: workspace:*
+        version: link:../packages/testing
+      zod:
+        specifier: ^4.6.5
+        version: 4.6.5
+
   packages/core:
     dependencies:
       pino:
