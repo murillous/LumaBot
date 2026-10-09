@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": { "rootDir": "src", "outDir": ".tsbuild" },
+  "include": ["src"],
+  "references": [
+    { "path": "../../packages/core" },
+    { "path": "../../packages/storage-sqlite" },
+    { "path": "../../packages/transport-baileys" },
+    { "path": "../../packages/testing" }
+  ]
+}
