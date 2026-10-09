@@ -133,6 +133,7 @@ Plano §5.3 e [ADR 0012](../../../docs/adr/0012-pipeline-de-3-estagios.md):
 transport 'message' ou 'message.edited'
   → fila de entrada (mesmo chat em série)
   → middlewares (onion, por prioridade)          interrompeu? fim
+    → resposta esperada (só 'message')           há espera e não é comando? roda o passo e consome
     → roteador de comandos (só 'message')        casou? roda o comando e consome
     → barramento: listeners de 'message' e 'message:<tipo>' (ou de 'message.edited'),
       em paralelo, com claim()
@@ -159,6 +160,10 @@ ctx.reply()/ctx.send → fila de saída → transport
   solta do handler (ver [Eventos](events.md#trabalho-longo-solte-o-chat)). Com o backlog em
   `inbound.maxPendingPerChat`, as mensagens novas do chat são descartadas, com `warn` e
   `stats().inbound.dropped`.
+- **Resposta esperada** ([Conversas](conversations.md), [ADR 0060](../../../docs/adr/0060-resposta-esperada.md)):
+  se o remetente tem uma espera neste chat (`expectReply`), a mensagem vai ao passo do plugin e
+  para ali. Se o texto casa com um comando, a espera é descartada e o comando roda. O passo tem o
+  prazo do comando e, se falhar, vira `plugin.error` com `phase: 'step'`.
 - **Comando que casa consome** a mensagem, mesmo recusado (papel, `accepts`) ou com erro. A
   resposta de `onReject` sai pelo `ctx.reply`. Comando que lança vira `plugin.error`
   (`phase: 'command'`, `event` = nome do comando) e uma linha de log em `error`; o chat segue.
@@ -257,6 +262,7 @@ instância, sempre em nome do plugin:
 | `log` | logger do bot com `{ plugin }` |
 | `signal` | aborta no descarte do contexto (teardown, reload, `setup` que falhou ou estourou o prazo) |
 | `commands.add` | roteador do bot; o `run`/`onReject` recebem `log` com `plugin` e `chatId` |
+| `conversations.define` | passos de conversa do bot ([Conversas](conversations.md)); o passo recebe `log` do plugin, `signal` e `expectReply` |
 | `roles.define` | papéis do roteador ([papéis custom](commands.md#papéis-custom)); o `check` recebe `log` do plugin dono e `signal` |
 | `events` | barramento do bot |
 | `services` | registry do bot |
@@ -265,8 +271,8 @@ instância, sempre em nome do plugin:
 | `send` | fila de saída |
 | `unsafe` | escape hatch, com aviso uma vez por plugin |
 
-No `teardown`/reload o bot remove tudo o que o plugin registrou (comandos, papéis, listeners,
-serviços, handlers de job). Um `setup` que estoura o prazo continua rodando em segundo plano; depois do
+No `teardown`/reload o bot remove tudo o que o plugin registrou (comandos, papéis, passos e
+esperas de conversa, listeners, serviços, handlers de job). Um `setup` que estoura o prazo continua rodando em segundo plano; depois do
 descarte, o contexto **recusa** `commands.add`, `roles.define`, `events.on`, `services.provide`
 e `scheduler.on` (lançam `PluginHostStateError`), para nada ficar órfão, e `send`, `storage` (KV e
 coleções) e `scheduler.at`/`cancel` (rejeitam com `ContextExpiredError`), para nenhum efeito sair

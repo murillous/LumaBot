@@ -234,3 +234,32 @@ describe('createTestBot', () => {
     expect(seen.map((m) => m.chat)).toEqual([{ id: 'outro@fake', isGroup: false }]);
   });
 });
+
+describe('createTestBot: conversa com resposta esperada (ADR 0060)', () => {
+  it('cada receive assenta: a pergunta sai antes da resposta, e a resposta vai ao passo', async () => {
+    const notas = definePlugin({
+      name: 'notas',
+      version: '1.0.0',
+      engine: ENGINE,
+      setup(ctx) {
+        ctx.commands.add(
+          command({
+            name: 'notas',
+            run: async (c) => {
+              await c.reply('De qual aluno?');
+              c.expectReply('aluno');
+            },
+          }),
+        );
+        ctx.conversations.define('aluno', (c) => c.reply(`Notas de ${c.text}`));
+      },
+    });
+    const bot = await testBot({ plugins: [notas] });
+
+    await bot.receive({ text: '!notas' });
+    expect(bot.sent).toContainText('De qual aluno?');
+    await bot.receive({ text: 'Maria' });
+
+    expect(bot.sent).toContainText('Notas de Maria');
+  });
+});

@@ -239,6 +239,11 @@ deve esperar, responda "baixando…" e solte o trabalho do `run`, como no
 [padrão dos listeners](events.md#trabalho-longo-solte-o-chat). A consulta de admin e os papéis
 custom seguem com o `commandMs`.
 
+Para perguntar algo e tratar a resposta, o `run` não espera a próxima mensagem: ela está na fila
+atrás dele. Ele envia a pergunta, chama `c.expectReply(passo)` e termina, e a resposta vai ao
+passo ([Conversas](conversations.md)). Um comando digitado enquanto a espera vale a cancela e
+roda normalmente.
+
 ### `ctx.signal` e o que acontece depois do prazo
 
 No bot, o contexto do `run` traz `signal: AbortSignal`, que aborta quando o prazo estoura

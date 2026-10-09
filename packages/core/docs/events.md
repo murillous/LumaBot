@@ -35,6 +35,8 @@ Em `message`, `message:<tipo>` e `message.edited`, o contexto traz também
 | `message` | a mesma mensagem de `payload` |
 | `text` | o texto de trabalho, depois dos middlewares (ex.: truncado pelo `sanitize`) |
 | `reply` | responde no chat, citando a mensagem, pela fila de saída |
+| `react` | reage à mensagem (capability `reactions`) |
+| `expectReply` | manda a próxima mensagem do remetente, neste chat, a um passo do plugin ([Conversas](conversations.md)) |
 | `log` | logger com `plugin` e `chatId` |
 
 ```ts
@@ -84,7 +86,7 @@ nenhum prazo resolve isso.
 | `connection.status` / `connection.qr` | `ConnectionStatus` / `{ qr }` |
 | `connection.pairing-code` | `{ code }` (pareamento por código, ADR 0050) |
 | `command` | `CommandEvent`: `{ plugin, name, invokedAs, status, message }` ([abaixo](#comandos-command)) |
-| `plugin.error` | `PluginErrorEvent`: `{ plugin, phase, event, error, timedOut }` |
+| `plugin.error` | `PluginErrorEvent`: `{ plugin, phase, event, error, timedOut }`; `phase` é `listener`, `command`, `step` (passo de conversa), `role`, `setup`, `teardown` ou `scheduler` |
 
 ### Opções
 
