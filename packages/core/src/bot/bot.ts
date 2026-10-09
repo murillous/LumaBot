@@ -17,7 +17,7 @@ import { createDeferredLogger } from '#logger/deferred.ts';
 import { createLogger, createNoopLogger } from '#logger/logger.ts';
 import { createSecretSet, type SecretSet } from '#logger/secrets.ts';
 import type { Logger, LogLevel } from '#logger/types.ts';
-import type { Message } from '#message/types.ts';
+import type { Chat, Message } from '#message/types.ts';
 import { type ChatFilterOptions, chatAllowed, chatFilter } from '#middleware/chat-filter.ts';
 import { ignoreBots } from '#middleware/ignore-bots.ts';
 import { ignoreSelf } from '#middleware/ignore-self.ts';
@@ -261,27 +261,28 @@ type DirectEvent = Extract<
   | 'contact.updated'
 >;
 
-/** O que os filtros do ADR 0038 leem de um evento; `chatId: null` = não passa pelo `chatFilter`. */
+/** O que os filtros do ADR 0038 leem de um evento; `chat: null` = não passa pelo `chatFilter`. */
 interface EventOrigin {
-  readonly chatId: string | null;
+  /** Com o `parentId`, para o `chatFilter` casar também o espaço (ADR 0058). */
+  readonly chat: Pick<Chat, 'id' | 'parentId'> | null;
   readonly fromMe: boolean;
   /** Autor do evento, para o `ignoreBots` (ADR 0057). */
   readonly fromBot: boolean;
 }
 
-const ALWAYS_PASSES: EventOrigin = { chatId: null, fromMe: false, fromBot: false };
+const ALWAYS_PASSES: EventOrigin = { chat: null, fromMe: false, fromBot: false };
 
 /**
  * Origem de cada evento direto, para o `chatFilter`, o `ignoreSelf` e o `ignoreBots` (ADR 0038).
  */
 const DIRECT_EVENTS: { readonly [E in DirectEvent]: (payload: BotEvents[E]) => EventOrigin } = {
   'message.deleted': (payload) => ({
-    chatId: payload.chat.id,
+    chat: payload.chat,
     fromMe: payload.fromMe,
     fromBot: payload.deletedBy?.isBot === true,
   }),
   reaction: (payload) => ({
-    chatId: payload.chat.id,
+    chat: payload.chat,
     fromMe: payload.fromMe,
     fromBot: payload.sender.isBot === true,
   }),
@@ -289,8 +290,12 @@ const DIRECT_EVENTS: { readonly [E in DirectEvent]: (payload: BotEvents[E]) => E
   // estado, então passam mesmo com o grupo bloqueado.
   'group.joined': () => ALWAYS_PASSES,
   'group.left': () => ALWAYS_PASSES,
-  'group.participants': (payload) => ({ chatId: payload.groupId, fromMe: false, fromBot: false }),
-  'group.updated': (payload) => ({ chatId: payload.groupId, fromMe: false, fromBot: false }),
+  'group.participants': (payload) => ({
+    chat: { id: payload.groupId },
+    fromMe: false,
+    fromBot: false,
+  }),
+  'group.updated': (payload) => ({ chat: { id: payload.groupId }, fromMe: false, fromBot: false }),
   // Contato não é de um chat: bloquear um chat não esconde quem está nele de outros chats.
   'contact.updated': () => ALWAYS_PASSES,
 };
@@ -556,9 +561,9 @@ export function createBot(config: BotConfig): Bot {
     return transport.on(event, (transportPayload) => {
       // `BotEvents` estende `TransportEvents`: o payload é o mesmo tipo.
       const payload = transportPayload as BotEvents[E];
-      const { chatId, fromMe, fromBot } = origin(payload);
+      const { chat, fromMe, fromBot } = origin(payload);
       if ((fromMe && dropsSelf) || (fromBot && dropsBots)) return;
-      if (chatId !== null && !chatIsAllowed(chatId)) return;
+      if (chat !== null && !chatIsAllowed(chat)) return;
       if (ready) {
         void bus.emit(event, payload);
         return;

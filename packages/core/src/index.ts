@@ -76,6 +76,7 @@ export type { LogFields, Logger, LogLevel } from '#logger/types.ts';
 export type {
   AudioMessage,
   Chat,
+  ChatKind,
   Contact,
   ContactMessage,
   DocumentMessage,

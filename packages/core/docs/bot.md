@@ -227,8 +227,8 @@ aplica as regras antes de repassá-los ao barramento:
 
 | Evento | `chatFilter` (por) | `ignoreSelf` | `ignoreBots` |
 | --- | --- | --- | --- |
-| `reaction` | `chat.id` | barra `fromMe: true` | barra `sender.isBot` |
-| `message.deleted` | `chat.id` | barra `fromMe: true` | barra `deletedBy.isBot` |
+| `reaction` | `chat.id` ou `chat.parentId` | barra `fromMe: true` | barra `sender.isBot` |
+| `message.deleted` | `chat.id` ou `chat.parentId` | barra `fromMe: true` | barra `deletedBy.isBot` |
 | `group.participants`, `group.updated` | `groupId` | — | — |
 | `group.joined`, `group.left`, `contact.updated` | sempre passam | — | — |
 | `connection.status`, `connection.qr`, `connection.pairing-code` | — | — | — |

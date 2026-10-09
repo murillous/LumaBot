@@ -72,6 +72,7 @@ const entries: Record<string, { file: string; load: () => Promise<object> } & En
       'BotTimeouts',
       'Capability',
       'Chat',
+      'ChatKind',
       'ChatFilterOptions',
       'Collection',
       'CollectionOptions',

@@ -44,6 +44,29 @@ describe('chatFilter', () => {
   it('sem listas deixa tudo passar', async () => {
     await expect(passes(chatFilter({}), { chatId: 'qualquer' })).resolves.toBe(true);
   });
+
+  it('allow com o espaço libera todos os chats dele (ADR 0058)', async () => {
+    const filter = chatFilter({ allow: ['servidor'] });
+    await expect(passes(filter, { chatId: 'canal', chatParentId: 'servidor' })).resolves.toBe(true);
+    await expect(passes(filter, { chatId: 'canal', chatParentId: 'outro' })).resolves.toBe(false);
+    await expect(passes(filter, { chatId: 'canal' })).resolves.toBe(false);
+  });
+
+  it('block com o espaço barra os chats dele, e o canal bloqueado vence o servidor liberado', async () => {
+    const porEspaco = chatFilter({ block: ['servidor'] });
+    await expect(passes(porEspaco, { chatId: 'canal', chatParentId: 'servidor' })).resolves.toBe(
+      false,
+    );
+    await expect(passes(porEspaco, { chatId: 'canal' })).resolves.toBe(true);
+
+    const porCanal = chatFilter({ allow: ['servidor'], block: ['canal'] });
+    await expect(passes(porCanal, { chatId: 'canal', chatParentId: 'servidor' })).resolves.toBe(
+      false,
+    );
+    await expect(passes(porCanal, { chatId: 'geral', chatParentId: 'servidor' })).resolves.toBe(
+      true,
+    );
+  });
 });
 
 describe('RateLimiter', () => {

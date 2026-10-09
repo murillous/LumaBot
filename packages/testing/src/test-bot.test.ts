@@ -138,6 +138,39 @@ describe('createTestBot', () => {
     expect(bot.sent).toContainText('@ana diretora');
   });
 
+  it('chat de thread, com espaço e título, chega ao plugin e a resposta vai ao chat.id (ADR 0058)', async () => {
+    const plugin = definePlugin({
+      name: 'onde',
+      version: '1.0.0',
+      engine: ENGINE,
+      setup(ctx) {
+        ctx.commands.add(
+          command({
+            name: 'onde',
+            run: (c) => {
+              const { kind, parentId, title } = c.message.chat;
+              return c.reply(`${kind ?? '?'} ${parentId ?? '?'} ${title ?? '?'}`);
+            },
+          }),
+        );
+      },
+    });
+    const bot = await testBot({ plugins: [plugin] });
+
+    await bot.receive({
+      text: '!onde',
+      chat: {
+        id: '-100123/45',
+        isGroup: true,
+        kind: 'thread',
+        parentId: '-100123',
+        title: 'Avisos',
+      },
+    });
+    expect(bot.sent).toContainText('thread -100123 Avisos');
+    expect(bot.sent[0]?.chatId).toBe('-100123/45');
+  });
+
   it('mensagem de outro bot não roda comando', async () => {
     const bot = await testBot({ plugins: [ping()] });
 
