@@ -9,6 +9,7 @@ export {
   type FakeTransportOptions,
   type SentMessage,
 } from './fake-transport.ts';
+export { fixtures, type MediaFixture } from './fixtures.ts';
 export {
   DEFAULT_CHAT,
   DEFAULT_SENDER,
