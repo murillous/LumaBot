@@ -2,7 +2,7 @@ import { CommandConflictError } from '#commands/registry.ts';
 import { RoleConflictError } from '#commands/roles.ts';
 import { createCommandRouter, type IsGroupAdmin } from '#commands/router.ts';
 import type { ConfigEnv } from '#config/env.ts';
-import { BotConfigError, normalizeOwners } from '#config/owners.ts';
+import { BotConfigError, type BotOwner, normalizeOwners } from '#config/owners.ts';
 import {
   createPluginConfigs,
   type PluginConfigFile,
@@ -142,8 +142,11 @@ export interface BotConfig {
   readonly pluginConfig?: PluginConfigFile;
   /** Ambiente da config de plugin (`ZAPFORGE_*`). Padrão: `process.env`. */
   readonly env?: ConfigEnv;
-  /** Telefones dos donos (`role: 'owner'`); aceitos com pontuação, normalizados no `createBot`. */
-  readonly owners?: readonly string[];
+  /**
+   * Donos (`role: 'owner'`): telefone, aceito com pontuação e normalizado no `createBot`, ou
+   * `{ id }` com o ID nativo do contato, para plataformas sem telefone.
+   */
+  readonly owners?: readonly BotOwner[];
   /** Prefixo de comando. Padrão: `'!'`. */
   readonly prefix?: string;
   /**

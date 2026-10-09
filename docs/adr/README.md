@@ -175,3 +175,4 @@ ADR 0055). Ao serem aceitos, entram aqui e no índice numérico.
 | [0053](0053-core-testa-sem-o-kit.md) | D53 | O core se testa com apoios próprios, não com o `@zapforge/testing` (detalha D22/D52) | Aceito |
 | [0054](0054-baseline-do-benchmark.md) | D54 | Baseline do benchmark medido no mesmo job, a partir do commit base (detalha D30) | Aceito |
 | [0055](0055-plataformas-alvo-e-transport-web.md) | D55 | Plataformas-alvo e um transport fora do WhatsApp antes do 1.0 (substitui parte de D03, detalha D29) | Aceito |
+| [0056](0056-owners-por-telefone-ou-id.md) | D56 | Owners por telefone ou por ID do contato (detalha D24/D46) | Aceito |

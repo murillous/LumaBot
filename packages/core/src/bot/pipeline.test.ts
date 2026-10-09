@@ -323,6 +323,21 @@ describe('Bot: fluxo da mensagem (§5.3)', () => {
     );
   });
 
+  it("role 'owner' reconhece owner { id } em remetente sem telefone (MP-2)", async () => {
+    const transport = new RecordingTransport();
+    const b = bot({
+      transport,
+      plugins: [ecoPlugin(), saudacao],
+      owners: [{ id: '123456789012345678' }],
+    });
+    await b.start();
+
+    transport.emit('message', message('!config', { sender: { id: '123456789012345678' } }));
+    transport.emit('message', message('!config', { sender: { id: '876543210987654321' } }));
+
+    await vi.waitFor(() => expect(sentTexts(transport)).toEqual(['ok, dono', 'Só o dono']));
+  });
+
   it('comando que falha vira plugin.error (phase command) e log, e o chat segue', async () => {
     const transport = new RecordingTransport();
     const logger = recordingLogger();

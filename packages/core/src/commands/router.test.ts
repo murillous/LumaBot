@@ -478,6 +478,47 @@ describe('roteador: owners por telefone (M1-16.4)', () => {
   });
 });
 
+describe('roteador: owners por id (MP-2)', () => {
+  it('owner { id } casa com sender.id em remetente sem telefone', async () => {
+    const router = createCommandRouter({ owners: [{ id: '123456789012345678' }] });
+    router.registry.add('admin', spyCommand({ role: 'owner' }).def);
+
+    const owner = await router.dispatch(
+      ctxOf({ text: '!s', sender: '123456789012345678', phone: null }),
+    );
+    const other = await router.dispatch(
+      ctxOf({ text: '!s', sender: '876543210987654321', phone: null }),
+    );
+
+    expect(owner.status).toBe('ran');
+    expect(other).toMatchObject({ status: 'rejected', rejection: { reason: 'role' } });
+  });
+
+  it('owner { id } não casa com sender.phone, nem telefone casa com { id }', async () => {
+    const router = createCommandRouter({ owners: [{ id: '5511999999999' }] });
+    router.registry.add('admin', spyCommand({ role: 'owner' }).def);
+
+    const result = await router.dispatch(
+      ctxOf({ text: '!s', sender: '1@lid', phone: '5511999999999' }),
+    );
+
+    expect(result.status).toBe('rejected');
+  });
+
+  it('owner { id } é superusuário também em group-admin', async () => {
+    const isGroupAdmin = vi.fn(() => false);
+    const router = createCommandRouter({ owners: [{ id: 'dono' }], isGroupAdmin });
+    router.registry.add('admin', spyCommand({ role: 'group-admin' }).def);
+
+    const result = await router.dispatch(
+      ctxOf({ text: '!s', sender: 'dono', phone: null, isGroup: true }),
+    );
+
+    expect(result.status).toBe('ran');
+    expect(isGroupAdmin).not.toHaveBeenCalled();
+  });
+});
+
 describe('roteador: texto de trabalho ctx.text (M1-16.2)', () => {
   it('casa pelo ctx.text quando presente, em vez de message.text', async () => {
     const router = createCommandRouter();
