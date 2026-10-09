@@ -16,7 +16,104 @@ Um arquivo por decisão, `NNNN-slug.md`, com:
 ADRs aceitos não são reescritos: uma mudança de decisão vira um ADR novo que substitui
 o anterior, e o antigo passa a apontar para ele no Status.
 
-## Índice
+## Índice por tema
+
+Atalho de navegação: cada ADR aparece no tema principal dele. O índice numérico abaixo continua
+sendo a referência; um ADR novo entra nos dois.
+
+**Fundação, tooling e forma do pacote**
+
+- [0001](0001-monorepo-pnpm-workspaces.md) — Monorepo com pnpm workspaces
+- [0002](0002-typescript-no-kernel.md) — TypeScript no kernel, publicado com `.d.ts`
+- [0026](0026-tooling.md) — Tooling: Node 24, pnpm, tsdown, Vitest, Biome
+- [0030](0030-metas-de-performance.md) — Metas de performance com benchmark no CI
+- [0034](0034-biblioteca-sem-runner.md) — ZapForge é uma biblioteca, sem runner; API pública por público
+
+**Projeto: migração, licença, release e nome**
+
+- [0023](0023-migracao-incremental-legacy.md) — Migração incremental (`legacy/`)
+- [0025](0025-sem-i18n-objeto-messages.md) — Sem i18n formal na v1; objeto `messages`
+- [0027](0027-releases-changesets.md) — Releases com Changesets
+- [0028](0028-licenca-apache-2.md) — Licença Apache-2.0
+- [0029](0029-open-core-repo-privado.md) — Open core com repo privado
+- [0031](0031-nome-zapforge.md) — Nome: ZapForge
+
+**Bot, sessão e escopo do core**
+
+- [0004](0004-uma-sessao-por-processo.md) — Uma sessão por processo, zero estado global
+- [0013](0013-escopo-do-core.md) — Escopo do core
+- [0036](0036-escopo-de-sessao.md) — Escopo de sessão no bot e no storage (detalha D04/D14)
+
+**Transport e conexão**
+
+- [0003](0003-transport-abstrato.md) — `Transport` abstrato, só Baileys na v1
+- [0010](0010-capabilities-do-transporte.md) — Capabilities do transporte + `requires`
+- [0011](0011-escape-hatch-unsafe-native.md) — Escape hatch `ctx.unsafe.native`
+- [0037](0037-transport-por-fabrica.md) — Transport recebe as dependências do bot por fábrica (detalha D03)
+- [0045](0045-queda-de-rede-nao-limpa-sessao.md) — Queda de rede nunca limpa a sessão (detalha D03/D37)
+- [0048](0048-connect-resolve-ao-iniciar.md) — `connect()` resolve ao iniciar a tentativa; queda antes do fim não se perde (detalha D03/D39/D45)
+- [0050](0050-codigo-de-pareamento.md) — Código de pareamento chega por evento, como o QR (detalha D03/D13)
+
+**Mensagem e identidade**
+
+- [0009](0009-modelo-de-mensagem-normalizado.md) — Modelo de mensagem normalizado
+- [0046](0046-ids-de-contato-e-metadata-de-grupo.md) — Ids de contato em espaços diferentes e custo do `getGroupMetadata` (detalha D03/D09)
+
+**Pipeline, comandos e papéis**
+
+- [0012](0012-pipeline-de-3-estagios.md) — Pipeline de 3 estágios
+- [0024](0024-papeis-no-core.md) — Papéis no core
+- [0035](0035-papeis-nomeados-por-plugin.md) — Papéis custom nomeados, definidos por plugin (substitui parte de D12/D24)
+- [0038](0038-filtro-de-eventos-no-kernel.md) — chatFilter e ignoreSelf valem para os eventos que não são mensagem (detalha D24)
+- [0042](0042-handler-lento-segura-o-chat.md) — Comando e listener lentos seguram o chat (detalha D05/D12)
+- [0043](0043-prazo-de-middleware.md) — Middleware do app tem prazo, contado fora do `next()` (detalha D12)
+- [0049](0049-evento-de-comando.md) — Evento `command`: o plugin observa o comando que consumiu a mensagem (detalha D12/D40)
+
+**Plugins: carga, config, services e execução**
+
+- [0005](0005-plugins-no-mesmo-processo.md) — Plugins no mesmo processo, isolados por try/catch + timeout
+- [0006](0006-luma-e-um-plugin.md) — Luma é um plugin (`plugin-ai`)
+- [0007](0007-plugins-via-npm-e-pasta.md) — Plugins via npm e via pasta (`pluginDirs`)
+- [0008](0008-sem-hot-reload.md) — Sem hot-reload de código na v1
+- [0016](0016-manifesto-do-plugin.md) — Manifesto do plugin
+- [0017](0017-config-por-plugin-zod.md) — Config por plugin com Zod 4
+- [0018](0018-service-registry.md) — Service registry entre plugins
+- [0032](0032-camadas-da-config-de-plugin.md) — Camadas e convenções da config de plugin (detalha D17)
+- [0033](0033-cancelamento-cooperativo.md) — Cancelamento cooperativo do código de plugin (detalha D05)
+- [0041](0041-reload-em-cascata.md) — Reload de plugin em cascata pelos dependentes (detalha D17/D18)
+
+**Fila de saída e ações do transport**
+
+- [0019](0019-fila-de-saida-anti-ban.md) — Fila de saída anti-ban no core
+- [0039](0039-fila-de-saida-e-conexao.md) — Fila de saída pausa com a conexão caída e tem prazo por envio (detalha D19)
+- [0040](0040-acoes-do-transport-no-plugin.md) — Ações e leituras do transport chegam ao plugin pela API pública (detalha D16/D19)
+- [0047](0047-espera-na-fila-de-saida-fora-do-prazo.md) — A espera na fila de saída não conta no prazo do handler (detalha D19/D33/D42)
+
+**Storage**
+
+- [0014](0014-storage-port-sqlite-postgres.md) — `StoragePort` com SQLite e Postgres na v1; auth state no port
+- [0015](0015-storage-kv-e-colecoes.md) — Storage: KV com namespace + coleções
+- [0051](0051-sqlite-via-node-sqlite.md) — SQLite pelo `node:sqlite`, com schema único e migrations do adapter (detalha D14/D15)
+
+**HTTP e dashboard**
+
+- [0020](0020-http-unico-hono.md) — Servidor HTTP único no core (Hono)
+- [0021](0021-dashboard-vira-plugin.md) — Dashboard vira plugin
+
+**Testes e kit de autor**
+
+- [0022](0022-kit-de-autor.md) — Kit de autor na v1
+- [0044](0044-espera-pelo-bot-assentar.md) — `bot.settled()` espera o bot processar o que recebeu (detalha D22/D34)
+- [0052](0052-kit-de-testes-sobre-o-vitest.md) — Kit de testes sobre o Vitest, com `receive()` que espera o bot assentar (detalha D22/D44)
+- [0053](0053-core-testa-sem-o-kit.md) — O core se testa com apoios próprios, não com o `@zapforge/testing` (detalha D22/D52)
+
+**Multiplataforma (a escrever)**
+
+As decisões para atender WhatsApp, Discord, Telegram e sistemas web estão nas issues da
+[#265](https://github.com/murillous/LumaBot/issues/265) e vão virar ADRs por tema (ver
+[#266](https://github.com/murillous/LumaBot/issues/266)). Ao serem aceitos, entram aqui e no índice numérico.
+
+## Índice numérico
 
 | ADR | Decisão | Título | Status |
 |---|---|---|---|
