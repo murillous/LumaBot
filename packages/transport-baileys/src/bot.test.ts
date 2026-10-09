@@ -67,6 +67,23 @@ describe('BaileysTransport no Bot', () => {
     expect(driver.last.config.auth.creds.registered).toBe(false);
   });
 
+  it('credencial rejeitada (403) limpa a sessão e volta a parear: o Baileys tem pairing (ADR 0068)', async () => {
+    const { driver, bot, auth } = start();
+    await bot.start();
+    driver.last.updateCreds({ registered: true });
+    await vi.waitFor(async () => expect(await auth.getCreds()).toBeDefined());
+    driver.last.emit('connection.update', { connection: 'open' });
+    driver.last.emit('connection.update', {
+      connection: 'close',
+      lastDisconnect: { error: boom(DisconnectReason.forbidden), date: new Date() },
+    });
+
+    await vi.waitFor(() => expect(driver.sockets).toHaveLength(2));
+    expect(await auth.getCreds()).toBeUndefined();
+    expect(driver.last.config.auth.creds.registered).toBe(false);
+    expect(bot.state).toBe('running');
+  });
+
   it('queda de rede reconecta sem apagar as credenciais (ADR 0045)', async () => {
     const { driver, bot, auth } = start();
     await bot.start();

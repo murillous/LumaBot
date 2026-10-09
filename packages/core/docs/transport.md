@@ -475,7 +475,11 @@ mantém cache por grupo e o invalida em `group.participants` e `group.updated` (
 
 `actions`, `groups`, `groups.add`, `groups.remove`, `groups.promote`, `mentions`, `reactions`, `presence`,
 `send.text`, `send.image`, `send.video`, `send.audio`, `send.voice`, `send.sticker`, `send.document`, `send.album`, `media.download`,
-`message.edit`, `message.delete`, `polls`, `quoted`.
+`message.edit`, `message.delete`, `polls`, `quoted`, `pairing`.
+
+`pairing` não é de envio: diz que a sessão se pareia por QR ou código (`connection.qr`,
+`connection.pairing-code`). Com ela, credencial rejeitada (`auth-failed`) limpa a sessão e pareia
+de novo; sem ela (transport por token), o bot para ([Política de reconexão](#política-de-reconexão)).
 
 O transport declara o subconjunto que suporta em `capabilities`. Helpers (de
 `@zapforge/core/adapter`; o plugin só vê o tipo `Capability` e o `UnsupportedError`, de
@@ -500,15 +504,17 @@ boot o plugin cujo `requires` não fecha; o erro em runtime é a rede de seguran
 atraso, e quem a chama aguarda, limpa a sessão e reconecta. No bot isso já está ligado
 (`createBot({ reconnection })`, ver [Bot → Reconexão](bot.md#reconexão)); o exemplo abaixo é para
 quem usa o transport sem o bot. O adapter mapeia o código nativo
-para um `DisconnectReason` (`qr-timeout`, `logged-out`, `auth-failed`, `replaced`,
+para um `DisconnectReason` (`qr-timeout`, `logged-out`, `auth-failed`, `fatal`, `replaced`,
 `server-error`, `connection-lost`, `unknown`). `replaced` é a conexão derrubada por outra da
-mesma sessão (no Baileys, `DisconnectReason.connectionReplaced`).
+mesma sessão (no Baileys, `DisconnectReason.connectionReplaced`). `fatal` é erro de configuração
+que reconectar não resolve ([ADR 0068](../../../docs/adr/0068-desconexao-fatal-e-transport-sem-pareamento.md)).
 
 ```ts
-import { ReconnectionPolicy } from '@zapforge/core/adapter';
+import { hasCapability, ReconnectionPolicy } from '@zapforge/core/adapter';
 
 const policy = new ReconnectionPolicy({
   backoff: (attempt) => Math.min(1_000 * 2 ** attempt, 30_000), // padrão: 5 s × n, até 15 s
+  pairing: hasCapability(transport, 'pairing'), // padrão: true
 });
 
 transport.on('connection.qr', () => policy.qrPresented());
@@ -517,7 +523,7 @@ transport.on('connection.status', async (s) => {
   if (s.status === 'open') return policy.connected();
   if (s.status !== 'closed') return;
   const decision = policy.decide(s.reason);
-  if (decision.action === 'stop') return encerrar(); // outra conexão assumiu a sessão
+  if (decision.action === 'stop') return encerrar(decision.cause); // replaced, fatal ou auth-failed
   await sleep(decision.delayMs);
   if (decision.action === 'clean-session') await authState.clear();
   await transport.connect();
@@ -529,10 +535,47 @@ transport.on('connection.status', async (s) => {
 | `connection-lost`, `unknown` | `reconnect` com backoff, sem limite de tentativas: queda de rede nunca limpa a sessão ([ADR 0045](../../../docs/adr/0045-queda-de-rede-nao-limpa-sessao.md)) |
 | `server-error` | `reconnect` com atraso fixo (`serverErrorDelayMs`), sem gastar tentativa |
 | `qr-timeout` | `reconnect` (novo QR); após `maxQrCount` QRs, `clean-session` (`qr-limit`) |
-| `logged-out`, `auth-failed` | `clean-session` |
+| `logged-out` | `clean-session` |
+| `auth-failed` | com `pairing` (padrão), `clean-session`; com `pairing: false`, `stop` (causa `auth-failed`): limpar não traz token novo |
+| `fatal` | `stop` (causa `fatal`): outra tentativa repetiria o erro |
 | `replaced` | `stop`: não reconectar. Duas conexões do mesmo número se derrubariam em laço ([ADR 0036](../../../docs/adr/0036-escopo-de-sessao.md)) |
 
 `decide()` assume que a decisão será executada e avança o estado. Uma limpeza que viria antes
 de `minCleanIntervalMs` da anterior é adiada (o `delayMs` cresce), evitando loop de limpeza.
 Relógio (`now`) e estado inicial (`initialState`) são injetáveis; `policy.state` expõe os
-contadores para log.
+contadores para log. O `Bot` lê o `pairing` da capability do transport.
+
+### Mapeando o motivo
+
+Reserve `logged-out` e `auth-failed` para credencial rejeitada de fato, e `fatal` para o que só
+uma pessoa corrige: uma rede instável mapeada para um deles apaga a sessão ou para o bot
+([ADR 0045](../../../docs/adr/0045-queda-de-rede-nao-limpa-sessao.md)). Na dúvida,
+`connection-lost` ou `unknown`, que reconectam.
+
+| Plataforma | Nativo | Motivo |
+| --- | --- | --- |
+| Discord | close code 4004 (token inválido) | `auth-failed` |
+| Discord | close codes 4013/4014 (intents inválidas ou não permitidas) | `fatal` |
+| Telegram | 401 (token inválido) | `auth-failed` |
+| Telegram | 409 por outro `getUpdates` com o mesmo token | `replaced` |
+| Telegram | 409 por webhook ativo | `fatal` (ou o adapter apaga o webhook antes do polling) |
+| web | `EADDRINUSE`/`EACCES` ao abrir a porta | `fatal` |
+
+Um transport sem `pairing` não emite `qr-timeout` nem `logged-out`: token revogado é
+`auth-failed`. O erro nativo vai em `error`, e o bot o loga junto com a causa.
+
+Erro de configuração descoberto dentro do `connect()` (a porta ocupada no `listen`, o token
+recusado no login) sai como `closed` com o motivo da tabela, e não como rejeição do `connect()`.
+Um `connect()` de reconexão que rejeita conta como `connection-lost`
+([ADR 0048](../../../docs/adr/0048-connect-resolve-ao-iniciar.md)) e cai no backoff sem limite: o
+bot tentaria de novo para sempre em vez de parar.
+
+### Lib que se reconecta sozinha
+
+discord.js, grammY e telegraf reconectam por conta própria depois de uma queda de rede. O adapter
+sobre uma delas **só emite `closed` quando a queda é terminal**: a lib desistiu, ou o erro é dos
+que ela não tenta de novo (token, intents). Cada `closed` faz o bot chamar `connect()` por cima;
+repassar os fechamentos internos da lib abriria uma segunda conexão junto com a que a lib já está
+refazendo. Enquanto a lib reconecta, o adapter pode emitir `connecting` e, de volta, `open`, para
+log e listeners. A fila de saída só pausa no `closed`: um envio durante a reconexão interna que
+falhar gasta o retry da fila ([Fila de saída](outbound-queue.md)).

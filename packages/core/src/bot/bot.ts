@@ -481,6 +481,7 @@ export function createBot(config: BotConfig): Bot {
               config.reconnection?.clearSession ??
               (typeof config.transport === 'function' ? () => auth.clear() : undefined),
           },
+          pairing: hasCapability(transport, 'pairing'),
           giveUp: () => {
             // Chamado de dentro de um handler do transport: o stop corre em paralelo.
             bot.stop().catch((error: unknown) => log.error('falha ao parar o bot', { err: error }));

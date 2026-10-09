@@ -187,3 +187,4 @@ ADR 0055). Ao serem aceitos, entram aqui e no índice numérico.
 | [0065](0065-varios-anexos-e-albuns.md) | D65 | Vários anexos na mensagem e envio em álbum (detalha D09/D10/D61) | Aceito |
 | [0066](0066-objeto-bruto-da-mensagem.md) | D66 | Objeto bruto da mensagem no `ctx.unsafe.raw()` (detalha D11/D03) | Aceito |
 | [0067](0067-retry-after-e-ritmo-do-transport.md) | D67 | Janela da plataforma no retry e ritmo padrão do transport (detalha D19/D39/D47) | Aceito |
+| [0068](0068-desconexao-fatal-e-transport-sem-pareamento.md) | D68 | Desconexão fatal e transport sem pareamento: `fatal` e `auth-failed` sem `pairing` param o bot (detalha D03/D13/D45/D48) | Aceito |

@@ -2,7 +2,7 @@
 // limpa a sessão quando é o caso e reconecta, ou desiste e para. Um timer por vez, e nenhum
 // depois do `stop()`.
 
-import type { Logger } from '#logger/types.ts';
+import type { LogFields, Logger } from '#logger/types.ts';
 import {
   type ReconnectionDecision,
   ReconnectionPolicy,
@@ -10,10 +10,13 @@ import {
 } from '#transport/reconnection.ts';
 import type { ConnectionStatus, Transport } from '#transport/types.ts';
 
-export interface BotReconnectionOptions extends ReconnectionPolicyOptions {
+// `pairing` sai das opções: no bot, quem diz se há pareamento é a capability do transport, não
+// a config (ADR 0068).
+export interface BotReconnectionOptions extends Omit<ReconnectionPolicyOptions, 'pairing'> {
   /**
    * Apaga as credenciais salvas, para a decisão `clean-session` (sessão encerrada no aparelho,
-   * credenciais rejeitadas, QRs sem pareamento; queda de rede nunca, ADR 0045). Com transport
+   * credenciais rejeitadas num transport com `pairing`, QRs sem pareamento; queda de rede
+   * nunca, ADR 0045; erro `fatal` nunca, ADR 0068). Com transport
    * por fábrica, o padrão limpa o `auth` que a fábrica recebeu; isto o substitui. Com instância
    * pronta e sem ela, o bot não tem como parear de novo sozinho: loga e para.
    */
@@ -38,6 +41,8 @@ export interface ReconnectorOptions {
   readonly transport: Pick<Transport, 'connect'>;
   readonly log: () => Logger;
   readonly options: BotReconnectionOptions;
+  /** O transport declara a capability `pairing`; sem ela, `auth-failed` para (ADR 0068). */
+  readonly pairing: boolean;
   /** Chamado quando não há como seguir (`stop`, ou `clean-session` sem `clearSession`). */
   readonly giveUp: (decision: ReconnectionDecision) => void;
 }
@@ -51,9 +56,10 @@ export function createReconnector({
   transport,
   log,
   options,
+  pairing,
   giveUp,
 }: ReconnectorOptions): Reconnector {
-  const policy = new ReconnectionPolicy(options);
+  const policy = new ReconnectionPolicy({ ...options, pairing });
   const { clearSession } = options;
   let active = false;
   let stopped = false;
@@ -94,6 +100,40 @@ export function createReconnector({
     }
   }
 
+  /**
+   * Loga por que o bot desiste. `fatal` e a credencial sem pareamento saem em `fatal`: o bot não
+   * volta sozinho, alguém precisa corrigir a config. `replaced` fica em `error`: a outra conexão
+   * segue de pé.
+   */
+  function logStop(
+    cause: Extract<ReconnectionDecision, { action: 'stop' }>['cause'],
+    fields: LogFields,
+  ): void {
+    switch (cause) {
+      case 'replaced':
+        log().error(
+          'conexão encerrada (replaced): outra conexão assumiu esta sessão (o mesmo número ' +
+            'rodando em outro processo?); o bot vai parar em vez de derrubá-la',
+          fields,
+        );
+        return;
+      case 'fatal':
+        log().fatal(
+          'conexão encerrada por erro fatal do transport (token sem permissão, intents, porta?); ' +
+            'reconectar não resolve: corrija a configuração. O bot vai parar',
+          fields,
+        );
+        return;
+      case 'auth-failed':
+        log().fatal(
+          'conexão encerrada (auth-failed): credenciais rejeitadas, e o transport não pareia de ' +
+            'novo (token inválido?); limpar a sessão não resolve. O bot vai parar',
+          fields,
+        );
+        return;
+    }
+  }
+
   function handleClosed(status: ClosedStatus): void {
     if (stopped) return;
     // Já há reconexão agendada: o `connect()` dela ainda não começou e cobre esta queda.
@@ -106,11 +146,7 @@ export function createReconnector({
     const decision = policy.decide(status.reason);
     const fields = { reason: status.reason, err: status.error, ...decision, ...policy.state };
     if (decision.action === 'stop') {
-      log().error(
-        `conexão encerrada (${status.reason}): outra conexão assumiu esta sessão (o mesmo ` +
-          'número rodando em outro processo?); o bot vai parar em vez de derrubá-la',
-        fields,
-      );
+      logStop(decision.cause, fields);
       giveUp(decision);
       return;
     }
