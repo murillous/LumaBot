@@ -45,6 +45,11 @@ export interface IncomingMessage {
   readonly id?: string;
   /** Epoch em ms. Padrão: `Date.now()`. */
   readonly timestamp?: number;
+  /**
+   * Objeto bruto falso que o `ctx.unsafe.raw()` devolve para esta mensagem (ADR 0066), para
+   * testar plugin específico de plataforma. Vale também na citada descrita. Ausente: `undefined`.
+   */
+  readonly raw?: unknown;
 }
 
 export const DEFAULT_CHAT: Chat = { id: 'chat@fake', isGroup: false };

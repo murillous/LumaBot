@@ -433,6 +433,38 @@ describe('BaileysTransport: mensagens recebidas', () => {
     expect(messages[0]).toMatchObject({ type: 'text', id: 'M1', text: 'oi' });
   });
 
+  it('raw() devolve o WAMessage da mensagem e da citada; fora daqui, undefined (ADR 0066)', async () => {
+    const { socket, messages, transport } = await connected();
+    const original: WAMessage = {
+      ...text('M1'),
+      message: {
+        extendedTextMessage: {
+          text: 'resposta',
+          contextInfo: { stanzaId: 'Q1', quotedMessage: { conversation: 'citada' } },
+        },
+      },
+    };
+    socket.emit('messages.upsert', { type: 'notify', messages: [original] });
+    await vi.waitFor(() => expect(messages).toHaveLength(1));
+    const message = messages[0] as Message;
+
+    expect(transport.raw(message)).toBe(original);
+    expect(transport.raw(message.quoted as Message)).toMatchObject({
+      key: { id: 'Q1' },
+      message: { conversation: 'citada' },
+    });
+    expect(transport.raw({ ...message })).toBeUndefined();
+    expect(
+      transport.raw({
+        id: 'I1',
+        chat: message.chat,
+        sender: message.sender,
+        timestamp: 0,
+        actionId: 'a',
+      }),
+    ).toBeUndefined();
+  });
+
   it('mantém a ordem de chegada mesmo com o telefone de um LID demorando', async () => {
     const { socket, messages } = await connected();
     let release: (() => void) | undefined;
