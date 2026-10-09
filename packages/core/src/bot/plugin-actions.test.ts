@@ -1,4 +1,4 @@
-// #224 (ADR 0040): o plugin reage, edita, apaga, mostra presença, lê e altera grupos, lista
+// #224 (ADR 0040): o plugin reage, edita, apaga, mostra "digitando", lê e altera grupos, lista
 // comandos, vê o contato da sessão e as capabilities, e ouve `contact.updated`, tudo pela API
 // pública, sem `ctx.unsafe.native`.
 
@@ -13,7 +13,7 @@ import type {
   GroupMetadata,
   GroupParticipantAction,
   MessageKey,
-  Presence,
+  TypingKind,
 } from '#transport/types.ts';
 import { type Bot, type BotConfig, createBot } from './bot.ts';
 import { deferred, message, RecordingTransport, recordingLogger } from './harness.test-support.ts';
@@ -26,7 +26,7 @@ const ALL: Capability[] = [
   'reactions',
   'message.edit',
   'message.delete',
-  'presence',
+  'typing',
   'groups',
   'groups.add',
   'groups.remove',
@@ -52,9 +52,9 @@ class ActionTransport extends RecordingTransport {
     this.actions.push(['delete', key.id]);
   }
 
-  override async sendPresence(chatId: string, presence: Presence): Promise<void> {
-    await super.sendPresence(chatId, presence);
-    this.actions.push(['presence', chatId, presence]);
+  override async sendTyping(chatId: string, kind: TypingKind): Promise<void> {
+    await super.sendTyping(chatId, kind);
+    this.actions.push(['typing', chatId, kind]);
   }
 
   override async updateGroupParticipants(
@@ -105,16 +105,16 @@ async function withContext(
 }
 
 describe('ctx.send: ações pela fila de saída', () => {
-  it('react, edit, delete e presence chegam ao transport', async () => {
+  it('react, edit, delete e typing chegam ao transport', async () => {
     const transport = new ActionTransport(ALL);
     const { ctx } = await withContext(transport);
     const key = await ctx.send.send('chat@test', { type: 'text', text: 'pensando…' });
-    await ctx.send.presence('chat@test', 'composing');
+    await ctx.send.typing('chat@test', 'text');
     await ctx.send.edit(key, 'pronto');
     await ctx.send.react(key, '✅');
     await ctx.send.delete(key);
     expect(transport.actions).toEqual([
-      ['presence', 'chat@test', 'composing'],
+      ['typing', 'chat@test', 'text'],
       ['edit', key.id, 'pronto'],
       ['react', key.id, '✅'],
       ['delete', key.id],
@@ -143,7 +143,7 @@ describe('ctx.send: ações pela fila de saída', () => {
       ctx.send.react(key, '👍'),
       ctx.send.edit(key, 'x'),
       ctx.send.delete(key),
-      ctx.send.presence('c', 'paused'),
+      ctx.send.typing('c', 'voice'),
       ctx.groups.metadata('g@test'),
       ctx.groups.updateParticipants('g@test', ['a'], 'add'),
     ]) {

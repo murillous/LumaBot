@@ -13,10 +13,10 @@ import type {
   MessageKey,
   OutgoingAction,
   OutgoingContent,
-  Presence,
   SendOptions,
   TextLimits,
   Transport,
+  TypingKind,
   Unsubscribe,
 } from '@zapforge/core';
 import {
@@ -78,7 +78,7 @@ export class FakeTransport implements Transport {
     readonly formatted?: FormattedText;
   }[] = [];
   readonly deletions: MessageKey[] = [];
-  readonly presences: { readonly chatId: string; readonly presence: Presence }[] = [];
+  readonly typing: { readonly chatId: string; readonly kind: TypingKind }[] = [];
   readonly participantUpdates: {
     readonly groupId: string;
     readonly participantIds: readonly string[];
@@ -165,9 +165,9 @@ export class FakeTransport implements Transport {
     this.deletions.push(key);
   }
 
-  async sendPresence(chatId: string, presence: Presence): Promise<void> {
-    assertCapability(this, 'presence');
-    this.presences.push({ chatId, presence });
+  async sendTyping(chatId: string, kind: TypingKind): Promise<void> {
+    assertCapability(this, 'typing');
+    this.typing.push({ chatId, kind });
   }
 
   async getGroupMetadata(groupId: string): Promise<GroupMetadata> {
@@ -216,7 +216,7 @@ export class FakeTransport implements Transport {
     this.reactions.length = 0;
     this.edits.length = 0;
     this.deletions.length = 0;
-    this.presences.length = 0;
+    this.typing.length = 0;
     this.participantUpdates.length = 0;
   }
 }

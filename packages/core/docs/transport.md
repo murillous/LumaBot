@@ -28,7 +28,7 @@ interface Transport {
   react(key, emoji | null): Promise<void>;       // reactions
   edit(key, text, formatted?): Promise<void>;    // message.edit
   delete(key): Promise<void>;                    // message.delete
-  sendPresence(chatId, presence): Promise<void>; // presence
+  sendTyping(chatId, kind): Promise<void>;       // typing
   getGroupMetadata(groupId): Promise<GroupMetadata>;            // groups
   isChatAdmin?(chat, contact): Promise<boolean>;                // opcional
   updateGroupParticipants(groupId, ids, action): Promise<void>; // groups.add/remove/promote
@@ -498,13 +498,39 @@ mantém cache por grupo e o invalida em `group.participants` e `group.updated` (
 
 `CAPABILITIES` lista as capabilities suportadas pelo kernel (plano §6.10):
 
-`actions`, `groups`, `groups.add`, `groups.remove`, `groups.promote`, `mentions`, `reactions`, `presence`,
+`actions`, `groups`, `groups.add`, `groups.remove`, `groups.promote`, `mentions`, `reactions`, `typing`,
 `send.text`, `send.image`, `send.video`, `send.audio`, `send.voice`, `send.sticker`, `send.document`, `send.album`, `media.download`,
 `message.edit`, `message.delete`, `polls`, `quoted`, `pairing`.
 
 `pairing` não é de envio: diz que a sessão se pareia por QR ou código (`connection.qr`,
 `connection.pairing-code`). Com ela, credencial rejeitada (`auth-failed`) limpa a sessão e pareia
 de novo; sem ela (transport por token), o bot para ([Política de reconexão](#política-de-reconexão)).
+
+A lista é só a do core: capability nova entra numa minor do `@zapforge/core`, e `requires` com nome
+fora dela recusa o plugin. O que cada transport declara está na matriz do plano §6.10. Limites de
+tamanho não são capability: ficam em `Transport.limits`
+([ADR 0070](../../../docs/adr/0070-capabilities-multiplataforma.md)).
+
+### Semântica comum das ações
+
+Cada plataforma faz estas ações de um jeito; o transport traduz para o comportamento abaixo, que é
+o que o plugin espera em qualquer uma.
+
+- **`react(key, emoji)`** (`reactions`): a sessão tem no máximo uma reação por mensagem. Um emoji
+  novo substitui o anterior, e `null` remove a da sessão. Onde a plataforma aceita várias por
+  usuário ou exige o emoji para remover (Discord), o transport tira as reações anteriores da
+  própria sessão. Emoji que a plataforma não aceita (o Telegram tem um conjunto fixo) rejeita com
+  `retryable: false`, e a fila não re-tenta.
+- **`sendTyping(chatId, kind)`** (`typing`): `text` é "digitando" e `voice`, "gravando áudio". Onde
+  a plataforma não distingue (Discord), os dois viram "digitando". O indicador some no próximo envio
+  ao chat ou quando a plataforma o expira (5 s no Telegram, 10 s no Discord); não há como pará-lo.
+  Status online global (`available`/`unavailable` do WhatsApp) não é do contrato: use
+  `ctx.unsafe.native`.
+- **`delete(key)`** (`message.delete`): apaga para todos, inclusive a mensagem de outra pessoa
+  quando o bot é admin ou tem a permissão da plataforma. Sem ela, rejeita com `retryable: false`.
+  Nenhuma plataforma-alvo edita mensagem de outra pessoa, então o `edit` vale só para as da sessão.
+- **Enquete** (`polls`): `multiple: true` libera marcar mais de uma opção. Quiz, enquete anônima e
+  duração são de cada plataforma e ficam no `native`. Voto ainda não chega como evento.
 
 O transport declara o subconjunto que suporta em `capabilities`. Helpers (de
 `@zapforge/core/adapter`; o plugin só vê o tipo `Capability` e o `UnsupportedError`, de

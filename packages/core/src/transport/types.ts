@@ -266,8 +266,11 @@ export type OutgoingContent =
       readonly type: 'poll';
       readonly name: string;
       readonly options: readonly string[];
-      /** Quantas opções cada pessoa pode marcar; padrão 1. */
-      readonly selectableCount?: number;
+      /**
+       * Cada pessoa pode marcar mais de uma opção; padrão `false`. Booleano porque Telegram e
+       * Discord não limitam quantas (ADR 0070).
+       */
+      readonly multiple?: boolean;
     };
 
 /**
@@ -329,7 +332,11 @@ export interface SendOptions {
   readonly actions?: readonly OutgoingAction[];
 }
 
-export type Presence = 'available' | 'unavailable' | 'composing' | 'recording' | 'paused';
+/**
+ * O que o indicador de "digitando" mostra (capability `typing`, ADR 0070): `text` é "digitando" e
+ * `voice`, "gravando áudio", onde a plataforma distingue (no Discord, os dois viram "digitando").
+ */
+export type TypingKind = 'text' | 'voice';
 
 /**
  * Adapter de um canal de mensageria. Métodos ligados a uma capability que o transport não
@@ -380,17 +387,29 @@ export interface Transport {
 
   /** Envia e devolve a chave da mensagem criada, para editar/apagar/reagir depois. */
   send(chatId: string, content: OutgoingContent, options?: SendOptions): Promise<MessageKey>;
-  /** `emoji: null` remove a reação (capability `reactions`). */
+  /**
+   * Capability `reactions`. A sessão tem no máximo uma reação por mensagem: um emoji novo substitui
+   * o anterior, e `null` remove a da sessão. Onde a plataforma aceita várias (Discord) ou exige o
+   * emoji para remover, o transport tira as reações anteriores da própria sessão. Emoji que a
+   * plataforma não aceita (o Telegram tem um conjunto fixo) rejeita com `retryable: false`
+   * (ADR 0070).
+   */
   react(key: MessageKey, emoji: string | null): Promise<void>;
   /**
    * Capability `message.edit`. Com a árvore neutra, `text` é o texto visível dela e `formatted`, a
    * árvore, como no `OutgoingContent`.
    */
   edit(key: MessageKey, text: string, formatted?: FormattedText): Promise<void>;
-  /** Apaga para todos (capability `message.delete`). */
+  /**
+   * Apaga para todos (capability `message.delete`). Mensagem de outra pessoa exige que o bot seja
+   * admin ou tenha a permissão da plataforma; sem ela, rejeita com `retryable: false` (ADR 0070).
+   */
   delete(key: MessageKey): Promise<void>;
-  /** Capability `presence`. */
-  sendPresence(chatId: string, presence: Presence): Promise<void>;
+  /**
+   * Mostra "digitando" no chat (capability `typing`). O indicador some sozinho no próximo envio ao
+   * chat ou quando a plataforma o expira (5 s no Telegram, 10 s no Discord); não há como parar.
+   */
+  sendTyping(chatId: string, kind: TypingKind): Promise<void>;
 
   /** Capability `groups`. */
   getGroupMetadata(groupId: string): Promise<GroupMetadata>;

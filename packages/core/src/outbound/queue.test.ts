@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { type Capability, UnsupportedError } from '#transport/capabilities.ts';
-import type { MessageKey, OutgoingContent, Presence, SendOptions } from '#transport/types.ts';
+import type { MessageKey, OutgoingContent, SendOptions, TypingKind } from '#transport/types.ts';
 import { OutboundQueue, type OutboundQueueOptions, type OutboundTransport } from './queue.ts';
 
 interface SendCall {
@@ -10,19 +10,12 @@ interface SendCall {
   readonly options: SendOptions | undefined;
 }
 
-const ALL: Capability[] = [
-  'send.text',
-  'send.voice',
-  'send.image',
-  'quoted',
-  'mentions',
-  'presence',
-];
+const ALL: Capability[] = ['send.text', 'send.voice', 'send.image', 'quoted', 'mentions', 'typing'];
 
 /** Transport que registra o instante de cada envio; `fail` decide se a chamada lança. */
 function fakeTransport(capabilities: Capability[] = ALL) {
   const sends: SendCall[] = [];
-  const presences: { chatId: string; presence: Presence; at: number }[] = [];
+  const typing: { chatId: string; kind: TypingKind; at: number }[] = [];
   let fail: (call: SendCall) => unknown = () => undefined;
   let nextId = 0;
   const transport: OutboundTransport = {
@@ -42,14 +35,14 @@ function fakeTransport(capabilities: Capability[] = ALL) {
         return { chatId, id: `m${nextId}`, fromMe: true, senderId: null };
       },
     ),
-    sendPresence: vi.fn(async (chatId: string, presence: Presence) => {
-      presences.push({ chatId, presence, at: Date.now() });
+    sendTyping: vi.fn(async (chatId: string, kind: TypingKind) => {
+      typing.push({ chatId, kind, at: Date.now() });
     }),
   };
   return {
     transport,
     sends,
-    presences,
+    typing,
     failWith(fn: (call: SendCall) => unknown) {
       fail = fn;
     },
@@ -336,11 +329,11 @@ describe('OutboundQueue: humanização', () => {
   it('é desligada por padrão', async () => {
     const { queue, transport } = newQueue();
     await queue.send('a', text('oi'));
-    expect(transport.sendPresence).not.toHaveBeenCalled();
+    expect(transport.sendTyping).not.toHaveBeenCalled();
   });
 
   it('mostra composing proporcional ao texto, com piso e teto, e recording antes de voz', async () => {
-    const { queue, sends, presences } = newQueue({
+    const { queue, sends, typing } = newQueue({
       humanize: { msPerChar: 100, minMs: 200, maxMs: 1000 },
       globalIntervalMs: 0,
       chatIntervalMs: 0,
@@ -354,11 +347,11 @@ describe('OutboundQueue: humanização', () => {
     ];
     await vi.runAllTimersAsync();
     await Promise.all(all);
-    expect(presences.map((p) => [p.chatId, p.presence])).toEqual([
-      ['a', 'composing'],
-      ['b', 'composing'],
-      ['c', 'composing'],
-      ['d', 'recording'],
+    expect(typing.map((p) => [p.chatId, p.kind])).toEqual([
+      ['a', 'text'],
+      ['b', 'text'],
+      ['c', 'text'],
+      ['d', 'voice'],
     ]);
     expect(Object.fromEntries(sends.map((s) => [s.chatId, s.at]))).toEqual({
       a: 500,
@@ -369,28 +362,28 @@ describe('OutboundQueue: humanização', () => {
     });
   });
 
-  it('não usa presença se o transport não tem a capability', async () => {
+  it('não mostra "digitando" se o transport não tem a capability', async () => {
     const { queue, transport } = newQueue({ humanize: true }, ['send.text']);
     await queue.send('a', text('oi'));
-    expect(transport.sendPresence).not.toHaveBeenCalled();
+    expect(transport.sendTyping).not.toHaveBeenCalled();
   });
 
-  it('envia mesmo se a presença falhar e entrega a falha a onPresenceError', async () => {
-    const onPresenceError = vi.fn();
-    const { queue, transport, sends } = newQueue({ humanize: true, onPresenceError });
-    const failure = new Error('presença');
-    vi.mocked(transport.sendPresence).mockRejectedValueOnce(failure);
+  it('envia mesmo se o "digitando" falhar e entrega a falha a onTypingError', async () => {
+    const onTypingError = vi.fn();
+    const { queue, transport, sends } = newQueue({ humanize: true, onTypingError });
+    const failure = new Error('digitando');
+    vi.mocked(transport.sendTyping).mockRejectedValueOnce(failure);
     await queue.send('a', text('oi'));
     expect(sends).toHaveLength(1);
-    expect(onPresenceError).toHaveBeenCalledWith(failure, 'a');
+    expect(onTypingError).toHaveBeenCalledWith(failure, 'a');
   });
 
   describe('close({ drain: false }) com envio em andamento (#229)', () => {
     it('durante o "digitando": não envia, rejeita closed e não deixa timer vivo', async () => {
-      const { queue, presences, sends } = newQueue({ humanize: true });
+      const { queue, typing, sends } = newQueue({ humanize: true });
       const sent = queue.send('a', text('oi'));
       await vi.advanceTimersByTimeAsync(10);
-      expect(presences).toHaveLength(1);
+      expect(typing).toHaveLength(1);
 
       await queue.close({ drain: false });
 
@@ -401,19 +394,19 @@ describe('OutboundQueue: humanização', () => {
       expect(queue.stats()).toMatchObject({ dropped: 1, failed: 0, inFlight: 0, activeChats: 0 });
     });
 
-    it('com a presença ainda em andamento: ela termina e o envio não sai', async () => {
+    it('com o "digitando" ainda em andamento: ele termina e o envio não sai', async () => {
       const { queue, transport, sends } = newQueue({ humanize: true });
-      let releasePresence!: () => void;
-      vi.mocked(transport.sendPresence).mockImplementationOnce(
+      let releaseTyping!: () => void;
+      vi.mocked(transport.sendTyping).mockImplementationOnce(
         () =>
           new Promise((resolve) => {
-            releasePresence = () => resolve();
+            releaseTyping = () => resolve();
           }),
       );
       const sent = queue.send('a', text('oi'));
       await vi.advanceTimersByTimeAsync(0);
       const closing = queue.close({ drain: false });
-      releasePresence();
+      releaseTyping();
       await closing;
 
       await expect(sent).rejects.toMatchObject({ reason: 'closed' });
@@ -708,22 +701,19 @@ describe('OutboundQueue: prazo por envio (#202)', () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
-  it('presença pendurada vai para onPresenceError e o envio segue', async () => {
-    const onPresenceError = vi.fn();
+  it('"digitando" pendurado vai para onTypingError e o envio segue', async () => {
+    const onTypingError = vi.fn();
     const { queue, transport, sends } = newQueue({
       humanize: { minMs: 0, msPerChar: 0 },
       sendTimeoutMs: 2000,
-      onPresenceError,
+      onTypingError,
     });
-    vi.mocked(transport.sendPresence).mockImplementationOnce(hang);
+    vi.mocked(transport.sendTyping).mockImplementationOnce(hang);
     const sent = queue.send('a', text('oi'));
     await vi.advanceTimersByTimeAsync(2000);
     await expect(sent).resolves.toMatchObject({ chatId: 'a' });
     expect(sends.map((s) => s.at)).toEqual([2000]);
-    expect(onPresenceError).toHaveBeenCalledWith(
-      expect.objectContaining({ reason: 'timeout' }),
-      'a',
-    );
+    expect(onTypingError).toHaveBeenCalledWith(expect.objectContaining({ reason: 'timeout' }), 'a');
   });
 
   it('valida maxPauseMs e sendTimeoutMs', () => {

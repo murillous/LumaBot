@@ -187,7 +187,7 @@ uma mensagem que chegou no mesmo lote pode vir incorporada a ela, sem evento pr�
 ## Capabilities
 
 O transport declara todas as capabilities do core (plano §6.10): `groups`, `groups.add`,
-`groups.remove`, `groups.promote`, `mentions`, `reactions`, `presence`, `send.text`, `send.image`, `send.video`, `send.audio`,
+`groups.remove`, `groups.promote`, `mentions`, `reactions`, `typing`, `send.text`, `send.image`, `send.video`, `send.audio`,
 `send.voice`, `send.sticker`, `send.document`, `media.download`, `message.edit`,
 `message.delete`, `polls`, `quoted` e `pairing`. Todo plugin que declara `requires` com elas carrega.
 `pairing` diz ao bot que a sessão se pareia por QR ou código: com ela, credencial rejeitada
@@ -208,7 +208,7 @@ fora.
 | `voice` | `{ audio, ptt: true }`; sem `mimetype`, o Baileys usa `audio/ogg; codecs=opus` |
 | `sticker` | `{ sticker }` |
 | `document` | `{ document, fileName, mimetype, caption }` |
-| `poll` | `{ poll: { name, values, selectableCount } }`, com `selectableCount` padrão 1 |
+| `poll` | `{ poll: { name, values, selectableCount } }`, com `selectableCount` 1 (escolha única) ou 0 com `multiple: true` (quantas quiser) |
 
 A mídia vai como `Buffer` ou `{ url }`, que o Baileys baixa. `mentions` entra em qualquer tipo.
 
@@ -226,11 +226,13 @@ A mídia vai como `Buffer` ou `{ url }`, que o Baileys baixa. `mentions` entra e
   montada fora dele (testes, storage) vai só com a chave e o texto.
 - **Chave**: `send` devolve a `MessageKey` da mensagem criada (`fromMe: true`; em grupo,
   `senderId` é a sessão), pronta para `react`, `edit` e `delete`.
-- **Reação**: `react(key, null)` remove a reação (texto vazio para o WhatsApp).
+- **Reação**: o WhatsApp já tem uma reação por pessoa, então um emoji novo substitui o anterior;
+  `react(key, null)` remove a reação (texto vazio para o WhatsApp).
 - **Edição e apagamento**: `edit` troca o texto (ou a legenda) de uma mensagem da sessão; `delete`
   apaga para todos, de uma mensagem da sessão ou, em grupo onde o bot é admin, de qualquer um.
-- **Presença**: `sendPresence(chatId, 'composing' | 'recording' | 'paused' | 'available' |
-  'unavailable')`.
+- **Digitando**: `sendTyping(chatId, 'text')` envia a presença `composing`, e `'voice'`, a
+  `recording`. O status online global (`available`/`unavailable`) fica no socket, por
+  `ctx.unsafe.native`.
 
 ## Grupos
 

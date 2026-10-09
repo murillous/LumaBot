@@ -86,7 +86,7 @@ describe('createReply', () => {
     await reply.voice(media, { mimetype: 'audio/ogg' });
     await reply.sticker(media);
     await reply.document(media, { fileName: 'a.pdf', mimetype: 'application/pdf' });
-    await reply.poll('Quando?', ['hoje', 'amanhã'], { selectableCount: 2 });
+    await reply.poll('Quando?', ['hoje', 'amanhã'], { multiple: true });
     expect(sender.send.mock.calls.map((call) => call[1])).toEqual([
       { type: 'image', media, caption: 'c' },
       { type: 'video', media: { url: 'https://x/v.mp4' }, mimetype: 'video/mp4' },
@@ -94,7 +94,7 @@ describe('createReply', () => {
       { type: 'voice', media, mimetype: 'audio/ogg' },
       { type: 'sticker', media },
       { type: 'document', media, fileName: 'a.pdf', mimetype: 'application/pdf' },
-      { type: 'poll', name: 'Quando?', options: ['hoje', 'amanhã'], selectableCount: 2 },
+      { type: 'poll', name: 'Quando?', options: ['hoje', 'amanhã'], multiple: true },
     ]);
   });
 });

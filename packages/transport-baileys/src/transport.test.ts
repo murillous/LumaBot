@@ -821,10 +821,14 @@ describe('BaileysTransport: envio e ações', () => {
     });
   });
 
-  it('sendPresence repassa o estado para o chat', async () => {
+  it('sendTyping vira composing ou recording no chat', async () => {
     const { transport, socket } = await open();
-    await transport.sendPresence(ALICE, 'composing');
-    expect(socket.presences).toEqual([{ type: 'composing', jid: ALICE }]);
+    await transport.sendTyping(ALICE, 'text');
+    await transport.sendTyping(ALICE, 'voice');
+    expect(socket.presences).toEqual([
+      { type: 'composing', jid: ALICE },
+      { type: 'recording', jid: ALICE },
+    ]);
   });
 
   it('sem conexão, as ações falham na hora', async () => {
@@ -832,7 +836,7 @@ describe('BaileysTransport: envio e ações', () => {
     await expect(transport.send(ALICE, { type: 'text', text: 'oi' })).rejects.toThrow(
       'sem conexão',
     );
-    await expect(transport.sendPresence(ALICE, 'paused')).rejects.toThrow('sem conexão');
+    await expect(transport.sendTyping(ALICE, 'text')).rejects.toThrow('sem conexão');
     await expect(transport.getGroupMetadata(GROUP)).rejects.toThrow('sem conexão');
   });
 

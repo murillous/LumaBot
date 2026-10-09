@@ -8,8 +8,8 @@ import type {
   MediaInput,
   MessageKey,
   OutgoingContent,
-  Presence,
   SendOptions,
+  TypingKind,
 } from '#transport/types.ts';
 
 /** Prioridade na fila: comandos respondem antes de broadcasts. */
@@ -45,17 +45,26 @@ export interface ActionOptions {
  * `UnsupportedError`.
  */
 export interface Outbound extends Sender {
-  /** Reage à mensagem; `emoji: null` remove a reação (capability `reactions`). */
+  /**
+   * Reage à mensagem (capability `reactions`). A sessão tem uma reação por mensagem: um emoji novo
+   * substitui o anterior, e `null` remove a da sessão (ADR 0070).
+   */
   react(key: MessageKey, emoji: string | null, options?: ActionOptions): Promise<void>;
   /**
    * Troca o texto da mensagem (capability `message.edit`). Não se divide: acima do limite do
    * transport, rejeita com `RangeError`.
    */
   edit(key: MessageKey, text: MessageText, options?: ActionOptions): Promise<void>;
-  /** Apaga a mensagem para todos (capability `message.delete`). */
+  /**
+   * Apaga a mensagem para todos (capability `message.delete`). A de outra pessoa exige que o bot
+   * seja admin ou tenha a permissão da plataforma.
+   */
   delete(key: MessageKey, options?: ActionOptions): Promise<void>;
-  /** "Digitando", "gravando" etc. no chat (capability `presence`). */
-  presence(chatId: string, presence: Presence, options?: ActionOptions): Promise<void>;
+  /**
+   * "Digitando" (`text`) ou "gravando áudio" (`voice`) no chat (capability `typing`, ADR 0070). Some
+   * no próximo envio ou quando a plataforma o expira (5 s no Telegram).
+   */
+  typing(chatId: string, kind: TypingKind, options?: ActionOptions): Promise<void>;
 }
 
 /** Opções de `ctx.reply`. A citação da mensagem original é automática. */
@@ -98,8 +107,8 @@ export interface ReplyAlbumOptions extends ReplyOptions {
 }
 
 export interface ReplyPollOptions extends ReplyOptions {
-  /** Quantas opções cada pessoa pode marcar; padrão 1. */
-  readonly selectableCount?: number;
+  /** Cada pessoa pode marcar mais de uma opção; padrão `false`. */
+  readonly multiple?: boolean;
 }
 
 /**

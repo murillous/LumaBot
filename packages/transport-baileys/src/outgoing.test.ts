@@ -64,13 +64,16 @@ describe('toContent', () => {
     });
   });
 
-  it('enquete: opções viram values e selectableCount padrão é 1', () => {
+  it('enquete: opções viram values, escolha única por padrão e multiple vira selectableCount 0', () => {
     expect(toContent({ type: 'poll', name: 'Pizza?', options: ['sim', 'não'] })).toEqual({
       poll: { name: 'Pizza?', values: ['sim', 'não'], selectableCount: 1 },
     });
     expect(
-      toContent({ type: 'poll', name: 'Sabores', options: ['a', 'b', 'c'], selectableCount: 2 }),
-    ).toMatchObject({ poll: { selectableCount: 2 } });
+      toContent({ type: 'poll', name: 'Sabores', options: ['a', 'b', 'c'], multiple: true }),
+    ).toMatchObject({ poll: { selectableCount: 0 } });
+    expect(
+      toContent({ type: 'poll', name: 'Sabor', options: ['a', 'b'], multiple: false }),
+    ).toMatchObject({ poll: { selectableCount: 1 } });
   });
 
   it('menções entram em qualquer tipo; lista vazia não manda nada', () => {

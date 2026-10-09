@@ -28,6 +28,11 @@ describe('CAPABILITIES', () => {
     expect(isCapability('send.sticker')).toBe(true);
     expect(isCapability('send.hologram')).toBe(false);
   });
+
+  it('typing no lugar de presence (ADR 0070)', () => {
+    expect(isCapability('typing')).toBe(true);
+    expect(isCapability('presence')).toBe(false);
+  });
 });
 
 describe('hasCapability / assertCapability', () => {

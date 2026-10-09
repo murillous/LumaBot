@@ -189,3 +189,4 @@ ADR 0055). Ao serem aceitos, entram aqui e no índice numérico.
 | [0067](0067-retry-after-e-ritmo-do-transport.md) | D67 | Janela da plataforma no retry e ritmo padrão do transport (detalha D19/D39/D47) | Aceito |
 | [0068](0068-desconexao-fatal-e-transport-sem-pareamento.md) | D68 | Desconexão fatal e transport sem pareamento: `fatal` e `auth-failed` sem `pairing` param o bot (detalha D03/D13/D45/D48) | Aceito |
 | [0069](0069-unioes-de-tipo-antes-do-1-0.md) | D69 | Uniões de tipo de mensagem e de conteúdo antes do 1.0: fechadas, adição é minor (detalha D09/D10/D27) | Aceito |
+| [0070](0070-capabilities-multiplataforma.md) | D70 | Capabilities multiplataforma: `typing` no lugar de `presence`, uma reação da sessão por mensagem, enquete com `multiple` e a lista só do core (detalha D10/D16) | Aceito |

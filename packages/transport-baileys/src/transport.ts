@@ -16,8 +16,8 @@ import type {
   Message,
   MessageKey,
   OutgoingContent,
-  Presence,
   SendOptions,
+  TypingKind,
   Unsubscribe,
 } from '@zapforge/core';
 import {
@@ -130,7 +130,7 @@ export class BaileysTransport implements Transport {
     'groups.promote',
     'mentions',
     'reactions',
-    'presence',
+    'typing',
     'send.text',
     'send.image',
     'send.video',
@@ -464,8 +464,11 @@ export class BaileysTransport implements Transport {
     await this.#connected().sendMessage(key.chatId, { delete: toWAKey(key) });
   }
 
-  async sendPresence(chatId: string, presence: Presence): Promise<void> {
-    await this.#connected().sendPresenceUpdate(presence, chatId);
+  async sendTyping(chatId: string, kind: TypingKind): Promise<void> {
+    await this.#connected().sendPresenceUpdate(
+      kind === 'voice' ? 'recording' : 'composing',
+      chatId,
+    );
   }
 
   async getGroupMetadata(groupId: string): Promise<GroupMetadata> {

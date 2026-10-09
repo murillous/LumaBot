@@ -91,7 +91,8 @@ export function toContent(content: OutgoingContent, options?: SendOptions): AnyM
         poll: {
           name: content.name,
           values: [...content.options],
-          selectableCount: content.selectableCount ?? 1,
+          // No WhatsApp, 0 libera marcar quantas quiser e 1 é escolha única.
+          selectableCount: content.multiple === true ? 0 : 1,
         },
         ...mentions,
       };

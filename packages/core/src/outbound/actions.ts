@@ -11,7 +11,7 @@ import type { ActionOptions, Outbound } from './types.ts';
 /** O que as ações usam do transport. */
 export type ActionTransport = Pick<
   Transport,
-  'name' | 'capabilities' | 'react' | 'edit' | 'delete' | 'sendPresence' | 'limits'
+  'name' | 'capabilities' | 'react' | 'edit' | 'delete' | 'sendTyping' | 'limits'
 >;
 
 /** Enfileira `run` no chat se o transport tem a capability; sem ela, rejeita já. */
@@ -62,7 +62,7 @@ export function createOutbound(
     },
     delete: (key, options) =>
       action('message.delete', key.chatId, () => transport.delete(key), options),
-    presence: (chatId, presence, options) =>
-      action('presence', chatId, () => transport.sendPresence(chatId, presence), options),
+    typing: (chatId, kind, options) =>
+      action('typing', chatId, () => transport.sendTyping(chatId, kind), options),
   };
 }

@@ -203,11 +203,11 @@ export type {
   MessageKey,
   OutgoingAction,
   OutgoingContent,
-  Presence,
   SendOptions,
   TextLimits,
   Transport,
   TransportPacing,
+  TypingKind,
   Unsubscribe,
 } from '#transport/types.ts';
 export type { Unsafe } from '#unsafe/types.ts';
