@@ -3,7 +3,12 @@
 // os dois seguem o mesmo contrato do `Transport`.
 
 import type { Message, MessageOf, MessageType, TextMessage } from '#message/types.ts';
-import { assertCanSend, assertCapability, type Capability } from './capabilities.ts';
+import {
+  assertCanSend,
+  assertCapability,
+  type Capability,
+  groupActionCapability,
+} from './capabilities.ts';
 import { TypedEmitter } from './emitter.ts';
 import { messageKey } from './message-key.ts';
 import type {
@@ -96,7 +101,7 @@ export class TestTransport implements Transport {
     assertCapability(this, 'groups');
     return {
       id: groupId,
-      subject: 'Grupo',
+      title: 'Grupo',
       description: null,
       ownerId: 'owner@test',
       participants: [
@@ -109,9 +114,9 @@ export class TestTransport implements Transport {
   async updateGroupParticipants(
     _groupId: string,
     _participantIds: readonly string[],
-    _action: GroupParticipantAction,
+    action: GroupParticipantAction,
   ): Promise<void> {
-    assertCapability(this, 'groups.admin');
+    assertCapability(this, groupActionCapability(action));
   }
 }
 

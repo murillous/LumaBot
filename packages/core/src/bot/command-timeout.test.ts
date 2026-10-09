@@ -262,6 +262,42 @@ describe('Bot: prazo de comando', () => {
     expect(errors[0]?.error).toMatchObject({ chatId: 'g@test', timeoutMs: 50 });
   });
 
+  it('isChatAdmin preso também estoura o prazo do comando (ADR 0059)', async () => {
+    const transport = Object.assign(new RecordingTransport(['send.text', 'quoted']), {
+      isChatAdmin: () => new Promise<boolean>(() => undefined),
+    });
+    const errors: PluginErrorEvent[] = [];
+    const ran = vi.fn();
+    const plugin = definePlugin({
+      name: 'admin',
+      version: '1.0.0',
+      engine: '>=0.0.0',
+      setup(ctx) {
+        ctx.commands.add(command({ name: 'ban', role: 'group-admin', run: ran }));
+        ctx.events.on('plugin.error', (e) => {
+          errors.push(e.payload);
+        });
+      },
+    });
+    const bot = createBot({
+      transport,
+      logger: recordingLogger(),
+      env: {},
+      plugins: [plugin],
+      outbound: { globalIntervalMs: 0, chatIntervalMs: 0 },
+      timeouts: { commandMs: 50 },
+    });
+    bots.push(bot);
+    await bot.start();
+
+    transport.emit('message', { ...message('!ban'), chat: { id: 'canal', isGroup: true } });
+    await vi.advanceTimersByTimeAsync(50);
+
+    expect(ran).not.toHaveBeenCalled();
+    expect(errors[0]?.error).toBeInstanceOf(GroupAdminTimeoutError);
+    expect(errors[0]?.error).toMatchObject({ chatId: 'canal', timeoutMs: 50 });
+  });
+
   it('timeoutMs do comando sobrescreve o commandMs só para ele', async () => {
     const transport = new RecordingTransport();
     const errors: PluginErrorEvent[] = [];

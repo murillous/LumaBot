@@ -3,18 +3,19 @@
 
 import type { EnqueueAction } from '#outbound/actions.ts';
 import type { ActionOptions } from '#outbound/types.ts';
-import { assertCapability } from '#transport/capabilities.ts';
+import { assertCapability, groupActionCapability } from '#transport/capabilities.ts';
 import type { GroupMetadata, GroupParticipantAction, Transport } from '#transport/types.ts';
 
 export interface Groups {
   /**
-   * Assunto, descrição e participantes do grupo (capability `groups`). Sem cache: cada chamada
-   * consulta o transport.
+   * Nome, descrição e participantes do grupo (capability `groups`). `participants` fica ausente
+   * onde a plataforma não lista membros (ADR 0059). Sem cache: cada chamada consulta o transport.
    */
   metadata(groupId: string): Promise<GroupMetadata>;
   /**
-   * Adiciona, remove, promove ou rebaixa participantes, pela fila de saída (capability
-   * `groups.admin`; o bot precisa ser admin do grupo).
+   * Adiciona, remove, promove ou rebaixa participantes, pela fila de saída. Cada ação exige a
+   * sua capability: `groups.add`, `groups.remove` ou `groups.promote` (que vale também para
+   * `demote`); o bot precisa ser admin do grupo.
    */
   updateParticipants(
     groupId: string,
@@ -38,7 +39,7 @@ export function createGroups(
     },
     updateParticipants: (groupId, participantIds, change, options) =>
       action(
-        'groups.admin',
+        groupActionCapability(change),
         groupId,
         () => transport.updateGroupParticipants(groupId, participantIds, change),
         options,

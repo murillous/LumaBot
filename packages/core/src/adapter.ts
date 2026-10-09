@@ -25,6 +25,7 @@ export {
   CAPABILITIES,
   type CapabilityHolder,
   capabilitiesForSend,
+  groupActionCapability,
   hasCapability,
   isCapability,
   missingCapabilities,

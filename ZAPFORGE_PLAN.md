@@ -160,6 +160,7 @@ decisão anterior.
 | D56 | **Owners por telefone ou por ID do contato** (detalha D24/D46): cada entrada de `owners` é telefone (string, normalizado como antes) ou `{ id }`, comparado com `sender.id`; telefone e ID nunca se cruzam | Texto livre (dígitos valem como telefone e ID); normalização do ID pelo transport | Discord, Telegram e web não têm telefone; a forma explícita não é ambígua e mantém a config atual válida |
 | D57 | **`Contact` multiplataforma** (detalha D09/D38): campos opcionais `username`, `isBot` e `claims` (`Readonly<Record<string, JsonValue>>`, verificados pelo transport, só no contato que fez a ação); `phone` segue obrigatório; middleware `ignoreBots` ligado por padrão, também nos eventos `reaction` e `message.deleted` | Claims no contexto (`ctx.auth`); claims genéricos por transport; `kind` no lugar de `isBot`; `phone` opcional | No `Contact`, o claim acompanha quem age em qualquer evento; aditivo; evita loop entre bots no Discord e no Telegram |
 | D58 | **`Chat` multiplataforma** (detalha D09/D24/D38): campos opcionais `kind` (`'dm' \| 'group' \| 'channel' \| 'thread'`), `parentId` (o espaço: servidor do Discord, supergrupo do Telegram) e `title`; `chat.id` opaco, composto pelo transport no tópico do Telegram; `isGroup` segue obrigatório; `chatFilter` casa `id` ou `parentId`, `block` vence | `threadId` separado no `Chat` e na `MessageKey`; ID composto com formato do core; `parentId` como pai imediato | O envio cai no tópico certo sem campo extra; admin e filtro leem o servidor direto; aditivo |
+| D59 | **Grupos multiplataforma** (detalha D24/D46; substitui em parte D10/D38/D40): `transport.isChatAdmin?(chat, contact)` opcional, preferido ao `getGroupMetadata`; `participants` opcional, nunca parcial; `subject` vira `title`; `groups.admin` dá lugar a `groups.add`/`groups.remove`/`groups.promote`; eventos `group.*` com `chat: Chat` no lugar de `groupId` | Porta `isGroupAdmin` inteira no adapter; `participants` parcial documentado; `groups.admin` com `UnsupportedError` por ação; nível de admin | `group-admin` funciona sem lista de membros; falta de capability aparece no boot; `chatFilter` vê o servidor nos eventos de grupo; quebra antes do 1.0 |
 
 ---
 
@@ -427,8 +428,8 @@ expect(bot.sent).toContainSticker();
 
 ### 6.10 Capabilities iniciais do Baileys
 
-`groups`, `groups.admin`, `mentions`, `reactions`, `presence`, `send.text`, `send.image`,
-`send.video`, `send.audio`, `send.voice`, `send.sticker`, `send.document`, `media.download`,
+`groups`, `groups.add`, `groups.remove`, `groups.promote`, `mentions`, `reactions`, `presence`, `send.text`,
+`send.image`, `send.video`, `send.audio`, `send.voice`, `send.sticker`, `send.document`, `media.download`,
 `message.edit`, `message.delete`, `polls`, `quoted`.
 
 Cada transport declara as próprias. As do `transport-web` saem do #287, e as capabilities novas

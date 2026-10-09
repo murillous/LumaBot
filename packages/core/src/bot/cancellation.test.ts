@@ -234,7 +234,7 @@ describe('ctx.signal em listeners', () => {
     events.on('group.left', (e) => {
       seen.push(e.signal);
     });
-    const done = bus.emit('group.left', { groupId: 'g' });
+    const done = bus.emit('group.left', { chat: { id: 'g', isGroup: true } });
     await vi.advanceTimersByTimeAsync(100);
     await done;
     expect(seen).toHaveLength(2);
@@ -366,7 +366,7 @@ describe('motivo tipado do timeout', () => {
       listenerSignal = e.signal;
       await forever();
     });
-    const done = bus.emit('group.left', { groupId: 'g' });
+    const done = bus.emit('group.left', { chat: { id: 'g', isGroup: true } });
     await vi.advanceTimersByTimeAsync(100);
     await done;
     expect(listenerSignal?.reason).toBeInstanceOf(ListenerTimeoutError);

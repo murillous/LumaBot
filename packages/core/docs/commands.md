@@ -33,7 +33,7 @@ O nome vai **sem** o prefixo.
 ## No bot
 
 O plugin registra com `ctx.commands.add(definição)` no `setup`; o `Bot` monta o roteador com
-`prefix` e `owners` da config, liga `isGroupAdmin` ao transport (capability `groups`) e chama o
+`prefix` e `owners` da config, liga `isGroupAdmin` ao transport (`isChatAdmin` ou capability `groups`) e chama o
 roteador para cada mensagem que passou pelos middlewares ([Bot](bot.md#fluxo-de-uma-mensagem)).
 No teardown/reload os comandos do plugin saem sozinhos.
 
@@ -51,9 +51,9 @@ import { createCommandRouter } from '#commands/router.ts';
 const router = createCommandRouter({
   prefix: '!',                         // padrão '!'; não pode ser vazio
   owners: ['5511999999999'],           // já normalizados (normalizeOwners)
-  isGroupAdmin: async (chatId, senderId) => {
-    const { participants } = await transport.getGroupMetadata(chatId);
-    return participants.some((p) => p.id === senderId && p.isAdmin);
+  isGroupAdmin: async (chat, sender) => {
+    const { participants = [] } = await transport.getGroupMetadata(chat.id);
+    return participants.some((p) => p.id === sender.id && p.isAdmin);
   },
 });
 
@@ -125,16 +125,19 @@ citada.
 | --- | --- |
 | `everyone` (padrão) | Todo mundo |
 | `owner` | Remetente cujo `sender.phone` (ou `sender.id`, para `{ id }`) está em `owners` |
-| `group-admin` | Admin do grupo, segundo a porta `isGroupAdmin(chatId, sender)` |
+| `group-admin` | Admin do grupo, segundo a porta `isGroupAdmin(chat, sender)` |
 
 - Owner passa também em `group-admin`.
 - `group-admin` fora de grupo é recusado (não há grupo a que o papel se refira).
-- No bot, o remetente é admin se um participante admin do `getGroupMetadata` tem o mesmo `id`
+- No bot, quem responde é o `transport.isChatAdmin(chat, sender)`, se o transport o implementa
+  (Discord, Telegram: [ADR 0059](../../../docs/adr/0059-grupos-multiplataforma.md)).
+- Sem ele, o remetente é admin se um participante admin do `getGroupMetadata` tem o mesmo `id`
   ou, quando os dois lados o têm, o mesmo `phone`: no WhatsApp o remetente pode vir como LID e o
   participante como JID de telefone. Sem telefone de um lado, só o `id` decide
-  ([ADR 0046](../../../docs/adr/0046-ids-de-contato-e-metadata-de-grupo.md)).
-- Sem `isGroupAdmin` (transport sem a capability `groups`), `group-admin` recusa todo mundo
-  exceto owners: falha fechada, nunca libera por falta de informação.
+  ([ADR 0046](../../../docs/adr/0046-ids-de-contato-e-metadata-de-grupo.md)). Metadata sem
+  `participants` recusa.
+- Sem `isGroupAdmin` (transport sem `isChatAdmin` e sem a capability `groups`), `group-admin`
+  recusa todo mundo exceto owners: falha fechada, nunca libera por falta de informação.
 - Um owner telefone (`'5511999999999'`, só dígitos e DDI) é comparado por igualdade com
   `message.sender.phone`. O bot normaliza a lista da config com `normalizeOwners`, então lá vale
   `'+55 (11) 99999-9999'`; no roteador solto, normalize antes.

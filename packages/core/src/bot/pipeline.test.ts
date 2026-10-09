@@ -10,7 +10,7 @@ import type { BotMessageContext } from '#context.ts';
 import type { PluginErrorEvent } from '#events/types.ts';
 import { createLogger } from '#logger/logger.ts';
 import { createSecretSet } from '#logger/secrets.ts';
-import type { TextMessage } from '#message/types.ts';
+import type { Chat, Contact, TextMessage } from '#message/types.ts';
 import type { Middleware } from '#middleware/pipeline.ts';
 import { definePlugin } from '#plugin/define.ts';
 import { PluginHostStateError } from '#plugin/host.ts';
@@ -276,7 +276,7 @@ describe('Bot: fluxo da mensagem (§5.3)', () => {
         return {
           ...metadata,
           participants: [
-            ...metadata.participants,
+            ...(metadata.participants ?? []),
             {
               id: '5511999990000@s.whatsapp.net',
               name: null,
@@ -326,6 +326,73 @@ describe('Bot: fluxo da mensagem (§5.3)', () => {
     await vi.waitFor(() =>
       expect(sentTexts(transport)).toEqual(['banido', 'só admin', 'só admin']),
     );
+  });
+
+  it("role 'group-admin' usa o isChatAdmin do transport, com o chat inteiro (ADR 0059)", async () => {
+    // Discord/Telegram: não há lista de membros (sem capability `groups`), mas o transport sabe
+    // dizer se alguém é admin, e no Discord isso depende do servidor (`parentId`).
+    const asked: [Chat, Contact][] = [];
+    class ByPermission extends RecordingTransport {
+      async isChatAdmin(chat: Chat, contact: Contact): Promise<boolean> {
+        asked.push([chat, contact]);
+        return chat.parentId === 'servidor' && contact.id === 'mod';
+      }
+    }
+    const transport = new ByPermission(['send.text', 'quoted']);
+    const b = bot({ transport, plugins: [banPlugin()] });
+    await b.start();
+    const channel: Chat = { id: 'canal', isGroup: true, kind: 'channel', parentId: 'servidor' };
+    const mod: Contact = { id: 'mod', name: null, phone: null };
+
+    transport.emit('message', { ...message('!ban'), chat: channel, sender: mod });
+    transport.emit('message', { ...message('!ban'), chat: channel, sender: transport.member });
+
+    await vi.waitFor(() => expect(sentTexts(transport)).toEqual(['banido', 'só admin']));
+    expect(asked[0]).toEqual([channel, mod]);
+  });
+
+  it("role 'group-admin' prefere o isChatAdmin ao getGroupMetadata", async () => {
+    class Both extends RecordingTransport {
+      metadataCalls = 0;
+      override async getGroupMetadata(groupId: string) {
+        this.metadataCalls++;
+        return super.getGroupMetadata(groupId);
+      }
+      async isChatAdmin(_chat: Chat, contact: Contact): Promise<boolean> {
+        return contact.id === this.member.id;
+      }
+    }
+    const transport = new Both(['send.text', 'quoted', 'groups']);
+    const b = bot({ transport, plugins: [banPlugin()] });
+    await b.start();
+    const group = { id: 'g@test', isGroup: true };
+
+    transport.emit('message', { ...message('!ban'), chat: group, sender: transport.member });
+    transport.emit('message', { ...message('!ban'), chat: group, sender: transport.admin });
+
+    await vi.waitFor(() => expect(sentTexts(transport)).toEqual(['banido', 'só admin']));
+    expect(transport.metadataCalls).toBe(0);
+  });
+
+  it("role 'group-admin' recusa quando o getGroupMetadata vem sem participants (ADR 0059)", async () => {
+    class NoMembers extends RecordingTransport {
+      override async getGroupMetadata(groupId: string) {
+        const { participants: _omitted, ...metadata } = await super.getGroupMetadata(groupId);
+        return metadata;
+      }
+    }
+    const transport = new NoMembers(['send.text', 'quoted', 'groups']);
+    const b = bot({ transport, plugins: [banPlugin()] });
+    await b.start();
+
+    transport.emit('message', {
+      ...message('!ban'),
+      chat: { id: 'g@test', isGroup: true },
+      sender: transport.admin,
+    });
+
+    // Sem a lista, recusa como qualquer não-admin, em vez de quebrar no `.some` (plugin.error).
+    await vi.waitFor(() => expect(sentTexts(transport)).toEqual(['só admin']));
   });
 
   it("role 'owner' funciona com owners no formato da config; recusa sai pelo reply", async () => {
@@ -559,6 +626,24 @@ describe('Bot: edição de mensagem (#197)', () => {
   });
 });
 
+/** Plugin com `!ban` restrito a `group-admin`; a recusa responde "só admin". */
+function banPlugin() {
+  return definePlugin({
+    name: 'admin',
+    version: '1.0.0',
+    engine: ENGINE,
+    setup: (ctx) =>
+      ctx.commands.add(
+        command({
+          name: 'ban',
+          role: 'group-admin',
+          onReject: () => 'só admin',
+          run: (c) => c.reply('banido'),
+        }),
+      ),
+  });
+}
+
 /** Plugin que registra, em ordem, os eventos que não são mensagem. */
 function eventos(got: string[], options: { gate?: Promise<void> } = {}) {
   return definePlugin({
@@ -569,13 +654,13 @@ function eventos(got: string[], options: { gate?: Promise<void> } = {}) {
       await options.gate;
       ctx.events.on('reaction', (e) => void got.push(`reaction:${e.payload.chat.id}`));
       ctx.events.on('message.deleted', (e) => void got.push(`deleted:${e.payload.chat.id}`));
-      ctx.events.on('group.joined', (e) => void got.push(`joined:${e.payload.groupId}`));
-      ctx.events.on('group.left', (e) => void got.push(`left:${e.payload.groupId}`));
+      ctx.events.on('group.joined', (e) => void got.push(`joined:${e.payload.chat.id}`));
+      ctx.events.on('group.left', (e) => void got.push(`left:${e.payload.chat.id}`));
       ctx.events.on(
         'group.participants',
-        (e) => void got.push(`participants:${e.payload.groupId}`),
+        (e) => void got.push(`participants:${e.payload.chat.id}`),
       );
-      ctx.events.on('group.updated', (e) => void got.push(`updated:${e.payload.groupId}`));
+      ctx.events.on('group.updated', (e) => void got.push(`updated:${e.payload.chat.id}`));
     },
   });
 }
@@ -586,8 +671,8 @@ function payloads(chatId: string, fromMe = false) {
   return {
     reaction: { chat, messageId: id, sender, emoji: '👍', fromMe },
     deleted: { chat, messageId: id, deletedBy: sender, fromMe },
-    participants: { groupId: chatId, action: 'add' as const, participants: [sender], actor: null },
-    updated: { groupId: chatId, subject: 'novo' },
+    participants: { chat, action: 'add' as const, participants: [sender], actor: null },
+    updated: { chat, title: 'novo' },
   };
 }
 
@@ -686,8 +771,8 @@ describe('Bot: eventos que não são mensagem (#219, ADR 0038)', () => {
     transport.emit('message.deleted', bloq.deleted);
     transport.emit('group.participants', bloq.participants);
     transport.emit('group.updated', bloq.updated);
-    transport.emit('group.joined', { groupId: 'bloq@g.us' });
-    transport.emit('group.left', { groupId: 'bloq@g.us' });
+    transport.emit('group.joined', { chat: { id: 'bloq@g.us', isGroup: true } });
+    transport.emit('group.left', { chat: { id: 'bloq@g.us', isGroup: true } });
     transport.emit('reaction', payloads('livre@g.us').reaction);
 
     await vi.waitFor(() =>
@@ -712,6 +797,25 @@ describe('Bot: eventos que não são mensagem (#219, ADR 0038)', () => {
     transport.emit('reaction', payloads('solto').reaction);
 
     await vi.waitFor(() => expect(got).toEqual(['reaction:solto']));
+  });
+
+  it('o chatFilter barra group.participants e group.updated de um canal do espaço bloqueado (ADR 0059)', async () => {
+    const transport = new RecordingTransport();
+    const got: string[] = [];
+    const b = bot({
+      transport,
+      plugins: [eventos(got)],
+      middlewares: { chatFilter: { block: ['servidor'] } },
+    });
+    await b.start();
+
+    const noServidor = payloads('canal');
+    const chat = { ...noServidor.reaction.chat, kind: 'channel' as const, parentId: 'servidor' };
+    transport.emit('group.participants', { ...noServidor.participants, chat });
+    transport.emit('group.updated', { ...noServidor.updated, chat });
+    transport.emit('group.updated', payloads('solto').updated);
+
+    await vi.waitFor(() => expect(got).toEqual(['updated:solto']));
   });
 
   it('o ignoreSelf barra a reação e a deleção da própria sessão', async () => {
@@ -777,7 +881,7 @@ describe('Bot: eventos que não são mensagem (#219, ADR 0038)', () => {
     const b = bot({ transport, plugins: [eventos(got, { gate: gate.promise })] });
     const started = b.start();
     transport.emit('reaction', payloads('cedo@test').reaction);
-    transport.emit('group.joined', { groupId: 'cedo@g.us' });
+    transport.emit('group.joined', { chat: { id: 'cedo@g.us', isGroup: true } });
     gate.resolve();
     await started;
 

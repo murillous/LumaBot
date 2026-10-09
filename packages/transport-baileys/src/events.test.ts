@@ -209,7 +209,7 @@ describe('toParticipantEvents', () => {
     expect(events).toEqual({
       self: null,
       others: {
-        groupId: GROUP,
+        chat: { id: GROUP, isGroup: true },
         action: 'add',
         participants: [{ id: '333@lid', name: null, phone: '5531933330000' }],
         actor: { id: BOB_LID, name: null, phone: '5521922220000' },
@@ -263,15 +263,15 @@ describe('toParticipantEvents', () => {
 describe('toGroupUpdated', () => {
   it('só os campos alterados; descrição removida vira null', () => {
     expect(toGroupUpdated({ id: GROUP, subject: 'Novo' })).toEqual({
-      groupId: GROUP,
-      subject: 'Novo',
+      chat: { id: GROUP, isGroup: true },
+      title: 'Novo',
     });
     expect(toGroupUpdated({ id: GROUP, desc: undefined })).toEqual({
-      groupId: GROUP,
+      chat: { id: GROUP, isGroup: true },
       description: null,
     });
     expect(toGroupUpdated({ id: GROUP, announce: true, restrict: false })).toEqual({
-      groupId: GROUP,
+      chat: { id: GROUP, isGroup: true },
       announce: true,
       restrict: false,
     });

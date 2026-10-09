@@ -113,7 +113,7 @@ describe('Transport (contrato)', () => {
   it('metadata de grupo traz participantes com flag de admin', async () => {
     const transport = new TestTransport(['groups']);
     const group = await transport.getGroupMetadata('g@test');
-    const admins = group.participants.filter((p) => p.isAdmin).map((p) => p.id);
+    const admins = (group.participants ?? []).filter((p) => p.isAdmin).map((p) => p.id);
     expect(admins).toEqual(['owner@test']);
   });
 });

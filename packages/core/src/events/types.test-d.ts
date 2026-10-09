@@ -10,7 +10,7 @@ import type {
   ListenerContext,
   PluginErrorEvent,
 } from '#events/types.ts';
-import type { ImageMessage, Message, MessageType, VoiceMessage } from '#message/types.ts';
+import type { Chat, ImageMessage, Message, MessageType, VoiceMessage } from '#message/types.ts';
 import type { ConnectionStatus } from '#transport/types.ts';
 
 const noop = (): void => undefined;
@@ -61,7 +61,7 @@ describe('on()', () => {
       expectTypeOf(ctx.claimed).toEqualTypeOf<boolean>();
     });
     events.on('group.joined', (ctx) => {
-      expectTypeOf(ctx.payload.groupId).toEqualTypeOf<string>();
+      expectTypeOf(ctx.payload.chat).toEqualTypeOf<Chat>();
     });
   });
 

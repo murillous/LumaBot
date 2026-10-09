@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { MessageContext } from '#context.ts';
-import type { Contact, Media, Message, MessageType } from '#message/types.ts';
+import type { Chat, Contact, Media, Message, MessageType } from '#message/types.ts';
 import { type CommandContext, type CommandDefinition, command } from './command.ts';
 import { createRoleRegistry, type RoleContext } from './roles.ts';
 import { createCommandRouter } from './router.ts';
@@ -306,7 +306,7 @@ describe('roteador: role', () => {
   });
 
   it('group-admin: consulta a porta com chat e remetente', async () => {
-    const isGroupAdmin = vi.fn((_chat: string, sender: Contact) =>
+    const isGroupAdmin = vi.fn((_chat: Chat, sender: Contact) =>
       Promise.resolve(sender.id === 'adm'),
     );
     const router = createCommandRouter({ isGroupAdmin });
@@ -317,7 +317,10 @@ describe('roteador: role', () => {
 
     expect(allowed.status).toBe('ran');
     expect(denied).toMatchObject({ status: 'rejected', rejection: { required: 'group-admin' } });
-    expect(isGroupAdmin).toHaveBeenCalledWith('grupo', { id: 'adm', name: null, phone: null });
+    expect(isGroupAdmin).toHaveBeenCalledWith(
+      { id: 'grupo', isGroup: true },
+      { id: 'adm', name: null, phone: null },
+    );
   });
 
   it('group-admin: recusa fora de grupo sem consultar a porta', async () => {

@@ -27,7 +27,8 @@ interface Transport {
   delete(key): Promise<void>;                    // message.delete
   sendPresence(chatId, presence): Promise<void>; // presence
   getGroupMetadata(groupId): Promise<GroupMetadata>;            // groups
-  updateGroupParticipants(groupId, ids, action): Promise<void>; // groups.admin
+  isChatAdmin?(chat, contact): Promise<boolean>;                // opcional
+  updateGroupParticipants(groupId, ids, action): Promise<void>; // groups.add/remove/promote
 }
 ```
 
@@ -81,9 +82,9 @@ Os eventos chegam já normalizados (`TransportEvents`):
 | `message.edited` | `Message` (nova versão, `isEdited: true`) |
 | `message.deleted` | `{ chat, messageId, deletedBy, fromMe }` (`fromMe`: apagada pela própria sessão) |
 | `reaction` | `{ chat, messageId, sender, emoji, fromMe }` (`emoji: null` = removida; `fromMe`: reação da própria sessão) |
-| `group.joined` / `group.left` | `{ groupId }` (o bot entrou/saiu) |
-| `group.participants` | `{ groupId, action, participants, actor }` |
-| `group.updated` | `{ groupId, subject?, description?, announce?, restrict? }` |
+| `group.joined` / `group.left` | `{ chat }` (o bot entrou/saiu; no Discord, `chat` é o servidor) |
+| `group.participants` | `{ chat, action, participants, actor }` |
+| `group.updated` | `{ chat, title?, description?, announce?, restrict? }` |
 | `contact.updated` | `{ id, name?, phone? }` (nome ou telefone de um contato mudou; só os campos alterados) |
 | `connection.status` | `{ status: 'connecting' \| 'open' }` ou `{ status: 'closed', reason, error }` |
 | `connection.qr` | `{ qr }` |
@@ -166,9 +167,26 @@ await transport.react(messageKey(ctx.message), '👍');
 
 ## Grupos
 
-`getGroupMetadata(groupId)` traz `participants` com `isAdmin` (verdadeiro também para o
-criador) e `isSuperAdmin`. É o que o roteador usa para `role: 'group-admin'`; o próprio bot
-é `transport.self`.
+`getGroupMetadata(groupId)` traz `title`, `description`, `ownerId` e `participants` com
+`isAdmin` (verdadeiro também para o dono) e `isSuperAdmin`; o próprio bot é `transport.self`.
+Onde a plataforma não lista membros (Telegram) ou listar custa caro (servidor grande do
+Discord), deixe `participants` ausente. Nunca entregue a lista pela metade: um plugin que
+menciona todos agiria sobre ela sem saber
+([ADR 0059](../../../docs/adr/0059-grupos-multiplataforma.md)).
+
+O papel `group-admin` pergunta ao transport se o remetente é admin:
+
+1. Com `isChatAdmin(chat, contact)` implementado, só ele responde. Use quando a plataforma decide
+   admin de outro jeito (permissão de servidor e de canal no Discord, `getChatMember` no
+   Telegram). Ele recebe o `Chat` inteiro, com o `parentId` do servidor.
+2. Sem ele, com a capability `groups`, o kernel procura o contato nos `participants` do
+   `getGroupMetadata`. Sem `participants`, recusa.
+3. Sem nenhum dos dois, `group-admin` recusa quem não é owner.
+
+As alterações de participantes têm uma capability por ação: `groups.add`, `groups.remove` e
+`groups.promote` (que vale também para `demote`). Declare só as que a plataforma permite ao bot:
+no Telegram e no Discord, bot não adiciona ninguém. `remove` tira a pessoa sem impedir que volte.
+`groupActionCapability(action)` diz qual capability cobrar.
 
 O kernel chama `getGroupMetadata` a cada comando `group-admin` de quem não é owner, e o plugin
 pode chamá-lo por `ctx.groups.metadata` quando quiser. Por isso ele precisa ser barato: o adapter
@@ -180,8 +198,8 @@ mantém cache por grupo e o invalida em `group.participants` e `group.updated` (
 
 `CAPABILITIES` lista as capabilities suportadas pelo kernel (plano §6.10):
 
-`groups`, `groups.admin`, `mentions`, `reactions`, `presence`, `send.text`, `send.image`,
-`send.video`, `send.audio`, `send.voice`, `send.sticker`, `send.document`, `media.download`,
+`groups`, `groups.add`, `groups.remove`, `groups.promote`, `mentions`, `reactions`, `presence`,
+`send.text`, `send.image`, `send.video`, `send.audio`, `send.voice`, `send.sticker`, `send.document`, `media.download`,
 `message.edit`, `message.delete`, `polls`, `quoted`.
 
 O transport declara o subconjunto que suporta em `capabilities`. Helpers (de
@@ -194,6 +212,7 @@ O transport declara o subconjunto que suporta em `capabilities`. Helpers (de
 | `assertCapability(t, cap)` | lança `UnsupportedError` se faltar |
 | `missingCapabilities(t, required)` | faltantes de um `requires` (boot do plugin) |
 | `capabilitiesForSend(content, options?)` | o que um `send` exige |
+| `groupActionCapability(action)` | o que uma alteração de participantes exige |
 | `assertCanSend(t, content, options?)` | rede de segurança antes do `send` |
 | `isCapability(str)` | valida strings vindas de manifesto em JS |
 

@@ -520,7 +520,9 @@ describe('BaileysTransport: eventos (M2-1.6)', () => {
     const record =
       (event: string) =>
       (payload: unknown): void => {
-        seen.push(`${event} ${JSON.stringify(payload, ['id', 'name', 'messageId', 'groupId'])}`);
+        // Os eventos de grupo identificam o grupo pelo `chat` (ADR 0059); os demais, pelos ids.
+        const keys = event.startsWith('group.') ? ['chat', 'id'] : ['id', 'name', 'messageId'];
+        seen.push(`${event} ${JSON.stringify(payload, keys)}`);
       };
     for (const event of [
       'message',
@@ -628,10 +630,10 @@ describe('BaileysTransport: eventos (M2-1.6)', () => {
     });
     await vi.waitFor(() => expect(seen).toHaveLength(4));
     expect(seen).toEqual([
-      `group.joined {"groupId":"${GROUP}"}`,
-      `group.participants {"groupId":"${GROUP}"}`,
-      `group.updated {"groupId":"${GROUP}"}`,
-      `group.left {"groupId":"${GROUP}"}`,
+      `group.joined {"chat":{"id":"${GROUP}"}}`,
+      `group.participants {"chat":{"id":"${GROUP}"}}`,
+      `group.updated {"chat":{"id":"${GROUP}"}}`,
+      `group.left {"chat":{"id":"${GROUP}"}}`,
     ]);
   });
 
@@ -647,7 +649,7 @@ describe('BaileysTransport: eventos (M2-1.6)', () => {
     ]);
     old.emit('groups.update', [{ id: GROUP, subject: 'Velho' }]);
     driver.last.emit('groups.update', [{ id: GROUP, subject: 'Novo' }]);
-    await vi.waitFor(() => expect(seen).toEqual([`group.updated {"groupId":"${GROUP}"}`]));
+    await vi.waitFor(() => expect(seen).toEqual([`group.updated {"chat":{"id":"${GROUP}"}}`]));
   });
 
   it('falha na conversão descarta só aquele evento e vai para o log', async () => {
@@ -663,7 +665,7 @@ describe('BaileysTransport: eventos (M2-1.6)', () => {
       { key: { remoteJid: GROUP, id: 'M1' }, reaction: { text: '👍', key: broken } },
     ]);
     socket.emit('groups.update', [{ id: GROUP, subject: 'Novo' }]);
-    await vi.waitFor(() => expect(seen).toEqual([`group.updated {"groupId":"${GROUP}"}`]));
+    await vi.waitFor(() => expect(seen).toEqual([`group.updated {"chat":{"id":"${GROUP}"}}`]));
     expect(log.lines).toContainEqual({
       level: 'error',
       message: 'falha ao converter reação do Baileys; descartada',
@@ -826,7 +828,7 @@ describe('BaileysTransport: metadados de grupo (ADR 0046)', () => {
 
     expect(a).toEqual({
       id: GROUP,
-      subject: 'Família',
+      title: 'Família',
       description: null,
       ownerId: null,
       participants: [
@@ -868,7 +870,7 @@ describe('BaileysTransport: metadados de grupo (ADR 0046)', () => {
       participants: [],
     });
 
-    expect(await transport.getGroupMetadata(GROUP)).toMatchObject({ subject: 'Outro' });
+    expect(await transport.getGroupMetadata(GROUP)).toMatchObject({ title: 'Outro' });
   });
 
   it('falha na consulta não fica no cache', async () => {
@@ -882,7 +884,7 @@ describe('BaileysTransport: metadados de grupo (ADR 0046)', () => {
     });
 
     expect(await transport.getGroupMetadata('outro@g.us')).toMatchObject({
-      subject: 'Agora existe',
+      title: 'Agora existe',
     });
   });
 
