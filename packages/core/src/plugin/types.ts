@@ -4,6 +4,7 @@
 
 import type { z } from 'zod';
 import type { CommandDefinition, CommandInfo } from '#commands/command.ts';
+import type { Prefixes } from '#commands/prefixes.ts';
 import type { RoleCheck, RoleName } from '#commands/roles.ts';
 import type { Conversations } from '#conversations/conversations.ts';
 import type { EventSubscriber } from '#events/types.ts';
@@ -71,6 +72,12 @@ export interface PluginContext<
    * `TypeError`; nome que já tem dono, `RoleConflictError`. O papel sai no teardown/reload.
    */
   readonly roles: { define<K extends RoleName>(name: K, check: RoleCheck): void };
+  /**
+   * Prefixo de comando por chat (ADR 0063): `get(chat)` dá o que vale no chat (para mostrar
+   * `!ajuda` certo), `set(chatId, prefixo)` grava o override e `reset(chatId)` volta ao padrão do
+   * tipo de chat. O override vale para o bot inteiro, não só para o plugin.
+   */
+  readonly prefixes: Prefixes;
   /**
    * Passos de conversa (ADR 0060): `define('aluno', handler)` trata a resposta que um comando,
    * listener ou passo pediu com `ctx.expectReply('aluno')`, sem segurar o chat.

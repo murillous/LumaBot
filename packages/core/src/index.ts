@@ -30,6 +30,7 @@ export type {
   RejectContext,
 } from '#commands/command.ts';
 export { command } from '#commands/command.ts';
+export type { PrefixConfig, Prefixes } from '#commands/prefixes.ts';
 export { CommandConflictError } from '#commands/registry.ts';
 export type { RoleCheck, RoleContext, RoleName, Roles } from '#commands/roles.ts';
 export { RoleConflictError, RoleTimeoutError } from '#commands/roles.ts';

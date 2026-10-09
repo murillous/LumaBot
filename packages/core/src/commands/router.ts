@@ -11,6 +11,7 @@ import type {
   CommandRole,
   RejectContext,
 } from './command.ts';
+import { DEFAULT_PREFIX, validatePrefix } from './prefixes.ts';
 import { type CommandRegistry, createCommandRegistry, type RegisteredCommand } from './registry.ts';
 import { createRoleRegistry, type RoleContext, type RoleRegistry } from './roles.ts';
 
@@ -24,8 +25,18 @@ import { createRoleRegistry, type RoleContext, type RoleRegistry } from './roles
 export type IsGroupAdmin = (chat: Chat, sender: Contact) => boolean | Promise<boolean>;
 
 export interface CommandRouterOptions {
-  /** Padrão: `'!'`. Comparado sem diferenciar caixa. */
-  readonly prefix?: string;
+  /**
+   * Padrão: `'!'`. Comparado sem diferenciar caixa; vazio faz a primeira palavra ser o token. Uma
+   * função resolve o prefixo pelo chat da mensagem (no bot, o override do chat ou o padrão do
+   * tipo, ADR 0063) e deve devolver o texto já validado e em minúsculas.
+   */
+  readonly prefix?: string | ((chat: Chat) => string);
+  /**
+   * `@usuario` da própria sessão, sem o `@`. Com ele, `cmd@usuario` vira o token `cmd`: é como o
+   * Telegram endereça um comando ao bot num grupo. Lido a cada mensagem, porque só existe depois
+   * da conexão.
+   */
+  readonly selfUsername?: () => string | undefined;
   /**
    * Donos do bot, já normalizados (`normalizeOwners`): telefone só com dígitos e DDI, comparado
    * com `message.sender.phone`, ou `{ id }`, comparado com `message.sender.id`.
@@ -130,10 +141,13 @@ function resolveAccepts(message: Message, accepts: readonly AcceptSpec[]): Accep
 }
 
 export function createCommandRouter(options: CommandRouterOptions = {}): CommandRouter {
-  const prefix = (options.prefix ?? '!').toLowerCase();
-  if (prefix.length === 0) {
-    // Prefixo vazio faria a primeira palavra de qualquer conversa virar comando.
-    throw new TypeError('O prefixo de comando não pode ser vazio');
+  const option = options.prefix ?? DEFAULT_PREFIX;
+  let prefixOf: (chat: Chat) => string;
+  if (typeof option === 'function') {
+    prefixOf = option;
+  } else {
+    const fixed = validatePrefix(option, 'prefix').toLowerCase();
+    prefixOf = () => fixed;
   }
   // Dois conjuntos, um por espaço: um ID com texto de telefone não casa com o telefone de
   // ninguém, e vice-versa (ADR 0056).
@@ -149,13 +163,20 @@ export function createCommandRouter(options: CommandRouterOptions = {}): Command
 
   function match(message: Message, workingText = message.text): CommandMatch | null {
     const text = workingText?.trimStart();
-    if (!text || text.slice(0, prefix.length).toLowerCase() !== prefix) return null;
+    if (!text) return null;
+    const prefix = prefixOf(message.chat);
+    if (text.slice(0, prefix.length).toLowerCase() !== prefix) return null;
 
     // Token = do fim do prefixo até o primeiro espaço em branco. Match exato no Map: o
     // `includes()` do legacy fazia "!s" casar dentro de "vou mandar !sticker depois".
     const rest = text.slice(prefix.length);
     const end = rest.search(FIRST_WHITESPACE);
-    const token = (end === -1 ? rest : rest.slice(0, end)).toLowerCase();
+    let token = (end === -1 ? rest : rest.slice(0, end)).toLowerCase();
+    // Só o @ da própria sessão sai: `cmd@OutroBot` é de outro bot e não casa.
+    const self = options.selfUsername?.();
+    if (self !== undefined && token.endsWith(`@${self.toLowerCase()}`)) {
+      token = token.slice(0, -(self.length + 1));
+    }
     if (token.length === 0) return null;
 
     const entry = registry.find(token);

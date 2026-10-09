@@ -155,8 +155,54 @@ describe('roteador: match', () => {
     expect(calls[0]?.args).toEqual(['linha', '1', 'linha', '2']);
   });
 
-  it('recusa prefixo vazio', () => {
-    expect(() => createCommandRouter({ prefix: '' })).toThrow(TypeError);
+  it('com prefixo vazio, a primeira palavra é o token (ADR 0063)', async () => {
+    const router = createCommandRouter({ prefix: '' });
+    const { def, calls } = spyCommand();
+    router.registry.add('media', def);
+
+    await router.dispatch(ctxOf({ text: '  Sticker agora' }));
+    const other = await router.dispatch(ctxOf({ text: 'vou mandar sticker' }));
+
+    expect(calls[0]?.invokedAs).toBe('sticker');
+    expect(calls[0]?.rawArgs).toBe('agora');
+    expect(other.consumed).toBe(false);
+  });
+
+  it('prefixo começado por espaço em branco nunca casaria: lança', () => {
+    expect(() => createCommandRouter({ prefix: ' !' })).toThrow(TypeError);
+  });
+
+  it('resolve o prefixo pelo chat da mensagem', async () => {
+    const router = createCommandRouter({ prefix: (chat) => (chat.isGroup ? '!' : '') });
+    const { def, calls } = spyCommand();
+    router.registry.add('media', def);
+
+    await router.dispatch(ctxOf({ text: 'sticker' }));
+    const group = await router.dispatch(ctxOf({ text: 'sticker', isGroup: true }));
+    await router.dispatch(ctxOf({ text: '!sticker', isGroup: true }));
+
+    expect(group.consumed).toBe(false);
+    expect(calls).toHaveLength(2);
+  });
+
+  it('tira do token o @ do próprio bot (comando de grupo do Telegram)', async () => {
+    const router = createCommandRouter({ prefix: '/', selfUsername: () => 'MeuBot' });
+    const { def, calls } = spyCommand();
+    router.registry.add('media', def);
+
+    await router.dispatch(ctxOf({ text: '/sticker@meubot olá' }));
+    const other = await router.dispatch(ctxOf({ text: '/sticker@OutroBot olá' }));
+
+    expect(calls[0]?.invokedAs).toBe('sticker');
+    expect(calls[0]?.rawArgs).toBe('olá');
+    expect(other.consumed).toBe(false);
+  });
+
+  it('sem o username da sessão, o @ fica no token', async () => {
+    const router = createCommandRouter({ prefix: '/', selfUsername: () => undefined });
+    router.registry.add('media', spyCommand().def);
+    const result = await router.dispatch(ctxOf({ text: '/sticker@meubot' }));
+    expect(result.consumed).toBe(false);
   });
 
   it('herda do contexto recebido, preservando o que o pipeline colocou nele', async () => {

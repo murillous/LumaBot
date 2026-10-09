@@ -182,3 +182,4 @@ ADR 0055). Ao serem aceitos, entram aqui e no índice numérico.
 | [0060](0060-resposta-esperada.md) | D60 | Resposta esperada: conversa com estado sem segurar o chat (detalha D12/D42) | Aceito |
 | [0061](0061-texto-formatado-neutro.md) | D61 | Texto formatado neutro, menções portáteis e limites de tamanho (detalha D09/D19) | Aceito |
 | [0062](0062-acoes-e-botoes.md) | D62 | Ações e botões: o clique dispara um comando, com fallback em texto numerado (detalha D12/D49/D60) | Aceito |
+| [0063](0063-prefixo-por-chat.md) | D63 | Prefixo por tipo de chat e por chat, vazio permitido (detalha D12/D60) | Aceito |

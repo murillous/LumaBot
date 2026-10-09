@@ -28,7 +28,7 @@ Só `transport` é obrigatório; `createBot({ transport })` sobe um bot sem plug
 | `pluginConfig` | — | Config por plugin, a camada "arquivo" ([Config](config.md)) |
 | `env` | `process.env` | Ambiente lido pela config de plugin (`ZAPFORGE_*`) |
 | `owners` | `[]` | Donos: telefone, aceito com pontuação (`'+55 11 99999-9999'`), ou `{ id }` com o ID nativo do contato ([Config](config.md#owners)) — `BotConfigError` já no `createBot` se malformados |
-| `prefix` | `'!'` | Prefixo de comando |
+| `prefix` | `'!'` | Prefixo de comando: um texto para todo chat, ou `{ dm, group }` por tipo de chat; vazio é permitido ([Comandos](commands.md#prefixo-por-chat)) |
 | `logger` | criado pelo bot | `Logger` pronto. Sem ele, `createLogger({ level: logLevel, secrets })` no `start()` |
 | `logLevel` | `'info'` | Nível do logger criado pelo bot |
 | `secrets` | um novo | `SecretSet` compartilhado entre a config de plugin e o logger (ver abaixo) |
@@ -39,7 +39,7 @@ Só `transport` é obrigatório; `createBot({ transport })` sobe um bot sem plug
 | `timeouts` | `setupMs` 10000, `teardownMs` 5000, `commandMs` 30000, `listenerMs` 30000, `jobMs` 30000, `middlewareMs` 30000 | Prazos do código de plugin e dos middlewares |
 | `shutdown` | `hookTimeoutMs` 5000, `timeoutMs` 15000 | Prazos dos ganchos de parada |
 
-Opção inválida (prefixo vazio, `maxPendingPerChat` negativo, prioridade `NaN`…) lança já no
+Opção inválida (prefixo começado por espaço, `maxPendingPerChat` negativo, prioridade `NaN`…) lança já no
 `createBot`, com `TypeError`/`RangeError`.
 
 **Segredos no log.** Os campos `secret` da config de plugin são resolvidos no `setup` e mudam no

@@ -166,6 +166,8 @@ const entries: Record<string, { file: string; load: () => Promise<object> } & En
       'PluginSkipReason',
       'PluginStorage',
       'PollMessage',
+      'PrefixConfig',
+      'Prefixes',
       'Presence',
       'RateLimitOptions',
       'RateLimitScope',
