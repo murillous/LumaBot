@@ -1,0 +1,20 @@
+{
+  "name": "@zapforge/bench",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Benchmarks do kernel ZapForge (metas da seção 7 do plano).",
+  "license": "Apache-2.0",
+  "type": "module",
+  "imports": {
+    "#*": "./src/*"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "bench": "node dist/main.mjs"
+  },
+  "dependencies": {
+    "@zapforge/core": "workspace:*",
+    "@zapforge/testing": "workspace:*",
+    "zod": "^4.6.5"
+  }
+}

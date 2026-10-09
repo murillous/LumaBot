@@ -9,6 +9,7 @@
   },
   "scripts": {
     "build": "pnpm -r build",
+    "bench": "pnpm build && pnpm --filter @zapforge/bench bench",
     "typecheck": "tsc -b",
     "lint": "biome check",
     "lint:fix": "biome check --write",

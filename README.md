@@ -10,7 +10,7 @@ Quer contribuir? Veja o [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ## Desenvolvimento
 
-Monorepo pnpm (`packages/*`, `plugins/*`, `apps/*`). A versão do pnpm vem de
+Monorepo pnpm (`packages/*`, `plugins/*`, `apps/*` e `bench/`). A versão do pnpm vem de
 `packageManager` no `package.json` — com `corepack enable`, basta rodar `pnpm install` na raiz.
 O `legacy/` fica fora do workspace e continua usando npm.
 
@@ -24,6 +24,7 @@ Requer Node 24+ (`engines` na raiz; `.nvmrc` para `nvm use`/`fnm use`).
 | `pnpm typecheck` | `tsc -b` em todos os pacotes (project references) |
 | `pnpm test` | Vitest em todos os pacotes |
 | `pnpm build` | `tsdown` em cada pacote (ESM + `.d.ts` em `dist/`) |
+| `pnpm bench` | Build e benchmark das metas de performance ([`bench/`](bench/docs/README.md)) |
 | `pnpm changeset` | Registra a mudança de um pacote publicável |
 | `pnpm version-packages` | Consome os changesets (versões e changelogs) e sincroniza o `CORE_VERSION` |
 
