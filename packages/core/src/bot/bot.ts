@@ -5,8 +5,9 @@ import {
   numberedMenu,
   pickChoice,
 } from '#actions/actions.ts';
+import { createCommandCatalog } from '#commands/catalog.ts';
 import { createPrefixStore, type PrefixConfig } from '#commands/prefixes.ts';
-import { CommandConflictError } from '#commands/registry.ts';
+import { CommandConflictError, createCommandRegistry } from '#commands/registry.ts';
 import { RoleConflictError } from '#commands/roles.ts';
 import { createCommandRouter, type DispatchResult, type IsGroupAdmin } from '#commands/router.ts';
 import type { ConfigEnv } from '#config/env.ts';
@@ -57,7 +58,12 @@ import { createMemoryStorage } from '#storage/memory.ts';
 import { DEFAULT_SESSION, sessionStorage } from '#storage/namespace.ts';
 import type { StoragePort } from '#storage/types.ts';
 import { type Capability, hasCapability } from '#transport/capabilities.ts';
-import type { Interaction, Transport, TransportDeps } from '#transport/types.ts';
+import type {
+  CommandInteraction,
+  Interaction,
+  Transport,
+  TransportDeps,
+} from '#transport/types.ts';
 import { createUnsafeAccess } from '#unsafe/access.ts';
 import {
   createMessageContext,
@@ -358,10 +364,19 @@ export function createBot(config: BotConfig): Bot {
   // A fábrica recebe o logger antes de ele existir: este delega ao filho `{ transport }` que o
   // start() cria e, até lá, ao no-op.
   let transportLog: Logger | undefined;
+  // A lista de comandos que o transport registra na plataforma (ADR 0064). O registro avisa o
+  // catálogo, que junta os avisos em lote.
+  const catalog = createCommandCatalog({
+    list: () => registry.list(),
+    onError: (error) =>
+      log.error('listener de commands.onChange do transport falhou', { err: error }),
+  });
+  const registry = createCommandRegistry({ onChange: () => catalog.changed() });
   const transport = resolveTransport(config.transport, {
     session,
     auth,
     log: createDeferredLogger(() => transportLog ?? log),
+    commands: catalog.commands,
   });
   let releaseSession: ReleaseSession | undefined;
   // `connect()` já foi chamado: só então o shutdown desconecta.
@@ -382,6 +397,7 @@ export function createBot(config: BotConfig): Bot {
   const services = createServiceRegistry();
   const prefixes = createPrefixStore(config.prefix, scoped);
   const router = createCommandRouter({
+    registry,
     prefix: (chat) => prefixes.get(chat),
     selfUsername: () => transport.self?.username,
     owners: normalizeOwners(config.owners ?? []),
@@ -670,6 +686,7 @@ export function createBot(config: BotConfig): Bot {
    * descartado.
    */
   async function handleInteraction(interaction: Interaction): Promise<void> {
+    if (interaction.command !== undefined) return handleNativeCommand(interaction);
     const { chat, sender, actionId } = interaction;
     const target = actions.resolve(actionId, chat.id);
     if (target === undefined) {
@@ -689,6 +706,35 @@ export function createBot(config: BotConfig): Bot {
       // O clique é um comando: cancela a espera do remetente, como o comando digitado (ADR 0060).
       conversations.take(chat.id, sender.id);
       await runAction(ctx, target);
+    });
+  }
+
+  /**
+   * Comando nativo da plataforma (ADR 0064): roda como o clique num botão de comando, com o texto
+   * livre interpretado como o que vem depois do comando digitado.
+   */
+  async function handleNativeCommand(interaction: CommandInteraction): Promise<void> {
+    const { chat, sender, command, args } = interaction;
+    const message = createMessage({
+      type: 'text',
+      id: interaction.id,
+      chat,
+      sender,
+      // O texto que a plataforma mostra para o comando: quem lê a mensagem (middlewares, log) vê
+      // o que a pessoa chamou.
+      text: args.trim() === '' ? `/${command}` : `/${command} ${args.trimStart()}`,
+      timestamp: interaction.timestamp,
+      fromMe: false,
+    });
+    await admit(message, async (ctx) => {
+      // Comando cancela a espera do remetente, como o digitado (ADR 0060).
+      conversations.take(chat.id, sender.id);
+      const result = await router.dispatch(ctx, { command, rawArgs: args });
+      if (!result.consumed) {
+        ctx.log.debug('comando nativo que não existe mais; descartado', { command });
+        return;
+      }
+      await afterCommand(ctx, result);
     });
   }
 
@@ -953,7 +999,9 @@ export function createBot(config: BotConfig): Bot {
 
   async function reload(name: string): Promise<PluginReloadResult> {
     if (!host) throw new BotStateError(`reload("${name}"): plugins ainda não carregados`, state);
-    const result = await host.reload(name);
+    // Um aviso só ao transport, no fim: no meio, os comandos do plugin saíram e não voltaram.
+    const pluginHost = host;
+    const result = await catalog.batch(() => pluginHost.reload(name));
     for (const error of result.errors) emitLifecycleError(error);
     // Os dependentes recarregados em cascata (ADR 0041) também podem falhar no `setup` novo.
     for (const entry of [result.entry, ...result.dependents]) {
@@ -998,6 +1046,8 @@ export function createBot(config: BotConfig): Bot {
       // O transport nunca conectou: o encerramento não chama `disconnect()`.
       await failBoot(error);
     }
+    // Daqui em diante, mudança na lista de comandos avisa o transport.
+    catalog.open();
 
     // stop() chegou durante o boot: quem chamou stop() conduz o encerramento. Conferido também
     // antes do connect, para não abrir sessão (QR, handshake) só para fechá-la em seguida.
@@ -1042,6 +1092,8 @@ export function createBot(config: BotConfig): Bot {
 
   async function runShutdown(): Promise<void> {
     state = 'stopping';
+    // O teardown tira os comandos de cada plugin: o transport não deve apagar o menu da plataforma.
+    catalog.close();
     // LIFO: quem subiu por último depende de quem subiu antes, então desce primeiro.
     const errors: unknown[] = await runStopHooks(hooks.toReversed(), config.shutdown);
     hooks.length = 0;

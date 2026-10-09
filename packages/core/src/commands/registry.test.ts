@@ -117,3 +117,30 @@ describe('createCommandRegistry', () => {
     expect(() => registry.add('media', command({ name: 'sticker', run: noop }))).not.toThrow();
   });
 });
+
+describe('createCommandRegistry: aviso de mudança (ADR 0064)', () => {
+  it('avisa a cada comando que entra e a cada plugin que perde comandos', () => {
+    let changes = 0;
+    const registry = createCommandRegistry({ onChange: () => changes++ });
+    registry.add('media', command({ name: 'sticker', run: noop }));
+    registry.add('media', command({ name: 'gif', run: noop }));
+    expect(changes).toBe(2);
+
+    registry.removePlugin('media');
+    expect(changes).toBe(3);
+  });
+
+  it('não avisa no registro recusado nem no plugin que não tinha comandos', () => {
+    let changes = 0;
+    const registry = createCommandRegistry({ onChange: () => changes++ });
+    registry.add('media', command({ name: 'sticker', run: noop }));
+    changes = 0;
+
+    expect(() => registry.add('fun', command({ name: 'sticker', run: noop }))).toThrow(
+      CommandConflictError,
+    );
+    registry.removePlugin('fun');
+
+    expect(changes).toBe(0);
+  });
+});

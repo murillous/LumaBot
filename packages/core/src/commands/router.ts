@@ -98,18 +98,30 @@ export interface CommandRouter {
   match(message: Message, text?: string | null): CommandMatch | null;
   /**
    * Casa, valida papel e `accepts` e roda. Nunca rejeita: erros vêm em `status: 'failed'`. Com
-   * `invocation`, roda o comando dado sem casar o texto (o clique num botão, ADR 0062).
+   * `invocation`, roda o comando dado sem casar o texto (o clique num botão, ADR 0062, ou o
+   * comando nativo da plataforma, ADR 0064).
    */
   dispatch(ctx: MessageContext, invocation?: CommandInvocation): Promise<DispatchResult>;
 }
 
-/** Comando a rodar sem casar o texto. */
-export interface CommandInvocation {
-  /** Nome ou alias, sem o prefixo. */
-  readonly command: string;
-  /** Vão como vieram em `ctx.args`; o `rawArgs` é a junção por espaços. */
-  readonly args: readonly string[];
-}
+/**
+ * Comando a rodar sem casar o texto: com `args` já separados (botão) ou com o texto livre em
+ * `rawArgs` (comando nativo), interpretado como o texto depois do comando digitado.
+ */
+export type CommandInvocation =
+  | {
+      /** Nome ou alias, sem o prefixo. */
+      readonly command: string;
+      /** Vão como vieram em `ctx.args`; o `rawArgs` é a junção por espaços. */
+      readonly args: readonly string[];
+      readonly rawArgs?: never;
+    }
+  | {
+      /** Nome ou alias, sem o prefixo. */
+      readonly command: string;
+      readonly rawArgs: string;
+      readonly args?: never;
+    };
 
 export interface CommandMatch {
   readonly entry: RegisteredCommand;
@@ -185,10 +197,13 @@ export function createCommandRouter(options: CommandRouterOptions = {}): Command
     return { entry, invokedAs: token, rawArgs };
   }
 
-  function invoke({ command, args }: CommandInvocation): CommandMatch | null {
-    const token = command.toLowerCase();
+  function invoke(invocation: CommandInvocation): CommandMatch | null {
+    const token = invocation.command.toLowerCase();
     const entry = registry.find(token);
-    return entry ? { entry, invokedAs: token, rawArgs: args.join(' ') } : null;
+    if (!entry) return null;
+    const rawArgs =
+      invocation.args === undefined ? invocation.rawArgs.trimStart() : invocation.args.join(' ');
+    return { entry, invokedAs: token, rawArgs };
   }
 
   async function hasRole(
@@ -240,7 +255,7 @@ export function createCommandRouter(options: CommandRouterOptions = {}): Command
 
       const { entry, invokedAs, rawArgs } = found;
       // Os argumentos do botão vão como o plugin os deu: reparseá-los partiria um com espaço.
-      const args = invocation === undefined ? parseArgs(rawArgs) : [...invocation.args];
+      const args = invocation?.args === undefined ? parseArgs(rawArgs) : [...invocation.args];
       const { definition } = entry;
       const command: MatchedCommand = { plugin: entry.plugin, name: definition.name, invokedAs };
       const message = ctx.message;

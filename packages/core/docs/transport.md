@@ -90,7 +90,7 @@ Os eventos chegam já normalizados (`TransportEvents`):
 | `connection.status` | `{ status: 'connecting' \| 'open' }` ou `{ status: 'closed', reason, error }` |
 | `connection.qr` | `{ qr }` |
 | `connection.pairing-code` | `{ code }` (código de pareamento, a alternativa ao QR; quem pareia por código não emite `connection.qr`) |
-| `interaction` | `{ id, chat, sender, actionId, timestamp }` (clique num botão; ver [Botões](#botões)) |
+| `interaction` | `{ id, chat, sender, actionId, timestamp }` (clique num botão; ver [Botões](#botões)) ou `{ id, chat, sender, command, args, timestamp }` (comando nativo; ver [Comandos nativos](#comandos-nativos)) |
 
 `message:<type>` e `plugin.error` (plano §6.4) são gerados pelo kernel, não pelo transport.
 
@@ -145,7 +145,79 @@ export function baileys(options: BaileysOptions): (deps: TransportDeps) => Trans
 - A fábrica roda dentro do `createBot`, que não pode ter efeito colateral (ADR 0004): **só monte o
   objeto**. Socket, timer, leitura de credenciais e qualquer I/O ficam no `connect()`. O
   transport sai da fábrica pronto para `connect()`, sem passo de inicialização extra.
+- `commands` é a lista de comandos do bot, para o menu nativo da plataforma (ver
+  [Comandos nativos](#comandos-nativos)).
 - `TransportDeps` só cresce por adição: desestruture o que usa.
+
+## Comandos nativos
+
+Onde a plataforma tem menu de comandos (slash commands do Discord, `setMyCommands` do Telegram,
+menu do web), o transport registra os comandos do bot a partir de `deps.commands`
+([ADR 0064](../../../docs/adr/0064-comandos-nativos.md)):
+
+- `list()` devolve os comandos registrados agora (`plugin`, `name`, `aliases`, `description`,
+  `role`), como o `ctx.commands.list()` dos plugins;
+- `onChange(listener)` avisa que a lista mudou e devolve a função que desfaz a assinatura.
+
+O boot dos plugins termina antes do `connect()`, então a lista já está completa no primeiro
+`open`. Depois, o aviso chega uma vez ao fim de cada reload de plugin e uma vez por tick para os
+comandos adicionados fora dele. O `stop()` não avisa: o `teardown` tira os comandos, mas o menu
+da plataforma fica como estava para a próxima subida. O aviso não traz a lista: compare `list()`
+com o que já registrou e só chame a plataforma se mudou (o Discord limita a taxa de registro).
+
+```ts
+return ({ log, commands }) => {
+  const transport = new DiscordTransport(options, log);
+  // `commands` é opcional para quem monta o `TransportDeps` à mão (testes).
+  if (commands) {
+    transport.onOpen(() => transport.syncCommands(commands.list()));
+    commands.onChange(() => transport.syncCommands(commands.list()));
+  }
+  return transport;
+};
+```
+
+Um listener que lança, ou cuja promise rejeita, vai para o log do bot. Trate a falha da
+plataforma no próprio transport, se quiser tentar de novo.
+
+O que registrar:
+
+- **Só o `name`.** O alias segue funcionando digitado, e o menu não fica poluído (o Discord
+  aceita 100 comandos globais).
+- **O `role` decide quem vê o comando.** `everyone` para todos; `group-admin` só para admins,
+  onde a plataforma permite (`default_member_permissions` no Discord, escopo
+  `all_chat_administrators` no Telegram); `owner` e papéis custom ficam fora do menu. O kernel
+  checa o papel na execução de todo jeito.
+- **Argumentos em texto livre.** No Discord, uma opção de texto opcional (`args`) por comando.
+  O nome e a descrição seguem as regras da plataforma: ajuste ou pule, com log, o que ela não
+  aceita (`description` `null` precisa de um texto padrão no Discord).
+
+Quando a plataforma entrega o comando estruturado, como o slash command do Discord, confirme a
+interação na hora e emita `interaction` com `command` e `args`:
+
+```ts
+// No INTERACTION_CREATE do Discord, tipo APPLICATION_COMMAND:
+await interaction.deferReply(); // dentro dos 3 s, antes de entregar
+emitter.emit('interaction', {
+  id: interaction.id,           // vira o ID da mensagem do comando; o `ctx.reply` a cita
+  chat: toChat(interaction.channel),
+  sender: toContact(interaction.user),
+  command: interaction.commandName, // nome ou alias, sem prefixo
+  args: interaction.options.getString('args') ?? '',
+  timestamp: Date.now(),
+});
+```
+
+O kernel roda o comando como o digitado, sem prefixo: mesma fila do chat, middlewares, papel,
+recusa e evento `command`. O `args` é interpretado como o texto depois do comando (aspas,
+`rawArgs`), e a mensagem do comando tem o texto `/<command> <args>`. Comando que não existe mais
+é descartado com log em `debug`; o transport encerra a interação pendente quando o prazo dela
+vencer. No Telegram, o comando chega como texto comum (`/start@MeuBot`), pelo evento `message`,
+e o roteador trata o prefixo ([ADR 0063](../../../docs/adr/0063-prefixo-por-chat.md)).
+
+A resposta do plugin chega por `send` com `quoted` igual à mensagem do comando (`id` = o `id` da
+interação), pela fila de saída. Responda como follow-up enquanto a plataforma aceitar (15 min no
+Discord) e, depois, como mensagem comum no chat. A `MessageKey` devolvida é a da mensagem criada.
 
 ## Envio
 

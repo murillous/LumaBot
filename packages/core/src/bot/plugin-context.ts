@@ -2,9 +2,9 @@
 // nome do plugin, e desfaz tudo no `dispose`. É a única peça que conhece todos os serviços; o
 // host de plugins só recebe a fábrica.
 
-import type { CommandDefinition, CommandInfo } from '#commands/command.ts';
+import { commandInfo } from '#commands/catalog.ts';
+import type { CommandDefinition } from '#commands/command.ts';
 import type { Prefixes } from '#commands/prefixes.ts';
-import type { RegisteredCommand } from '#commands/registry.ts';
 import { type RoleCheck, RoleTimeoutError } from '#commands/roles.ts';
 import type { CommandRouter } from '#commands/router.ts';
 import type { PluginConfigs } from '#config/plugin-configs.ts';
@@ -271,17 +271,6 @@ type Live = <A extends unknown[], R>(
   operation: string,
   fn: (...args: A) => Promise<R>,
 ) => (...args: A) => Promise<R>;
-
-/** Comando como os plugins o veem: os dados da definição, sem `run` nem `onReject`. */
-function commandInfo({ plugin, definition }: RegisteredCommand): CommandInfo {
-  return {
-    plugin,
-    name: definition.name,
-    aliases: [...(definition.aliases ?? [])],
-    description: definition.description ?? null,
-    role: definition.role ?? 'everyone',
-  };
-}
 
 /** `ctx.send` com o envio e cada ação recusados depois do `dispose`. */
 function liveOutbound(outbound: Outbound, live: Live): Outbound {
