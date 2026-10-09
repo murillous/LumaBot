@@ -25,6 +25,7 @@ describe('eventos do §6.4', () => {
       | 'message.edited'
       | 'message.deleted'
       | 'reaction'
+      | 'poll.vote'
       | 'group.joined'
       | 'group.left'
       | 'group.participants'

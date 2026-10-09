@@ -39,6 +39,8 @@ export class FakeSocket implements BaileysSocket {
   }[] = [];
   /** Status por participante na resposta do `groupParticipantsUpdate`; padrão `'200'`. */
   readonly participantStatus: Map<string, string> = new Map();
+  /** Segredo das enquetes enviadas. */
+  readonly pollSecret: Uint8Array = new Uint8Array(32).fill(7);
   #nextId = 0;
   readonly #emitter = new EventEmitter();
 
@@ -84,14 +86,28 @@ export class FakeSocket implements BaileysSocket {
     return message;
   }
 
-  /** Como o Baileys: devolve a mensagem criada, com id novo e `fromMe`. */
+  /**
+   * Como o Baileys: devolve a mensagem criada, com id novo e `fromMe`. A enquete volta com o
+   * conteúdo e o segredo (`pollSecret`) que cifra os votos.
+   */
   async sendMessage(
     jid: string,
     content: AnyMessageContent,
     options?: MiscMessageGenerationOptions,
   ): Promise<WAMessage | undefined> {
     this.sent.push({ jid, content, options });
-    return { key: { remoteJid: jid, id: `SENT-${++this.#nextId}`, fromMe: true } };
+    const key = { remoteJid: jid, id: `SENT-${++this.#nextId}`, fromMe: true };
+    if (!('poll' in content) || !content.poll) return { key };
+    return {
+      key,
+      message: {
+        messageContextInfo: { messageSecret: this.pollSecret },
+        pollCreationMessage: {
+          name: content.poll.name,
+          options: content.poll.values.map((optionName) => ({ optionName })),
+        },
+      },
+    };
   }
 
   async sendPresenceUpdate(type: WAPresence, toJid?: string): Promise<void> {

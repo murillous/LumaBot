@@ -234,6 +234,7 @@ aplica as regras antes de repassá-los ao barramento:
 | --- | --- | --- | --- |
 | `reaction` | `chat.id` ou `chat.parentId` | barra `fromMe: true` | barra `sender.isBot` |
 | `message.deleted` | `chat.id` ou `chat.parentId` | barra `fromMe: true` | barra `deletedBy.isBot` |
+| `poll.vote` | `chat.id` ou `chat.parentId` | barra `fromMe: true` | barra `sender.isBot` |
 | `group.participants`, `group.updated` | `chat.id` ou `chat.parentId` | — | — |
 | `group.joined`, `group.left`, `contact.updated` | sempre passam | — | — |
 | `connection.status`, `connection.qr`, `connection.pairing-code` | — | — | — |

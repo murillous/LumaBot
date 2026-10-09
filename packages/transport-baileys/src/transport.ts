@@ -62,6 +62,7 @@ import { renderWhatsApp } from './format.ts';
 import { type ILogger, toBaileysLogger } from './logger.ts';
 import { type NormalizeEnv, nativeOf, toMessage } from './normalize.ts';
 import { toContent, toGroupMetadata, toQuoted, toWAKey } from './outgoing.ts';
+import { PollBook, pollUpdateOf, toPollVote } from './polls.ts';
 
 /** Como parear uma sessão sem credenciais: escaneando o QR ou digitando um código no aparelho. */
 export type BaileysPairing = 'qr' | { readonly phone: string };
@@ -162,6 +163,8 @@ export class BaileysTransport implements Transport {
   readonly #groups = new Map<string, Promise<BaileysGroupMetadata>>();
   /** Contatos já vistos, entre conexões: o `contact.updated` sai só no que é novo. */
   readonly #contacts = new ContactBook();
+  /** Enquetes vistas, para decifrar os votos (ADR 0071); o `disconnect()` as esquece. */
+  readonly #polls = new PollBook();
 
   constructor(options: BaileysTransportOptions, deps: TransportDeps) {
     this.#pairing = options.pairing;
@@ -242,6 +245,7 @@ export class BaileysTransport implements Transport {
     };
     const env = this.#normalizeEnv(socket, state, logger);
     const contacts = this.#contacts;
+    const polls = this.#polls;
 
     socket.ev.on('messages.upsert', ({ messages, type }) => {
       if (!current()) return;
@@ -252,6 +256,20 @@ export class BaileysTransport implements Transport {
         if (raw.key.remoteJid && isJidStatusBroadcast(raw.key.remoteJid)) continue;
         enqueue(
           async () => {
+            // Na fila, como o resto: o voto chega depois da enquete e já a encontra guardada, e
+            // um proto malformado descarta só esta mensagem.
+            polls.remember(raw);
+            if (pollUpdateOf(raw) !== null) {
+              const vote = await toPollVote(raw, polls, env, contacts);
+              if (vote === null) {
+                this.#log.debug('voto de enquete desconhecida; descartado', {
+                  messageId: raw.key.id,
+                });
+              } else if (current()) {
+                this.#events.emit('poll.vote', vote);
+              }
+              return;
+            }
             const message = await toMessage(raw, env);
             if (message === null || !current()) return;
             // Antes da mensagem: quem guarda nomes já o tem ao tratá-la.
@@ -373,6 +391,7 @@ export class BaileysTransport implements Transport {
   async disconnect(): Promise<void> {
     this.#attempt++;
     this.#endSocket();
+    this.#polls.clear();
   }
 
   /** Encerra o socket atual sem emitir nada: quem chamou já sabe que a conexão acabou. */
@@ -432,6 +451,8 @@ export class BaileysTransport implements Transport {
     // O Baileys só devolve `undefined` para conteúdo que não vira mensagem (ex.: apagar); sem a
     // chave, não daria para reagir, editar nem apagar depois.
     if (!id) throw new Error('baileys: o envio não devolveu a chave da mensagem');
+    // O segredo que cifra os votos só existe na mensagem enviada.
+    if (content.type === 'poll' && sent) this.#polls.remember(sent);
     return {
       chatId,
       id,
