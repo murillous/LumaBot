@@ -238,6 +238,24 @@ await transport.send(chatId, {
 });
 ```
 
+O core só entrega um `type` cuja capability o transport declara (`send.sticker` para figurinha,
+por exemplo; o Discord, que não deixa bot enviar figurinha arbitrária, não a declara). O
+`OutgoingContent` pode ganhar membros numa minor, cada um com capability nova
+([ADR 0069](../../../docs/adr/0069-unioes-de-tipo-antes-do-1-0.md)). No `switch` sobre
+`content.type`, lance erro no `default` em vez do `never` exaustivo. O caso só acontece se algo
+fora da fila chamar o `send` direto:
+
+```ts
+const { type } = content; // no `default`, `content` já é `never`
+switch (content.type) {
+  case 'text':
+    return this.#sendText(chatId, content, options);
+  // ...
+  default:
+    throw new TypeError(`Conteúdo "${type}" não suportado.`);
+}
+```
+
 ### Texto formatado
 
 Quando o plugin usa a árvore neutra ([Texto formatado](text.md), [ADR
@@ -371,6 +389,13 @@ raw(source: Message | Interaction): unknown {
   interação do Discord e a `callback_query` do Telegram.
 - Sem `raw`, o `ctx.unsafe.raw()` devolve `undefined`. Se guardar o objeto custa caro na sua
   plataforma, deixe o método de fora.
+
+### Tipos sem equivalente
+
+O que não tem tipo no core vai como `unknown`, com o objeto bruto no `raw()`: o `dice`, o `game`,
+o `invoice` e o `story` do Telegram, a mensagem do Discord só com embed ou componentes. GIF e
+recado de vídeo vão como `video`; o `venue` do Telegram, como `location` com `address`
+([Mensagem](message.md#tipos-novos-e-unknown)).
 
 ### Texto da entrada
 

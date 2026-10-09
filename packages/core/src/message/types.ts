@@ -4,7 +4,11 @@
 import type { JsonValue } from '#storage/types.ts';
 import type { MessageKey } from '#transport/types.ts';
 
-/** Discriminante da union `Message`. `voice` (PTT) é separado de `audio`. */
+/**
+ * Discriminante da union `Message`. `voice` (PTT, mensagem de voz) é separado de `audio`. O que a
+ * plataforma tem sem equivalente aqui chega como `unknown`. A lista pode crescer numa minor (ADR
+ * 0069): trate `unknown` e use `default` no `switch`, nunca o `never` exaustivo.
+ */
 export type MessageType =
   | 'text'
   | 'image'
@@ -125,6 +129,8 @@ export interface LocationMessage extends BaseMessage<'location'> {
     readonly latitude: number;
     readonly longitude: number;
     readonly name: string | null;
+    /** Endereço, quando a plataforma informa (`venue` do Telegram, por exemplo; ADR 0069). */
+    readonly address?: string;
   };
 }
 export interface ContactMessage extends BaseMessage<'contact'> {

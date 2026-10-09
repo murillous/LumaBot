@@ -63,7 +63,7 @@ export const DEFAULT_SENDER: Contact = {
 const MEDIA_TYPES = ['image', 'video', 'audio', 'voice', 'sticker', 'document'] as const;
 type MediaType = (typeof MEDIA_TYPES)[number];
 
-/** Mimetype quando o teste passa só os bytes: o formato que o WhatsApp usa para cada tipo. */
+/** Mimetype quando o teste passa só os bytes: o formato comum de cada tipo (WhatsApp, Telegram). */
 const DEFAULT_MIMETYPES: Record<MediaType, string> = {
   image: 'image/jpeg',
   video: 'video/mp4',
