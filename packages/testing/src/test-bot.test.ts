@@ -111,6 +111,40 @@ describe('createTestBot', () => {
     expect(bot.sent).toContainText('ok');
   });
 
+  it('remetente sem telefone, com username e claims, chega ao plugin (ADR 0057)', async () => {
+    const plugin = definePlugin({
+      name: 'perfil',
+      version: '1.0.0',
+      engine: ENGINE,
+      setup(ctx) {
+        ctx.commands.add(
+          command({
+            name: 'perfil',
+            role: 'owner',
+            run: (c) => {
+              const { username, claims } = c.message.sender;
+              return c.reply(`@${username ?? '?'} ${String(claims?.['papel'] ?? 'sem papel')}`);
+            },
+          }),
+        );
+      },
+    });
+    const bot = await testBot({ plugins: [plugin], owners: [{ id: 'u-42' }] });
+
+    await bot.receive({
+      text: '!perfil',
+      sender: { id: 'u-42', phone: null, username: 'ana', claims: { papel: 'diretora' } },
+    });
+    expect(bot.sent).toContainText('@ana diretora');
+  });
+
+  it('mensagem de outro bot não roda comando', async () => {
+    const bot = await testBot({ plugins: [ping()] });
+
+    await bot.receive({ text: '!ping', sender: { isBot: true } });
+    expect(bot.sent).toHaveLength(0);
+  });
+
   it('respeita as capabilities do FakeTransport: plugin sem a capability não carrega', async () => {
     const transport = new FakeTransport({ capabilities: ['send.text', 'quoted'] });
     const bot = await testBot({ transport, plugins: [sticker(), ping()] });

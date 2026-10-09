@@ -19,6 +19,7 @@ import { createSecretSet, type SecretSet } from '#logger/secrets.ts';
 import type { Logger, LogLevel } from '#logger/types.ts';
 import type { Message } from '#message/types.ts';
 import { type ChatFilterOptions, chatAllowed, chatFilter } from '#middleware/chat-filter.ts';
+import { ignoreBots } from '#middleware/ignore-bots.ts';
 import { ignoreSelf } from '#middleware/ignore-self.ts';
 import { type Middleware, MiddlewarePipeline } from '#middleware/pipeline.ts';
 import { type RateLimitOptions, rateLimit } from '#middleware/rate-limit.ts';
@@ -75,11 +76,14 @@ export interface BotMiddlewareEntry {
 
 /**
  * Middlewares do bot. Os oficiais entram nesta ordem (de fora para dentro): `ignoreSelf` (1000),
- * `chatFilter` (900), `rateLimit` (800), `sanitize` (700); depois os do app (`use`, padrão 0).
+ * `ignoreBots` (990), `chatFilter` (900), `rateLimit` (800), `sanitize` (700); depois os do app
+ * (`use`, padrão 0).
  */
 export interface BotMiddlewaresConfig {
   /** Barra as mensagens da própria sessão. Padrão: `true`. */
   readonly ignoreSelf?: boolean;
+  /** Barra as mensagens de outros bots (`sender.isBot`). Padrão: `true`. */
+  readonly ignoreBots?: boolean;
   /** Allow/blocklist de chats. Padrão: desligado. */
   readonly chatFilter?: ChatFilterOptions;
   /** Rate limit de entrada. Padrão: desligado. Sem `onLimited`, loga em `debug`. */
@@ -261,25 +265,43 @@ type DirectEvent = Extract<
 interface EventOrigin {
   readonly chatId: string | null;
   readonly fromMe: boolean;
+  /** Autor do evento, para o `ignoreBots` (ADR 0057). */
+  readonly fromBot: boolean;
 }
 
-const ALWAYS_PASSES: EventOrigin = { chatId: null, fromMe: false };
+const ALWAYS_PASSES: EventOrigin = { chatId: null, fromMe: false, fromBot: false };
 
-/** Origem de cada evento direto, para o `chatFilter` e o `ignoreSelf` (ADR 0038). */
+/**
+ * Origem de cada evento direto, para o `chatFilter`, o `ignoreSelf` e o `ignoreBots` (ADR 0038).
+ */
 const DIRECT_EVENTS: { readonly [E in DirectEvent]: (payload: BotEvents[E]) => EventOrigin } = {
-  'message.deleted': (payload) => ({ chatId: payload.chat.id, fromMe: payload.fromMe }),
-  reaction: (payload) => ({ chatId: payload.chat.id, fromMe: payload.fromMe }),
+  'message.deleted': (payload) => ({
+    chatId: payload.chat.id,
+    fromMe: payload.fromMe,
+    fromBot: payload.deletedBy?.isBot === true,
+  }),
+  reaction: (payload) => ({
+    chatId: payload.chat.id,
+    fromMe: payload.fromMe,
+    fromBot: payload.sender.isBot === true,
+  }),
   // Entrada e saída do grupo são o ciclo de vida do próprio bot: servem para o plugin limpar
   // estado, então passam mesmo com o grupo bloqueado.
   'group.joined': () => ALWAYS_PASSES,
   'group.left': () => ALWAYS_PASSES,
-  'group.participants': (payload) => ({ chatId: payload.groupId, fromMe: false }),
-  'group.updated': (payload) => ({ chatId: payload.groupId, fromMe: false }),
+  'group.participants': (payload) => ({ chatId: payload.groupId, fromMe: false, fromBot: false }),
+  'group.updated': (payload) => ({ chatId: payload.groupId, fromMe: false, fromBot: false }),
   // Contato não é de um chat: bloquear um chat não esconde quem está nele de outros chats.
   'contact.updated': () => ALWAYS_PASSES,
 };
 
-const MIDDLEWARE_PRIORITY = { ignoreSelf: 1000, chatFilter: 900, rateLimit: 800, sanitize: 700 };
+const MIDDLEWARE_PRIORITY = {
+  ignoreSelf: 1000,
+  ignoreBots: 990,
+  chatFilter: 900,
+  rateLimit: 800,
+  sanitize: 700,
+};
 
 /**
  * Cria um bot. Valida a config e monta as peças sem efeito colateral (sem conexão, timer,
@@ -357,6 +379,7 @@ export function createBot(config: BotConfig): Bot {
   const chatFilterOptions = config.middlewares?.chatFilter;
   const chatIsAllowed = chatFilterOptions ? chatAllowed(chatFilterOptions) : () => true;
   const dropsSelf = config.middlewares?.ignoreSelf !== false;
+  const dropsBots = config.middlewares?.ignoreBots !== false;
   const inbound = new InboundQueue({
     maxPendingPerChat: config.inbound?.maxPendingPerChat,
     onError: (error, chatId) => log.error('falha ao processar mensagem', { chatId, err: error }),
@@ -525,16 +548,17 @@ export function createBot(config: BotConfig): Bot {
   }
 
   /**
-   * Repassa um evento que não é mensagem ao barramento, depois do `chatFilter` e do `ignoreSelf`
-   * (ADR 0038). Durante o boot, espera os plugins subirem; sem fila do chat.
+   * Repassa um evento que não é mensagem ao barramento, depois do `chatFilter`, do `ignoreSelf` e
+   * do `ignoreBots` (ADR 0038). Durante o boot, espera os plugins subirem; sem fila do chat.
    */
   function forward<E extends DirectEvent>(event: E): () => void {
     const origin = DIRECT_EVENTS[event];
     return transport.on(event, (transportPayload) => {
       // `BotEvents` estende `TransportEvents`: o payload é o mesmo tipo.
       const payload = transportPayload as BotEvents[E];
-      const { chatId, fromMe } = origin(payload);
-      if ((fromMe && dropsSelf) || (chatId !== null && !chatIsAllowed(chatId))) return;
+      const { chatId, fromMe, fromBot } = origin(payload);
+      if ((fromMe && dropsSelf) || (fromBot && dropsBots)) return;
+      if (chatId !== null && !chatIsAllowed(chatId)) return;
       if (ready) {
         void bus.emit(event, payload);
         return;
@@ -1035,6 +1059,9 @@ function createPipeline(
   });
   if (options.ignoreSelf !== false) {
     pipeline.use(ignoreSelf(), { priority: MIDDLEWARE_PRIORITY.ignoreSelf });
+  }
+  if (options.ignoreBots !== false) {
+    pipeline.use(ignoreBots(), { priority: MIDDLEWARE_PRIORITY.ignoreBots });
   }
   if (options.chatFilter) {
     pipeline.use(chatFilter(options.chatFilter), { priority: MIDDLEWARE_PRIORITY.chatFilter });

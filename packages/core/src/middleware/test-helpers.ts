@@ -7,6 +7,7 @@ export interface FakeMessageInit {
   readonly senderId?: string;
   readonly senderName?: string | null;
   readonly fromMe?: boolean;
+  readonly senderIsBot?: boolean;
 }
 
 /** Contexto mínimo com uma `TextMessage` para os testes dos middlewares. */
@@ -22,6 +23,7 @@ export function fakeContext(init: FakeMessageInit = {}): MessageContext {
       id: init.senderId ?? 'user-1',
       name: init.senderName === undefined ? 'Fulano' : init.senderName,
       phone: null,
+      ...(init.senderIsBot === undefined ? null : { isBot: init.senderIsBot }),
     },
     text: init.text ?? 'oi',
     timestamp: 0,

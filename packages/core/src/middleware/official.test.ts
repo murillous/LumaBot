@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { chatFilter } from './chat-filter.ts';
+import { ignoreBots } from './ignore-bots.ts';
 import { ignoreSelf } from './ignore-self.ts';
 import { type Middleware, MiddlewarePipeline } from './pipeline.ts';
 import { RateLimiter, rateLimit } from './rate-limit.ts';
@@ -16,6 +17,14 @@ describe('ignoreSelf', () => {
   it('barra mensagens do próprio bot e deixa as outras passarem', async () => {
     await expect(passes(ignoreSelf(), { fromMe: true })).resolves.toBe(false);
     await expect(passes(ignoreSelf(), { fromMe: false })).resolves.toBe(true);
+  });
+});
+
+describe('ignoreBots', () => {
+  it('barra remetente com isBot e deixa passar quem não tem o campo ou tem false', async () => {
+    await expect(passes(ignoreBots(), { senderIsBot: true })).resolves.toBe(false);
+    await expect(passes(ignoreBots(), { senderIsBot: false })).resolves.toBe(true);
+    await expect(passes(ignoreBots())).resolves.toBe(true);
   });
 });
 

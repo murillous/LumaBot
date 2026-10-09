@@ -61,6 +61,10 @@ conforme o modo de endereçamento do grupo. O que liga os dois é o `phone`:
   que o kernel faz no `role: 'group-admin'`
   ([ADR 0046](../../../docs/adr/0046-ids-de-contato-e-metadata-de-grupo.md)). Os `owners` da
   config dizem qual dos dois comparar: telefone com `phone`, `{ id }` com `id`.
+- `username` e `isBot` vão no remetente, nos participantes e no `transport.self` quando a
+  plataforma informa. Marque `isBot: true` nos outros bots: é o que o `ignoreBots` lê para evitar
+  loop entre bots. `claims` só vai no contato que fez a ação, e só com o que o transport
+  verificou ([ADR 0057](../../../docs/adr/0057-contact-multiplataforma.md)).
 
 ## Eventos
 

@@ -132,6 +132,17 @@ Para testar um comando `role: 'owner'`, passe `owners: [DEFAULT_SENDER.phone]` a
 `createTestBot`, ou `owners: [{ id: DEFAULT_SENDER.id }]` para simular uma plataforma sem
 telefone.
 
+Um remetente de fora do WhatsApp sai do `sender`: sem telefone, com `@usuario` e com os claims
+que o transport verificou. Uma mensagem com `sender: { isBot: true }` é barrada pelo
+`ignoreBots`, que vem ligado.
+
+```ts
+await bot.receive({
+  text: '!notas',
+  sender: { id: 'u-42', phone: null, username: 'ana', claims: { papel: 'diretora' } },
+});
+```
+
 ## Matchers
 
 Os matchers recebem `bot.sent` ou o próprio `TestBot`:

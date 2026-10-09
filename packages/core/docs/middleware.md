@@ -116,9 +116,10 @@ remove(); // idempotente
 Todos são fábricas; registre com a prioridade que quiser. Ordem sugerida (de fora para dentro):
 
 ```ts
-import { chatFilter, ignoreSelf, rateLimit, sanitize } from '@zapforge/core';
+import { chatFilter, ignoreBots, ignoreSelf, rateLimit, sanitize } from '@zapforge/core';
 
 pipeline.use(ignoreSelf(), { priority: 1000 });
+pipeline.use(ignoreBots(), { priority: 990 });
 pipeline.use(chatFilter({ block: ['123@g.us'] }), { priority: 900 });
 pipeline.use(rateLimit({ max: 10, windowMs: 1000 }), { priority: 800 });
 pipeline.use(sanitize(), { priority: 700 });
@@ -127,6 +128,11 @@ pipeline.use(sanitize(), { priority: 700 });
 ### `ignoreSelf()`
 
 Barra mensagens com `message.fromMe` (enviadas pela própria sessão do bot).
+
+### `ignoreBots()`
+
+Barra mensagens com `message.sender.isBot` (outros bots no chat, no Discord e no Telegram), para
+dois bots não entrarem em loop respondendo um ao outro. Sem `isBot`, o remetente passa.
 
 ### `chatFilter({ allow?, block? })`
 
