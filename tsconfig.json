@@ -17,6 +17,7 @@
     { "path": "packages/transport-baileys" },
     { "path": "packages/storage-sqlite" },
     { "path": "packages/testing" },
+    { "path": "apps/lumabot" },
     { "path": "bench" }
   ]
 }

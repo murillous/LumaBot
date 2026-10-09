@@ -7,3 +7,5 @@ coverage/
 dist/
 *.tsbuildinfo
 .tsbuild/
+# Banco do app (credenciais do WhatsApp incluídas).
+apps/lumabot/data/
