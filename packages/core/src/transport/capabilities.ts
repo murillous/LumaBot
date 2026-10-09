@@ -5,6 +5,7 @@ import type { GroupParticipantAction, OutgoingContent, SendOptions } from './typ
 
 /** Capabilities iniciais (plano §6.10). */
 export const CAPABILITIES = [
+  'actions',
   'groups',
   'groups.add',
   'groups.remove',
@@ -102,11 +103,15 @@ const sendCapability: { readonly [K in OutgoingContent['type']]: Capability } = 
   poll: 'polls',
 };
 
-/** Capabilities que um envio exige: a do tipo de conteúdo, mais citação e menções se usadas. */
+/**
+ * Capabilities que um envio exige: a do tipo de conteúdo, mais citação, menções e botões se
+ * usados.
+ */
 export function capabilitiesForSend(content: OutgoingContent, options?: SendOptions): Capability[] {
   const required: Capability[] = [sendCapability[content.type]];
   if (options?.quoted) required.push('quoted');
   if (options?.mentions && options.mentions.length > 0) required.push('mentions');
+  if (options?.actions && options.actions.length > 0) required.push('actions');
   return required;
 }
 

@@ -117,7 +117,10 @@ export interface BaileysTransportOptions {
 
 export class BaileysTransport implements Transport {
   readonly name = 'baileys';
-  /** As capabilities iniciais do Baileys (plano §6.10): todas as do core. */
+  /**
+   * Todas as capabilities do core, menos `actions`: o WhatsApp pelo Baileys não tem botões
+   * confiáveis, e o kernel envia o menu em texto numerado (ADR 0062).
+   */
   readonly capabilities: ReadonlySet<Capability> = new Set<Capability>([
     'groups',
     'groups.add',

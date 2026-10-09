@@ -9,7 +9,7 @@ import type { MessageListenerFields } from '#events/types.ts';
 import type { LogFields, Logger } from '#logger/types.ts';
 import type { Message } from '#message/types.ts';
 import type { SanitizedContext, SanitizedFields } from '#middleware/sanitize.ts';
-import { createReply } from '#outbound/reply.ts';
+import { createReply, type PrepareActions } from '#outbound/reply.ts';
 import type { Outbound, Reply } from '#outbound/types.ts';
 import type { JsonValue } from '#storage/types.ts';
 import type { MessageKey } from '#transport/types.ts';
@@ -21,6 +21,11 @@ export interface MessageContextDeps {
   readonly quote: boolean;
   /** Logger raiz; o contexto cria o filho com `chatId` sob demanda. */
   readonly log: () => Logger;
+  /**
+   * Resolve as ações do `reply` (ADR 0062) em nome do plugin dono do contexto, ou de ninguém
+   * (`null`) no contexto do kernel, que os middlewares veem.
+   */
+  readonly actions?: (owner: string | null, message: Message) => PrepareActions;
 }
 
 // Chave simbólica, não campo `#privado`: o roteador e os listeners recebem objetos derivados por
@@ -61,7 +66,7 @@ class MessageContextImpl implements KernelMessageContext {
 
   get reply(): Reply {
     const state = this[STATE];
-    state.reply ??= createReply(state.deps.sender, this.message, { quote: state.deps.quote });
+    state.reply ??= replyFor(state.deps, this.message, null);
     return state.reply;
   }
 
@@ -75,6 +80,24 @@ class MessageContextImpl implements KernelMessageContext {
     // Prioridade do `reply`: a reação responde a quem escreveu, como ele.
     return this[STATE].deps.sender.react(this.message.key, emoji, { priority: 'high' });
   }
+}
+
+function replyFor(deps: MessageContextDeps, message: Message, owner: string | null): Reply {
+  return createReply(deps.sender, message, {
+    quote: deps.quote,
+    ...(deps.actions && { actions: deps.actions(owner, message) }),
+  });
+}
+
+/**
+ * O `reply` da mensagem em nome do plugin, para as ações de passo apontarem para os passos dele.
+ * `undefined` fora do contexto do kernel (roteador usado solto).
+ */
+function pluginReply(ctx: object, plugin: string): Reply | undefined {
+  // O estado do contexto do kernel é alcançado pela cadeia de protótipos das visões.
+  const state = (ctx as { readonly [STATE]?: State })[STATE];
+  if (state === undefined) return undefined;
+  return replyFor(state.deps, (ctx as { readonly message: Message }).message, plugin);
 }
 
 /**
@@ -280,8 +303,10 @@ function executionDescriptors<V extends ExpiringView & { readonly message: Messa
     signal: signalDescriptor,
     reply: expiringReplyDescriptor<V>(
       plugin,
-      // O `reply` do contexto do kernel, alcançado pela cadeia de protótipos.
-      (view) => (Object.getPrototypeOf(view) as { readonly reply?: Reply }).reply,
+      // O `reply` em nome do plugin ou, com o roteador solto, o do contexto recebido.
+      (view) =>
+        pluginReply(view, plugin) ??
+        (Object.getPrototypeOf(view) as { readonly reply?: Reply }).reply,
       scope,
     ),
     react: expiringReactDescriptor<V>(
@@ -392,7 +417,14 @@ export function listenerViewFactory(
         return ctx === undefined ? this.payload.text : ctx.text;
       },
     },
-    reply: expiringReplyDescriptor<View>(plugin, (view) => kernel(view)?.reply, scope),
+    reply: expiringReplyDescriptor<View>(
+      plugin,
+      (view) => {
+        const ctx = kernel(view);
+        return ctx === undefined ? undefined : pluginReply(ctx, plugin);
+      },
+      scope,
+    ),
     react: expiringReactDescriptor<View>(plugin, kernel, scope),
     expectReply: expectReplyDescriptor<View>(plugin, expect, scope),
     log: pluginLogDescriptor(pluginLog),

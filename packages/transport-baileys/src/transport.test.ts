@@ -677,9 +677,11 @@ describe('BaileysTransport: eventos (M2-1.6)', () => {
 });
 
 describe('BaileysTransport: capabilities', () => {
-  it('declara as capabilities iniciais do Baileys (plano §6.10): todas as do core', () => {
+  it('declara as capabilities do Baileys: todas as do core, menos os botões (ADR 0062)', () => {
     const { transport } = setup();
-    expect([...transport.capabilities].sort()).toEqual([...CAPABILITIES].sort());
+    expect([...transport.capabilities].sort()).toEqual(
+      CAPABILITIES.filter((capability) => capability !== 'actions').sort(),
+    );
   });
 });
 

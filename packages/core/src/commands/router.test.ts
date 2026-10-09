@@ -554,3 +554,40 @@ describe('roteador: texto de trabalho ctx.text (M1-16.2)', () => {
     expect(calls[0]?.text).toBe('!s x');
   });
 });
+
+describe('roteador: comando dado, sem casar o texto (ADR 0062)', () => {
+  it('roda o comando pelo nome ou alias, com os args como vieram e o rawArgs unido', async () => {
+    const router = createCommandRouter();
+    const { def, calls } = spyCommand();
+    router.registry.add('p', def);
+
+    const result = await router.dispatch(ctxOf({ text: 'Figurinha' }), {
+      command: 'S',
+      args: ['a b', 'c'],
+    });
+
+    expect(result).toMatchObject({ consumed: true, status: 'ran', command: { invokedAs: 's' } });
+    expect(calls[0]?.args).toEqual(['a b', 'c']);
+    expect(calls[0]?.rawArgs).toBe('a b c');
+  });
+
+  it('comando que não existe não consome', async () => {
+    const router = createCommandRouter();
+    const result = await router.dispatch(ctxOf({ text: '!sticker' }), {
+      command: 'nada',
+      args: [],
+    });
+    expect(result).toEqual({ consumed: false, status: 'no-match' });
+  });
+
+  it('checa o papel como no comando digitado', async () => {
+    const router = createCommandRouter({ owners: [{ id: 'dona' }] });
+    const { def, calls } = spyCommand({ role: 'owner' });
+    router.registry.add('p', def);
+
+    const result = await router.dispatch(ctxOf({ text: 'x' }), { command: 'sticker', args: [] });
+
+    expect(result).toMatchObject({ status: 'rejected', rejection: { reason: 'role' } });
+    expect(calls).toHaveLength(0);
+  });
+});

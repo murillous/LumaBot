@@ -181,3 +181,4 @@ ADR 0055). Ao serem aceitos, entram aqui e no índice numérico.
 | [0059](0059-grupos-multiplataforma.md) | D59 | Grupos multiplataforma: admin, participantes, ações e eventos (detalha D24/D46; substitui em parte D10/D38/D40) | Aceito |
 | [0060](0060-resposta-esperada.md) | D60 | Resposta esperada: conversa com estado sem segurar o chat (detalha D12/D42) | Aceito |
 | [0061](0061-texto-formatado-neutro.md) | D61 | Texto formatado neutro, menções portáteis e limites de tamanho (detalha D09/D19) | Aceito |
+| [0062](0062-acoes-e-botoes.md) | D62 | Ações e botões: o clique dispara um comando, com fallback em texto numerado (detalha D12/D49/D60) | Aceito |

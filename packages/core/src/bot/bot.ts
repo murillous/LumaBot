@@ -1,6 +1,13 @@
+import {
+  ActionRegistry,
+  type ActionTarget,
+  type MessageAction,
+  numberedMenu,
+  pickChoice,
+} from '#actions/actions.ts';
 import { CommandConflictError } from '#commands/registry.ts';
 import { RoleConflictError } from '#commands/roles.ts';
-import { createCommandRouter, type IsGroupAdmin } from '#commands/router.ts';
+import { createCommandRouter, type DispatchResult, type IsGroupAdmin } from '#commands/router.ts';
 import type { ConfigEnv } from '#config/env.ts';
 import { BotConfigError, type BotOwner, normalizeOwners } from '#config/owners.ts';
 import {
@@ -22,6 +29,7 @@ import { createDeferredLogger } from '#logger/deferred.ts';
 import { createLogger, createNoopLogger } from '#logger/logger.ts';
 import { createSecretSet, type SecretSet } from '#logger/secrets.ts';
 import type { Logger, LogLevel } from '#logger/types.ts';
+import { createMessage } from '#message/create.ts';
 import type { Chat, Message } from '#message/types.ts';
 import { type ChatFilterOptions, chatAllowed, chatFilter } from '#middleware/chat-filter.ts';
 import { ignoreBots } from '#middleware/ignore-bots.ts';
@@ -35,6 +43,7 @@ import {
   type OutboundQueueOptions,
   type OutboundQueueStats,
 } from '#outbound/queue.ts';
+import type { PrepareActions } from '#outbound/reply.ts';
 import { PLUGIN_NAME_PATTERN } from '#plugin/define.ts';
 import { createPluginHost, type PluginHost, type PluginReloadResult } from '#plugin/host.ts';
 import type { PluginLifecycleError, PluginReportEntry } from '#plugin/report.ts';
@@ -47,7 +56,7 @@ import { createMemoryStorage } from '#storage/memory.ts';
 import { DEFAULT_SESSION, sessionStorage } from '#storage/namespace.ts';
 import type { StoragePort } from '#storage/types.ts';
 import { type Capability, hasCapability } from '#transport/capabilities.ts';
-import type { Transport, TransportDeps } from '#transport/types.ts';
+import type { Interaction, Transport, TransportDeps } from '#transport/types.ts';
 import { createUnsafeAccess } from '#unsafe/access.ts';
 import {
   createMessageContext,
@@ -301,6 +310,13 @@ const DIRECT_EVENTS: { readonly [E in DirectEvent]: (payload: BotEvents[E]) => E
   'contact.updated': () => ALWAYS_PASSES,
 };
 
+/**
+ * Dono e passo da espera do menu numerado (ADR 0062). O nome não é kebab-case: nenhum plugin o
+ * usa.
+ */
+const MENU_OWNER = '#menu';
+const MENU_STEP = 'choice';
+
 const MIDDLEWARE_PRIORITY = {
   ignoreSelf: 1000,
   ignoreBots: 990,
@@ -377,6 +393,12 @@ export function createBot(config: BotConfig): Bot {
       ),
   });
   const conversations = new ConversationRegistry<KernelMessageContext>();
+  // O menu numerado espera a resposta pelo mesmo registro dos plugins, então um comando digitado
+  // ou outra espera também o cancelam. O passo nunca roda: o `dispatchMessage` trata a escolha.
+  conversations.define(MENU_OWNER, MENU_STEP, () => undefined);
+  const actions = new ActionRegistry();
+  const buttons = hasCapability(transport, 'actions');
+  const maxButtons = buttonLimit(transport);
   const pipeline = createPipeline(
     config.middlewares ?? {},
     timeouts.middlewareMs ?? DEFAULT_MIDDLEWARE_TIMEOUT_MS,
@@ -416,6 +438,7 @@ export function createBot(config: BotConfig): Bot {
     sender: send,
     quote: hasCapability(transport, 'quoted'),
     log: getLog,
+    actions: prepareActions,
   };
   const reconnector: Reconnector | undefined =
     config.reconnection === false
@@ -499,14 +522,31 @@ export function createBot(config: BotConfig): Bot {
     // no meio da conversa a cancela e segue para o roteador.
     const pending = conversations.take(message.chat.id, message.sender.id);
     if (pending !== undefined && router.match(message, ctx.text) === null) {
-      await runStep(ctx, pending);
-      return;
+      if (pending.plugin !== MENU_OWNER) {
+        await runStep(ctx, pending);
+        return;
+      }
+      // Um número do menu roda a ação, como o clique; outro texto segue o fluxo normal (ADR 0062).
+      const target = menuChoice(ctx, pending.data);
+      if (target !== undefined) {
+        await runAction(ctx, target);
+        return;
+      }
     }
     const result = await router.dispatch(ctx);
     if (!result.consumed) {
       await bus.emit('message', message, listenerExtras(ctx));
       return;
     }
+    await afterCommand(ctx, result);
+  }
+
+  /** Recusa, falha e evento `command` do comando que consumiu a mensagem ou o clique. */
+  async function afterCommand(
+    ctx: KernelMessageContext,
+    result: Extract<DispatchResult, { readonly consumed: true }>,
+  ): Promise<void> {
+    const { message } = ctx;
     if (result.status === 'rejected' && result.reply !== null) {
       // Sem await: a resposta espera a taxa da fila de saída, e o chat não precisa esperar.
       ctx.reply(result.reply).catch((error: unknown) =>
@@ -557,6 +597,118 @@ export function createBot(config: BotConfig): Bot {
     }
   }
 
+  // --- Ações e botões (ADR 0062) -------------------------------------------------------------
+
+  /**
+   * Resolve as ações de um `reply`: guarda o alvo de cada uma sob um ID e devolve os botões ou,
+   * sem a capability ou acima do limite, o texto com o menu numerado e a espera do remetente.
+   */
+  function prepareActions(owner: string | null, message: Message): PrepareActions {
+    return (text, list) => {
+      const targets = list.map((action) => actionTarget(owner, action));
+      const chatId = message.chat.id;
+      const ids = targets.map((target) => actions.register(chatId, target));
+      const labels = targets.map(({ label }) => label);
+      if (buttons && ids.length <= maxButtons) {
+        return { text, actions: ids.map((id, index) => ({ id, label: labels[index] as string })) };
+      }
+      conversations.expect(MENU_OWNER, chatId, message.sender.id, MENU_STEP, { data: ids });
+      return { text: numberedMenu(text, labels) };
+    };
+  }
+
+  /** Valida a ação e devolve o alvo: o erro sai na chamada do `reply`, não no clique. */
+  function actionTarget(owner: string | null, action: MessageAction): ActionTarget {
+    const label: unknown = action?.label;
+    if (typeof label !== 'string' || label.trim().length === 0) {
+      throw new TypeError('ação sem `label`');
+    }
+    if ('command' in action) {
+      if (router.registry.find(action.command) === undefined) {
+        throw new TypeError(`ação "${label}": comando "${action.command}" não registrado`);
+      }
+      return {
+        kind: 'command',
+        label,
+        command: action.command,
+        args: Object.freeze([...(action.args ?? [])]),
+      };
+    }
+    if ('step' in action) {
+      if (owner === null) {
+        throw new TypeError(`ação "${label}": passo só no contexto de um plugin`);
+      }
+      if (conversations.find(owner, action.step) === undefined) {
+        throw new TypeError(
+          `ação "${label}": plugin "${owner}" sem o passo "${action.step}"; defina-o com ` +
+            'ctx.conversations.define',
+        );
+      }
+      return { kind: 'step', label, plugin: owner, step: action.step, data: action.data ?? null };
+    }
+    throw new TypeError(`ação "${label}" sem \`command\` nem \`step\``);
+  }
+
+  /** O alvo que a resposta ao menu numerado escolhe, se ela for um número da lista. */
+  function menuChoice(ctx: KernelMessageContext, data: unknown): ActionTarget | undefined {
+    const ids = data as readonly string[];
+    const index = pickChoice(ctx.text, ids.length);
+    if (index === null) return undefined;
+    return actions.resolve(ids[index] as string, ctx.message.chat.id);
+  }
+
+  /**
+   * O clique num botão: passa pela fila do chat e pelos middlewares como uma mensagem de texto com
+   * o `label`, e roda o comando ou o passo da ação. Vencido, desconhecido ou de outro chat, é
+   * descartado.
+   */
+  async function handleInteraction(interaction: Interaction): Promise<void> {
+    const { chat, sender, actionId } = interaction;
+    const target = actions.resolve(actionId, chat.id);
+    if (target === undefined) {
+      log.debug('clique em botão vencido ou desconhecido; descartado', { chatId: chat.id });
+      return;
+    }
+    const message = createMessage({
+      type: 'text',
+      id: interaction.id,
+      chat,
+      sender,
+      text: target.label,
+      timestamp: interaction.timestamp,
+      fromMe: false,
+    });
+    await admit(message, async (ctx) => {
+      // O clique é um comando: cancela a espera do remetente, como o comando digitado (ADR 0060).
+      conversations.take(chat.id, sender.id);
+      await runAction(ctx, target);
+    });
+  }
+
+  /** Roda o alvo da ação. Comando ou passo que não existe mais (plugin desligado) é descartado. */
+  async function runAction(ctx: KernelMessageContext, target: ActionTarget): Promise<void> {
+    if (target.kind === 'command') {
+      const result = await router.dispatch(ctx, { command: target.command, args: target.args });
+      if (!result.consumed) {
+        ctx.log.debug('botão de comando que não existe mais; descartado', {
+          command: target.command,
+        });
+        return;
+      }
+      await afterCommand(ctx, result);
+      return;
+    }
+    const run = conversations.find(target.plugin, target.step);
+    if (run === undefined) {
+      ctx.log.debug('botão de passo que não existe mais; descartado', {
+        plugin: target.plugin,
+        step: target.step,
+      });
+      return;
+    }
+    await runStep(ctx, { plugin: target.plugin, step: target.step, data: target.data, run });
+  }
+
   /** Extras dos eventos de mensagem: os campos chegam aos listeners pela visão de cada plugin. */
   function listenerExtras(ctx: KernelMessageContext): ListenerExtras<'message'> {
     return messageExtras(ctx) as unknown as ListenerExtras<'message'>;
@@ -572,13 +724,19 @@ export function createBot(config: BotConfig): Bot {
     });
   }
 
-  /** Põe a mensagem (nova ou editada) na fila do chat dela: o mesmo chat anda em série. */
-  function enqueue(message: Message, handle: (message: Message) => Promise<void>): void {
-    const result = inbound.enqueue(message.chat.id, () => handle(message));
+  /**
+   * Põe a mensagem (nova ou editada) ou o clique na fila do chat dele: o mesmo chat anda em
+   * série.
+   */
+  function enqueue<T extends Message | Interaction>(
+    item: T,
+    handle: (item: T) => Promise<void>,
+  ): void {
+    const result = inbound.enqueue(item.chat.id, () => handle(item));
     if (result !== 'queued') {
       log.warn('mensagem descartada pela fila de entrada', {
-        chatId: message.chat.id,
-        messageId: message.id,
+        chatId: item.chat.id,
+        messageId: item.id,
         reason: result,
       });
     }
@@ -612,6 +770,7 @@ export function createBot(config: BotConfig): Bot {
     const offs: (() => void)[] = [
       transport.on('message', (message) => enqueue(message, handleMessage)),
       transport.on('message.edited', (message) => enqueue(message, handleEdited)),
+      transport.on('interaction', (interaction) => enqueue(interaction, handleInteraction)),
       transport.on('connection.status', (status) => {
         // Com a conexão caída, o envio falharia e esgotaria o retry antes da reconexão (#198).
         if (status.status === 'closed') outbound.pause();
@@ -708,6 +867,7 @@ export function createBot(config: BotConfig): Bot {
     // O `dispose` de cada plugin já tirou as esperas dele; isto garante que nenhum timer de TTL
     // sobreviva ao `stop()` e que um passo atrasado não registre outra.
     conversations.close();
+    actions.clear();
     void outbound.close({ drain: false });
   }
 
@@ -1094,6 +1254,16 @@ function groupAdminPort(
           (sender.phone !== null && participant.phone === sender.phone)),
     );
   };
+}
+
+/** Máximo de botões por mensagem do transport (`limits.actions`); sem ele, sem limite. */
+function buttonLimit(transport: Transport): number {
+  const limit = transport.limits?.actions;
+  if (limit === undefined) return Number.POSITIVE_INFINITY;
+  if (!(Number.isInteger(limit) && limit >= 1)) {
+    throw new RangeError(`limits.actions do transport deve ser inteiro >= 1 (recebido: ${limit})`);
+  }
+  return limit;
 }
 
 /** Pipeline com os middlewares oficiais ligados pela config e os do app. */

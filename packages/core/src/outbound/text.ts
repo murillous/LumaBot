@@ -71,8 +71,8 @@ export class TextLimiter {
   }
 
   /**
-   * As partes do envio, na ordem. Só a primeira cita a mensagem; as menções vão em todas. Uma
-   * legenda longa fica com o começo na mídia, e o resto vira texto.
+   * As partes do envio, na ordem. Só a primeira cita a mensagem, e só a última leva os botões; as
+   * menções vão em todas. Uma legenda longa fica com o começo na mídia, e o resto vira texto.
    */
   split(content: OutgoingContent, options: SendOptions | undefined): SendPart[] {
     if (this.#unlimited) return [{ content, options }];
@@ -95,14 +95,26 @@ export class TextLimiter {
     } else {
       return [{ content, options }];
     }
+    let firstOptions = options;
     let restOptions: SendOptions | undefined;
+    let lastOptions: SendOptions | undefined;
     if (options !== undefined) {
-      const { quoted: _quoted, ...others } = options;
+      // Os botões vão onde a leitura termina, na última parte (ADR 0062).
+      const { quoted: _quoted, actions, ...others } = options;
       restOptions = others;
+      lastOptions = actions === undefined ? others : { ...others, actions };
+      if (actions !== undefined) {
+        const { actions: _actions, ...withoutActions } = options;
+        firstOptions = withoutActions;
+      }
     }
+    const last = rest.length - 1;
     return [
-      { content: first, options },
-      ...rest.map((text) => ({ content: textContent(text), options: restOptions })),
+      { content: first, options: firstOptions },
+      ...rest.map((text, index) => ({
+        content: textContent(text),
+        options: index === last ? lastOptions : restOptions,
+      })),
     ];
   }
 

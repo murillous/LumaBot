@@ -300,3 +300,60 @@ describe('createTestBot: texto formatado e limites (ADR 0061)', () => {
     expect(bot.sent.map((s) => s.quoted !== null)).toEqual([true, false, false]);
   });
 });
+
+describe('createTestBot: botões (ADR 0062)', () => {
+  const escola = () =>
+    definePlugin({
+      name: 'escola',
+      version: '1.0.0',
+      engine: ENGINE,
+      setup(ctx) {
+        ctx.commands.add(
+          command({
+            name: 'menu',
+            run: (c) =>
+              c.reply('Escolha:', {
+                actions: [{ label: 'Notas', command: 'notas', args: ['Ana'] }],
+              }),
+          }),
+        );
+        ctx.commands.add(
+          command({
+            name: 'notas',
+            run: (c) => c.reply(`notas de ${c.args[0]} por ${c.message.sender.id}`),
+          }),
+        );
+      },
+    });
+
+  it('click() clica no botão pelo rótulo e espera a resposta', async () => {
+    const bot = await testBot({ plugins: [escola()] });
+    await bot.receive({ text: '!menu' });
+    const menu = bot.sent[0];
+    expect(menu?.actions?.map((action) => action.label)).toEqual(['Notas']);
+
+    await bot.click(menu as NonNullable<typeof menu>, 'Notas', { sender: { id: 'outra@fake' } });
+
+    expect(bot.sent.at(-1)?.content).toEqual({ type: 'text', text: 'notas de Ana por outra@fake' });
+  });
+
+  it('click() lança com rótulo que o envio não tem', async () => {
+    const bot = await testBot({ plugins: [escola()] });
+    await bot.receive({ text: '!menu' });
+
+    await expect(
+      bot.click(bot.sent[0] as NonNullable<(typeof bot.sent)[0]>, 'Faltas'),
+    ).rejects.toThrow('botões: ["Notas"]');
+  });
+
+  it('sem a capability actions, o menu sai numerado e receive() responde com o número', async () => {
+    const transport = new FakeTransport({ capabilities: ['send.text', 'quoted'] });
+    const bot = await testBot({ plugins: [escola()], transport });
+    await bot.receive({ text: '!menu' });
+
+    expect(bot.sent[0]?.actions).toBeUndefined();
+    expect(bot.sent).toContainText('Escolha:\n\n1. Notas');
+    await bot.receive({ text: '1' });
+    expect(bot.sent).toContainText(`notas de Ana por ${DEFAULT_SENDER.id}`);
+  });
+});

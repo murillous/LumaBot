@@ -1,6 +1,7 @@
 // Contrato da fila de saída (M1-12, ADR 0019). O M1-12 completa este arquivo; os nomes
 // exportados aqui são usados por outros módulos e não mudam.
 
+import type { MessageAction } from '#actions/actions.ts';
 import type { MessageText } from '#text/format.ts';
 import type {
   MediaInput,
@@ -64,6 +65,17 @@ export interface ReplyOptions {
   readonly priority?: SendPriority;
 }
 
+/** Opções da resposta de texto, a única que leva botões. */
+export interface ReplyTextOptions extends ReplyOptions {
+  /**
+   * Botões que rodam um comando ou um passo de conversa do plugin (ADR 0062). Sem a capability
+   * `actions`, ou acima de `limits.actions`, saem como menu numerado no fim do texto, e o número
+   * que o remetente responder roda a ação. `label` vazio, comando não registrado ou passo não
+   * definido lançam `TypeError`.
+   */
+  readonly actions?: readonly MessageAction[];
+}
+
 export interface ReplyMediaOptions extends ReplyOptions {
   readonly caption?: MessageText;
   readonly mimetype?: string;
@@ -89,8 +101,8 @@ export interface ReplyPollOptions extends ReplyOptions {
  * envia texto, cru ou formatado (ADR 0061); os atalhos cobrem cada tipo de `OutgoingContent`.
  */
 export interface Reply {
-  (text: MessageText, options?: ReplyOptions): Promise<MessageKey>;
-  text(text: MessageText, options?: ReplyOptions): Promise<MessageKey>;
+  (text: MessageText, options?: ReplyTextOptions): Promise<MessageKey>;
+  text(text: MessageText, options?: ReplyTextOptions): Promise<MessageKey>;
   image(media: MediaInput, options?: ReplyMediaOptions): Promise<MessageKey>;
   video(media: MediaInput, options?: ReplyMediaOptions): Promise<MessageKey>;
   audio(media: MediaInput, options?: ReplyAudioOptions): Promise<MessageKey>;

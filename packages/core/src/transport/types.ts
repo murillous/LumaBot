@@ -139,6 +139,28 @@ export interface TransportEvents {
    * número de telefone"). Conta como um QR para o limite de QRs da reconexão (ADR 0050).
    */
   'connection.pairing-code': { readonly code: string };
+  /**
+   * Clique num botão enviado com `SendOptions.actions` (capability `actions`, ADR 0062). O
+   * transport confirma a interação na plataforma antes de emitir; o kernel resolve o `actionId` e
+   * roda o comando ou o passo da ação. Não chega aos plugins como evento.
+   */
+  interaction: Interaction;
+}
+
+/** Clique num botão, como o transport o entrega (ADR 0062). */
+export interface Interaction {
+  /**
+   * ID da interação, que vira o ID da mensagem do clique. O `ctx.reply` cita essa mensagem, e o
+   * transport decide como responder à interação (follow-up no Discord, por exemplo).
+   */
+  readonly id: string;
+  readonly chat: Chat;
+  /** Quem clicou. */
+  readonly sender: Contact;
+  /** O `id` do `OutgoingAction` clicado, como o kernel o enviou. */
+  readonly actionId: string;
+  /** Epoch em milissegundos. */
+  readonly timestamp: number;
 }
 
 export type TransportEventName = keyof TransportEvents;
@@ -202,6 +224,20 @@ export interface TextLimits {
    * visível (`plainText`), como conta o Telegram.
    */
   measure?(text: MessageText): number;
+  /**
+   * Máximo de botões numa mensagem (capability `actions`). Acima dele, o kernel envia o menu em
+   * texto numerado (ADR 0062). Ausente: sem limite.
+   */
+  readonly actions?: number;
+}
+
+/**
+ * Botão a renderizar (capability `actions`, ADR 0062). O `id` é opaco, com até 16 caracteres
+ * ASCII (cabe no `callback_data` do Telegram), e volta no `actionId` do evento `interaction`.
+ */
+export interface OutgoingAction {
+  readonly id: string;
+  readonly label: string;
 }
 
 export interface SendOptions {
@@ -209,6 +245,11 @@ export interface SendOptions {
   readonly quoted?: Message;
   /** IDs dos contatos mencionados (capability `mentions`). */
   readonly mentions?: readonly string[];
+  /**
+   * Botões abaixo da mensagem, na ordem (capability `actions`). Só vão com `type: 'text'`; num
+   * texto dividido, só na última parte.
+   */
+  readonly actions?: readonly OutgoingAction[];
 }
 
 export type Presence = 'available' | 'unavailable' | 'composing' | 'recording' | 'paused';

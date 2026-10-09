@@ -152,6 +152,16 @@ describe('limites de tamanho', () => {
     expect(calls.map((c) => c.options)).toEqual([{ mentions: ['u1'] }, { mentions: ['u1'] }]);
   });
 
+  it('os botões vão só na última parte (ADR 0062)', async () => {
+    const { queue, calls } = setup({ text: 4 }, [...ALL, 'actions']);
+    const actions = [{ id: 'a1', label: 'Notas' }];
+    const sending = queue.send('c', 'aaaa bbbb cccc', { quoted: textMessage('q'), actions });
+    await vi.runAllTimersAsync();
+    await sending;
+    expect(calls.map((c) => c.options?.actions)).toEqual([undefined, undefined, actions]);
+    expect(calls[0]?.options?.quoted).toBeDefined();
+  });
+
   it('outro envio ao mesmo chat não se intromete entre as partes', async () => {
     const { queue, texts } = setup({ text: 4 });
     const first = queue.send('c', 'aaaa bbbb cccc');

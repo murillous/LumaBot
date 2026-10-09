@@ -41,6 +41,7 @@ export {
 export type {
   GroupMetadata,
   GroupParticipant,
+  Interaction,
   Presence,
   Transport,
   TransportDeps,

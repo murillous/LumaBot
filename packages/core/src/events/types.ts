@@ -38,8 +38,11 @@ export interface CommandEvent {
 /** `message:<type>`: a mesma mensagem de `message`, já estreitada pelo tipo. */
 export type MessageTypeEvents = { readonly [K in MessageType as `message:${K}`]: MessageOf<K> };
 
-/** Todos os eventos que plugins podem assinar. */
-export interface BotEvents extends TransportEvents, MessageTypeEvents {
+/**
+ * Todos os eventos que plugins podem assinar. O `interaction` fica de fora: o kernel o resolve e
+ * roda o comando ou o passo do botão, e o plugin nunca vê o ID cru (ADR 0062).
+ */
+export interface BotEvents extends Omit<TransportEvents, 'interaction'>, MessageTypeEvents {
   command: CommandEvent;
   'plugin.error': PluginErrorEvent;
 }

@@ -45,6 +45,37 @@ describe('createReply', () => {
     );
   });
 
+  it('com ações, envia o texto e os botões que o `actions` resolveu (ADR 0062)', async () => {
+    const sender = spySender();
+    const prepare = vi.fn(() => ({ text: 'menu', actions: [{ id: 'a1', label: 'Notas' }] }));
+    const actions = [{ label: 'Notas', command: 'notas' }];
+    await createReply(sender, message, { actions: prepare }).text('oi', { actions });
+    expect(prepare).toHaveBeenCalledWith('oi', actions);
+    expect(sender.send).toHaveBeenCalledWith(
+      'grupo@test',
+      { type: 'text', text: 'menu' },
+      { priority: 'high', quoted: message, actions: [{ id: 'a1', label: 'Notas' }] },
+    );
+  });
+
+  it('com ações e sem quem as resolva, rejeita com TypeError sem enviar', async () => {
+    const sender = spySender();
+    await expect(
+      createReply(sender, message)('oi', { actions: [{ label: 'Notas', command: 'notas' }] }),
+    ).rejects.toThrow(TypeError);
+    expect(sender.send).not.toHaveBeenCalled();
+  });
+
+  it('lista de ações vazia envia como sem ações', async () => {
+    const sender = spySender();
+    await createReply(sender, message)('oi', { actions: [] });
+    expect(sender.send).toHaveBeenCalledWith(
+      'grupo@test',
+      { type: 'text', text: 'oi' },
+      { priority: 'high', quoted: message },
+    );
+  });
+
   it('monta o conteúdo de cada atalho', async () => {
     const sender = spySender();
     const reply = createReply(sender, message);

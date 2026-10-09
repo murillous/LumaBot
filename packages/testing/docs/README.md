@@ -58,6 +58,7 @@ Qualquer opção pode ser sobrescrita, por exemplo `pluginConfig`, `owners`, `pr
 | Membro | O que faz |
 | --- | --- |
 | `receive(input)` | Entrega uma mensagem, espera o bot assentar e devolve a `Message` entregue |
+| `click(sent, label, options?)` | Clica no botão de rótulo `label` de um envio e espera o bot assentar ([botões](#botões)) |
 | `emit(event, payload)` | Simula outro evento do transport (`reaction`, `group.joined`...) e espera o bot assentar |
 | `sent` | Os envios, na ordem (`SentMessage[]`) |
 | `transport` | O `FakeTransport`, com os outros registros |
@@ -90,6 +91,29 @@ As mídias aceitas são `image`, `video`, `audio`, `voice`, `sticker` e `documen
 por mensagem. Quando a mídia vem só como `Buffer`, o mimetype é o que o WhatsApp usa para o tipo:
 `image/jpeg`, `video/mp4`, `audio/mpeg`, `audio/ogg; codecs=opus`, `image/webp` e
 `application/octet-stream`. O `quoted` aceita uma descrição como esta ou uma `Message` pronta.
+
+## Botões
+
+O `FakeTransport` tem a capability `actions` por padrão, e o envio com botões traz `actions` no
+`SentMessage`. O `click()` clica num deles pelo rótulo. Quem clica é o `DEFAULT_SENDER`, e o chat
+é o da mensagem citada pelo envio; `options.sender` e `options.chat` mudam os dois:
+
+```ts
+await bot.receive({ text: '!menu' });
+await bot.click(bot.sent[0], 'Notas', { sender: { id: 'outra@fake' } });
+expect(bot.sent).toContainText('Notas de Ana');
+```
+
+Sem a capability, o menu sai em texto numerado, e o teste responde com o número:
+
+```ts
+const bot = await createTestBot({
+  plugins: [escola],
+  transport: new FakeTransport({ capabilities: ['send.text', 'quoted'] }),
+});
+await bot.receive({ text: '!menu' });
+await bot.receive({ text: '1' });
+```
 
 ## Fixtures
 
