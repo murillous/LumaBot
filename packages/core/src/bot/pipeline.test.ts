@@ -194,6 +194,35 @@ describe('Bot: fluxo da mensagem (§5.3)', () => {
     expect(transport.sent).toEqual([]);
   });
 
+  it('ignoreBots vem ligado: a mensagem de outro bot não chega a lugar nenhum', async () => {
+    const transport = new RecordingTransport();
+    const seen: Seen[] = [];
+    const b = bot({ transport, plugins: [ecoPlugin(seen), saudacao] });
+    await b.start();
+
+    transport.emit('message', message('!eco sou um bot', { sender: { isBot: true } }));
+    transport.emit('message', message('outro', { sender: { isBot: false } }));
+
+    await vi.waitFor(() => expect(seen).toHaveLength(1));
+    expect(seen[0]?.text).toBe('outro');
+    expect(transport.sent).toEqual([]);
+  });
+
+  it('com ignoreBots: false, a mensagem de outro bot roda o comando', async () => {
+    const transport = new RecordingTransport();
+    const seen: Seen[] = [];
+    const b = bot({
+      transport,
+      plugins: [ecoPlugin(seen), saudacao],
+      middlewares: { ignoreBots: false },
+    });
+    await b.start();
+
+    transport.emit('message', message('!eco oi, bot', { sender: { isBot: true } }));
+
+    await vi.waitFor(() => expect(sentTexts(transport)).toEqual(['eco: oi, bot']));
+  });
+
   it('ctx.text: o sanitize trunca e o roteador e os listeners leem o texto truncado', async () => {
     const transport = new RecordingTransport();
     const seen: Seen[] = [];
@@ -691,6 +720,35 @@ describe('Bot: eventos que não são mensagem (#219, ADR 0038)', () => {
     transport.emit('reaction', payloads('eu@test', true).reaction);
 
     await vi.waitFor(() => expect(got).toEqual(['reaction:eu@test']));
+  });
+
+  it('o ignoreBots barra a reação e a deleção feitas por outro bot (ADR 0057)', async () => {
+    const transport = new RecordingTransport();
+    const got: string[] = [];
+    const b = bot({ transport, plugins: [eventos(got)] });
+    await b.start();
+
+    const robo = { id: 'robo@test', name: 'Robô', phone: null, isBot: true };
+    const doRobo = payloads('robo@test');
+    transport.emit('reaction', { ...doRobo.reaction, sender: robo });
+    transport.emit('message.deleted', { ...doRobo.deleted, deletedBy: robo });
+    const alheios = payloads('outro@test');
+    transport.emit('message.deleted', alheios.deleted);
+    transport.emit('reaction', alheios.reaction);
+
+    await vi.waitFor(() => expect(got).toEqual(['deleted:outro@test', 'reaction:outro@test']));
+  });
+
+  it('com ignoreBots: false, a reação de outro bot chega', async () => {
+    const transport = new RecordingTransport();
+    const got: string[] = [];
+    const b = bot({ transport, plugins: [eventos(got)], middlewares: { ignoreBots: false } });
+    await b.start();
+
+    const robo = { id: 'robo@test', name: 'Robô', phone: null, isBot: true };
+    transport.emit('reaction', { ...payloads('robo@test').reaction, sender: robo });
+
+    await vi.waitFor(() => expect(got).toEqual(['reaction:robo@test']));
   });
 
   it('evento que chega durante o boot espera os plugins subirem', async () => {

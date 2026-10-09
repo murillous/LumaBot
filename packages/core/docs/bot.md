@@ -200,6 +200,7 @@ Os oficiais entram nesta ordem (de fora para dentro), e os do app depois, com pr
 | Middleware | Prioridade | Padrão | Opção |
 | --- | --- | --- | --- |
 | `ignoreSelf` | 1000 | **ligado** | `ignoreSelf: false` desliga |
+| `ignoreBots` | 990 | **ligado** | `ignoreBots: false` desliga; barra `sender.isBot` |
 | `chatFilter` | 900 | desligado | `chatFilter: { allow, block }` |
 | `rateLimit` | 800 | desligado | `rateLimit: { max, windowMs, by }`; sem `onLimited`, loga em `debug` |
 | `sanitize` | 700 | **ligado** (4096 / 100) | `sanitize: { maxTextLength }`; `false` desliga |
@@ -220,17 +221,17 @@ createBot({
 
 #### Eventos que não são mensagem
 
-As opções `chatFilter` e `ignoreSelf` valem também para os eventos que não passam pelo pipeline
-([ADR 0038](../../../docs/adr/0038-filtro-de-eventos-no-kernel.md)). O kernel aplica as regras
-antes de repassá-los ao barramento:
+As opções `chatFilter`, `ignoreSelf` e `ignoreBots` valem também para os eventos que não passam
+pelo pipeline ([ADR 0038](../../../docs/adr/0038-filtro-de-eventos-no-kernel.md)). O kernel
+aplica as regras antes de repassá-los ao barramento:
 
-| Evento | `chatFilter` (por) | `ignoreSelf` |
-| --- | --- | --- |
-| `reaction` | `chat.id` | barra `fromMe: true` |
-| `message.deleted` | `chat.id` | barra `fromMe: true` |
-| `group.participants`, `group.updated` | `groupId` | — |
-| `group.joined`, `group.left`, `contact.updated` | sempre passam | — |
-| `connection.status`, `connection.qr`, `connection.pairing-code` | — | — |
+| Evento | `chatFilter` (por) | `ignoreSelf` | `ignoreBots` |
+| --- | --- | --- | --- |
+| `reaction` | `chat.id` | barra `fromMe: true` | barra `sender.isBot` |
+| `message.deleted` | `chat.id` | barra `fromMe: true` | barra `deletedBy.isBot` |
+| `group.participants`, `group.updated` | `groupId` | — | — |
+| `group.joined`, `group.left`, `contact.updated` | sempre passam | — | — |
+| `connection.status`, `connection.qr`, `connection.pairing-code` | — | — | — |
 
 `group.joined` e `group.left` passam mesmo com o grupo bloqueado: são o ciclo de vida do próprio
 bot no grupo e servem para o plugin limpar estado. `contact.updated` não é de um chat: o mesmo

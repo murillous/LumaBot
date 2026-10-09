@@ -94,6 +94,7 @@ export type {
   VoiceMessage,
 } from '#message/types.ts';
 export { type ChatFilterOptions, chatFilter } from '#middleware/chat-filter.ts';
+export { ignoreBots } from '#middleware/ignore-bots.ts';
 export { ignoreSelf } from '#middleware/ignore-self.ts';
 export type { Middleware, Next } from '#middleware/pipeline.ts';
 export {

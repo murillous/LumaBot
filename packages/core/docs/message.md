@@ -22,8 +22,8 @@ if (msg.quoted?.is('sticker')) await msg.quoted.media.download();
 
 - `text` é o texto ou a legenda (`null` se não houver); em `TextMessage` é sempre `string`. No
   bot, prefira o texto de trabalho `ctx.text`, que reflete os middlewares (ex.: truncado).
-- `sender`/`mentions` são `Contact`: `id` (o ID nativo do transport), `name` e `phone` (ver
-  abaixo).
+- `sender`/`mentions` são `Contact`: `id` (o ID nativo do transport), `name` e `phone`, mais
+  os opcionais `username`, `isBot` e `claims` (ver abaixo).
 - `mentions` (`Contact[]`) e as flags `isForwarded`, `isViewOnce`, `isEdited` estão em todos
   os tipos.
 - `MessageOf<'image' | 'video'>` dá o membro da union para um ou mais tipos;
@@ -56,6 +56,27 @@ reconhece o remetente.
 
 O campo é obrigatório no tipo: o transport precisa decidir, e `null` é uma resposta explícita.
 
+## `username`, `isBot` e `claims`
+
+Campos opcionais que o transport preenche quando a plataforma tem a informação
+([ADR 0057](../../../docs/adr/0057-contact-multiplataforma.md)). Ausente quer dizer que o
+transport não sabe:
+
+| Campo | Tipo | O que é |
+| --- | --- | --- |
+| `username` | `string` | `@usuario` sem o `@` (Telegram, Discord) |
+| `isBot` | `boolean` | Conta automatizada. Ausente conta como pessoa, e o `ignoreBots` barra `true` ([Bot](bot.md#middlewares)) |
+| `claims` | `Readonly<Record<string, JsonValue>>` | Atributos verificados pelo transport, como os claims do JWT do web |
+
+```ts
+const papel = ctx.message.sender.claims?.['papel']; // JsonValue | undefined
+```
+
+Os `claims` só aparecem no contato que fez a ação: o remetente, quem reagiu, quem apagou. Nos
+contatos de `mentions` e de participantes de grupo, o transport não os tem. São somente leitura
+e já vêm verificados, então o plugin pode confiar neles. Para consultar o sistema de origem, o
+plugin usa a própria credencial de serviço: o token do usuário não chega a ele.
+
 ## Construindo mensagens (transports)
 
 O transport mapeia o formato nativo para `MessageInit` e chama `createMessage`:
@@ -86,6 +107,8 @@ const msg = createMessage({
 
 - `phone` vai em todo `Contact` (remetente, menções, participantes): só dígitos com DDI, sem
   `+`, ou `null`. O `createMessage` o propaga como veio.
+- `username`, `isBot` e `claims` entram só quando a plataforma informa. `claims` é só para o que
+  o transport verificou (assinatura do JWT, por exemplo), nunca para o que o cliente declarou.
 - O retorno é tipado pelo `type` informado (`ImageMessage` acima), e cada tipo exige os seus
   campos (`media`, `location`, `poll`...).
 - Padrões: `quoted: null`, `mentions: []`, flags `false` (inclusive para `undefined`

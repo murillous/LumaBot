@@ -1,6 +1,7 @@
 // Contrato do modelo de mensagem normalizado (ADR 0009). Transports mapeiam o formato nativo
 // para estes tipos; plugins nunca veem o objeto do transport (exceto via escape hatch).
 
+import type { JsonValue } from '#storage/types.ts';
 import type { MessageKey } from '#transport/types.ts';
 
 /** Discriminante da union `Message`. `voice` (PTT) é separado de `audio`. */
@@ -27,6 +28,15 @@ export interface Contact {
    * só o transport sabe resolvê-lo. É com ele que o roteador reconhece os `owners` telefone.
    */
   readonly phone: string | null;
+  /** `@usuario` sem o `@` (Telegram, Discord); ausente se a plataforma não tiver (ADR 0057). */
+  readonly username?: string;
+  /** Conta automatizada, como outros bots num chat do Discord ou do Telegram. Ausente: pessoa. */
+  readonly isBot?: boolean;
+  /**
+   * Atributos que o transport verificou, como os claims do JWT do web (papel, empresa, escola).
+   * Só no contato que fez a ação; nos de `mentions` e de participantes, fica ausente.
+   */
+  readonly claims?: Readonly<Record<string, JsonValue>>;
 }
 
 export interface Chat {
