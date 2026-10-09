@@ -85,6 +85,7 @@ Os eventos chegam já normalizados (`TransportEvents`):
 | `message.edited` | `Message` (nova versão, `isEdited: true`) |
 | `message.deleted` | `{ chat, messageId, deletedBy, fromMe }` (`fromMe`: apagada pela própria sessão) |
 | `reaction` | `{ chat, messageId, sender, emoji, fromMe }` (`emoji: null` = removida; `fromMe`: reação da própria sessão) |
+| `poll.vote` | `{ chat, messageId, sender, options, fromMe }` (`messageId`: a enquete; `options`: índices das opções marcadas, a escolha inteira; `[]` = voto retirado) |
 | `group.joined` / `group.left` | `{ chat }` (o bot entrou/saiu; no Discord, `chat` é o servidor) |
 | `group.participants` | `{ chat, action, participants, actor }` |
 | `group.updated` | `{ chat, title?, description?, announce?, restrict? }` |
@@ -530,7 +531,10 @@ o que o plugin espera em qualquer uma.
   quando o bot é admin ou tem a permissão da plataforma. Sem ela, rejeita com `retryable: false`.
   Nenhuma plataforma-alvo edita mensagem de outra pessoa, então o `edit` vale só para as da sessão.
 - **Enquete** (`polls`): `multiple: true` libera marcar mais de uma opção. Quiz, enquete anônima e
-  duração são de cada plataforma e ficam no `native`. Voto ainda não chega como evento.
+  duração são de cada plataforma e ficam no `native`. O voto chega como `poll.vote`, sempre com a
+  escolha inteira de quem votou: o transport cuja plataforma manda a diferença (Discord) monta a
+  escolha pelos eventos que viu, e o que só recebe voto de enquete não anônima (Telegram) envia
+  assim por padrão ([ADR 0071](../../../docs/adr/0071-voto-em-enquete.md)).
 
 O transport declara o subconjunto que suporta em `capabilities`. Helpers (de
 `@zapforge/core/adapter`; o plugin só vê o tipo `Capability` e o `UnsupportedError`, de

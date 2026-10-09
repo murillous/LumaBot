@@ -279,6 +279,7 @@ type DirectEvent = Extract<
   EmittableEventName,
   | 'message.deleted'
   | 'reaction'
+  | 'poll.vote'
   | 'group.joined'
   | 'group.left'
   | 'group.participants'
@@ -307,6 +308,11 @@ const DIRECT_EVENTS: { readonly [E in DirectEvent]: (payload: BotEvents[E]) => E
     fromBot: payload.deletedBy?.isBot === true,
   }),
   reaction: (payload) => ({
+    chat: payload.chat,
+    fromMe: payload.fromMe,
+    fromBot: payload.sender.isBot === true,
+  }),
+  'poll.vote': (payload) => ({
     chat: payload.chat,
     fromMe: payload.fromMe,
     fromBot: payload.sender.isBot === true,

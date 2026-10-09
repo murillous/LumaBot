@@ -74,7 +74,7 @@ Cada mensagem nova do Baileys (`messages.upsert` do tipo `notify`) vira o evento
 - `append`: histórico e cópias de sincronização, que não são mensagens novas;
 - status (`status@broadcast`), que não é conversa;
 - mensagens sem conteúdo (aviso de grupo, falha ao decifrar) ou só de controle (edição, reação,
-  apagamento, voto de enquete). Edição, reação e apagamento viram eventos próprios
+  apagamento, voto de enquete). Edição, reação, apagamento e voto viram eventos próprios
   ([Eventos](#eventos)).
 
 As mensagens saem na ordem em que chegaram, mesmo quando resolver o telefone de uma demora. Se a
@@ -135,6 +135,7 @@ Além de `message` e `connection.*`, o transport converte estes eventos do Baile
 | Evento do Baileys | Evento do core |
 | --- | --- |
 | `messages.reaction` | `reaction` (`emoji: null` quando a reação foi removida) |
+| `messages.upsert` com `pollUpdateMessage` | `poll.vote`, decifrado pelo transport ([Votos de enquete](#votos-de-enquete)) |
 | `messages.update` com `editedMessage` | `message.edited`: a `Message` com o conteúdo novo e `isEdited: true` |
 | `messages.update` com `REVOKE` | `message.deleted` (`deletedBy`: quem apagou, o autor ou um admin do grupo) |
 | `group-participants.update` | `group.participants` (com o grupo em `chat`); a própria sessão adicionada ou removida vira `group.joined`/`group.left` |
@@ -174,6 +175,22 @@ LID sem telefone resolvido não apaga o telefone. Mensagens da própria sessão 
 contatos vistos ficam em memória durante a vida do transport (sobrevivem às reconexões); ao
 reiniciar o processo, cada um sai de novo na primeira mensagem. Quem precisa do nome de todo
 remetente (o `trackUsers` do legacy) faz upsert a cada `contact.updated`.
+
+### Votos de enquete
+
+O WhatsApp cifra o voto com o segredo da enquete, que só vem na mensagem que a criou, e o Baileys 7
+não o decifra sozinho. O transport guarda em memória as enquetes que envia e as que recebe, até
+1000 (a mais antiga sai primeiro), e decifra cada voto antes de emitir `poll.vote`
+([ADR 0071](../../../docs/adr/0071-voto-em-enquete.md)):
+
+- `options` são os índices das opções marcadas, a escolha inteira de quem votou; `[]` é o voto
+  retirado. Opção que a enquete não tem fica de fora.
+- A reconexão mantém as enquetes; o `disconnect()` (e o reinício do processo) as esquece. Voto de
+  enquete que o transport não viu é descartado com log em debug, inclusive o de enquete enviada
+  antes de o bot subir. Quem apura por muito tempo grava a apuração no storage a cada voto.
+- Voto que chega com o bot desconectado vem como `append` e fica de fora, como as mensagens.
+- Com LID, o aparelho de quem votou pode ter cifrado com o telefone ou com o LID; o transport
+  tenta os dois. Voto que não decifra vai ao log de erro.
 
 ### O que chegou com o bot desconectado
 

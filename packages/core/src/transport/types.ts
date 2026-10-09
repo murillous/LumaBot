@@ -113,6 +113,20 @@ export interface TransportEvents {
     readonly fromMe: boolean;
   };
   /**
+   * Voto numa enquete (capability `polls`, ADR 0071). Traz a escolha inteira de quem votou, não a
+   * diferença: um voto novo substitui o anterior, e a lista vazia é o voto retirado.
+   */
+  'poll.vote': {
+    readonly chat: Chat;
+    /** ID da mensagem da enquete. */
+    readonly messageId: string;
+    readonly sender: Contact;
+    /** Índices das opções marcadas, a partir de 0, na ordem em que a enquete as listou. */
+    readonly options: readonly number[];
+    /** Voto da própria sessão; o `ignoreSelf` o barra (ADR 0038). */
+    readonly fromMe: boolean;
+  };
+  /**
    * O bot entrou num grupo. Onde se entra num espaço e não num chat (servidor do Discord), o
    * `chat` é o espaço: o mesmo ID que os canais dele trazem em `parentId` (ADR 0059).
    */

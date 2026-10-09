@@ -79,6 +79,7 @@ nenhum prazo resolve isso.
 | `message.edited` | nova versão da `Message`, com `isEdited: true` |
 | `message.deleted` | `{ chat, messageId, deletedBy, fromMe }` |
 | `reaction` | `{ chat, messageId, sender, emoji, fromMe }` (`emoji: null` = removida) |
+| `poll.vote` | `{ chat, messageId, sender, options, fromMe }`: a escolha inteira de quem votou, por índice a partir de 0 (`options: []` = voto retirado; ADR 0071) |
 | `group.joined` / `group.left` | `{ chat }` (no Discord, `chat` é o servidor) |
 | `group.participants` | `{ chat, action, participants, actor }` |
 | `group.updated` | `{ chat }` + só os campos alterados (`title?`, `description?`, `announce?`, `restrict?`) |
