@@ -21,6 +21,12 @@ O `memory-growth` não cabe numa comparação relativa. A meta dele é "~0", e o
 perto de zero, às vezes abaixo (-0,2 MB). Nesses valores, 10% do baseline é menos que o ruído
 do heap, e a comparação falharia sem motivo.
 
+A primeira execução no runner do GitHub mostrou outro problema. O `idle-memory` ficou entre 79,1
+e 80,6 MB, contra uma meta de < 80 MB, nos dois lados da comparação e com o mesmo kernel. No
+Windows, a mesma medida dá ~70 MB. Cerca de 6 MB vinham do Vitest: o bench sobe o bot pelo
+`@zapforge/testing`, que importa o `vitest` para registrar os matchers (ADR 0052). A meta mede o
+kernel, e o Vitest não faz parte dele.
+
 ## Decisão
 
 - O job `Benchmark` mede o baseline no próprio runner. A base é o primeiro pai do commit
@@ -31,6 +37,10 @@ do heap, e a comparação falharia sem motivo.
   teto, cair num piso. Ele também falha se a medida do commit testado ficar fora da meta.
 - O `memory-growth` é comparado só com a meta (< 5 MB), que já é a régua do "~0" com folga para o
   ruído. Cada cenário declara isso em `checksRegression`.
+- O `@zapforge/testing` ganha o entry `/bot`: o mesmo kit, sem os matchers e sem carregar o
+  Vitest. O bench importa dele. O entry principal continua registrando os matchers no import,
+  como decide o ADR 0052. A alternativa era subir a meta para 90 MB, o que aceitaria na meta um
+  peso que não é do kernel.
 - Cenário novo, que a base ainda não tem, passa sem comparação. Se a base não tem `bench/` (um PR
   para a `main` antes do primeiro release do kernel), vale só a meta.
 

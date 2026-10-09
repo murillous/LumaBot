@@ -5,7 +5,7 @@
 import { setImmediate as nextTick } from 'node:timers/promises';
 import { command, definePlugin, type Message, type PluginDefinition } from '@zapforge/core';
 import { createMessage } from '@zapforge/core/adapter';
-import { createTestBot, type TestBot } from '@zapforge/testing';
+import { createTestBot, type TestBot } from '@zapforge/testing/bot';
 import { z } from 'zod';
 
 /** Plugins do bot de referência (meta de boot do plano §7). */
