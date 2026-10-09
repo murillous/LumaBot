@@ -108,11 +108,13 @@ sendo a referência; um ADR novo entra nos dois.
 - [0052](0052-kit-de-testes-sobre-o-vitest.md) — Kit de testes sobre o Vitest, com `receive()` que espera o bot assentar (detalha D22/D44)
 - [0053](0053-core-testa-sem-o-kit.md) — O core se testa com apoios próprios, não com o `@zapforge/testing` (detalha D22/D52)
 
-**Multiplataforma (a escrever)**
+**Multiplataforma**
 
-As decisões para atender WhatsApp, Discord, Telegram e sistemas web estão nas issues da
-[#265](https://github.com/murillous/LumaBot/issues/265) e vão virar ADRs por tema (ver
-[#266](https://github.com/murillous/LumaBot/issues/266)). Ao serem aceitos, entram aqui e no índice numérico.
+- [0055](0055-plataformas-alvo-e-transport-web.md) — Plataformas-alvo e um transport fora do WhatsApp antes do 1.0 (substitui parte de D03, detalha D29)
+
+As outras decisões para atender WhatsApp, Discord, Telegram e sistemas web estão nas issues da
+[#265](https://github.com/murillous/LumaBot/issues/265) e vão virar ADRs por tema (B a F, ver o
+ADR 0055). Ao serem aceitos, entram aqui e no índice numérico.
 
 ## Índice numérico
 
@@ -120,7 +122,7 @@ As decisões para atender WhatsApp, Discord, Telegram e sistemas web estão nas 
 |---|---|---|---|
 | [0001](0001-monorepo-pnpm-workspaces.md) | D01 | Monorepo com pnpm workspaces | Aceito |
 | [0002](0002-typescript-no-kernel.md) | D02 | TypeScript no kernel, publicado com `.d.ts` | Aceito |
-| [0003](0003-transport-abstrato.md) | D03 | `Transport` abstrato, só Baileys na v1 | Aceito |
+| [0003](0003-transport-abstrato.md) | D03 | `Transport` abstrato, só Baileys na v1 | Aceito (só Baileys na v1: ADR 0055) |
 | [0004](0004-uma-sessao-por-processo.md) | D04 | Uma sessão por processo, zero estado global | Aceito |
 | [0005](0005-plugins-no-mesmo-processo.md) | D05 | Plugins no mesmo processo, isolados por try/catch + timeout | Aceito |
 | [0006](0006-luma-e-um-plugin.md) | D06 | Luma é um plugin (`plugin-ai`) | Aceito |
@@ -146,7 +148,7 @@ As decisões para atender WhatsApp, Discord, Telegram e sistemas web estão nas 
 | [0026](0026-tooling.md) | D26 | Tooling: Node 24, pnpm, tsdown, Vitest, Biome | Aceito |
 | [0027](0027-releases-changesets.md) | D27 | Releases com Changesets | Aceito |
 | [0028](0028-licenca-apache-2.md) | D28 | Licença Apache-2.0 | Aceito |
-| [0029](0029-open-core-repo-privado.md) | D29 | Open core com repo privado | Aceito |
+| [0029](0029-open-core-repo-privado.md) | D29 | Open core com repo privado | Aceito (transports públicos: ADR 0055) |
 | [0030](0030-metas-de-performance.md) | D30 | Metas de performance com benchmark no CI | Aceito |
 | [0031](0031-nome-zapforge.md) | D31 | Nome: ZapForge | Aceito |
 | [0032](0032-camadas-da-config-de-plugin.md) | D32 | Camadas e convenções da config de plugin (detalha D17) | Aceito |
@@ -172,3 +174,4 @@ As decisões para atender WhatsApp, Discord, Telegram e sistemas web estão nas 
 | [0052](0052-kit-de-testes-sobre-o-vitest.md) | D52 | Kit de testes sobre o Vitest, com `receive()` que espera o bot assentar (detalha D22/D44) | Aceito |
 | [0053](0053-core-testa-sem-o-kit.md) | D53 | O core se testa com apoios próprios, não com o `@zapforge/testing` (detalha D22/D52) | Aceito |
 | [0054](0054-baseline-do-benchmark.md) | D54 | Baseline do benchmark medido no mesmo job, a partir do commit base (detalha D30) | Aceito |
+| [0055](0055-plataformas-alvo-e-transport-web.md) | D55 | Plataformas-alvo e um transport fora do WhatsApp antes do 1.0 (substitui parte de D03, detalha D29) | Aceito |

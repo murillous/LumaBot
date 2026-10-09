@@ -1,6 +1,6 @@
 # ADR 0003 — `Transport` abstrato, só Baileys na v1
 
-**Status:** Aceito (2026-10-06) · Decisão **D03** do [plano](../../ZAPFORGE_PLAN.md#4-decisões)
+**Status:** Aceito (2026-10-06) · Decisão **D03** do [plano](../../ZAPFORGE_PLAN.md#4-decisões) · "Só Baileys na v1": substituído pelo [ADR 0055](0055-plataformas-alvo-e-transport-web.md)
 
 ## Contexto
 
