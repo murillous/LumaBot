@@ -91,6 +91,34 @@ exceder, o novo envio rejeita com `OutboundQueueError` `'full'` e as já aceitas
 O limite é por prioridade de propósito: um broadcast `low` que encheu a fila não recusa uma
 resposta `high` a comando. No pior caso a fila guarda `3 × maxPending` mensagens.
 
+## Texto longo
+
+Com `transport.limits` ([Transport](transport.md#limites-de-tamanho)), o `send` divide o texto
+acima do limite antes de enfileirar
+([ADR 0061](../../../docs/adr/0061-texto-formatado-neutro.md)). Sem `limits`, o texto vai inteiro,
+e o custo é zero.
+
+- **Onde corta:** num parágrafo, depois numa linha, depois num espaço e, por último, num
+  caractere, sem partir um par surrogate. O espaço das pontas de cada parte sai. Na árvore
+  formatada, um nó partido continua formatado nas duas partes. Uma menção nunca é cortada.
+- **Como sai:** cada parte é um envio, com intervalo, presença e retry próprios. A parte seguinte
+  vai para a frente do chat, como uma re-tentativa, e outro envio ao mesmo chat não se intromete.
+  O retry repete só a parte que falhou.
+- **Opções:** só a primeira parte cita (`quoted`). As `mentions` vão em todas.
+- **Resultado:** resolve depois da última parte, com a chave da **primeira**. Se uma parte falha
+  de vez, as seguintes não saem, e o `send` rejeita com o erro dela. O fechamento sem drenar
+  descarta as partes que faltam.
+- **Legenda:** o começo fica na mídia, dentro de `limits.caption`, e o resto sai em mensagens de
+  texto, dentro de `limits.text`. Por isso a legenda dividida exige também `send.text`.
+- **Backlog:** o texto dividido ocupa uma vaga de `maxPending`, e as métricas contam cada parte
+  em `sent`.
+
+```ts
+await queue.send('123@g.us', textoLongo); // atalho: só o texto, cru ou formatado
+```
+
+O `ctx.send.edit` não divide: acima de `limits.text`, rejeita com `RangeError` sem enfileirar.
+
 ## Erros e retry
 
 `send` resolve com a `MessageKey` ou rejeita com o erro final; nunca fica sem destino.
@@ -99,6 +127,7 @@ resposta `high` a comando. No pior caso a fila guarda `3 × maxPending` mensagen
 | --- | --- |
 | Transport sem a capability (`assertCanSend`) | Rejeita na hora com `UnsupportedError`, sem tentar |
 | `priority` inválida | Rejeita na hora com `TypeError` |
+| `limits.measure` do transport lançou | Rejeita na hora com o erro dele |
 | Backlog da prioridade cheio (`maxPending`) | Rejeita com `OutboundQueueError`, `reason: 'full'` |
 | Fila fechada | Rejeita com `OutboundQueueError`, `reason: 'closed'` |
 | Conexão caída além de `maxPauseMs` | Rejeita com `OutboundQueueError`, `reason: 'disconnected'` |
@@ -208,7 +237,8 @@ prazo do gancho é a rede de segurança.
 
 ## `ctx.reply`
 
-`createReply(sender, message, { quote })` devolve um `Reply`: chamado com texto, envia texto; os
+`createReply(sender, message, { quote })` devolve um `Reply`: chamado com texto (cru ou
+[formatado](text.md)), envia texto; os
 atalhos `text`, `image`, `video`, `audio`, `voice`, `sticker`, `document` e `poll` cobrem cada
 tipo de `OutgoingContent`. Todos enviam no chat de `message`, citando-a, com prioridade `high`
 (sobrescrevível por `priority`) e aceitam `mentions`.

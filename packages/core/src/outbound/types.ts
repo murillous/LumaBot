@@ -1,6 +1,7 @@
 // Contrato da fila de saída (M1-12, ADR 0019). O M1-12 completa este arquivo; os nomes
 // exportados aqui são usados por outros módulos e não mudam.
 
+import type { MessageText } from '#text/format.ts';
 import type {
   MediaInput,
   MessageKey,
@@ -19,9 +20,13 @@ export interface OutboundSendOptions extends SendOptions {
 
 /** Envio exposto ao plugin (`ctx.send`); passa sempre pela fila de saída. */
 export interface Sender {
+  /**
+   * Envia o conteúdo ou, como atalho, só o texto (cru ou formatado, ADR 0061). Um texto acima do
+   * limite do transport sai em partes, e a chave devolvida é a da primeira.
+   */
   send(
     chatId: string,
-    content: OutgoingContent,
+    content: OutgoingContent | MessageText,
     options?: OutboundSendOptions,
   ): Promise<MessageKey>;
 }
@@ -40,8 +45,11 @@ export interface ActionOptions {
 export interface Outbound extends Sender {
   /** Reage à mensagem; `emoji: null` remove a reação (capability `reactions`). */
   react(key: MessageKey, emoji: string | null, options?: ActionOptions): Promise<void>;
-  /** Troca o texto da mensagem (capability `message.edit`). */
-  edit(key: MessageKey, text: string, options?: ActionOptions): Promise<void>;
+  /**
+   * Troca o texto da mensagem (capability `message.edit`). Não se divide: acima do limite do
+   * transport, rejeita com `RangeError`.
+   */
+  edit(key: MessageKey, text: MessageText, options?: ActionOptions): Promise<void>;
   /** Apaga a mensagem para todos (capability `message.delete`). */
   delete(key: MessageKey, options?: ActionOptions): Promise<void>;
   /** "Digitando", "gravando" etc. no chat (capability `presence`). */
@@ -57,7 +65,7 @@ export interface ReplyOptions {
 }
 
 export interface ReplyMediaOptions extends ReplyOptions {
-  readonly caption?: string;
+  readonly caption?: MessageText;
   readonly mimetype?: string;
 }
 
@@ -68,7 +76,7 @@ export interface ReplyAudioOptions extends ReplyOptions {
 export interface ReplyDocumentOptions extends ReplyOptions {
   readonly fileName: string;
   readonly mimetype: string;
-  readonly caption?: string;
+  readonly caption?: MessageText;
 }
 
 export interface ReplyPollOptions extends ReplyOptions {
@@ -78,11 +86,11 @@ export interface ReplyPollOptions extends ReplyOptions {
 
 /**
  * `ctx.reply`: responde no chat da mensagem, citando-a, pela fila de saída. Chamado direto
- * envia texto; os atalhos cobrem cada tipo de `OutgoingContent`.
+ * envia texto, cru ou formatado (ADR 0061); os atalhos cobrem cada tipo de `OutgoingContent`.
  */
 export interface Reply {
-  (text: string, options?: ReplyOptions): Promise<MessageKey>;
-  text(text: string, options?: ReplyOptions): Promise<MessageKey>;
+  (text: MessageText, options?: ReplyOptions): Promise<MessageKey>;
+  text(text: MessageText, options?: ReplyOptions): Promise<MessageKey>;
   image(media: MediaInput, options?: ReplyMediaOptions): Promise<MessageKey>;
   video(media: MediaInput, options?: ReplyMediaOptions): Promise<MessageKey>;
   audio(media: MediaInput, options?: ReplyAudioOptions): Promise<MessageKey>;

@@ -6,6 +6,7 @@
 import type {
   Capability,
   Contact,
+  FormattedText,
   GroupMetadata,
   GroupParticipantAction,
   Message,
@@ -13,6 +14,7 @@ import type {
   OutgoingContent,
   Presence,
   SendOptions,
+  TextLimits,
   Transport,
   Unsubscribe,
 } from '@zapforge/core';
@@ -46,6 +48,11 @@ export interface FakeTransportOptions {
   readonly self?: Contact;
   /** Grupos que `getGroupMetadata` conhece; dá para incluir depois com `setGroup`. */
   readonly groups?: readonly GroupMetadata[];
+  /**
+   * Limites de tamanho, para testar a divisão de texto longo (ADR 0061). Padrão: nenhum, e o
+   * texto vai inteiro.
+   */
+  readonly limits?: TextLimits;
 }
 
 export const DEFAULT_SELF: Contact = { id: 'bot@fake', name: 'Bot', phone: '5500000000000' };
@@ -54,9 +61,15 @@ export class FakeTransport implements Transport {
   readonly name = 'fake';
   readonly capabilities: ReadonlySet<Capability>;
   readonly native: unknown = { kind: 'fake-transport' };
+  readonly limits?: TextLimits;
   readonly sent: SentMessage[] = [];
   readonly reactions: { readonly key: MessageKey; readonly emoji: string | null }[] = [];
-  readonly edits: { readonly key: MessageKey; readonly text: string }[] = [];
+  /** `formatted` só aparece na edição com texto formatado. */
+  readonly edits: {
+    readonly key: MessageKey;
+    readonly text: string;
+    readonly formatted?: FormattedText;
+  }[] = [];
   readonly deletions: MessageKey[] = [];
   readonly presences: { readonly chatId: string; readonly presence: Presence }[] = [];
   readonly participantUpdates: {
@@ -79,6 +92,7 @@ export class FakeTransport implements Transport {
   constructor(options: FakeTransportOptions = {}) {
     this.capabilities = new Set(options.capabilities ?? CAPABILITIES);
     this.#selfOnConnect = options.self ?? DEFAULT_SELF;
+    if (options.limits !== undefined) this.limits = options.limits;
     for (const group of options.groups ?? []) this.setGroup(group);
   }
 
@@ -131,9 +145,9 @@ export class FakeTransport implements Transport {
     this.reactions.push({ key, emoji });
   }
 
-  async edit(key: MessageKey, text: string): Promise<void> {
+  async edit(key: MessageKey, text: string, formatted?: FormattedText): Promise<void> {
     assertCapability(this, 'message.edit');
-    this.edits.push({ key, text });
+    this.edits.push({ key, text, ...(formatted && { formatted }) });
   }
 
   async delete(key: MessageKey): Promise<void> {

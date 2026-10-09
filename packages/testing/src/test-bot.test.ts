@@ -1,4 +1,4 @@
-import { command, definePlugin, type Message } from '@zapforge/core';
+import { bold, command, definePlugin, fmt, type Message } from '@zapforge/core';
 import { afterEach, describe, expect, it } from 'vitest';
 import { FakeTransport } from './fake-transport.ts';
 import { DEFAULT_CHAT, DEFAULT_SENDER } from './incoming.ts';
@@ -261,5 +261,42 @@ describe('createTestBot: conversa com resposta esperada (ADR 0060)', () => {
     await bot.receive({ text: 'Maria' });
 
     expect(bot.sent).toContainText('Notas de Maria');
+  });
+});
+
+describe('createTestBot: texto formatado e limites (ADR 0061)', () => {
+  const notas = () =>
+    definePlugin({
+      name: 'notas',
+      version: '1.0.0',
+      engine: ENGINE,
+      setup(ctx) {
+        ctx.commands.add(
+          command({
+            name: 'notas',
+            run: (c) => c.reply(fmt`Notas de ${bold('Maria')}\n\n${'8 '.repeat(10).trim()}`),
+          }),
+        );
+      },
+    });
+
+  it('o matcher casa o texto visível da resposta formatada', async () => {
+    const bot = await testBot({ plugins: [notas()] });
+    await bot.receive({ text: '!notas' });
+    expect(bot).toHaveReplied('Notas de Maria\n\n8 8 8 8 8 8 8 8 8 8');
+    expect(bot.sent[0]?.content).toMatchObject({ formatted: { type: 'formatted' } });
+  });
+
+  it('com `limits` no FakeTransport, a resposta longa sai em partes', async () => {
+    const transport = new FakeTransport({ limits: { text: 15 } });
+    const bot = await testBot({ plugins: [notas()], transport });
+    await bot.receive({ text: '!notas' });
+    expect(bot.sent.map((s) => (s.content.type === 'text' ? s.content.text : ''))).toEqual([
+      'Notas de Maria',
+      '8 8 8 8 8 8 8 8',
+      '8 8',
+    ]);
+    // Só a primeira parte cita a mensagem.
+    expect(bot.sent.map((s) => s.quoted !== null)).toEqual([true, false, false]);
   });
 });

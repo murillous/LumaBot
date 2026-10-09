@@ -30,6 +30,7 @@ explícita.
 | [Storage](storage.md) | KV e coleções por plugin, auth state, adapter em memória e suíte de contrato |
 | [Scheduler](scheduler.md) | `ctx.scheduler`: `at`/`on`/`cancel`, persistência, restart, entrega pelo menos uma vez |
 | [Plugins](plugins.md) | `definePlugin`, manifesto, fontes (config + `pluginDirs`), ordem, tabela de boot, `setup`/`teardown`/`reload` |
+| [Texto formatado](text.md) | `fmt`, `bold`, `italic`, `code`, `link`, `mention`, `plainText`; texto cru; divisão do texto longo |
 | [Fila de saída](outbound-queue.md) | `OutboundQueue`: taxa global/por chat, prioridade, retry, humanização; `createReply` |
 | [Eventos](events.md) | Barramento: eventos do §6.4, filtros, prioridade, `claim()`, isolamento |
 | [Services](services.md) | `ctx.services`: `provide`/`get` tipados por declaration merging, erros, registry |

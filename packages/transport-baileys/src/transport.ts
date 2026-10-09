@@ -9,6 +9,7 @@ import { Readable } from 'node:stream';
 import type {
   Capability,
   Contact,
+  FormattedText,
   GroupMetadata,
   GroupParticipantAction,
   Logger,
@@ -55,6 +56,7 @@ import {
   toParticipantEvents,
   toReaction,
 } from './events.ts';
+import { renderWhatsApp } from './format.ts';
 import { type ILogger, toBaileysLogger } from './logger.ts';
 import { type NormalizeEnv, toMessage } from './normalize.ts';
 import { toContent, toGroupMetadata, toQuoted, toWAKey } from './outgoing.ts';
@@ -429,8 +431,17 @@ export class BaileysTransport implements Transport {
     });
   }
 
-  async edit(key: MessageKey, text: string): Promise<void> {
-    await this.#connected().sendMessage(key.chatId, { text, edit: toWAKey(key) });
+  async edit(key: MessageKey, text: string, formatted?: FormattedText): Promise<void> {
+    if (!formatted) {
+      await this.#connected().sendMessage(key.chatId, { text, edit: toWAKey(key) });
+      return;
+    }
+    const rendered = renderWhatsApp(formatted);
+    await this.#connected().sendMessage(key.chatId, {
+      text: rendered.text,
+      edit: toWAKey(key),
+      ...(rendered.mentions.length > 0 && { mentions: [...rendered.mentions] }),
+    });
   }
 
   async delete(key: MessageKey): Promise<void> {

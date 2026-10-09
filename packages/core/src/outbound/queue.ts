@@ -1,6 +1,7 @@
 // Fila de saída anti-ban (ADR 0019). Todo envio do bot passa por aqui: intervalo mínimo global
 // e por chat, prioridade (comando > broadcast), retry com backoff e humanização opcional.
 
+import type { MessageText } from '#text/format.ts';
 import { assertCanSend, hasCapability, UnsupportedError } from '#transport/capabilities.ts';
 import type {
   MessageKey,
@@ -9,10 +10,14 @@ import type {
   SendOptions,
   Transport,
 } from '#transport/types.ts';
+import { type SendPart, TextLimiter, toContent } from './text.ts';
 import type { ActionOptions, OutboundSendOptions, Sender, SendPriority } from './types.ts';
 
 /** O que a fila usa do transport. */
-export type OutboundTransport = Pick<Transport, 'name' | 'capabilities' | 'send' | 'sendPresence'>;
+export type OutboundTransport = Pick<
+  Transport,
+  'name' | 'capabilities' | 'send' | 'sendPresence' | 'limits'
+>;
 
 export interface RetryOptions {
   /** Tentativas no total, contando a primeira. Padrão: 3. `1` desliga o retry. */
@@ -181,11 +186,20 @@ class Fifo<T> {
   }
 }
 
-interface Job {
-  /** A chamada ao transport: o envio ou a ação de `enqueue`. */
+/** Uma chamada ao transport e o conteúdo dela, para a humanização (`null` nas ações). */
+interface JobPart {
   readonly run: () => Promise<unknown>;
-  /** Conteúdo do envio, para a humanização; `null` nas ações. */
   readonly content: OutgoingContent | null;
+}
+
+interface Job extends JobPart {
+  /**
+   * Partes seguintes de um texto dividido (ADR 0061). Cada uma sai logo depois da anterior, na
+   * frente do chat, para outro envio não se intrometer.
+   */
+  readonly rest: readonly JobPart[];
+  /** Resultado da primeira parte, com que a última resolve; ausente até ela sair. */
+  readonly first?: { readonly value: unknown };
   /** O que é a chamada, para a mensagem do prazo estourado. */
   readonly what: string;
   readonly priority: PriorityIndex;
@@ -198,8 +212,11 @@ interface Job {
 interface ChatState {
   readonly id: string;
   readonly jobs: readonly [Fifo<Job>, Fifo<Job>, Fifo<Job>];
-  /** Mensagem em espera de re-tentativa: sai antes das outras do chat, para não embaralhar. */
-  retry: Job | null;
+  /**
+   * Mensagem em espera de re-tentativa ou parte seguinte de um texto dividido: sai antes das
+   * outras do chat, para não embaralhar.
+   */
+  head: Job | null;
   pending: number;
   busy: boolean;
   /** Antes disso o chat não envia (intervalo por chat ou backoff). */
@@ -221,6 +238,7 @@ interface ReadyEntry {
  */
 export class OutboundQueue implements Sender {
   readonly #transport: OutboundTransport;
+  readonly #text: TextLimiter;
   readonly #globalIntervalMs: number;
   readonly #chatIntervalMs: number;
   readonly #maxPending: number;
@@ -271,6 +289,7 @@ export class OutboundQueue implements Sender {
   constructor(options: OutboundQueueOptions) {
     const retry = options.retry ?? {};
     this.#transport = options.transport;
+    this.#text = new TextLimiter(options.transport);
     this.#globalIntervalMs = nonNegative(
       'globalIntervalMs',
       options.globalIntervalMs ?? DEFAULTS.globalIntervalMs,
@@ -317,11 +336,12 @@ export class OutboundQueue implements Sender {
 
   /**
    * Enfileira o envio. Resolve com a chave da mensagem criada ou rejeita com o erro final
-   * (capability ausente, fila cheia/fechada ou falha do transport após as re-tentativas).
+   * (capability ausente, fila cheia/fechada ou falha do transport após as re-tentativas). Um
+   * texto acima do limite do transport sai em partes, e a chave é a da primeira (ADR 0061).
    */
   send(
     chatId: string,
-    content: OutgoingContent,
+    input: OutgoingContent | MessageText,
     options?: OutboundSendOptions,
   ): Promise<MessageKey> {
     let sendOptions: SendOptions | undefined;
@@ -329,12 +349,27 @@ export class OutboundQueue implements Sender {
       const { priority: _priority, ...rest } = options;
       sendOptions = rest;
     }
+    let parts: SendPart[];
+    try {
+      parts = this.#text.split(toContent(input), sendOptions);
+    } catch (error) {
+      return Promise.reject(error);
+    }
+    const [head, ...rest] = parts.map(
+      ({ content, options: partOptions }): JobPart => ({
+        run: () => this.#transport.send(chatId, content, partOptions),
+        content,
+      }),
+    );
     return this.#push(chatId, options?.priority, {
-      run: () => this.#transport.send(chatId, content, sendOptions),
-      content,
+      ...(head as JobPart),
+      rest,
       what: `envio para ${chatId}`,
-      // Capability ausente nunca vira tentativa: falha já, sem ocupar a fila.
-      check: () => assertCanSend(this.#transport, content, sendOptions),
+      // Capability ausente nunca vira tentativa: falha já, sem ocupar a fila. Uma legenda
+      // dividida também exige `send.text`.
+      check: () => {
+        for (const part of parts) assertCanSend(this.#transport, part.content, part.options);
+      },
     }) as Promise<MessageKey>;
   }
 
@@ -347,6 +382,7 @@ export class OutboundQueue implements Sender {
     return this.#push(chatId, options?.priority, {
       run: action,
       content: null,
+      rest: [],
       what: `ação em ${chatId}`,
     }) as Promise<T>;
   }
@@ -354,7 +390,7 @@ export class OutboundQueue implements Sender {
   #push(
     chatId: string,
     requested: SendPriority | undefined,
-    spec: Pick<Job, 'run' | 'content' | 'what'> & { readonly check?: () => void },
+    spec: Pick<Job, 'run' | 'content' | 'rest' | 'what'> & { readonly check?: () => void },
   ): Promise<unknown> {
     if (this.#closed) {
       this.#dropped++;
@@ -395,6 +431,7 @@ export class OutboundQueue implements Sender {
       const job: Job = {
         run: spec.run,
         content: spec.content,
+        rest: spec.rest,
         what: spec.what,
         priority,
         attempts: 0,
@@ -488,7 +525,7 @@ export class OutboundQueue implements Sender {
     const chat: ChatState = {
       id: chatId,
       jobs: [new Fifo(), new Fifo(), new Fifo()],
-      retry: null,
+      head: null,
       pending: 0,
       busy: false,
       readyAt: this.#cooldowns.get(chatId) ?? Number.NEGATIVE_INFINITY,
@@ -511,7 +548,7 @@ export class OutboundQueue implements Sender {
       }, chat.readyAt - now);
       return;
     }
-    const priority = chat.retry !== null ? chat.retry.priority : firstNonEmpty(chat.jobs);
+    const priority = chat.head !== null ? chat.head.priority : firstNonEmpty(chat.jobs);
     if (priority === -1 || (chat.ticket !== 0 && chat.listedPriority === priority)) return;
     // Nova senha invalida a entrada antiga (ex.: chegou mensagem de prioridade maior).
     chat.ticket = this.#nextTicket++;
@@ -554,9 +591,9 @@ export class OutboundQueue implements Sender {
   }
 
   #dispatch(chat: ChatState, now: number): void {
-    let job = chat.retry;
+    let job = chat.head;
     if (job !== null) {
-      chat.retry = null;
+      chat.head = null;
     } else {
       const priority = firstNonEmpty(chat.jobs);
       job = priority === -1 ? null : (chat.jobs[priority].shift() ?? null);
@@ -598,7 +635,7 @@ export class OutboundQueue implements Sender {
       } else {
         const result = await this.#withTimeout(job.run(), job.what);
         this.#sent++;
-        job.resolve(result);
+        this.#settle(chat, job, result);
       }
     } catch (error) {
       this.#handleFailure(chat, job, error);
@@ -613,6 +650,26 @@ export class OutboundQueue implements Sender {
       this.#wake(chat, this.#clock());
     }
     this.#pump();
+  }
+
+  /** Resolve o envio ou, num texto dividido, põe a parte seguinte na frente do chat. */
+  #settle(chat: ChatState, job: Job, result: unknown): void {
+    const first = job.first ?? { value: result };
+    const [next, ...rest] = job.rest;
+    if (next === undefined) {
+      job.resolve(first.value);
+      return;
+    }
+    if (this.#discarding) {
+      this.#dropped++;
+      job.reject(
+        new OutboundQueueError('closed', 'fila de saída fechada sem drenar: envio descartado'),
+      );
+      return;
+    }
+    chat.head = { ...job, ...next, rest, first, attempts: 0 };
+    chat.pending++;
+    this.#pendingBy[job.priority]++;
   }
 
   #handleFailure(chat: ChatState, job: Job, error: unknown): void {
@@ -637,7 +694,7 @@ export class OutboundQueue implements Sender {
       return;
     }
     this.#retries++;
-    chat.retry = job;
+    chat.head = job;
     chat.pending++;
     this.#pendingBy[job.priority]++;
     chat.readyAt = Math.max(chat.readyAt, this.#clock() + this.#backoff(job.attempts));
@@ -723,7 +780,7 @@ export class OutboundQueue implements Sender {
   /** Rejeita tudo o que aguarda, inclusive re-tentativas; os envios em andamento seguem. */
   #rejectWaiting(error: () => OutboundQueueError): void {
     for (const chat of this.#chats.values()) {
-      const waiting: Job[] = chat.retry === null ? [] : [chat.retry];
+      const waiting: Job[] = chat.head === null ? [] : [chat.head];
       for (const fifo of chat.jobs) {
         for (let job = fifo.shift(); job !== undefined; job = fifo.shift()) waiting.push(job);
       }
@@ -731,7 +788,7 @@ export class OutboundQueue implements Sender {
         this.#dropped++;
         job.reject(error());
       }
-      chat.retry = null;
+      chat.head = null;
       chat.pending = 0;
       chat.ticket = 0;
       clearTimeout(chat.timer);

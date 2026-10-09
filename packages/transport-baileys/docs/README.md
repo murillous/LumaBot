@@ -210,6 +210,15 @@ fora.
 
 A mídia vai como `Buffer` ou `{ url }`, que o Baileys baixa. `mentions` entra em qualquer tipo.
 
+- **Texto formatado** ([ADR 0061](../../../docs/adr/0061-texto-formatado-neutro.md)): com
+  `formatted` (ou `formattedCaption`), o texto sai na marcação do WhatsApp: `*negrito*`,
+  `_itálico_`, `` `código` `` e `rótulo (url)` no link. O espaço das pontas fica fora do
+  marcador, porque o WhatsApp ignora `* a *`. Uma menção vira `@<usuário do JID>` (o número, ou o
+  LID) e o JID entra em `mentions`, junto dos de `options.mentions`. O WhatsApp não tem escape:
+  um `*` literal do texto pode casar com outro, como no app. O `edit` com a árvore faz o mesmo.
+- **Limites**: o transport não declara `limits`. O WhatsApp aceita textos de dezenas de milhares
+  de caracteres, então a fila não divide.
+
 - **Citação**: citar uma mensagem recebida por este transport (o `ctx.reply` cita por padrão)
   manda ao Baileys o proto original, então a citada aparece com mídia e legenda. Uma `Message`
   montada fora dele (testes, storage) vai só com a chave e o texto.

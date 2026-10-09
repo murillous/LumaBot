@@ -173,6 +173,20 @@ export type {
   Where,
   WithId,
 } from '#storage/types.ts';
+export {
+  bold,
+  code,
+  type FormattedText,
+  fmt,
+  italic,
+  link,
+  type MentionTarget,
+  type MessageText,
+  mention,
+  plainText,
+  type TextNode,
+  type TextPart,
+} from '#text/format.ts';
 export { type Capability, UnsupportedError } from '#transport/capabilities.ts';
 export type {
   ConnectionStatus,
@@ -185,6 +199,7 @@ export type {
   OutgoingContent,
   Presence,
   SendOptions,
+  TextLimits,
   Transport,
   Unsubscribe,
 } from '#transport/types.ts';

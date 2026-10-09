@@ -1,4 +1,4 @@
-import { UnsupportedError } from '@zapforge/core';
+import { bold, UnsupportedError } from '@zapforge/core';
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_SELF, FakeTransport } from './fake-transport.ts';
 import { buildMessage } from './incoming.ts';
@@ -45,6 +45,15 @@ describe('FakeTransport', () => {
         key,
       },
     ]);
+  });
+
+  it('expõe os `limits` e registra a árvore da edição formatada (ADR 0061)', async () => {
+    expect(new FakeTransport().limits).toBeUndefined();
+    const transport = new FakeTransport({ limits: { text: 10 } });
+    expect(transport.limits).toEqual({ text: 10 });
+    const key = await transport.send('chat@fake', { type: 'text', text: 'a' });
+    await transport.edit(key, 'b', bold('b'));
+    expect(transport.edits).toEqual([{ key, text: 'b', formatted: bold('b') }]);
   });
 
   it('registra reações, edições, deleções, presença e participantes', async () => {

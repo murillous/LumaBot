@@ -16,6 +16,7 @@ interface Transport {
   readonly capabilities: ReadonlySet<Capability>;
   readonly self: Contact | null;                 // null até a primeira conexão aberta
   readonly native: unknown;                      // escape hatch (ctx.unsafe.native)
+  readonly limits?: TextLimits;                  // opcional: tamanho máximo de texto e legenda
 
   connect(): Promise<void>;
   disconnect(): Promise<void>;
@@ -23,7 +24,7 @@ interface Transport {
 
   send(chatId, content, options?): Promise<MessageKey>;
   react(key, emoji | null): Promise<void>;       // reactions
-  edit(key, text): Promise<void>;                // message.edit
+  edit(key, text, formatted?): Promise<void>;    // message.edit
   delete(key): Promise<void>;                    // message.delete
   sendPresence(chatId, presence): Promise<void>; // presence
   getGroupMetadata(groupId): Promise<GroupMetadata>;            // groups
@@ -156,6 +157,60 @@ await transport.send(chatId, { type: 'image', media: buffer, caption: 'legenda' 
 await transport.send(chatId, { type: 'document', media: { url }, fileName, mimetype });
 await transport.send(chatId, { type: 'poll', name: 'Pizza?', options: ['sim', 'não'] });
 ```
+
+### Texto formatado
+
+Quando o plugin usa a árvore neutra ([Texto formatado](text.md), [ADR
+0061](../../../docs/adr/0061-texto-formatado-neutro.md)), o conteúdo chega com `formatted` (ou
+`formattedCaption`), e `text` (ou `caption`) traz o texto visível dela. O `edit` recebe a árvore
+no terceiro parâmetro.
+
+- **Quem conhece o campo** traduz a árvore para a marcação da plataforma. Escape o texto literal
+  (as strings da árvore) onde a plataforma tem escape: MarkdownV2 no Telegram, Markdown no
+  Discord, HTML no web. Notifique só os contatos dos nós `mention` e de `options.mentions`, e não
+  pingue o autor da mensagem citada.
+- **Quem não conhece** envia `text`, que já é o texto sem marcação. Nada quebra.
+- **Sem `formatted`**, `text` é cru: vai como veio. No web, trate-o como texto, nunca como HTML.
+
+```ts
+import type { FormattedText, TextNode } from '@zapforge/core';
+
+function render(nodes: readonly TextNode[]): string {
+  return nodes
+    .map((node) => {
+      if (typeof node === 'string') return escape(node);
+      switch (node.type) {
+        case 'bold':
+          return `**${render(node.children)}**`;
+        // italic, code, link, mention…
+      }
+    })
+    .join('');
+}
+```
+
+### Limites de tamanho
+
+`limits` declara o tamanho máximo da plataforma. A fila de saída divide o texto e a legenda acima
+dele, e o transport nunca recebe uma parte maior, a não ser um único caractere ou uma menção maior
+que o limite.
+
+```ts
+readonly limits = {
+  text: 2000,
+  // Opcional: como a plataforma conta. Sem ele, conta o texto visível em UTF-16.
+  measure: (text: MessageText) => renderDiscord(text).length,
+};
+```
+
+O Telegram conta o texto visível, então o padrão serve (`{ text: 4096, caption: 1024 }`). O
+Discord conta a marcação (`**`, `<@id>`) e precisa do `measure`. Sem `limits`, nada é dividido:
+é o caso do WhatsApp. Um limite que não é inteiro ≥ 1 faz o `createBot` lançar `RangeError`.
+
+### Texto da entrada
+
+Entregue `message.text` como a pessoa o lê, com as menções legíveis (no Discord, `<@123>` vira
+`@nome`), e os mencionados em `message.mentions`.
 
 `send` devolve a `MessageKey` da mensagem criada. Para agir sobre uma mensagem recebida, use
 `messageKey(message)`:
