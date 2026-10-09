@@ -1,6 +1,7 @@
 // Contrato do barramento de eventos (M1-7, plano §6.4). O M1-7 completa este arquivo; os nomes
 // exportados aqui são usados por outros módulos e não mudam.
 
+import type { ExpectReply } from '#conversations/conversations.ts';
 import type { Logger } from '#logger/types.ts';
 import type { Message, MessageOf, MessageType } from '#message/types.ts';
 import type { Reply } from '#outbound/types.ts';
@@ -9,9 +10,12 @@ import type { TransportEvents, Unsubscribe } from '#transport/types.ts';
 /** Falha isolada de um plugin; o kernel emite e segue rodando os demais (ADR 0005). */
 export interface PluginErrorEvent {
   readonly plugin: string;
-  /** Onde a falha aconteceu. `role`: a checagem de um papel custom que o plugin define. */
-  readonly phase: 'listener' | 'command' | 'role' | 'setup' | 'teardown' | 'scheduler';
-  /** Evento, comando, papel ou job em processamento, quando houver. */
+  /**
+   * Onde a falha aconteceu. `role`: a checagem de um papel custom que o plugin define. `step`: um
+   * passo de conversa (ADR 0060).
+   */
+  readonly phase: 'listener' | 'command' | 'step' | 'role' | 'setup' | 'teardown' | 'scheduler';
+  /** Evento, comando, passo, papel ou job em processamento, quando houver. */
   readonly event: string | null;
   readonly error: unknown;
   readonly timedOut: boolean;
@@ -96,6 +100,8 @@ export interface MessageListenerFields<M extends Message = Message> {
   readonly reply: Reply;
   /** Reage à mensagem (ver `BotMessageContext.react`). */
   react(emoji: string | null): Promise<void>;
+  /** Registra a espera da próxima mensagem do remetente neste chat (ADR 0060). */
+  readonly expectReply: ExpectReply;
   /** Logger com `plugin` e `chatId` no contexto. */
   readonly log: Logger;
 }

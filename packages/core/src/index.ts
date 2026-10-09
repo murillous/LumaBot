@@ -47,6 +47,14 @@ export type {
 } from '#config/plugin-configs.ts';
 export { secret } from '#config/schema.ts';
 export type { BotMessageContext, MessageContext } from '#context.ts';
+export type {
+  Conversations,
+  ExpectReply,
+  ExpectReplyOptions,
+  StepContext,
+  StepHandler,
+} from '#conversations/conversations.ts';
+export { StepTimeoutError } from '#conversations/conversations.ts';
 export {
   ContextExpiredError,
   ExecutionTimeoutError,

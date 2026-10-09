@@ -1,4 +1,5 @@
 import type { BotMessageContext } from '#context.ts';
+import type { ExpectReply } from '#conversations/conversations.ts';
 import type { Media, Message, MessageType } from '#message/types.ts';
 import type { RoleName } from './roles.ts';
 
@@ -42,6 +43,12 @@ export interface CommandContext extends BotMessageContext {
    * `Bot`: quem usa o roteador solto o fornece no contexto passado a `dispatch`.
    */
   readonly signal: AbortSignal;
+  /**
+   * Faz a próxima mensagem do remetente, neste chat, ir para um passo de conversa do plugin
+   * (ADR 0060). O `run` pergunta, registra a espera e termina, sem segurar o chat. Montado pelo
+   * `Bot`, como o `signal`.
+   */
+  readonly expectReply: ExpectReply;
   /** Entrada de `accepts` que casou; `null` se o comando não declara `accepts`. */
   readonly accepted: AcceptedMessage | null;
   /**

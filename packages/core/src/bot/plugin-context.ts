@@ -8,6 +8,13 @@ import { type RoleCheck, RoleTimeoutError } from '#commands/roles.ts';
 import type { CommandRouter } from '#commands/router.ts';
 import type { PluginConfigs } from '#config/plugin-configs.ts';
 import {
+  type ConversationRegistry,
+  type KernelStep,
+  type StepContext,
+  type StepHandler,
+  StepTimeoutError,
+} from '#conversations/conversations.ts';
+import {
   type ArmedTimers,
   ContextExpiredError,
   Deadline,
@@ -41,14 +48,19 @@ import type { UnsafeAccess } from '#unsafe/access.ts';
 import {
   type CommandViews,
   commandViewFactory,
+  type KernelMessageContext,
   listenerViewFactory,
+  type PluginExpect,
   roleViewFactory,
+  stepViewFactory,
 } from './message-context.ts';
 
 export interface PluginContextDeps {
   readonly configs: PluginConfigs;
   readonly log: Logger;
   readonly router: CommandRouter;
+  /** Passos e esperas de conversa (ADR 0060). */
+  readonly conversations: ConversationRegistry<KernelMessageContext>;
   readonly bus: EventBus;
   readonly services: ServiceRegistry;
   readonly storage: StoragePort;
@@ -134,8 +146,12 @@ export function createPluginContextFactory(deps: PluginContextDeps): PluginConte
       (...args) =>
         lifetime.expired ? refuse(operation) : fn(...args);
 
-    const commandViews = commandViewFactory(name, log);
-    const listenerView = listenerViewFactory(name, log);
+    // A espera é sempre do plugin dono do contexto: ele só aponta para os próprios passos.
+    const expect: PluginExpect = (message, step, options) =>
+      deps.conversations.expect(name, message.chat.id, message.sender.id, step, options);
+    const commandViews = commandViewFactory(name, log, expect);
+    const listenerView = listenerViewFactory(name, log, expect);
+    const stepView = stepViewFactory(name, log, expect);
     const roleView = roleViewFactory(log);
     // Nos eventos de mensagem, cada listener recebe a visão com `message`/`text`/`reply`/`log`
     // do plugin; o barramento a cria (uma por listener) e pendura nela o `Deadline`.
@@ -170,6 +186,16 @@ export function createPluginContextFactory(deps: PluginContextDeps): PluginConte
             name,
             role,
             wrapRoleCheck(name, role, check, roleView, log, lifetime, deps),
+          );
+        },
+      },
+      conversations: {
+        define(step: string, handler: StepHandler): void {
+          guard('conversations.define');
+          deps.conversations.define(
+            name,
+            step,
+            wrapStep(name, step, handler, stepView, log, lifetime, deps),
           );
         },
       },
@@ -222,6 +248,7 @@ export function createPluginContextFactory(deps: PluginContextDeps): PluginConte
         );
         deps.router.registry.removePlugin(name);
         deps.router.roles.removePlugin(name);
+        deps.conversations.removePlugin(name);
         deps.bus.removePlugin(name);
         deps.services.removePlugin(name);
         deps.scheduler.removePlugin(name);
@@ -385,5 +412,41 @@ function wrapRoleCheck(
     );
     if (!(settled instanceof Promise)) return settled === true;
     return settled.then((granted) => granted === true, refuse);
+  };
+}
+
+/**
+ * Passo de conversa com a visão do plugin e o prazo do comando (`commandMs`): o passo roda dentro
+ * da tarefa da fila do chat, e um preso seguraria o chat como um comando preso (ADR 0042). Tem o
+ * próprio `Deadline`, filho do de vida do plugin, como o comando.
+ */
+function wrapStep(
+  plugin: string,
+  step: string,
+  handler: StepHandler,
+  view: ReturnType<typeof stepViewFactory>,
+  log: Logger,
+  lifetime: Deadline,
+  deps: Pick<PluginContextDeps, 'commandTimeoutMs' | 'armed'>,
+): KernelStep<KernelMessageContext> {
+  const timeoutMs = deps.commandTimeoutMs;
+  return (ctx, data) => {
+    const deadline = new Deadline(lifetime);
+    return settleWithin(
+      handler(view(ctx, deadline, step, data) as unknown as StepContext),
+      timeoutMs,
+      () => {
+        const error = new StepTimeoutError(plugin, step, timeoutMs);
+        deadline.expire(error);
+        return error;
+      },
+      (error) => {
+        // A recusa de um contexto expirado já foi logada quando aconteceu (ADR 0033).
+        if (error instanceof ContextExpiredError) return;
+        log.error(`passo "${step}" rejeitou depois do prazo`, { step, err: error });
+      },
+      deps.armed,
+      deadline,
+    );
   };
 }

@@ -26,6 +26,7 @@ explícita.
 | [Fila de entrada](inbound-queue.md) | `InboundQueue`: mesmo chat em série, backlog, métricas, shutdown |
 | [Middlewares](middleware.md) | Pipeline em onion com prioridade e os middlewares oficiais |
 | [Comandos](commands.md) | `command()`, prefixo, aliases, args, `accepts`, `role`, conflitos |
+| [Conversas](conversations.md) | Resposta esperada: `expectReply` e `ctx.conversations.define`, sem segurar o chat |
 | [Storage](storage.md) | KV e coleções por plugin, auth state, adapter em memória e suíte de contrato |
 | [Scheduler](scheduler.md) | `ctx.scheduler`: `at`/`on`/`cancel`, persistência, restart, entrega pelo menos uma vez |
 | [Plugins](plugins.md) | `definePlugin`, manifesto, fontes (config + `pluginDirs`), ordem, tabela de boot, `setup`/`teardown`/`reload` |

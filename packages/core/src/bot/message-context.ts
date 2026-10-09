@@ -3,6 +3,7 @@
 // caminho quente (§7 do plano) não deve alocar o que ninguém vai usar.
 
 import type { BotMessageContext } from '#context.ts';
+import type { ExpectReply, ExpectReplyOptions } from '#conversations/conversations.ts';
 import { ContextExpiredError, DEADLINE, type Deadline, deadlineOf } from '#deadline.ts';
 import type { MessageListenerFields } from '#events/types.ts';
 import type { LogFields, Logger } from '#logger/types.ts';
@@ -10,6 +11,7 @@ import type { Message } from '#message/types.ts';
 import type { SanitizedContext, SanitizedFields } from '#middleware/sanitize.ts';
 import { createReply } from '#outbound/reply.ts';
 import type { Outbound, Reply } from '#outbound/types.ts';
+import type { JsonValue } from '#storage/types.ts';
 import type { MessageKey } from '#transport/types.ts';
 
 /** O que o contexto precisa do bot; um objeto por bot, compartilhado por todas as mensagens. */
@@ -213,6 +215,42 @@ function expiringReactDescriptor<V extends ExpiringView>(
   };
 }
 
+/** Registra uma espera em nome do plugin; o bot a liga ao registro de conversas (ADR 0060). */
+export type PluginExpect = (message: Message, step: string, options?: ExpectReplyOptions) => void;
+
+/**
+ * Descritor do `expectReply` de uma execução com prazo: a espera vale para o chat e o remetente
+ * da mensagem, e é recusada (com `ContextExpiredError` e uma linha de log) depois do prazo, como
+ * o `reply` — senão um handler que estourou registraria uma conversa que ninguém pediu.
+ */
+function expectReplyDescriptor<V extends ExpiringView & { readonly message: Message }>(
+  plugin: string,
+  expect: PluginExpect,
+  scope: Scope<V>,
+): PropertyDescriptor {
+  return {
+    configurable: true,
+    get(this: V): ExpectReply {
+      const deadline = deadlineOf(this);
+      const expectReply: ExpectReply = (step, options) => {
+        if (deadline?.expired) {
+          const { label, fields } = scope(this);
+          const error = new ContextExpiredError(plugin, 'expectReply', label, deadline.reason);
+          this.log.warn(`expectReply recusado: ${label} já expirou`, {
+            ...fields,
+            operation: 'expectReply',
+            err: error,
+          });
+          throw error;
+        }
+        expect(this.message, step, options);
+      };
+      Object.defineProperty(this, 'expectReply', { value: expectReply });
+      return expectReply;
+    },
+  };
+}
+
 const signalDescriptor: PropertyDescriptor = {
   get(this: ExpiringView): AbortSignal {
     return (deadlineOf(this) as Deadline).signal;
@@ -227,23 +265,26 @@ export interface CommandViews {
   run<C extends object>(ctx: C, deadline: Deadline): C;
 }
 
-/** Deriva os contextos de comando de um plugin. */
-export function commandViewFactory(plugin: string, pluginLog: Logger): CommandViews {
-  type View = ExpiringView & { readonly command: string };
-  const scope: Scope<View> = (view) => ({
-    label: `comando "${view.command}"`,
-    fields: { command: view.command },
-  });
-  const runDescriptors: PropertyDescriptorMap = {
+/**
+ * Descritores comuns às execuções que respondem a uma mensagem (comando e passo): `log` do
+ * plugin, `signal`, e `reply`, `react` e `expectReply` presos ao prazo.
+ */
+function executionDescriptors<V extends ExpiringView & { readonly message: Message }>(
+  plugin: string,
+  pluginLog: Logger,
+  expect: PluginExpect,
+  scope: Scope<V>,
+): PropertyDescriptorMap {
+  return {
     log: pluginLogDescriptor(pluginLog),
     signal: signalDescriptor,
-    reply: expiringReplyDescriptor<View>(
+    reply: expiringReplyDescriptor<V>(
       plugin,
       // O `reply` do contexto do kernel, alcançado pela cadeia de protótipos.
       (view) => (Object.getPrototypeOf(view) as { readonly reply?: Reply }).reply,
       scope,
     ),
-    react: expiringReactDescriptor<View>(
+    react: expiringReactDescriptor<V>(
       plugin,
       (view) => {
         const base = Object.getPrototypeOf(view) as Partial<Pick<BotMessageContext, 'react'>>;
@@ -251,13 +292,51 @@ export function commandViewFactory(plugin: string, pluginLog: Logger): CommandVi
       },
       scope,
     ),
+    expectReply: expectReplyDescriptor<V>(plugin, expect, scope),
   };
+}
+
+/** Deriva os contextos de comando de um plugin. */
+export function commandViewFactory(
+  plugin: string,
+  pluginLog: Logger,
+  expect: PluginExpect,
+): CommandViews {
+  type View = ExpiringView & { readonly command: string; readonly message: Message };
+  const scope: Scope<View> = (view) => ({
+    label: `comando "${view.command}"`,
+    fields: { command: view.command },
+  });
+  const runDescriptors = executionDescriptors<View>(plugin, pluginLog, expect, scope);
   return {
     run(ctx, deadline) {
       const view = Object.create(ctx, runDescriptors) as { [DEADLINE]?: Deadline };
       view[DEADLINE] = deadline;
       return view as typeof ctx;
     },
+  };
+}
+
+/**
+ * Deriva, para os passos de conversa de um plugin, o contexto com `step`, `data` e os campos de
+ * execução do comando (`log`, `signal`, `reply`, `react`, `expectReply`).
+ */
+export function stepViewFactory(
+  plugin: string,
+  pluginLog: Logger,
+  expect: PluginExpect,
+): <C extends object>(ctx: C, deadline: Deadline, step: string, data: JsonValue) => C {
+  type View = ExpiringView & { readonly step: string; readonly message: Message };
+  const scope: Scope<View> = (view) => ({
+    label: `passo "${view.step}"`,
+    fields: { step: view.step },
+  });
+  const descriptors = executionDescriptors<View>(plugin, pluginLog, expect, scope);
+  return (ctx, deadline, step, data) => {
+    const view = Object.create(ctx, descriptors) as { [DEADLINE]?: Deadline };
+    Object.assign(view, { step, data });
+    view[DEADLINE] = deadline;
+    return view as typeof ctx;
   };
 }
 
@@ -280,18 +359,20 @@ export function roleViewFactory(
 }
 
 /**
- * Deriva, para um listener de evento de mensagem, a visão com `message`, `text`, `reply` e `log`
- * (do plugin). O objeto do barramento fica no protótipo: `claimed`/`claim()` seguem
+ * Deriva, para um listener de evento de mensagem, a visão com `message`, `text`, `reply`,
+ * `react`, `expectReply` e `log` (do plugin). O objeto do barramento fica no protótipo: `claimed`/`claim()` seguem
  * compartilhados entre os listeners da emissão; o barramento pendura na visão o `Deadline` do
  * listener, que dá o `signal` e prende o `reply`.
  */
 export function listenerViewFactory(
   plugin: string,
   pluginLog: Logger,
+  expect: PluginExpect,
 ): <C extends object>(ctx: C) => C {
   type View = Partial<WithKernelContext> &
     ExpiringView & {
       readonly payload: Message;
+      readonly message: Message;
       readonly event: string;
     };
   const kernel = (view: View): KernelMessageContext | undefined => view[KERNEL_CONTEXT];
@@ -313,6 +394,7 @@ export function listenerViewFactory(
     },
     reply: expiringReplyDescriptor<View>(plugin, (view) => kernel(view)?.reply, scope),
     react: expiringReactDescriptor<View>(plugin, kernel, scope),
+    expectReply: expectReplyDescriptor<View>(plugin, expect, scope),
     log: pluginLogDescriptor(pluginLog),
   } satisfies Record<keyof MessageListenerFields, PropertyDescriptor>;
   return (ctx) => Object.create(ctx, descriptors);

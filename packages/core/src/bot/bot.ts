@@ -9,6 +9,11 @@ import {
   type PluginConfigs,
 } from '#config/plugin-configs.ts';
 import type { BotMessageContext } from '#context.ts';
+import {
+  ConversationRegistry,
+  type PendingReply,
+  StepTimeoutError,
+} from '#conversations/conversations.ts';
 import { ArmedTimers, ContextExpiredError, settleWithin } from '#deadline.ts';
 import { createEventBus, type EmittableEventName } from '#events/bus.ts';
 import type { BotEvents, ListenerExtras, PluginErrorEvent } from '#events/types.ts';
@@ -371,6 +376,7 @@ export function createBot(config: BotConfig): Bot {
         { plugin: command.plugin, command: command.name, role },
       ),
   });
+  const conversations = new ConversationRegistry<KernelMessageContext>();
   const pipeline = createPipeline(
     config.middlewares ?? {},
     timeouts.middlewareMs ?? DEFAULT_MIDDLEWARE_TIMEOUT_MS,
@@ -489,6 +495,13 @@ export function createBot(config: BotConfig): Bot {
 
   async function dispatchMessage(ctx: KernelMessageContext): Promise<void> {
     const { message } = ctx;
+    // A espera vem antes do roteador (ADR 0060). Retirada aqui de todo jeito: um comando digitado
+    // no meio da conversa a cancela e segue para o roteador.
+    const pending = conversations.take(message.chat.id, message.sender.id);
+    if (pending !== undefined && router.match(message, ctx.text) === null) {
+      await runStep(ctx, pending);
+      return;
+    }
     const result = await router.dispatch(ctx);
     if (!result.consumed) {
       await bus.emit('message', message, listenerExtras(ctx));
@@ -519,6 +532,29 @@ export function createBot(config: BotConfig): Bot {
     // Com await, como o `message`: o observador segura o chat e entra no `settled()` (ADR 0049).
     const { plugin, name, invokedAs } = result.command;
     await bus.emit('command', { plugin, name, invokedAs, status: result.status, message });
+  }
+
+  /**
+   * Roda o passo que esperava esta mensagem. Ela para aqui: não vai ao roteador, a `message` nem
+   * a `command`. A falha vira `plugin.error` com `phase: 'step'`.
+   */
+  async function runStep(
+    ctx: KernelMessageContext,
+    pending: PendingReply<KernelMessageContext>,
+  ): Promise<void> {
+    try {
+      await pending.run(ctx, pending.data);
+    } catch (error) {
+      const event: PluginErrorEvent = {
+        plugin: pending.plugin,
+        phase: 'step',
+        event: pending.step,
+        error,
+        timedOut: error instanceof StepTimeoutError,
+      };
+      logPluginError(event);
+      void bus.emit('plugin.error', event);
+    }
   }
 
   /** Extras dos eventos de mensagem: os campos chegam aos listeners pela visão de cada plugin. */
@@ -669,6 +705,9 @@ export function createBot(config: BotConfig): Bot {
     // Depois do descarte dos plugins, que já expirou o `Deadline` dos handlers presos (o
     // `signal` aborta, o `reply` é recusado): sobra só o timer do prazo de cada um.
     armed.disarmAll();
+    // O `dispose` de cada plugin já tirou as esperas dele; isto garante que nenhum timer de TTL
+    // sobreviva ao `stop()` e que um passo atrasado não registre outra.
+    conversations.close();
     void outbound.close({ drain: false });
   }
 
@@ -691,6 +730,7 @@ export function createBot(config: BotConfig): Bot {
       configs,
       log,
       router,
+      conversations,
       bus,
       services,
       storage: scoped,
