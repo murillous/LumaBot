@@ -27,6 +27,7 @@ sendo a referência; um ADR novo entra nos dois.
 - [0002](0002-typescript-no-kernel.md) — TypeScript no kernel, publicado com `.d.ts`
 - [0026](0026-tooling.md) — Tooling: Node 24, pnpm, tsdown, Vitest, Biome
 - [0030](0030-metas-de-performance.md) — Metas de performance com benchmark no CI
+- [0054](0054-baseline-do-benchmark.md) — Baseline do benchmark medido no mesmo job, a partir do commit base (detalha D30)
 - [0034](0034-biblioteca-sem-runner.md) — ZapForge é uma biblioteca, sem runner; API pública por público
 
 **Projeto: migração, licença, release e nome**
@@ -170,3 +171,4 @@ As decisões para atender WhatsApp, Discord, Telegram e sistemas web estão nas 
 | [0051](0051-sqlite-via-node-sqlite.md) | D51 | SQLite pelo `node:sqlite`, com schema único e migrations do adapter (detalha D14/D15) | Aceito |
 | [0052](0052-kit-de-testes-sobre-o-vitest.md) | D52 | Kit de testes sobre o Vitest, com `receive()` que espera o bot assentar (detalha D22/D44) | Aceito |
 | [0053](0053-core-testa-sem-o-kit.md) | D53 | O core se testa com apoios próprios, não com o `@zapforge/testing` (detalha D22/D52) | Aceito |
+| [0054](0054-baseline-do-benchmark.md) | D54 | Baseline do benchmark medido no mesmo job, a partir do commit base (detalha D30) | Aceito |

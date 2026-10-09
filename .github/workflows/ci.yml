@@ -47,11 +47,37 @@ jobs:
       - uses: ./.github/actions/setup
       - run: pnpm build
 
-  # Placeholder: o benchmark (bench/, FakeTransport, baseline e falha > 10%) chega no M2-4.
-  # O job já existe para o check ter nome estável quando for ativado.
+  # Metas do plano §7 e piora > 10% sobre o baseline (ADR 0054). O baseline é medido neste mesmo
+  # runner: entre máquinas diferentes, a variação passa dos 10%.
   benchmark:
     name: Benchmark
-    needs: build
     runs-on: ubuntu-latest
     steps:
-      - run: echo "::notice title=Benchmark::Ainda não ativado — entra no M2-4 (ZAPFORGE_PLAN.md §7)."
+      - uses: actions/checkout@v4
+        with:
+          # O baseline é o primeiro pai do commit testado: a base, no merge commit do PR; o commit
+          # anterior, no push.
+          fetch-depth: 2
+      - uses: ./.github/actions/setup
+
+      - name: Baseline
+        run: |
+          git worktree add "$RUNNER_TEMP/base" HEAD^1
+          cd "$RUNNER_TEMP/base"
+          if [ ! -f bench/package.json ]; then
+            echo "::warning title=Benchmark::A base não tem bench/; vale só a meta."
+            exit 0
+          fi
+          pnpm install --frozen-lockfile
+          pnpm build
+          # A base fora da meta ainda serve de régua; sem o relatório, o passo seguinte falha.
+          node bench/dist/main.mjs --out "$RUNNER_TEMP/base.json" ||
+            echo "::warning title=Benchmark::A base saiu com erro; veja o log deste passo."
+
+      - name: Benchmark
+        run: |
+          if [ -f "$RUNNER_TEMP/base/bench/package.json" ]; then
+            pnpm bench --baseline "$RUNNER_TEMP/base.json"
+          else
+            pnpm bench
+          fi

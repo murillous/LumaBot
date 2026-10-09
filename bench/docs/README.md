@@ -11,6 +11,7 @@ Na raiz:
 pnpm bench                              # todos os cenários (~3 min)
 pnpm bench --only overhead,boot         # só alguns
 pnpm bench --out resultado.json         # grava o resultado em JSON (caminho relativo a bench/)
+pnpm bench --baseline base.json         # compara com o --out de outra execução
 ```
 
 O `pnpm bench` faz o build do workspace e roda `bench/dist/main.mjs`. O benchmark mede o código
@@ -72,7 +73,51 @@ Como ler as metas:
 - **`overhead`** inclui o custo do `settled()`, então é um teto do overhead real.
 
 O ruído de máquina compartilhada é compensado pelas execuções repetidas (mediana) e pela margem
-de 10% do job de CI (M2-4.2).
+de 10% do job de CI.
+
+## Comparar com um baseline
+
+Com `--baseline <arquivo>`, o runner lê o JSON gravado pelo `--out` de outra execução e, depois
+de medir, compara cada cenário com a mesma medida no baseline. O comando sai com código 1 se um
+cenário piorou mais de 10%. A piora é medida no sentido da meta: subir num teto (`overhead`,
+`idle-memory`, `boot`), cair num piso (`throughput`).
+
+```
+Comparação com o baseline (tolerância 10%):
+overhead       0.293 → 0.290 (-1.1% melhor) ok
+boot           24.3 → 25.1 (+3.3% pior) ok
+idle-memory    70.2 → 70.6 (+0.5% pior) ok
+memory-growth  -0.231 → 0.104 (vale só a meta)
+throughput     11233 (sem baseline)
+```
+
+- O `memory-growth` não entra na comparação (`checksRegression: false`). Perto de zero, 10% do
+  baseline é menos que o ruído do heap. A meta de < 5 MB é a régua dele.
+- Um cenário que o baseline não tem passa sem comparação.
+- O arquivo é lido antes de medir: um caminho errado falha na hora.
+
+Para medir o efeito de uma mudança na sua máquina, grave o baseline antes dela e compare depois:
+
+```sh
+git stash && pnpm bench --out base.json && git stash pop
+pnpm bench --baseline base.json
+```
+
+## No CI
+
+O job `Benchmark` (`.github/workflows/ci.yml`) mede o baseline no próprio runner
+([ADR 0054](../../docs/adr/0054-baseline-do-benchmark.md)). Entre máquinas diferentes, a
+variação passa dos 10%, então um baseline versionado ou de outro job não serviria.
+
+1. Faz o build do primeiro pai do commit testado num `git worktree` e roda o benchmark com
+   `--out`. No PR, o primeiro pai do merge commit é a ponta da base; no push, é o commit anterior.
+2. Roda `pnpm bench --baseline` no commit testado.
+
+O job falha se algum cenário ficar fora da meta ou piorar mais de 10%. Se a base não tem `bench/`,
+vale só a meta. O log do passo `Benchmark` mostra a tabela da comparação.
+
+Se o job falhar com uma piora que você não esperava, rode a mesma comparação localmente (acima)
+antes de concluir que é ruído.
 
 ## Adicionar um cenário
 
