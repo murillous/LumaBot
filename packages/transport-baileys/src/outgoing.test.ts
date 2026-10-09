@@ -1,3 +1,4 @@
+import { bold, fmt, mention } from '@zapforge/core';
 import { createMessage } from '@zapforge/core/adapter';
 import type { GroupMetadata as BaileysGroupMetadata, WAMessage } from 'baileys';
 import { describe, expect, it } from 'vitest';
@@ -11,6 +12,29 @@ const CAROL_LID = '333333333333333@lid';
 const media = Buffer.from('bytes');
 
 describe('toContent', () => {
+  it('renderiza a árvore neutra no texto e na legenda, juntando as menções (ADR 0061)', () => {
+    const alice = mention({ id: ALICE, name: 'Alice', phone: null });
+    expect(
+      toContent(
+        { type: 'text', text: 'oi @Alice', formatted: fmt`oi ${alice}` },
+        { mentions: [BOB_LID, ALICE] },
+      ),
+    ).toEqual({ text: 'oi @5511911110000', mentions: [BOB_LID, ALICE] });
+    expect(
+      toContent({ type: 'image', media, caption: 'foto', formattedCaption: bold('foto') }),
+    ).toEqual({ image: media, caption: '*foto*' });
+    expect(
+      toContent({
+        type: 'document',
+        media,
+        fileName: 'a.pdf',
+        mimetype: 'application/pdf',
+        caption: '@Alice',
+        formattedCaption: alice,
+      }),
+    ).toMatchObject({ caption: '@5511911110000', mentions: [ALICE] });
+  });
+
   it('mapeia cada tipo do core para o conteúdo do sendMessage', () => {
     expect(toContent({ type: 'text', text: 'oi' })).toEqual({ text: 'oi' });
     expect(toContent({ type: 'image', media, caption: 'olha', mimetype: 'image/png' })).toEqual({

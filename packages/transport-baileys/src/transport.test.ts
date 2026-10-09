@@ -1,8 +1,11 @@
 import {
+  bold,
   type ConnectionStatus,
   createMemoryStorage,
+  fmt,
   type Logger,
   type Message,
+  mention,
 } from '@zapforge/core';
 import { type AuthStateStore, CAPABILITIES, type TransportDeps } from '@zapforge/core/adapter';
 import { DisconnectReason, type WAMessage, WAMessageStubType } from 'baileys';
@@ -766,6 +769,21 @@ describe('BaileysTransport: envio e ações', () => {
       { delete: waKey },
     ]);
     expect(socket.sent.every((s) => s.jid === GROUP)).toBe(true);
+  });
+
+  it('edit com a árvore neutra manda a marcação do WhatsApp e as menções (ADR 0061)', async () => {
+    const { transport, socket } = await open();
+    const key = { chatId: GROUP, id: 'M1', fromMe: true, senderId: null };
+    await transport.edit(
+      key,
+      'oi Alice',
+      fmt`oi ${bold(mention({ id: ALICE, name: 'Alice', phone: null }))}`,
+    );
+    expect(socket.sent[0]?.content).toEqual({
+      text: 'oi *@5511911110000*',
+      edit: { remoteJid: GROUP, id: 'M1', fromMe: true },
+      mentions: [ALICE],
+    });
   });
 
   it('sendPresence repassa o estado para o chat', async () => {

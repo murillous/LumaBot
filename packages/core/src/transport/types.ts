@@ -5,6 +5,7 @@
 import type { Logger } from '#logger/types.ts';
 import type { Chat, Contact, Message } from '#message/types.ts';
 import type { AuthStateStore } from '#storage/types.ts';
+import type { FormattedText, MessageText } from '#text/format.ts';
 import type { Capability } from './capabilities.ts';
 
 /** Cancela a assinatura feita com `on()`. Chamar mais de uma vez é inofensivo. */
@@ -150,12 +151,22 @@ export type TransportEventHandler<E extends TransportEventName> = (
 /** Mídia a enviar: bytes em memória ou URL que o transport baixa. */
 export type MediaInput = Buffer | { readonly url: string };
 
+/**
+ * Conteúdo a enviar. `text` e `caption` são o texto cru, que vai como veio. Com a árvore neutra
+ * (ADR 0061), o core preenche `formatted`/`formattedCaption` e põe em `text`/`caption` o texto
+ * visível dela: quem renderiza a árvore usa o campo novo, e quem não conhece envia o visível.
+ */
 export type OutgoingContent =
-  | { readonly type: 'text'; readonly text: string }
+  | {
+      readonly type: 'text';
+      readonly text: string;
+      readonly formatted?: FormattedText;
+    }
   | {
       readonly type: 'image' | 'video';
       readonly media: MediaInput;
       readonly caption?: string;
+      readonly formattedCaption?: FormattedText;
       readonly mimetype?: string;
     }
   | { readonly type: 'audio' | 'voice'; readonly media: MediaInput; readonly mimetype?: string }
@@ -166,6 +177,7 @@ export type OutgoingContent =
       readonly fileName: string;
       readonly mimetype: string;
       readonly caption?: string;
+      readonly formattedCaption?: FormattedText;
     }
   | {
       readonly type: 'poll';
@@ -174,6 +186,23 @@ export type OutgoingContent =
       /** Quantas opções cada pessoa pode marcar; padrão 1. */
       readonly selectableCount?: number;
     };
+
+/**
+ * Limites de tamanho da plataforma (ADR 0061). A fila de saída divide o texto e a legenda acima
+ * deles; o `edit` acima de `text` rejeita com `RangeError`.
+ */
+export interface TextLimits {
+  /** Máximo de uma mensagem de texto. Ausente: sem limite. */
+  readonly text?: number;
+  /** Máximo de uma legenda de mídia. Ausente: sem limite. */
+  readonly caption?: number;
+  /**
+   * Tamanho como a plataforma conta, quando ela conta a marcação (no Discord, `**` e `<@id>`
+   * contam). Recebe a árvore, se houver, ou o texto cru. Padrão: o comprimento em UTF-16 do texto
+   * visível (`plainText`), como conta o Telegram.
+   */
+  measure?(text: MessageText): number;
+}
 
 export interface SendOptions {
   /** Responde citando esta mensagem (capability `quoted`). */
@@ -198,6 +227,8 @@ export interface Transport {
   readonly self: Contact | null;
   /** Objeto nativo (ex.: socket do Baileys) para o escape hatch `ctx.unsafe.native` (ADR 0011). */
   readonly native: unknown;
+  /** Limites de tamanho de texto; fixos durante a vida da instância. Ausente: nada é dividido. */
+  readonly limits?: TextLimits;
 
   /**
    * Inicia uma tentativa de conexão e resolve assim que ela começou (socket criado), sem esperar o
@@ -220,8 +251,11 @@ export interface Transport {
   send(chatId: string, content: OutgoingContent, options?: SendOptions): Promise<MessageKey>;
   /** `emoji: null` remove a reação (capability `reactions`). */
   react(key: MessageKey, emoji: string | null): Promise<void>;
-  /** Capability `message.edit`. */
-  edit(key: MessageKey, text: string): Promise<void>;
+  /**
+   * Capability `message.edit`. Com a árvore neutra, `text` é o texto visível dela e `formatted`, a
+   * árvore, como no `OutgoingContent`.
+   */
+  edit(key: MessageKey, text: string, formatted?: FormattedText): Promise<void>;
   /** Apaga para todos (capability `message.delete`). */
   delete(key: MessageKey): Promise<void>;
   /** Capability `presence`. */

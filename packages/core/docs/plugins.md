@@ -249,9 +249,9 @@ setup(ctx) {
 
 | No contexto | O que faz | Capability | Pela fila |
 | --- | --- | --- | --- |
-| `ctx.send.send(chatId, content)` | envia | `send.<tipo>` | sim |
+| `ctx.send.send(chatId, content)` | envia; `content` pode ser só o texto, cru ou [formatado](text.md) | `send.<tipo>` | sim |
 | `ctx.send.react(key, emoji)` | reage; `null` remove | `reactions` | sim |
-| `ctx.send.edit(key, text)` | troca o texto | `message.edit` | sim |
+| `ctx.send.edit(key, text)` | troca o texto (cru ou formatado; não divide) | `message.edit` | sim |
 | `ctx.send.delete(key)` | apaga para todos | `message.delete` | sim |
 | `ctx.send.presence(chatId, presence)` | digitando, gravando… | `presence` | sim |
 | `ctx.groups.metadata(groupId)` | nome (`title`), descrição, participantes (se a plataforma lista) | `groups` | não (leitura) |
@@ -263,7 +263,8 @@ setup(ctx) {
 - As ações aceitam `{ priority }` (padrão `'normal'`). O atalho `c.react(emoji)`, no comando e nos
   listeners de mensagem, usa a chave da mensagem recebida e prioridade `'high'`, como o `reply`.
 - A chave vem de `message.key`; para a mensagem citada, `message.quoted.key`. O `send` devolve a
-  chave da mensagem criada, para editá-la ou apagá-la depois.
+  chave da mensagem criada, para editá-la ou apagá-la depois. Um texto longo que a fila dividiu
+  devolve a chave da primeira parte ([Texto formatado](text.md#texto-longo)).
 - Sem a capability, a ação rejeita na hora com `UnsupportedError`. Para recurso opcional,
   confira antes: `if (ctx.capabilities.has('reactions')) await c.react('👍'); else await c.reply('ok')`.
   Para recurso obrigatório, declare em `requires`.

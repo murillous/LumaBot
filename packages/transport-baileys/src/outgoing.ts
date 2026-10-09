@@ -16,25 +16,48 @@ import {
   type WAMessage,
   type WAMessageKey,
 } from 'baileys';
+import { renderWhatsApp } from './format.ts';
 import { type NormalizeEnv, nativeOf, resolveContact } from './normalize.ts';
 
-/** Conteúdo do `sendMessage`, com as menções que o Baileys põe no `contextInfo` de qualquer tipo. */
+/**
+ * Conteúdo do `sendMessage`, com as menções que o Baileys põe no `contextInfo` de qualquer tipo.
+ * A árvore neutra (`formatted`, `formattedCaption`) vira a marcação do WhatsApp, e as menções
+ * dela se juntam às de `options.mentions` (ADR 0061).
+ */
 export function toContent(content: OutgoingContent, options?: SendOptions): AnyMessageContent {
-  const mentions = options?.mentions?.length ? { mentions: [...options.mentions] } : {};
+  const ids = new Set(options?.mentions);
+  let text: string | undefined;
+  let caption: string | undefined;
+  if (content.type === 'text') {
+    text = content.text;
+    if (content.formatted) {
+      const rendered = renderWhatsApp(content.formatted);
+      text = rendered.text;
+      for (const id of rendered.mentions) ids.add(id);
+    }
+  } else if ('caption' in content || 'formattedCaption' in content) {
+    caption = content.caption;
+    if (content.formattedCaption) {
+      const rendered = renderWhatsApp(content.formattedCaption);
+      caption = rendered.text;
+      for (const id of rendered.mentions) ids.add(id);
+    }
+  }
+  const mentions = ids.size > 0 ? { mentions: [...ids] } : {};
   switch (content.type) {
     case 'text':
-      return { text: content.text, ...mentions };
+      return { text: text ?? content.text, ...mentions };
     case 'image':
       return {
         image: content.media,
-        caption: content.caption,
+        caption,
         mimetype: content.mimetype,
         ...mentions,
       };
     case 'video':
       return {
         video: content.media,
-        caption: content.caption,
+        caption,
         mimetype: content.mimetype,
         ...mentions,
       };
@@ -54,7 +77,7 @@ export function toContent(content: OutgoingContent, options?: SendOptions): AnyM
         document: content.media,
         fileName: content.fileName,
         mimetype: content.mimetype,
-        caption: content.caption,
+        caption,
         ...mentions,
       };
     case 'poll':

@@ -1,5 +1,7 @@
 import type { Message } from '#message/types.ts';
+import type { MessageText } from '#text/format.ts';
 import type { MessageKey, OutgoingContent } from '#transport/types.ts';
+import { captionFields, textContent } from './text.ts';
 import type { OutboundSendOptions, Reply, ReplyOptions, Sender } from './types.ts';
 
 export interface CreateReplyOptions {
@@ -32,11 +34,11 @@ export function createReply(
   };
 
   const shortcuts: Pick<Reply, keyof Reply> = {
-    text: (text: string, o?: ReplyOptions) => send({ type: 'text', text }, o),
+    text: (text: MessageText, o?: ReplyOptions) => send(textContent(text), o),
     image: (media, o = {}) =>
-      send({ type: 'image', media, ...pick(o, 'caption'), ...pick(o, 'mimetype') }, o),
+      send({ type: 'image', media, ...captionFields(o.caption), ...pick(o, 'mimetype') }, o),
     video: (media, o = {}) =>
-      send({ type: 'video', media, ...pick(o, 'caption'), ...pick(o, 'mimetype') }, o),
+      send({ type: 'video', media, ...captionFields(o.caption), ...pick(o, 'mimetype') }, o),
     audio: (media, o = {}) => send({ type: 'audio', media, ...pick(o, 'mimetype') }, o),
     voice: (media, o = {}) => send({ type: 'voice', media, ...pick(o, 'mimetype') }, o),
     sticker: (media, o) => send({ type: 'sticker', media }, o),
@@ -47,7 +49,7 @@ export function createReply(
           media,
           fileName: o.fileName,
           mimetype: o.mimetype,
-          ...pick(o, 'caption'),
+          ...captionFields(o.caption),
         },
         o,
       ),
@@ -55,7 +57,7 @@ export function createReply(
       send({ type: 'poll', name, options: choices, ...pick(o, 'selectableCount') }, o),
   };
   return Object.assign(
-    (text: string, o?: ReplyOptions) => send({ type: 'text', text }, o),
+    (text: MessageText, o?: ReplyOptions) => send(textContent(text), o),
     shortcuts,
   );
 }
