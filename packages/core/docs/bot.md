@@ -490,8 +490,13 @@ O transport avisa as quedas por `connection.status`; a `ReconnectionPolicy`
 | `clean-session`, transport por fábrica, sem `clearSession` | espera `delayMs`, limpa o `auth` que a fábrica recebeu e reconecta |
 | `clean-session`, instância pronta, sem `clearSession` | loga em `error` que a sessão precisa de novo pareamento e para o bot (`stop()`) |
 | `stop` (motivo `replaced`) | loga em `error` que outra conexão assumiu a sessão e para o bot, sem reconectar nem limpar |
+| `stop` (motivo `fatal`) | loga em `fatal` o erro de configuração, com `cause` e o erro nativo em `err`, e para o bot, sem reconectar nem limpar |
+| `stop` (`auth-failed` em transport sem a capability `pairing`) | loga em `fatal` que a credencial foi rejeitada e para o bot, sem limpar o `auth` nem chamar `clearSession` |
 
-- `clean-session` só vem de `logged-out`, `auth-failed` ou `qr-limit`. Queda de rede reconecta
+- `clean-session` só vem de `logged-out`, `qr-limit` ou `auth-failed` num transport com a
+  capability `pairing` (o Baileys a declara). Num transport por token (Discord, Telegram), limpar
+  não traz token novo: o bot para em vez de limpar e falhar de novo a cada `minCleanIntervalMs`
+  ([ADR 0068](../../../docs/adr/0068-desconexao-fatal-e-transport-sem-pareamento.md)). Queda de rede reconecta
   sem limite de tentativas e nunca apaga as credenciais
   ([ADR 0045](../../../docs/adr/0045-queda-de-rede-nao-limpa-sessao.md)); para desistir após um
   tempo, observe `connection.status` e chame `bot.stop()`.
@@ -529,6 +534,30 @@ substitui a limpeza padrão (ex.: para também apagar arquivos do adapter).
 
 `replaced` é o caso de dois processos com o mesmo número: reconectar derrubaria a outra conexão,
 que derrubaria esta, em laço. O bot para e deixa a outra seguir.
+
+### Quando o bot para sozinho
+
+Nos três `stop` acima, o `closed` chega aos listeners de `connection.status` antes de o bot
+parar, e o bot termina em `stopped` (os ganchos do `onStop()` rodam). O core não encerra o
+processo nem escolhe o código de saída ([Sinais do processo](#sinais-do-processo)); quem quer sair
+com erro, para o supervisor ou o alerta, olha o motivo num listener:
+
+```ts
+const saida = definePlugin({
+  name: 'saida',
+  version: '1.0.0',
+  engine: '>=0.0.0',
+  setup(ctx) {
+    ctx.events.on('connection.status', ({ payload }) => {
+      // `auth-failed` só para o bot em transport sem a capability `pairing`.
+      if (payload.status === 'closed' && payload.reason === 'fatal') process.exitCode = 1;
+    });
+  },
+});
+```
+
+Com um supervisor que reinicia sempre, o erro de configuração volta a cada reinício, com a linha
+em `fatal`, até alguém corrigir o token ou as permissões.
 
 ## Exemplo ponta a ponta
 

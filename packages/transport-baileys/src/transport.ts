@@ -141,6 +141,8 @@ export class BaileysTransport implements Transport {
     'message.delete',
     'polls',
     'quoted',
+    // Pareia por QR ou código: credencial rejeitada limpa a sessão e pareia de novo (ADR 0068).
+    'pairing',
   ]);
 
   readonly #pairing: BaileysPairing;

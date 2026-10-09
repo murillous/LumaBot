@@ -140,3 +140,44 @@ describe('ReconnectionPolicy', () => {
     expect(b.state).toEqual({ reconnectAttempts: 0, qrCount: 0, lastCleanAt: null });
   });
 });
+
+// MP-15 (#280, ADR 0068): erro de configuração e credencial rejeitada sem pareamento param, em
+// vez de reconectar ou limpar uma sessão que não se recupera sozinha.
+describe('ReconnectionPolicy: desconexão fatal e transport sem pareamento', () => {
+  it("'fatal' decide parar, com a causa, sem mexer nos contadores", () => {
+    const policy = new ReconnectionPolicy();
+    policy.decide('connection-lost');
+    expect(policy.decide('fatal')).toEqual({ action: 'stop', cause: 'fatal' });
+    expect(policy.state).toEqual({ reconnectAttempts: 1, qrCount: 0, lastCleanAt: null });
+  });
+
+  it("'fatal' para também em transport sem pareamento", () => {
+    expect(new ReconnectionPolicy({ pairing: false }).decide('fatal')).toEqual({
+      action: 'stop',
+      cause: 'fatal',
+    });
+  });
+
+  it('auth-failed sem pareamento para em vez de limpar a sessão, toda vez', () => {
+    const policy = new ReconnectionPolicy({ pairing: false });
+    for (let i = 0; i < 3; i++) {
+      expect(policy.decide('auth-failed')).toEqual({ action: 'stop', cause: 'auth-failed' });
+    }
+    expect(policy.state.lastCleanAt).toBeNull();
+  });
+
+  it('auth-failed com pareamento declarado segue limpando a sessão', () => {
+    expect(new ReconnectionPolicy({ pairing: true }).decide('auth-failed')).toMatchObject({
+      action: 'clean-session',
+      cause: 'auth-failed',
+    });
+  });
+
+  it('sem pareamento, os outros motivos seguem a política de sempre', () => {
+    const policy = new ReconnectionPolicy({ pairing: false, serverErrorDelayMs: 7 });
+    expect(policy.decide('connection-lost')).toEqual({ action: 'reconnect', delayMs: 5_000 });
+    expect(policy.decide('server-error')).toEqual({ action: 'reconnect', delayMs: 7 });
+    expect(policy.decide('logged-out')).toMatchObject({ action: 'clean-session' });
+    expect(policy.decide('replaced')).toEqual({ action: 'stop', cause: 'replaced' });
+  });
+});

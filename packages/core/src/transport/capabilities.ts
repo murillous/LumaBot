@@ -26,6 +26,9 @@ export const CAPABILITIES = [
   'message.delete',
   'polls',
   'quoted',
+  // A sessão se pareia por QR ou código (`connection.qr`/`.pairing-code`): limpar as credenciais
+  // leva a um pareamento novo. Sem ela, `auth-failed` para o bot em vez de limpar (ADR 0068).
+  'pairing',
 ] as const;
 
 export type Capability = (typeof CAPABILITIES)[number];

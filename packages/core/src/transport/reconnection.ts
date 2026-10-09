@@ -19,10 +19,12 @@ export type ReconnectionDecision =
       readonly cause: 'logged-out' | 'auth-failed' | 'qr-limit';
     }
   /**
-   * Não reconectar: o bot para. Hoje só para `'replaced'` — reconectar derrubaria a outra
-   * conexão da mesma sessão, e as duas se derrubariam em laço (ADR 0036).
+   * Não reconectar: o bot para. `replaced`: reconectar derrubaria a outra conexão da mesma
+   * sessão, e as duas se derrubariam em laço (ADR 0036). `fatal`: erro de configuração que outra
+   * tentativa repetiria. `auth-failed`: credencial rejeitada num transport sem pareamento, onde
+   * limpar a sessão não traz credencial nova (ADR 0068).
    */
-  | { readonly action: 'stop'; readonly cause: 'replaced' };
+  | { readonly action: 'stop'; readonly cause: 'replaced' | 'fatal' | 'auth-failed' };
 
 export interface ReconnectionState {
   /** Reconexões com backoff desde a última conexão aberta (só escolhe o atraso). */
@@ -49,6 +51,12 @@ export interface ReconnectionPolicyOptions {
   readonly cleanDelayMs?: number;
   /** Intervalo mínimo entre duas limpezas, contra loop de limpeza. Padrão 60 s. */
   readonly minCleanIntervalMs?: number;
+  /**
+   * O transport pareia a sessão por QR ou código (capability `pairing`). Sem pareamento,
+   * `auth-failed` decide `stop`: limpar a sessão não traz credencial nova. Padrão `true`, o
+   * comportamento do legacy; o `Bot` o lê da capability (ADR 0068).
+   */
+  readonly pairing?: boolean;
   /** Relógio injetável para testes. Padrão `Date.now`. */
   readonly now?: () => number;
   /** Estado inicial (ex.: restaurado de um processo anterior). */
@@ -64,6 +72,7 @@ export class ReconnectionPolicy {
   readonly #serverErrorDelayMs: number;
   readonly #cleanDelayMs: number;
   readonly #minCleanIntervalMs: number;
+  readonly #pairing: boolean;
   readonly #now: () => number;
   #reconnectAttempts: number;
   #qrCount: number;
@@ -76,6 +85,7 @@ export class ReconnectionPolicy {
     this.#serverErrorDelayMs = options.serverErrorDelayMs ?? 5_000;
     this.#cleanDelayMs = options.cleanDelayMs ?? 3_000;
     this.#minCleanIntervalMs = options.minCleanIntervalMs ?? 60_000;
+    this.#pairing = options.pairing ?? true;
     this.#now = options.now ?? Date.now;
     this.#reconnectAttempts = options.initialState?.reconnectAttempts ?? 0;
     this.#qrCount = options.initialState?.qrCount ?? 0;
@@ -101,10 +111,14 @@ export class ReconnectionPolicy {
           ? this.#clean('qr-limit')
           : { action: 'reconnect', delayMs: this.#qrRetryDelayMs };
       case 'logged-out':
-      case 'auth-failed':
         return this.#clean(reason);
+      case 'auth-failed':
+        // Num transport por token, limpar e reconectar falharia de novo com o mesmo token, a cada
+        // `minCleanIntervalMs`, para sempre (#280). Só quem pareia ganha credencial nova.
+        return this.#pairing ? this.#clean(reason) : { action: 'stop', cause: 'auth-failed' };
       case 'replaced':
-        return { action: 'stop', cause: 'replaced' };
+      case 'fatal':
+        return { action: 'stop', cause: reason };
       case 'server-error':
         return { action: 'reconnect', delayMs: this.#serverErrorDelayMs };
       case 'connection-lost':

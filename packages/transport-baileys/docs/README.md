@@ -189,7 +189,9 @@ uma mensagem que chegou no mesmo lote pode vir incorporada a ela, sem evento pr�
 O transport declara todas as capabilities do core (plano §6.10): `groups`, `groups.add`,
 `groups.remove`, `groups.promote`, `mentions`, `reactions`, `presence`, `send.text`, `send.image`, `send.video`, `send.audio`,
 `send.voice`, `send.sticker`, `send.document`, `media.download`, `message.edit`,
-`message.delete`, `polls` e `quoted`. Todo plugin que declara `requires` com elas carrega.
+`message.delete`, `polls`, `quoted` e `pairing`. Todo plugin que declara `requires` com elas carrega.
+`pairing` diz ao bot que a sessão se pareia por QR ou código: com ela, credencial rejeitada
+(`auth-failed`) limpa a sessão e pareia de novo, em vez de parar o bot (ADR 0068).
 
 ## Envio e ações
 

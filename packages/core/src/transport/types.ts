@@ -21,8 +21,16 @@ export type DisconnectReason =
   | 'qr-timeout'
   /** A sessão foi encerrada no aparelho; as credenciais não valem mais. */
   | 'logged-out'
-  /** Credenciais rejeitadas ou corrompidas. */
+  /**
+   * Credenciais rejeitadas ou corrompidas. Com a capability `pairing`, o bot limpa a sessão e
+   * pareia de novo; sem ela (token), limpar não traz credencial nova, e o bot para (ADR 0068).
+   */
   | 'auth-failed'
+  /**
+   * Erro de configuração que reconectar não resolve: token sem permissão, intents não
+   * permitidas, porta ocupada. O bot para, sem limpar a sessão (ADR 0068).
+   */
+  | 'fatal'
   /** Outra conexão da mesma sessão assumiu (ex.: outro processo com o mesmo número). */
   | 'replaced'
   /** Falha do lado do servidor do serviço de mensagens. */
@@ -36,6 +44,10 @@ export type ConnectionStatus =
   | { readonly status: 'open' }
   | {
       readonly status: 'closed';
+      /**
+       * Uma lib que se reconecta sozinha (discord.js, grammY) só emite `closed` quando a queda é
+       * terminal: o bot reconecta por cima de todo `closed` (ADR 0068).
+       */
       readonly reason: DisconnectReason;
       /** Erro nativo, para log; o kernel não interpreta. */
       readonly error: unknown;
