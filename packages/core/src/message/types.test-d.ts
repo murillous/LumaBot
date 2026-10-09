@@ -41,6 +41,12 @@ describe('narrowing do modelo de mensagem', () => {
     if (msg.quoted?.is('audio')) expectTypeOf(msg.quoted.media).toEqualTypeOf<Media>();
   });
 
+  it('o endereço da localização é opcional (ADR 0069)', () => {
+    if (msg.is('location')) {
+      expectTypeOf(msg.location.address).toEqualTypeOf<string | undefined>();
+    }
+  });
+
   it('MessageOf e MediaMessageType', () => {
     expectTypeOf<MessageOf<'text'>>().toEqualTypeOf<TextMessage>();
     expectTypeOf<MessageOf<'image' | 'video'>>().toEqualTypeOf<ImageMessage | MessageOf<'video'>>();
@@ -77,6 +83,13 @@ describe('tipos de createMessage', () => {
     createMessage({ ...base, type: 'text', text: null });
     // @ts-expect-error location sem `location`
     createMessage({ ...base, type: 'location', text: null });
+    createMessage({
+      ...base,
+      type: 'location',
+      text: null,
+      // @ts-expect-error o endereço é string, sem `null`
+      location: { latitude: 0, longitude: 0, name: null, address: null },
+    });
     // @ts-expect-error fromMe é obrigatório
     createMessage({
       id: '1',

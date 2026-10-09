@@ -194,6 +194,34 @@ describe('toMessage: tipos', () => {
     expect(live).toMatchObject({ type: 'location', text: 'indo', location: { name: null } });
   });
 
+  it('endereço da localização no campo próprio (ADR 0069)', async () => {
+    const venue = await toMessage(
+      raw({
+        locationMessage: {
+          degreesLatitude: -23.5,
+          degreesLongitude: -46.6,
+          name: 'Masp',
+          address: 'Av. Paulista, 1578',
+        },
+      }),
+      env(),
+    );
+    expect(venue).toMatchObject({
+      location: { name: 'Masp', address: 'Av. Paulista, 1578' },
+    });
+    // Sem nome, o endereço continua também no `name`, como antes.
+    const unnamed = await toMessage(
+      raw({ locationMessage: { degreesLatitude: 1, degreesLongitude: 2, address: 'Rua A, 1' } }),
+      env(),
+    );
+    expect(unnamed).toMatchObject({ location: { name: 'Rua A, 1', address: 'Rua A, 1' } });
+    const plain = await toMessage(
+      raw({ locationMessage: { degreesLatitude: 1, degreesLongitude: 2, name: 'Paulista' } }),
+      env(),
+    );
+    expect(plain?.type === 'location' && 'address' in plain.location).toBe(false);
+  });
+
   it('contato avulso e lista de contatos', async () => {
     const one = await toMessage(
       raw({ contactMessage: { displayName: 'Bob', vcard: 'BEGIN:VCARD' } }),

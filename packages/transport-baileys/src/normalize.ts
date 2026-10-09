@@ -208,6 +208,7 @@ function init(key: keyof Content, c: Content, base: Base, media: MediaOf): Messa
           latitude: m.degreesLatitude ?? 0,
           longitude: m.degreesLongitude ?? 0,
           name: m.name ?? m.address ?? null,
+          ...(m.address ? { address: m.address } : {}),
         },
       };
     }

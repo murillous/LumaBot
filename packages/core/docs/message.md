@@ -26,12 +26,43 @@ if (msg.quoted?.is('sticker')) await msg.quoted.media.download();
   os opcionais `username`, `isBot` e `claims` (ver abaixo).
 - `mentions` (`Contact[]`) e as flags `isForwarded`, `isViewOnce`, `isEdited` estão em todos
   os tipos.
+- `location` traz `latitude`, `longitude`, `name` e, quando a plataforma informa, `address`
+  (o `venue` do Telegram, por exemplo).
 - `MessageOf<'image' | 'video'>` dá o membro da union para um ou mais tipos;
   `MediaMessageType` lista os tipos que carregam `media`.
 - `is()` é propriedade própria da mensagem: sobrevive a `{ ...msg }`.
 - `key` (`MessageKey`) é a chave para agir sobre a mensagem: `ctx.send.react(msg.key, '👍')`,
   `ctx.send.delete(msg.quoted.key)` ([ADR 0040](../../../docs/adr/0040-acoes-do-transport-no-plugin.md)).
   No contexto de comando ou listener, `c.react('👍')` já usa a chave da mensagem recebida.
+
+### Tipos novos e `unknown`
+
+O que a plataforma tem sem equivalente na lista chega como `unknown`: o dado do Telegram, o jogo,
+a fatura, o story, a mensagem do Discord só com embed ou componentes. Um plugin específico de
+plataforma lê o resto pelo objeto bruto ([unsafe](unsafe.md)). O que se trata do mesmo jeito
+chega pelo tipo comum
+([ADR 0069](../../../docs/adr/0069-unioes-de-tipo-antes-do-1-0.md)):
+
+| Na plataforma | Chega como |
+| --- | --- |
+| GIF (`animation` do Telegram, `gifPlayback` do WhatsApp) | `video`; um GIF enviado como imagem é `image` com `image/gif` |
+| Recado de vídeo redondo (`video_note`, `ptv`) | `video` |
+| Local com endereço (`venue` do Telegram) | `location`, com `address` |
+
+A lista de tipos pode crescer numa minor: o que hoje chega como `unknown` pode ganhar tipo
+próprio. Trate `unknown` e use `default` no `switch`, sem o `never` exaustivo, que deixaria de
+compilar na atualização:
+
+```ts
+switch (msg.type) {
+  case 'image':
+    return converter(msg.media);
+  case 'video':
+    return converterVideo(msg.media);
+  default:
+    return; // `unknown` e qualquer tipo futuro
+}
+```
 
 ## Mídia
 
@@ -167,6 +198,10 @@ const msg = createMessage({
   o transport verificou (assinatura do JWT, por exemplo), nunca para o que o cliente declarou.
 - O retorno é tipado pelo `type` informado (`ImageMessage` acima), e cada tipo exige os seus
   campos (`media`, `location`, `poll`...).
+- O que a plataforma não tem como tipo vai como `unknown`, e o objeto bruto fica no
+  `Transport.raw` ([Transport](transport.md)). GIF e recado de vídeo vão como `video`; `venue`,
+  como `location` com `address` (tabela em [Tipos novos e `unknown`](#tipos-novos-e-unknown)).
+- `isViewOnce` e `isForwarded` são `false` onde a plataforma não tem o conceito.
 - Padrões: `quoted: null`, `mentions: []`, flags `false` (inclusive para `undefined`
   explícito). `fromMe` é obrigatório: esquecê-lo faria o bot responder a si mesmo.
 - `key` não entra: `createMessage` a deriva de `chat`, `id`, `fromMe` e `sender` (o autor só em

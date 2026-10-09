@@ -224,6 +224,9 @@ export type AlbumItem =
  * Conteúdo a enviar. `text` e `caption` são o texto cru, que vai como veio. Com a árvore neutra
  * (ADR 0061), o core preenche `formatted`/`formattedCaption` e põe em `text`/`caption` o texto
  * visível dela: quem renderiza a árvore usa o campo novo, e quem não conhece envia o visível.
+ *
+ * A união pode ganhar membros numa minor, cada um atrás de uma capability nova (ADR 0069): no
+ * `switch` sobre `type`, lance erro no `default` em vez de usar o `never` exaustivo.
  */
 export type OutgoingContent =
   | {

@@ -83,6 +83,24 @@ describe('createMessage', () => {
     expect('media' in msg).toBe(false);
   });
 
+  it('propaga o endereço opcional da localização (ADR 0069)', () => {
+    const venue = createMessage({
+      ...base,
+      type: 'location',
+      text: null,
+      location: { latitude: -23.5, longitude: -46.6, name: 'Masp', address: 'Av. Paulista, 1578' },
+    });
+    expect(venue.location.address).toBe('Av. Paulista, 1578');
+
+    const pin = createMessage({
+      ...base,
+      type: 'location',
+      text: null,
+      location: { latitude: 1, longitude: 2, name: null },
+    });
+    expect('address' in pin.location).toBe(false);
+  });
+
   it('propaga o telefone do remetente e das menções (M1-16.4)', () => {
     const bia = { id: '123@lid', name: 'Bia', phone: '5511888888888' };
     const msg = createMessage({
