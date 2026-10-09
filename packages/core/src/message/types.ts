@@ -39,9 +39,30 @@ export interface Contact {
   readonly claims?: Readonly<Record<string, JsonValue>>;
 }
 
+/**
+ * Tipo de chat (ADR 0058). `group` é a conversa de várias pessoas solta (grupo do WhatsApp ou do
+ * Telegram, DM em grupo do Discord, sala do web); `channel`, o canal de servidor do Discord ou o
+ * canal de transmissão do Telegram; `thread`, a thread do Discord ou o tópico de fórum do Telegram.
+ */
+export type ChatKind = 'dm' | 'group' | 'channel' | 'thread';
+
 export interface Chat {
+  /**
+   * ID opaco do transport, que já aponta para onde a resposta deve cair: no tópico do Telegram,
+   * o transport o compõe do chat e do tópico. O core nunca o interpreta.
+   */
   readonly id: string;
+  /** Verdadeiro em todo chat que não é `dm`. */
   readonly isGroup: boolean;
+  /** Ausente quando o transport não distingue; aí vale só o `isGroup`. */
+  readonly kind?: ChatKind;
+  /**
+   * Espaço a que o chat pertence: o servidor do Discord (do canal ou da thread) ou o supergrupo
+   * do Telegram (do tópico). Ausente em chat solto, como todos os do WhatsApp.
+   */
+  readonly parentId?: string;
+  /** Nome do chat (assunto do grupo, nome do canal), quando o transport informa. */
+  readonly title?: string;
 }
 
 /** Mídia anexada. `download()`/`stream()` são lazy; o download é cacheado por mensagem. */

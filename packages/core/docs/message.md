@@ -77,6 +77,39 @@ contatos de `mentions` e de participantes de grupo, o transport não os tem. Sã
 e já vêm verificados, então o plugin pode confiar neles. Para consultar o sistema de origem, o
 plugin usa a própria credencial de serviço: o token do usuário não chega a ele.
 
+## `Chat`
+
+`chat.id` é o ID opaco do transport, e é para ele que vai a resposta. O plugin não o decompõe.
+`isGroup` é verdadeiro em todo chat que não é conversa privada. Os campos opcionais abaixo
+mostram a estrutura quando a plataforma tem a informação
+([ADR 0058](../../../docs/adr/0058-chat-multiplataforma.md)). Ausente quer dizer que o
+transport não sabe:
+
+| Campo | Tipo | O que é |
+| --- | --- | --- |
+| `kind` | `'dm' \| 'group' \| 'channel' \| 'thread'` | Tipo do chat (tabela abaixo). Ausente: vale só o `isGroup` |
+| `parentId` | `string` | Espaço a que o chat pertence: o servidor do Discord ou o supergrupo do Telegram |
+| `title` | `string` | Nome do chat: assunto do grupo, nome do canal ou do tópico |
+
+| `kind` | WhatsApp | Telegram | Discord | Web |
+| --- | --- | --- | --- | --- |
+| `dm` | conversa privada | privado | DM | conversa |
+| `group` | grupo | grupo, supergrupo | DM em grupo | sala |
+| `channel` | — | canal de transmissão | canal de servidor | — |
+| `thread` | — | tópico de fórum | thread, post de fórum | — |
+
+```ts
+const { kind, parentId } = ctx.message.chat;
+if (kind === 'thread' && parentId !== undefined) {
+  // um tópico ou thread do espaço `parentId`; `reply` responde dentro dele
+}
+```
+
+Um tópico do Telegram não tem ID próprio: o transport compõe o `chat.id` do chat e do tópico, e
+`ctx.send.text(chat.id, …)` cai no tópico, não no "General". Uma thread do Discord já tem ID
+próprio. Nos dois casos, `parentId` é o espaço, não o canal-pai: é o que o `chatFilter` e o
+admin leem.
+
 ## Construindo mensagens (transports)
 
 O transport mapeia o formato nativo para `MessageInit` e chama `createMessage`:
@@ -107,6 +140,8 @@ const msg = createMessage({
 
 - `phone` vai em todo `Contact` (remetente, menções, participantes): só dígitos com DDI, sem
   `+`, ou `null`. O `createMessage` o propaga como veio.
+- `kind`, `parentId` e `title` do `chat` entram só quando a plataforma informa; `isGroup` vai
+  sempre, e fica `false` só em `kind: 'dm'`.
 - `username`, `isBot` e `claims` entram só quando a plataforma informa. `claims` é só para o que
   o transport verificou (assinatura do JWT, por exemplo), nunca para o que o cliente declarou.
 - O retorno é tipado pelo `type` informado (`ImageMessage` acima), e cada tipo exige os seus

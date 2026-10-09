@@ -4,6 +4,7 @@ import type { Message, MessageType, TextMessage } from '#message/types.ts';
 export interface FakeMessageInit {
   readonly text?: string;
   readonly chatId?: string;
+  readonly chatParentId?: string;
   readonly senderId?: string;
   readonly senderName?: string | null;
   readonly fromMe?: boolean;
@@ -18,7 +19,11 @@ export function fakeContext(init: FakeMessageInit = {}): MessageContext {
     type: 'text',
     id: 'msg-1',
     key: { chatId, id: 'msg-1', fromMe, senderId: null },
-    chat: { id: chatId, isGroup: false },
+    chat: {
+      id: chatId,
+      isGroup: false,
+      ...(init.chatParentId === undefined ? null : { parentId: init.chatParentId }),
+    },
     sender: {
       id: init.senderId ?? 'user-1',
       name: init.senderName === undefined ? 'Fulano' : init.senderName,

@@ -695,6 +695,25 @@ describe('Bot: eventos que não são mensagem (#219, ADR 0038)', () => {
     );
   });
 
+  it('o chatFilter barra a reação e a deleção num chat do espaço bloqueado (ADR 0058)', async () => {
+    const transport = new RecordingTransport();
+    const got: string[] = [];
+    const b = bot({
+      transport,
+      plugins: [eventos(got)],
+      middlewares: { chatFilter: { block: ['servidor'] } },
+    });
+    await b.start();
+
+    const noServidor = payloads('canal');
+    const chat = { ...noServidor.reaction.chat, kind: 'channel' as const, parentId: 'servidor' };
+    transport.emit('reaction', { ...noServidor.reaction, chat });
+    transport.emit('message.deleted', { ...noServidor.deleted, chat });
+    transport.emit('reaction', payloads('solto').reaction);
+
+    await vi.waitFor(() => expect(got).toEqual(['reaction:solto']));
+  });
+
   it('o ignoreSelf barra a reação e a deleção da própria sessão', async () => {
     const transport = new RecordingTransport();
     const got: string[] = [];

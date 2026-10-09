@@ -66,6 +66,11 @@ conforme o modo de endereçamento do grupo. O que liga os dois é o `phone`:
   loop entre bots. `claims` só vai no contato que fez a ação, e só com o que o transport
   verificou ([ADR 0057](../../../docs/adr/0057-contact-multiplataforma.md)).
 
+- O `chat.id` precisa apontar para onde a resposta deve cair: no Telegram, componha o chat e o
+  tópico (`message_thread_id`) e decomponha no envio. `parentId` é o espaço (servidor do
+  Discord, supergrupo do Telegram), e `kind`/`title` vão quando a plataforma informa
+  ([ADR 0058](../../../docs/adr/0058-chat-multiplataforma.md)).
+
 ## Eventos
 
 Os eventos chegam já normalizados (`TransportEvents`):

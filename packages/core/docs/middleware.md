@@ -136,8 +136,10 @@ dois bots não entrarem em loop respondendo um ao outro. Sem `isBot`, o remetent
 
 ### `chatFilter({ allow?, block? })`
 
-Allow/blocklist por `chat.id`. Com `allow`, só os chats listados passam; `block` barra sempre e
-vence `allow`. As listas são copiadas na criação: para mudar, recrie o middleware (remova e
+Allow/blocklist por `chat.id` ou pelo espaço do chat (`chat.parentId`, o servidor do Discord ou
+o supergrupo do Telegram): liberar ou bloquear um servidor vale para todos os canais dele. Com
+`allow`, só os chats listados passam; `block` barra sempre e vence `allow`, então um canal
+bloqueado fica de fora mesmo com o servidor liberado. As listas são copiadas na criação: para mudar, recrie o middleware (remova e
 registre de novo).
 
 ### `rateLimit({ max, windowMs, by?, onLimited?, clock? })`

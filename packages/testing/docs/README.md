@@ -143,6 +143,16 @@ await bot.receive({
 });
 ```
 
+Um chat de fora do WhatsApp sai do `chat`: com o tipo, o espaço e o título. A resposta do
+`reply` vai para o `chat.id`:
+
+```ts
+await bot.receive({
+  text: '!avisos',
+  chat: { id: '-100123/45', isGroup: true, kind: 'thread', parentId: '-100123', title: 'Avisos' },
+});
+```
+
 ## Matchers
 
 Os matchers recebem `bot.sent` ou o próprio `TestBot`:

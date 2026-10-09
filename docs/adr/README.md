@@ -177,3 +177,4 @@ ADR 0055). Ao serem aceitos, entram aqui e no índice numérico.
 | [0055](0055-plataformas-alvo-e-transport-web.md) | D55 | Plataformas-alvo e um transport fora do WhatsApp antes do 1.0 (substitui parte de D03, detalha D29) | Aceito |
 | [0056](0056-owners-por-telefone-ou-id.md) | D56 | Owners por telefone ou por ID do contato (detalha D24/D46) | Aceito |
 | [0057](0057-contact-multiplataforma.md) | D57 | `Contact` multiplataforma: `username`, `isBot` e claims verificados (detalha D09/D38) | Aceito |
+| [0058](0058-chat-multiplataforma.md) | D58 | `Chat` multiplataforma: tipo, espaço e título (detalha D09/D24/D38) | Aceito |
