@@ -244,9 +244,8 @@ não entra no `AsyncLocalStorage`, então não paga nada.
 
 ## Auth state (para transports)
 
-`port.authState(session)` guarda a sessão do transport no mesmo storage (substitui o
-`useMultiFileAuthState` do Baileys). A interface é genérica: credenciais são um `JsonValue` e as
-chaves ficam agrupadas por tipo e id.
+`port.authState(session)` guarda a sessão do transport no mesmo storage, sem arquivo próprio. A
+interface é genérica: credenciais são um `JsonValue` e as chaves ficam agrupadas por tipo e id.
 
 | Método | O que faz |
 | --- | --- |
@@ -256,35 +255,20 @@ chaves ficam agrupadas por tipo e id.
 | `clear()` | Apaga credenciais e chaves da sessão (logout) |
 
 Sessões não se enxergam entre si nem enxergam os namespaces. **Serializar `Buffer` é
-responsabilidade do transport**: o storage só guarda JSON. No Baileys, com `BufferJSON`:
+responsabilidade do transport**: o storage só guarda JSON.
 
-```ts
-import { BufferJSON, initAuthCreds, proto, type AuthenticationState } from 'baileys';
+Quanto do auth state o transport usa depende de como a plataforma autentica:
 
-const toJson = (value: unknown) => JSON.parse(JSON.stringify(value, BufferJSON.replacer));
-const fromJson = (value: unknown) => JSON.parse(JSON.stringify(value), BufferJSON.reviver);
+- **Por token** (Telegram, Discord): o token vem das opções do transport, que o app lê da config;
+  ele não vai para o `authState`. O transport pode não usar o auth state. Se precisar guardar algo
+  da sessão entre execuções, usa só `getCreds`/`setCreds`.
+- **Por pareamento** (WhatsApp): as credenciais nascem no pareamento e ficam em `setCreds`; as
+  chaves de criptografia por contato, em `getKeys`/`setKeys`. É o que o
+  `@zapforge/transport-baileys` faz no lugar do `useMultiFileAuthState`, com a conversão de
+  `Buffer` em `src/auth-state.ts` ([Credenciais](../../transport-baileys/docs/README.md#credenciais)).
 
-async function authFromStorage(port: StoragePort, session: string) {
-  const store = port.authState(session);
-  const saved = await store.getCreds();
-  const state: AuthenticationState = {
-    creds: saved === undefined ? initAuthCreds() : fromJson(saved),
-    keys: {
-      async get(type, ids) {
-        const raw = fromJson(await store.getKeys(type, ids));
-        if (type === 'app-state-sync-key') {
-          for (const id of Object.keys(raw)) {
-            raw[id] = proto.Message.AppStateSyncKeyData.fromObject(raw[id]);
-          }
-        }
-        return raw;
-      },
-      set: (data) => store.setKeys(toJson(data)),
-    },
-  };
-  return { state, saveCreds: () => store.setCreds(toJson(state.creds)) };
-}
-```
+O `clear()` é do bot, na limpeza de sessão (`clean-session`), que só existe para transport com a
+capability `pairing` ([Bot](bot.md)): o transport não precisa chamá-lo.
 
 ## Adapters
 

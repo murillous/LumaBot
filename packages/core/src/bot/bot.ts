@@ -1362,9 +1362,9 @@ function groupAdminPort(
     // Sem a lista, não há como saber: recusa (fail-closed). Transport que não lista membros
     // deve implementar `isChatAdmin`.
     if (!metadata.participants) return false;
-    // Casa por id ou, quando os dois lados o têm, por telefone: o remetente pode vir como LID e
-    // o participante como JID de telefone, ou o contrário (ADR 0046). Sem telefone de um lado,
-    // só o id decide (fail-closed).
+    // Casa por id ou, quando os dois lados o têm, por telefone: o remetente e o participante
+    // podem vir com IDs de espaços diferentes (no WhatsApp, LID e JID de telefone; ADR 0046).
+    // Sem telefone de um lado, só o id decide (fail-closed).
     return metadata.participants.some(
       (participant) =>
         participant.isAdmin &&

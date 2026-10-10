@@ -1,4 +1,4 @@
-// Fila de entrada por chat (porta do JidQueue do legacy). Mesmo chat em série — sem race no
+// Fila de entrada por chat (veio da fila por chat do legacy). Mesmo chat em série — sem race no
 // histórico/estado da conversa —, chats distintos em paralelo, sem bloqueio global.
 
 /** Trabalho de uma mensagem. Pode ser síncrono ou assíncrono. */

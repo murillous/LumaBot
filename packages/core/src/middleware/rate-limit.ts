@@ -18,7 +18,7 @@ interface Window {
 /**
  * Contador de janela fixa por chave. As janelas vencidas são removidas a cada `hit`, então a
  * memória fica limitada às chaves ativas na última janela — o `rateLimiter` do LumaBot nunca
- * limpava o `Map` e crescia com cada JID visto (débito #7 do plano).
+ * limpava o `Map` e crescia com cada contato visto (débito #7 do plano).
  */
 export class RateLimiter {
   readonly #max: number;

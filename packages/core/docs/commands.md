@@ -190,8 +190,9 @@ citada.
 - No bot, quem responde é o `transport.isChatAdmin(chat, sender)`, se o transport o implementa
   (Discord, Telegram: [ADR 0059](../../../docs/adr/0059-grupos-multiplataforma.md)).
 - Sem ele, o remetente é admin se um participante admin do `getGroupMetadata` tem o mesmo `id`
-  ou, quando os dois lados o têm, o mesmo `phone`: no WhatsApp o remetente pode vir como LID e o
-  participante como JID de telefone. Sem telefone de um lado, só o `id` decide
+  ou, quando os dois lados o têm, o mesmo `phone`: numa plataforma em que o mesmo contato tem IDs
+  de espaços diferentes (o WhatsApp), o remetente e o participante podem vir cada um num. Sem
+  telefone de um lado, só o `id` decide
   ([ADR 0046](../../../docs/adr/0046-ids-de-contato-e-metadata-de-grupo.md)). Metadata sem
   `participants` recusa.
 - Sem `isGroupAdmin` (transport sem `isChatAdmin` e sem a capability `groups`), `group-admin`
@@ -199,9 +200,9 @@ citada.
 - Um owner telefone (`'5511999999999'`, só dígitos e DDI) é comparado por igualdade com
   `message.sender.phone`. O bot normaliza a lista da config com `normalizeOwners`, então lá vale
   `'+55 (11) 99999-9999'`; no roteador solto, normalize antes.
-- O telefone não é comparado com `sender.id`: no WhatsApp ele pode ser um LID, de onde não sai o
-  número. Só o transport sabe resolvê-lo; quando não sabe, `phone` é `null` e esse remetente só
-  é owner se estiver na lista por `{ id }`.
+- O telefone não é comparado com `sender.id`: o ID é opaco e nem sempre carrega o número. Só o
+  transport sabe resolvê-lo; quando não sabe, `phone` é `null` e esse remetente só é owner se
+  estiver na lista por `{ id }`.
 - Um owner `{ id }` é comparado por igualdade com `message.sender.id`, para plataformas sem
   telefone (Discord, Telegram, web). Telefone e ID nunca se cruzam
   ([ADR 0056](../../../docs/adr/0056-owners-por-telefone-ou-id.md)).

@@ -1,8 +1,8 @@
 # Fila de entrada por chat
 
 `InboundQueue` serializa o processamento das mensagens de um mesmo chat e roda chats
-distintos em paralelo, sem bloqueio global. É a porta do `JidQueue` do legacy, com limite de
-backlog, métricas e shutdown gracioso.
+distintos em paralelo, sem bloqueio global. Veio da fila por chat do legacy, agora com limite
+de backlog, métricas e shutdown gracioso.
 
 Peça interno do kernel, não exportado ([ADR 0034](../../../docs/adr/0034-biblioteca-sem-runner.md)): o app só a configura por
 `createBot({ inbound: { maxPendingPerChat } })`. Os exemplos abaixo são para quem mexe no core.

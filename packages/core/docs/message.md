@@ -100,11 +100,11 @@ for (const anexo of ctx.message.attachments) {
 
 ## `Contact.phone`
 
-`phone` é o telefone só com dígitos e DDI (`'5511999999999'`), ou `null` se o transport não
-souber. Ele é separado de `id` porque o ID nativo nem sempre carrega o número — no WhatsApp,
-`sender.id` pode ser um LID — e só o transport sabe resolvê-lo. É por `phone` que o roteador
-reconhece os `owners` telefone ([Comandos](commands.md#role)); com `null`, só um owner `{ id }`
-reconhece o remetente.
+`phone` é o telefone só com dígitos e DDI (`'5511999999999'`), ou `null` se a plataforma não tem
+telefone (Discord, web) ou o transport não souber resolvê-lo. Ele é separado de `id` porque o ID
+nativo nem sempre carrega o número (no WhatsApp, por exemplo, o `id` pode ser um identificador sem
+ele), e só o transport sabe resolvê-lo. É por `phone` que o roteador reconhece os `owners`
+telefone ([Comandos](commands.md#role)); com `null`, só um owner `{ id }` reconhece o remetente.
 
 O campo é obrigatório no tipo: o transport precisa decidir, e `null` é uma resposta explícita.
 
@@ -165,28 +165,41 @@ admin leem.
 
 ## Construindo mensagens (transports)
 
-O transport mapeia o formato nativo para `MessageInit` e chama `createMessage`:
+O transport mapeia o formato nativo para `MessageInit` e chama `createMessage`. No exemplo, uma
+foto do Telegram (a versão do WhatsApp está no `@zapforge/transport-baileys`):
 
 ```ts
 import { createMessage } from '@zapforge/core/adapter';
 
 const quoted = createMessage({ /* ... */ });   // citada: construída do mesmo jeito
 
+const photo = raw.photo.at(-1); // a maior resolução
 const msg = createMessage({
   type: 'image',
-  id: raw.key.id,
-  chat: { id: jid, isGroup: jid.endsWith('@g.us') },
-  sender: { id: participant, name: pushName ?? null, phone: phoneOf(participant) }, // só dígitos ou null
-  text: caption ?? null,
-  timestamp: Number(raw.messageTimestamp) * 1000,
-  fromMe: raw.key.fromMe,
+  id: String(raw.message_id),
+  chat: {
+    id: String(raw.chat.id),
+    isGroup: raw.chat.type !== 'private',
+    kind: raw.chat.type === 'private' ? 'dm' : 'group',
+    title: raw.chat.title,
+  },
+  sender: {
+    id: String(raw.from.id),
+    name: raw.from.first_name,
+    phone: null,                   // o Telegram não informa o telefone de quem escreve
+    username: raw.from.username,
+    isBot: raw.from.is_bot,
+  },
+  text: raw.caption ?? null,
+  timestamp: raw.date * 1000,
+  fromMe: raw.from.id === botId,
   quoted,
   mentions,
   media: {
-    mimetype: image.mimetype,
-    size: Number(image.fileLength) || null,
-    download: () => downloadBuffer(raw),                             // obrigatório
-    stream: async () => Readable.toWeb(await downloadStream(raw)),  // opcional
+    mimetype: 'image/jpeg',
+    size: photo.file_size ?? null,
+    download: () => downloadFile(photo.file_id),                             // obrigatório
+    stream: async () => Readable.toWeb(await downloadStream(photo.file_id)), // opcional
   },
 });
 ```

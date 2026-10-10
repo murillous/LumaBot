@@ -120,7 +120,7 @@ import { chatFilter, ignoreBots, ignoreSelf, rateLimit, sanitize } from '@zapfor
 
 pipeline.use(ignoreSelf(), { priority: 1000 });
 pipeline.use(ignoreBots(), { priority: 990 });
-pipeline.use(chatFilter({ block: ['123@g.us'] }), { priority: 900 });
+pipeline.use(chatFilter({ block: ['grupo-1'] }), { priority: 900 });
 pipeline.use(rateLimit({ max: 10, windowMs: 1000 }), { priority: 800 });
 pipeline.use(sanitize(), { priority: 700 });
 ```
