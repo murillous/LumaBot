@@ -15,6 +15,7 @@
   "references": [
     { "path": "packages/core" },
     { "path": "packages/transport-baileys" },
+    { "path": "packages/transport-web" },
     { "path": "packages/storage-sqlite" },
     { "path": "packages/testing" },
     { "path": "apps/lumabot" },

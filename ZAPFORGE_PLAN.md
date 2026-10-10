@@ -178,6 +178,7 @@ decisão anterior.
 | D74 | **Trava de sessão entre processos** (detalha D36/D14): `acquireLease?`/`releaseLease?` no `StoragePort`, atômicas e com a validade medida pelo adapter; opcionais só para storage de um processo (a suíte de contrato cobra, salvo `processLocal`); o bot trava `session:<sessão>` no `start()` por 30 s e renova a cada 10 s; ocupada, espera até uma validade e falha com `BotConfigError`; perdida, para o bot; o `stop()` libera; por nome de sessão, sem olhar o transport | CAS genérico no KV; trava obrigatória também na memória; falhar o `start()` na hora; seguir com a trava perdida; transport no namespace; só documentar | O Discord aceita o mesmo token em vários gateways e o web não derruba a conexão antiga: dois processos responderiam em dobro |
 | D75 | **Vários bots num storage e escopo compartilhado** (detalha D04, substitui o "fora da v1" do D36): um transport por `Bot`, vários bots por processo com a mesma instância de storage; `ctx.storage.shared` em `$shared:<plugin>`, comum às sessões e só do plugin, seguindo o tenant (`@<tenant>`, `forTenant`); `ctx.transportName` para compor chaves de ID; sem transação nova; HTTP (#120) com um servidor por processo, detalhado no ADR dele | Escopo nomeado entre plugins; opção no `createBot`; `shared` sem tenant; kernel prefixar chaves; hub de processo; multi-transport num bot | Plugin não dividia dados entre plataformas; IDs só são únicos dentro do transport |
 | D76 | **HTTP do core** (detalha D20/D37/D75): `createHttp({ port })` passado em `BotConfig.http`, a mesma instância para todos os bots; porta só abre com rota, depois do `setup` e antes do `connect()`, e fecha com o último bot; `/plugins/<nome>` e `/transports/<name>` na sessão `default`, sob `/sessions/<sessão>` nas outras; `ctx.http` e `TransportDeps.http` com `route(method, path, (Request, { params }) => Response)` e `ws(path, accept)` da Web API, sem tipo do Hono; erro de rota de plugin em `plugin.error` (`phase: 'http'`); `/health` 200/503 pelo estado das sessões; sem auth, prazo ou tenant no kernel | Opções por bot; servidor padrão implícito; sessão em todo caminho; prefixo só com dois bots; `Context` do Hono; `/health` mínimo | Webhooks de transport e dashboard numa porta só, com vários bots; contrato neutro antes do 1.0 |
+| D77 | **`@zapforge/transport-web`** (detalha D55, sobre o D76): WebSocket em `/transports/web/chat` com o JWT no primeiro frame (`auth`, 10 s), validado uma vez pelo `jose` (`HS256` com segredo ou `RS256`/`ES256` por JWKS; `exp` e `sub` obrigatórios), fechado com 4401 no `exp`; `Contact` do `sub` com os claims; tenant de `tenantClaim` composto no ID; `chat.id` por conversa escolhida pelo cliente (`<contato>/<conversa>`); buffer em memória para a conversa sem conexão (100 frames, 1 h); mídia por `POST /media` com o token e `GET /media/:id` com ID aleatório de 1 h; `origins` opcional; capabilities texto, imagem, vídeo, áudio, documento, download, `actions`, `quoted`, `typing`, edição e remoção; cliente de referência em `/client` | `Chat.id` por usuário ou por aba; token na query string; renovação no meio da conexão; mídia em base64 no frame ou só texto; JWT com `node:crypto`; modo visitante | O sistema do dono abre uma conversa por tela; token fora de log; frame do chat não fica preso atrás de upload; perfil `web` do kit confirmado |
 
 ---
 
@@ -446,9 +447,9 @@ expect(bot.sent).toContainSticker();
 ### 6.10 Capabilities por transport
 
 Cada transport declara as próprias (D10). A lista é só a do core, e capability nova entra numa minor
-(D70). Limites de tamanho não são capability: ficam em `Transport.limits` (D61, D65). A coluna do
-Baileys é o que ele declara hoje; as outras são a previsão, confirmada quando cada transport nascer
-(web no #287, Telegram e Discord depois do v1.0).
+(D70). Limites de tamanho não são capability: ficam em `Transport.limits` (D61, D65). As colunas do
+Baileys e do web são o que eles declaram hoje (o web desde o D77); as do Telegram e do Discord são a
+previsão, confirmada quando cada transport nascer, depois do v1.0.
 
 | Capability | Baileys | Telegram | Discord | web |
 |---|---|---|---|---|
@@ -457,22 +458,22 @@ Baileys é o que ele declara hoje; as outras são a previsão, confirmada quando
 | `groups.add` | ✓ | — | — | — |
 | `groups.remove` | ✓ | ✓ | ✓ | — |
 | `groups.promote` | ✓ | ✓ | — | — |
-| `mentions` | ✓ | ✓ | ✓ | #287 |
-| `reactions` | ✓ | ✓ | ✓ | #287 |
+| `mentions` | ✓ | ✓ | ✓ | — |
+| `reactions` | ✓ | ✓ | ✓ | — |
 | `typing` | ✓ | ✓ | ✓ | ✓ |
 | `send.text` | ✓ | ✓ | ✓ | ✓ |
 | `send.image` | ✓ | ✓ | ✓ | ✓ |
-| `send.video` | ✓ | ✓ | ✓ | #287 |
-| `send.audio` | ✓ | ✓ | ✓ | #287 |
+| `send.video` | ✓ | ✓ | ✓ | ✓ |
+| `send.audio` | ✓ | ✓ | ✓ | ✓ |
 | `send.voice` | ✓ | ✓ | — | — |
 | `send.sticker` | ✓ | ✓ | — | — |
 | `send.document` | ✓ | ✓ | ✓ | ✓ |
-| `send.album` | — | ✓ | ✓ | #287 |
+| `send.album` | — | ✓ | ✓ | — |
 | `media.download` | ✓ | ✓ | ✓ | ✓ |
-| `message.edit` | ✓ | ✓ | ✓ | #287 |
-| `message.delete` | ✓ | ✓ | ✓ | #287 |
+| `message.edit` | ✓ | ✓ | ✓ | ✓ |
+| `message.delete` | ✓ | ✓ | ✓ | ✓ |
 | `polls` | ✓ | ✓ | ✓ | — |
-| `quoted` | ✓ | ✓ | ✓ | #287 |
+| `quoted` | ✓ | ✓ | ✓ | ✓ |
 | `pairing` | ✓ | — | — | — |
 
 ---
@@ -699,8 +700,10 @@ critérios de aceite. Toda issue herda os critérios gerais:
     escape hatch, testes
   - Referência gerada por TypeDoc
   - Docs do core (COMO): visão geral, módulos, entrypoints, schemas
-- **#M3-5 `@zapforge/transport-web`** (#287, D55)
+- **#M3-5 `@zapforge/transport-web`** (#287, D55, D77)
   - Chatbot web com JWT do sistema de origem, claims, tenant e ações; rotas no HTTP do M3-2
+  - Conversa escolhida pelo cliente, buffer para cliente fora, mídia por HTTP e cliente de
+    referência (`@zapforge/transport-web/client`)
   - *Aceite*: um plugin portátil roda sem mudança no Baileys e no web
 
 ---

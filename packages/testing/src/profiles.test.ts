@@ -133,10 +133,11 @@ describe('createTestBot com perfil', () => {
   });
 
   it('o perfil vale também no transport passado à mão', async () => {
-    const transport = new FakeTransport({ profile: 'web' });
+    // Sem `quoted` (o web real o declara desde o ADR 0077): a resposta sai sem citar.
+    const capabilities = PROFILES.web.capabilities.filter((c) => c !== 'quoted');
+    const transport = new FakeTransport({ profile: 'web', capabilities });
     const bot = await testBot({ transport, plugins: [quem()] });
     await bot.receive({ text: '!quem' });
-    // O web não tem `quoted`: a resposta sai sem citar.
     expect(bot.sent).toContainText('sem telefone @-');
     expect(bot.sent[0]?.quoted).toBeNull();
   });

@@ -1,7 +1,7 @@
 // Perfis de transport para o kit (ADR 0073): o que cada plataforma declara, para o teste do plugin
 // rodar com as mesmas capabilities, limites e formato de contato que o transport real teria. A
-// fonte é a matriz da §6.10 do plano. O `whatsapp` é o que o Baileys declara, e um teste no
-// `transport-baileys` confere. Os outros são previsão até cada transport nascer.
+// fonte é a matriz da §6.10 do plano. O `whatsapp` e o `web` são o que o Baileys e o web declaram,
+// e um teste em cada transport confere. Telegram e Discord são previsão até o transport nascer.
 
 import type { Capability, Contact, TextLimits } from '@zapforge/core';
 
@@ -100,9 +100,17 @@ const discord: TransportProfile = {
   sender: { id: 'user@fake', name: 'Usuário', phone: null, username: 'usuario' },
 };
 
-// Só o que a matriz confirma para o web; o que depende do #287 entra quando o transport nascer.
+// O que o `@zapforge/transport-web` declara (ADR 0077); um teste lá confere.
 const web: TransportProfile = {
-  capabilities: [...COMMON, 'actions'],
+  capabilities: [
+    ...COMMON,
+    'actions',
+    'send.video',
+    'send.audio',
+    'message.edit',
+    'message.delete',
+    'quoted',
+  ],
   self: { id: 'bot@fake', name: 'Bot', phone: null },
   sender: { id: 'user@fake', name: 'Usuário', phone: null },
 };

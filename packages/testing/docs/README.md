@@ -151,11 +151,12 @@ const bot = await createTestBot({ profile: 'telegram', plugins: [meuPlugin()] })
 | `whatsapp` | As do Baileys: todas, menos `actions` e `send.album` | Nenhum | Com telefone (`DEFAULT_SELF`, `DEFAULT_SENDER`) |
 | `telegram` | Sem `groups.add`, `pairing` | Texto 4096, legenda 1024, álbum 10 | `username`, `phone: null`; o `self` tem `isBot` |
 | `discord` | Sem `groups.add`, `groups.promote`, `send.voice`, `send.sticker`, `pairing` | Texto e legenda 2000, álbum 10, 25 botões | `username`, `phone: null`; o `self` tem `isBot` |
-| `web` | Só `actions`, `typing`, `send.text`, `send.image`, `send.document` e `media.download` | Nenhum | Só ID e nome |
+| `web` | As do `transport-web`: texto, imagem, vídeo, áudio, documento, download, `actions`, `quoted`, `typing`, edição e remoção | Nenhum | Só ID e nome |
 
-A lista completa de cada um está em `PROFILES`. O `whatsapp` é o que o Baileys declara, e um teste
-no `transport-baileys` garante isso. Os outros seguem a matriz do plano (§6.10) e serão confirmados
-quando cada transport nascer. Até lá, podem mudar numa minor do kit.
+A lista completa de cada um está em `PROFILES`. O `whatsapp` e o `web` são o que o Baileys e o
+`transport-web` declaram, e um teste em cada transport garante isso. O `telegram` e o `discord`
+seguem a matriz do plano (§6.10) e serão confirmados quando cada transport nascer. Até lá, podem
+mudar numa minor do kit.
 
 O `receive()` e o `click()` usam o remetente do perfil, inclusive com o perfil passado no
 `FakeTransport` à mão. As opções `capabilities`, `limits` e `self` do `FakeTransport` substituem o
@@ -186,8 +187,8 @@ describe.each(PROFILE_NAMES)('no %s', (profile) => {
 });
 ```
 
-Prefira `toContainText` a `toHaveReplied` na matriz: no perfil `web`, sem `quoted`, a resposta sai
-sem citar.
+Prefira `toContainText` a `toHaveReplied` na matriz: num perfil sem `quoted` (todos os quatro têm
+hoje), a resposta sai sem citar.
 
 ## Botões
 
