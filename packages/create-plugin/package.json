@@ -1,0 +1,24 @@
+{
+  "name": "create-zapforge-plugin",
+  "version": "0.0.0",
+  "description": "Cria um plugin do ZapForge pronto para desenvolver, testar e publicar.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "imports": {
+    "#*": "./src/*"
+  },
+  "bin": {
+    "create-zapforge-plugin": "./dist/cli.mjs"
+  },
+  "files": [
+    "dist",
+    "template"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "e2e": "node scripts/e2e.ts"
+  }
+}

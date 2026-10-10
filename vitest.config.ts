@@ -1,13 +1,17 @@
 import { globSync, readFileSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { defineConfig } from 'vitest/config';
+import { configDefaults, defineConfig } from 'vitest/config';
 
 // Um projeto por pacote do workspace, o `bench/` inclusive. Projetos inline herdam esta config
 // (extends: true); por glob ('packages/*') não herdariam o resolve abaixo.
 const projects = globSync(['{packages,plugins,apps}/*/package.json', 'bench/package.json']).map(
   (manifest) => {
     const { name } = JSON.parse(readFileSync(manifest, 'utf8')) as { name: string };
-    return { test: { name, root: dirname(manifest) } };
+    // `template/` é o projeto que o create-zapforge-plugin copia: o teste dele roda no projeto
+    // gerado (e2e do pacote), não aqui, onde os marcadores `__export__` não resolvem.
+    return {
+      test: { name, root: dirname(manifest), exclude: [...configDefaults.exclude, 'template/**'] },
+    };
   },
 );
 

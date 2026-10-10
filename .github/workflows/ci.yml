@@ -63,6 +63,17 @@ jobs:
       - uses: ./.github/actions/setup
       - run: pnpm build
 
+  # Aceite do create-zapforge-plugin (ADR 0081): o projeto gerado instala, passa no typecheck e no
+  # teste e builda, sobre os tarballs do core, do kit e do scaffold.
+  scaffold:
+    name: Scaffold
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - run: pnpm build
+      - run: pnpm --filter create-zapforge-plugin e2e
+
   # Metas do plano §7 e piora > 10% sobre o baseline (ADR 0054). O baseline é medido neste mesmo
   # runner: entre máquinas diferentes, a variação passa dos 10%.
   benchmark:

@@ -19,6 +19,7 @@
     { "path": "packages/storage-sqlite" },
     { "path": "packages/storage-postgres" },
     { "path": "packages/testing" },
+    { "path": "packages/create-plugin" },
     { "path": "apps/lumabot" },
     { "path": "bench" }
   ]

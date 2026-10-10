@@ -1,0 +1,39 @@
+{
+  "name": "__package__",
+  "version": "0.1.0",
+  "description": "Plugin do ZapForge.",
+  "keywords": [
+    "zapforge",
+    "zapforge-plugin"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "default": "./dist/index.mjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "changeset": "changeset"
+  },
+  "peerDependencies": {
+    "@zapforge/core": "<1.0.0"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^3.0.3",
+    "@zapforge/core": "<1.0.0",
+    "@zapforge/testing": "<1.0.0",
+    "tsdown": "^0.23.0",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.3"
+  }
+}

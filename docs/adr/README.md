@@ -200,3 +200,4 @@ ADR 0055). Ao serem aceitos, entram aqui e no índice numérico.
 | [0078](0078-postgres-via-pg.md) | D78 | Postgres pelo `pg`: schema próprio, documentos em `jsonb`, migrations sob advisory lock e testes contra Postgres em container no CI (detalha D14/D15) | Aceito |
 | [0079](0079-acucar-no-manifesto-do-plugin.md) | D79 | Açúcar no manifesto do plugin: `commands` e `on` declarativos, `run` que devolve texto responde e `send.text` implícito (detalha D16/D22) | Aceito |
 | [0080](0080-acucar-para-o-autor-de-transport.md) | D80 | Açúcar para o autor de transport: `defineTransport` com descrição e kit, e coerência capability ↔ método conferida no `createBot` (detalha D03/D10/D37) | Aceito |
+| [0081](0081-create-zapforge-plugin.md) | D81 | `create-zapforge-plugin`: scaffold sem dependências, template com o plugin portátil na forma curta e aceite por e2e sobre os tarballs (detalha D22) | Aceito |
