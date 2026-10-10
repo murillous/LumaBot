@@ -1,8 +1,13 @@
 // Monta a `Message` que o `bot.receive()` entrega, a partir de uma descrição curta: o teste diz
 // só o que importa (`{ text: '!s', image }`) e o resto sai com padrões coerentes.
 
+import { randomUUID } from 'node:crypto';
 import type { Chat, Contact, Message } from '@zapforge/core';
 import { createMessage, type MediaSource, type MessageInit } from '@zapforge/core/adapter';
+import { DEFAULT_SENDER } from './profiles.ts';
+
+// O padrão mora em `profiles.ts`, junto dos perfis; aqui fica o caminho de import de antes.
+export { DEFAULT_SENDER };
 
 /** Mídia de entrada: os bytes ou os bytes com o mimetype. */
 export type IncomingMedia = Buffer | { readonly data: Buffer; readonly mimetype: string };
@@ -33,7 +38,7 @@ export interface IncomingMessage {
   readonly attachments?: readonly IncomingAttachment[];
   /** ID do chat (conversa privada) ou o chat completo. Padrão: `DEFAULT_CHAT`. */
   readonly chat?: string | Chat;
-  /** Campos do remetente que diferem de `DEFAULT_SENDER`. */
+  /** Campos do remetente que diferem do padrão: o do perfil ou `DEFAULT_SENDER`. */
   readonly sender?: Partial<Contact>;
   /** Mensagem citada, descrita do mesmo jeito ou já pronta. */
   readonly quoted?: IncomingMessage | Message;
@@ -54,12 +59,6 @@ export interface IncomingMessage {
 
 export const DEFAULT_CHAT: Chat = { id: 'chat@fake', isGroup: false };
 
-export const DEFAULT_SENDER: Contact = {
-  id: 'user@fake',
-  name: 'Usuário',
-  phone: '5511900000000',
-};
-
 const MEDIA_TYPES = ['image', 'video', 'audio', 'voice', 'sticker', 'document'] as const;
 type MediaType = (typeof MEDIA_TYPES)[number];
 
@@ -73,24 +72,29 @@ const DEFAULT_MIMETYPES: Record<MediaType, string> = {
   document: 'application/octet-stream',
 };
 
-let nextId = 0;
+/** De onde vêm o ID e o remetente que a descrição não informa. */
+export interface BuildOptions {
+  /** Gera o ID da mensagem sem `id`. Padrão: um UUID, sem estado de módulo (ADR 0004). */
+  readonly nextId?: () => string;
+  /** Base do remetente, que `sender` completa. Padrão: `DEFAULT_SENDER`. */
+  readonly sender?: Contact;
+}
 
-export function buildMessage(input: IncomingMessage): Message {
+export function buildMessage(input: IncomingMessage, options: BuildOptions = {}): Message {
   const mediaTypes = MEDIA_TYPES.filter((type) => input[type] !== undefined);
   if (mediaTypes.length > 1) {
     throw new TypeError(`receive(): uma mídia por mensagem, recebeu ${mediaTypes.join(' e ')}`);
   }
-  nextId++;
   const base = {
-    id: input.id ?? `in-${nextId}`,
+    id: input.id ?? options.nextId?.() ?? `in-${randomUUID()}`,
     chat:
       typeof input.chat === 'string'
         ? { id: input.chat, isGroup: false }
         : (input.chat ?? DEFAULT_CHAT),
-    sender: { ...DEFAULT_SENDER, ...input.sender },
+    sender: { ...(options.sender ?? DEFAULT_SENDER), ...input.sender },
     timestamp: input.timestamp ?? Date.now(),
     fromMe: input.fromMe ?? false,
-    quoted: input.quoted === undefined ? null : toMessage(input.quoted),
+    quoted: input.quoted === undefined ? null : toMessage(input.quoted, options),
     mentions: input.mentions ?? [],
     isForwarded: input.isForwarded ?? false,
     isViewOnce: input.isViewOnce ?? false,
@@ -122,9 +126,9 @@ export function buildMessage(input: IncomingMessage): Message {
   return createMessage(init);
 }
 
-function toMessage(input: IncomingMessage | Message): Message {
+function toMessage(input: IncomingMessage | Message, options: BuildOptions): Message {
   // `is` só existe na mensagem pronta (`createMessage` o liga); a descrição nunca o tem.
-  return 'is' in input ? input : buildMessage(input);
+  return 'is' in input ? input : buildMessage(input, options);
 }
 
 function mediaSource(media: IncomingAttachment, defaultMimetype: string): MediaSource {

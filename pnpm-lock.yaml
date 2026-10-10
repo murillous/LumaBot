@@ -251,6 +251,10 @@ importers:
       baileys:
         specifier: 7.0.0-rc14
         version: 7.0.0-rc14(sharp@0.35.5(@types/node@24.19.1))
+    devDependencies:
+      '@zapforge/testing':
+        specifier: workspace:*
+        version: link:../testing
 
 packages:
 
