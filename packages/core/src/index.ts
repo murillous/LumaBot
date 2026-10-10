@@ -157,6 +157,7 @@ export type { JobContext, JobHandler, Scheduler } from '#scheduler/types.ts';
 export { ServiceConflictError, ServiceNotFoundError } from '#services/registry.ts';
 export type { ServiceAccess, ServiceName, Services } from '#services/types.ts';
 export { createMemoryStorage } from '#storage/memory.ts';
+export type { TenantStorage } from '#storage/tenant.ts';
 export type {
   Collection,
   CollectionOptions,

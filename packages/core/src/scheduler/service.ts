@@ -9,6 +9,7 @@ import { ContextExpiredError, Deadline, JobTimeoutError } from '#deadline.ts';
 import type { PluginErrorEvent } from '#events/types.ts';
 import { kernelStorage } from '#storage/namespace.ts';
 import type { Collection, JsonValue, StoragePort, Where, WithId } from '#storage/types.ts';
+import { TenantScope } from '#tenant/scope.ts';
 import type { Unsubscribe } from '#transport/types.ts';
 import type { JobContext, JobHandler, Scheduler } from './types.ts';
 
@@ -32,6 +33,8 @@ type JobDocument = {
   /** Epoch ms. Indexado: é por ele que o loop consulta. */
   fireAt: number;
   payload: JsonValue;
+  /** Tenant de quem agendou (ADR 0072); o handler roda no escopo dele. Ausente: sem tenant. */
+  tenant?: string;
 };
 
 type StoredJob = WithId<JobDocument>;
@@ -61,6 +64,11 @@ export interface SchedulerServiceOptions {
    * não morre: tenta de novo após `storageRetryMs`. Não deve lançar.
    */
   readonly onStorageError: (error: unknown) => void;
+  /**
+   * Escopo de tenant do bot (ADR 0072): `at` guarda o tenant corrente no job, e o handler roda
+   * no escopo dele. Padrão: um escopo próprio, sem tenant.
+   */
+  readonly tenants?: TenantScope;
   /** Prazo de cada handler em ms. Padrão: 30000. */
   readonly jobTimeoutMs?: number;
   /** Espera antes de reconsultar o storage depois de uma falha, em ms. Padrão: 5000. */
@@ -172,6 +180,7 @@ function isThenable(value: unknown): value is PromiseLike<unknown> {
 export function createSchedulerService(options: SchedulerServiceOptions): SchedulerService {
   const { onError, onStorageError } = options;
   const onLateError = options.onLateError ?? onError;
+  const tenants = options.tenants ?? new TenantScope();
   const jobTimeoutMs = validTimeout('jobTimeoutMs', options.jobTimeoutMs ?? DEFAULT_JOB_TIMEOUT_MS);
   const retryMs = validTimeout(
     'storageRetryMs',
@@ -369,7 +378,8 @@ export function createSchedulerService(options: SchedulerServiceOptions): Schedu
     };
     let result: unknown;
     try {
-      result = handler(doc.payload, job);
+      // O job sem tenant sai de qualquer escopo: o loop pode ter sido acordado no handler de um.
+      result = tenants.run(doc.tenant, () => handler(doc.payload, job));
     } catch (error) {
       fail(doc, error, false);
       return Promise.resolve(true);
@@ -424,7 +434,14 @@ export function createSchedulerService(options: SchedulerServiceOptions): Schedu
         const fireAt = toEpoch(when);
         assertJobName(job);
         assertJsonValue(payload, 'payload', new Set());
-        const id = await jobs.insert({ plugin, job, fireAt, payload });
+        const tenant = tenants.current;
+        const id = await jobs.insert({
+          plugin,
+          job,
+          fireAt,
+          payload,
+          ...(tenant !== undefined && { tenant }),
+        });
         if (started) {
           if (loop !== undefined) rerun = true;
           else if (armedAt === undefined || fireAt < armedAt) arm(fireAt);

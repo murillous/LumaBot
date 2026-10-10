@@ -1,14 +1,15 @@
 // Namespaces de storage. O adapter só isola strings distintas; quem garante que um plugin não
 // alcança os dados do kernel (jobs do scheduler, overrides de config) nem os de outra sessão
 // são estas funções: todo namespace começado por "$" é do kernel, ":" separa a sessão do resto,
-// e `pluginStorage` recusa os dois. Assim a garantia não depende da validação de nome de plugin
-// (M1-8).
+// "@" separa o plugin do tenant (ADR 0072), e `pluginStorage` recusa os três no nome do plugin.
+// Assim a garantia não depende da validação de nome de plugin (M1-8).
 
 import { ReservedNamespaceError } from './errors.ts';
 import type { PluginStorage, StoragePort } from './types.ts';
 
 const KERNEL_PREFIX = '$';
 const SESSION_SEPARATOR = ':';
+const TENANT_SEPARATOR = '@';
 
 /** Sessão cujos namespaces ficam sem prefixo: o formato de quem não passa `session`. */
 export const DEFAULT_SESSION = 'default';
@@ -18,13 +19,40 @@ export function isReservedNamespace(namespace: string): boolean {
   return namespace.startsWith(KERNEL_PREFIX);
 }
 
-/** Storage de um plugin, no namespace do nome dele. Lança se o nome cai no espaço do kernel. */
-export function pluginStorage(port: StoragePort, pluginName: string): PluginStorage {
+/**
+ * Storage de um plugin, no namespace do nome dele, ou no de um tenant dele (`'<plugin>@<tenant>'`,
+ * ADR 0072). Lança se o nome cai no espaço do kernel ou de outra sessão, ou se o tenant é vazio.
+ *
+ * O tenant vem do transport e pode ter qualquer caractere, então fica no fim: nem a sessão nem o
+ * plugin têm "@" ou ":", e o primeiro dos dois no namespace diz de quem ele é. Por isso
+ * `<sessão>:<plugin>:<tenant>` não serviria: `escola:t1` seria tanto o tenant `t1` do plugin
+ * `escola` na sessão `default` quanto o plugin `t1` da sessão `escola`.
+ */
+export function pluginStorage(
+  port: StoragePort,
+  pluginName: string,
+  tenant?: string,
+): PluginStorage {
   if (pluginName === '') throw new TypeError('Nome de plugin vazio não tem namespace de storage.');
-  if (isReservedNamespace(pluginName) || pluginName.includes(SESSION_SEPARATOR)) {
+  if (
+    isReservedNamespace(pluginName) ||
+    pluginName.includes(SESSION_SEPARATOR) ||
+    pluginName.includes(TENANT_SEPARATOR)
+  ) {
     throw new ReservedNamespaceError(pluginName);
   }
-  return port.forNamespace(pluginName);
+  if (tenant === undefined) return port.forNamespace(pluginName);
+  assertTenantId(tenant);
+  return port.forNamespace(`${pluginName}${TENANT_SEPARATOR}${tenant}`);
+}
+
+/** Recusa o que não é um ID de tenant: só texto não vazio. */
+export function assertTenantId(tenant: unknown): asserts tenant is string {
+  if (typeof tenant !== 'string' || tenant === '') {
+    throw new TypeError(
+      `ID de tenant deve ser texto não vazio; recebido ${JSON.stringify(tenant)}.`,
+    );
+  }
 }
 
 /** Storage interno de um componente do kernel (`'scheduler'` → namespace `'$scheduler'`). */

@@ -67,6 +67,13 @@ export interface Chat {
   readonly parentId?: string;
   /** Nome do chat (assunto do grupo, nome do canal), quando o transport informa. */
   readonly title?: string;
+  /**
+   * Cliente do dono a que a conversa pertence, que o transport **verificou** (o claim do JWT no
+   * web, por exemplo; ADR 0072). Com ele, o `ctx.storage` dos plugins fica no escopo do tenant.
+   * Ausente no transport que atende um cliente só. O transport compõe o tenant no `id` do chat e
+   * dos contatos: dois tenants nunca dividem um ID.
+   */
+  readonly tenantId?: string;
 }
 
 /** Mídia anexada. `download()`/`stream()` são lazy; o download é cacheado por mensagem. */

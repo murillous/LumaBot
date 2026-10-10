@@ -210,6 +210,7 @@ const entries: Record<string, { file: string; load: () => Promise<object> } & En
       'StoragePort',
       'SubscribeOptions',
       'Target',
+      'TenantStorage',
       'TextLimits',
       'TextMessage',
       'TextNode',

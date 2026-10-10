@@ -18,7 +18,7 @@ export class ReservedNamespaceError extends Error {
   constructor(namespace: string) {
     super(
       `Namespace de storage "${namespace}" é reservado (prefixo "$" é do kernel; ":" separa ` +
-        'a sessão). Renomeie o plugin.',
+        'a sessão; "@", o tenant). Renomeie o plugin.',
     );
     this.namespace = namespace;
   }

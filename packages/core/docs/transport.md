@@ -74,6 +74,12 @@ conforme o modo de endereçamento do grupo. O que liga os dois é o `phone`:
   tópico (`message_thread_id`) e decomponha no envio. `parentId` é o espaço (servidor do
   Discord, supergrupo do Telegram), e `kind`/`title` vão quando a plataforma informa
   ([ADR 0058](../../../docs/adr/0058-chat-multiplataforma.md)).
+- `chat.tenantId` só com o que o transport **verificou** (o claim configurado do JWT, nunca um
+  campo que o usuário escolhe), em todo evento do chat: mensagem, edição, clique, reação, voto,
+  apagada e eventos de grupo. Com tenant, **componha o tenant no `chat.id` e no `id` dos
+  contatos**: prefixos por chat, esperas de resposta, ações e rate limit são chaveados por esses
+  IDs, e dois tenants não podem dividir um deles
+  ([ADR 0072](../../../docs/adr/0072-isolamento-por-tenant.md)).
 
 ## Eventos
 
