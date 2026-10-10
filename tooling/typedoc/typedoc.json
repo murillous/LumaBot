@@ -1,0 +1,22 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "name": "ZapForge",
+  "tsconfig": "./tsconfig.json",
+  "entryPointStrategy": "resolve",
+  "entryPoints": [
+    "../../packages/core/src/index.ts",
+    "../../packages/core/src/adapter.ts",
+    "../../packages/core/src/storage/contract/index.ts",
+    "../../packages/storage-sqlite/src/index.ts",
+    "../../packages/storage-postgres/src/index.ts",
+    "../../packages/transport-baileys/src/index.ts",
+    "../../packages/transport-web/src/index.ts",
+    "../../packages/transport-web/src/client.ts",
+    "../../packages/testing/src/index.ts",
+    "../../packages/testing/src/bot.ts"
+  ],
+  "out": "../../docs/referencia",
+  "plugin": ["./module-names.js"],
+  "readme": "none",
+  "treatWarningsAsErrors": true
+}

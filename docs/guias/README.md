@@ -20,6 +20,6 @@ quando o detalhe importa.
 
 ## Outras referências
 
-- **Referência da API**: gerada pelo TypeDoc em `docs/referencia/` (#125).
+- **Referência da API**: `pnpm docs` (ou `pnpm build`) gera em `docs/referencia/index.html`, com cada entrada pública (`@zapforge/core`, `@zapforge/core/adapter`, …) e os comentários do código.
 - **Documentação do core** (como cada módulo funciona): [`packages/core/docs/`](../../packages/core/docs/README.md) (#126).
 - **O porquê das decisões**: [ADRs](../adr/README.md).

@@ -9,3 +9,5 @@ dist/
 .tsbuild/
 # Banco do app (credenciais do WhatsApp incluídas).
 apps/lumabot/data/
+# Referência da API: gerada pelo TypeDoc no build (tooling/typedoc).
+docs/referencia/
