@@ -254,6 +254,7 @@ const entries: Record<string, { file: string; load: () => Promise<object> } & En
       'assertFieldName',
       'capabilitiesForSend',
       'cloneJson',
+      'defineTransport',
       'createMedia',
       'createMessage',
       'groupActionCapability',
@@ -293,6 +294,8 @@ const entries: Record<string, { file: string; load: () => Promise<object> } & En
       'TransportEventHandler',
       'TransportEventName',
       'TransportEvents',
+      'TransportKit',
+      'TransportSpec',
     ],
   },
   '@zapforge/core/storage-contract': {

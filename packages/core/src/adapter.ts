@@ -30,6 +30,7 @@ export {
   isCapability,
   missingCapabilities,
 } from '#transport/capabilities.ts';
+export { defineTransport, type TransportKit, type TransportSpec } from '#transport/define.ts';
 export { type EmitterErrorHandler, TypedEmitter } from '#transport/emitter.ts';
 export { messageKey } from '#transport/message-key.ts';
 export {
