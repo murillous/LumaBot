@@ -277,7 +277,9 @@ próprios), descarta tudo no `close()`. Serve para testes e é a referência exe
 contrato.
 
 Para produção, o adapter padrão é o `sqlite({ path })` do
-[`@zapforge/storage-sqlite`](../../storage-sqlite/docs/README.md).
+[`@zapforge/storage-sqlite`](../../storage-sqlite/docs/README.md). Para vários processos dividindo
+o banco, use o `await postgres({ connectionString })` do
+[`@zapforge/storage-postgres`](../../storage-postgres/docs/README.md).
 
 ### Escrevendo um adapter
 
@@ -305,7 +307,7 @@ suíte num adapter SQL:
 - `json_extract` do SQLite devolve `true` como `1`: compare também o `json_type` para não casar
   `true` com `1`.
 - Campo ausente e `null` são iguais; `eq`/`ne` precisam ser null-safe (`IS`/`IS NOT` no
-  SQLite, `IS [NOT] DISTINCT FROM` no Postgres).
+  SQLite; no Postgres, `COALESCE(doc->'campo', 'null'::jsonb)` antes de comparar).
 - Ordene por classe de tipo antes do valor (`CASE json_type(...)`) e desempate por uma coluna
   de sequência de inserção (`rowid`, `bigserial`), inclusive em `desc`.
 - Texto por code point: `BINARY` no SQLite, `COLLATE "C"` no Postgres.
@@ -328,7 +330,7 @@ de rodar em dois processos sobre o mesmo banco
 `releaseLease` apaga a trava só se ela é de `owner`. A decisão precisa ser **atômica entre
 processos**: um comando só (o upsert com `WHERE` do SQLite, `INSERT ... ON CONFLICT DO UPDATE
 ... WHERE` no Postgres) ou uma transação. Meça a validade com o relógio do banco quando ele é
-dividido entre máquinas (`now()` do Postgres); o SQLite, que fica numa máquina só, usa
+dividido entre máquinas (`clock_timestamp()` do Postgres); o SQLite, que fica numa máquina só, usa
 `Date.now()`.
 
 Os dois métodos são opcionais no tipo só para storage que vive num processo (o de memória). A
