@@ -1,0 +1,35 @@
+{
+  "name": "@zapforge/transport-web",
+  "version": "0.0.0",
+  "description": "Transport do ZapForge para chat web: WebSocket com JWT, conversas e mídia por HTTP.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "imports": {
+    "#*": "./src/*"
+  },
+  "exports": {
+    ".": {
+      "@zapforge/source": "./src/index.ts",
+      "types": "./dist/index.d.mts",
+      "default": "./dist/index.mjs"
+    },
+    "./client": {
+      "@zapforge/source": "./src/client.ts",
+      "types": "./dist/client.d.mts",
+      "default": "./dist/client.mjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsdown"
+  },
+  "dependencies": {
+    "@zapforge/core": "workspace:*",
+    "jose": "^6.2.12"
+  },
+  "devDependencies": {
+    "@zapforge/testing": "workspace:*"
+  }
+}

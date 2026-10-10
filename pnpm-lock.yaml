@@ -269,6 +269,19 @@ importers:
         specifier: workspace:*
         version: link:../testing
 
+  packages/transport-web:
+    dependencies:
+      '@zapforge/core':
+        specifier: workspace:*
+        version: link:../core
+      jose:
+        specifier: ^6.2.12
+        version: 6.2.12
+    devDependencies:
+      '@zapforge/testing':
+        specifier: workspace:*
+        version: link:../testing
+
 packages:
 
   '@biomejs/biome@2.5.15':
@@ -1226,6 +1239,9 @@ packages:
 
   jju@1.4.0:
     resolution: {integrity: sha512-8wb9Yw966OSxApiCt0K3yNJL8pnNeIv+OEq2YMidz4FKP6nonSRoOXc80iXY4JaN2FC11B9qsNmDsm+ZOfMROA==}
+
+  jose@6.2.12:
+    resolution: {integrity: sha512-9NiFmJEex0sy2Dk58j2UGBSHgUs2ypF9eZSu4L6vjOX3Dp96Sw1F3uL+H+D1sx02jZZdzUT0HgvCy59CuvXcWw==}
 
   jsonc-parser@3.3.1:
     resolution: {integrity: sha512-HUgH65KyejrUFPvHFPbqOY0rsFip3Bo5wb4ngvdi1EpCYWUQDC5V+Y7mZws+DLkr4M//zQJoanu1SP+87Dv1oQ==}
@@ -2390,6 +2406,8 @@ snapshots:
   import-without-cache@0.4.1: {}
 
   jju@1.4.0: {}
+
+  jose@6.2.12: {}
 
   jsonc-parser@3.3.1: {}
 

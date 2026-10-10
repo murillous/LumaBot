@@ -196,3 +196,4 @@ ADR 0055). Ao serem aceitos, entram aqui e no índice numérico.
 | [0074](0074-trava-de-sessao-entre-processos.md) | D74 | Trava de sessão entre processos: lease com validade no `StoragePort`, renovada pelo bot (detalha D36/D14) | Aceito |
 | [0075](0075-varios-bots-e-escopo-compartilhado.md) | D75 | Vários bots num storage e escopo compartilhado opt-in: `ctx.storage.shared` em `$shared:<plugin>`, por tenant, e `ctx.transportName` (detalha D04, substitui parte do D36) | Aceito |
 | [0076](0076-http-do-core.md) | D76 | HTTP do core: `createHttp` dividido pelos bots, rotas de plugin e de transport por sessão, WebSocket e `/health` pelo estado (detalha D20/D37/D75) | Aceito |
+| [0077](0077-transport-web.md) | D77 | `@zapforge/transport-web`: chat por WebSocket com JWT no primeiro frame, conversa escolhida pelo cliente, buffer para cliente fora e mídia por HTTP (detalha D55, sobre o D76) | Aceito |
