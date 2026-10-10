@@ -1,4 +1,6 @@
 import type { z } from 'zod';
+import { assertCommandDefinition, type CommandDefinition } from '#commands/command.ts';
+import { isBotEventName } from '#events/names.ts';
 import { isCapability } from '#transport/capabilities.ts';
 import { isValidRange, parseVersion } from './semver.ts';
 import type { PluginDefinition, PluginMessages } from './types.ts';
@@ -56,6 +58,59 @@ function checkNames(value: unknown, label: string, self: unknown, issues: string
     if (name === self) issues.push(`${label} não pode citar o próprio plugin`);
   }
 }
+
+/**
+ * `commands` do manifesto (ADR 0079). Confere aqui o que o `ctx.commands.add` só descobriria no
+ * boot, para o erro sair no `definePlugin`, que aponta a linha do plugin.
+ */
+function checkCommands(value: unknown, issues: string[]): void {
+  if (value === undefined) return;
+  if (!isRecord(value)) {
+    issues.push('commands deve ser um objeto nome → comando');
+    return;
+  }
+  for (const [name, declared] of Object.entries(value)) {
+    const label = `commands["${name}"]`;
+    if (!isRecord(declared)) {
+      issues.push(`${label} deve ser um objeto com run`);
+      continue;
+    }
+    if (declared['name'] !== undefined) {
+      issues.push(`${label}: o nome vem da chave; tire o campo name`);
+    }
+    if (typeof declared['run'] !== 'function') issues.push(`${label}.run deve ser uma função`);
+    const { aliases, description, onReject } = declared;
+    if (aliases !== undefined && !(Array.isArray(aliases) && aliases.every(isString))) {
+      issues.push(`${label}.aliases deve ser uma lista de textos`);
+      continue;
+    }
+    if (description !== undefined && typeof description !== 'string') {
+      issues.push(`${label}.description deve ser um texto`);
+    }
+    if (onReject !== undefined && typeof onReject !== 'function') {
+      issues.push(`${label}.onReject, se presente, deve ser uma função`);
+    }
+    try {
+      assertCommandDefinition({ ...declared, name } as unknown as CommandDefinition);
+    } catch (error) {
+      issues.push(`${label}: ${(error as Error).message}`);
+    }
+  }
+}
+
+function checkListeners(value: unknown, issues: string[]): void {
+  if (value === undefined) return;
+  if (!isRecord(value)) {
+    issues.push('on deve ser um objeto evento → listener');
+    return;
+  }
+  for (const [event, listener] of Object.entries(value)) {
+    if (!isBotEventName(event)) issues.push(`on: evento desconhecido "${event}"`);
+    else if (typeof listener !== 'function') issues.push(`on["${event}"] deve ser uma função`);
+  }
+}
+
+const isString = (value: unknown): value is string => typeof value === 'string';
 
 /** Problemas do manifesto, um por linha; lista vazia = válido. Não olha compatibilidade. */
 export function manifestIssues(value: unknown): string[] {
@@ -132,7 +187,14 @@ export function manifestIssues(value: unknown): string[] {
     issues.push('messages deve ser um objeto chave → texto');
   }
 
-  if (typeof value['setup'] !== 'function') issues.push('setup deve ser uma função');
+  checkCommands(value['commands'], issues);
+  checkListeners(value['on'], issues);
+
+  // Sem `commands` nem `on`, o `setup` é o único jeito de o plugin fazer algo.
+  const declares = value['commands'] !== undefined || value['on'] !== undefined;
+  if (typeof value['setup'] !== 'function' && (value['setup'] !== undefined || !declares)) {
+    issues.push('setup deve ser uma função (opcional quando o plugin declara commands ou on)');
+  }
   if (value['teardown'] !== undefined && typeof value['teardown'] !== 'function') {
     issues.push('teardown, se presente, deve ser uma função');
   }

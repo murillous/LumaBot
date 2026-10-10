@@ -3,11 +3,11 @@
 // (M1-16). Os campos do contexto vêm dos contratos de cada módulo.
 
 import type { z } from 'zod';
-import type { CommandDefinition, CommandInfo } from '#commands/command.ts';
+import type { CommandContext, CommandDefinition, CommandInfo } from '#commands/command.ts';
 import type { Prefixes } from '#commands/prefixes.ts';
 import type { RoleCheck, RoleName } from '#commands/roles.ts';
 import type { Conversations } from '#conversations/conversations.ts';
-import type { EventSubscriber } from '#events/types.ts';
+import type { BotEventName, EventSubscriber, ListenerContext } from '#events/types.ts';
 import type { Groups } from '#groups/groups.ts';
 import type { HttpRoutes } from '#http/types.ts';
 import type { Logger } from '#logger/types.ts';
@@ -121,6 +121,37 @@ export interface PluginContext<
   readonly unsafe: Unsafe;
 }
 
+/**
+ * Comando declarado no manifesto (ADR 0079): o `CommandDefinition` sem `name`, que vem da chave em
+ * `commands`. O kernel o registra com `ctx.commands.add` antes do `setup`.
+ */
+export interface PluginCommand<TConfig = unknown, TMessages extends PluginMessages = PluginMessages>
+  extends Omit<CommandDefinition, 'name' | 'run'> {
+  // Sintaxe de método de propósito: parâmetro bivariante, para `PluginDefinition<Schema>` caber
+  // na anotação larga `: PluginDefinition` que o `isolatedDeclarations` exige.
+  /**
+   * O `run` do comando, com o contexto do plugin (`storage`, `config`, `send`...) no 2º
+   * argumento. Devolver texto responde, como em qualquer comando.
+   */
+  run(ctx: CommandContext, plugin: PluginContext<TConfig, TMessages>): unknown;
+}
+
+/** Listener declarado no manifesto: o de `ctx.events.on`, com o contexto do plugin no 2º argumento. */
+export type PluginListener<
+  E extends BotEventName,
+  TConfig = unknown,
+  TMessages extends PluginMessages = PluginMessages,
+> = {
+  // Truque do método, como no `PluginCommand.run`: tipo de função com parâmetro bivariante.
+  listener(ctx: ListenerContext<E>, plugin: PluginContext<TConfig, TMessages>): unknown;
+}['listener'];
+
+/** `on` do manifesto: um listener por evento. Mais de um, prioridade ou filtro: `setup`. */
+export type PluginListeners<
+  TConfig = unknown,
+  TMessages extends PluginMessages = PluginMessages,
+> = { readonly [E in BotEventName]?: PluginListener<E, TConfig, TMessages> };
+
 export interface PluginDefinition<
   TSchema extends z.ZodType = z.ZodType,
   TMessages extends PluginMessages = PluginMessages,
@@ -128,6 +159,14 @@ export interface PluginDefinition<
   /** Schema Zod da config (ADR 0017). */
   readonly config?: TSchema;
   readonly messages?: TMessages;
-  setup(ctx: PluginContext<z.output<TSchema>, TMessages>): void | Promise<void>;
+  /**
+   * Comandos fixos, nome → definição (ADR 0079). Ficam conhecidos sem rodar o plugin, e o kernel
+   * os registra antes do `setup`. Declará-los implica `requires: ['send.text']`.
+   */
+  readonly commands?: Readonly<Record<string, PluginCommand<z.output<TSchema>, TMessages>>>;
+  /** Listeners fixos, evento → listener (ADR 0079), registrados antes do `setup`. */
+  readonly on?: PluginListeners<z.output<TSchema>, TMessages>;
+  /** O que é dinâmico: depende da config, registra sob condição, prepara estado. */
+  setup?(ctx: PluginContext<z.output<TSchema>, TMessages>): void | Promise<void>;
   teardown?(ctx: PluginContext<z.output<TSchema>, TMessages>): void | Promise<void>;
 }

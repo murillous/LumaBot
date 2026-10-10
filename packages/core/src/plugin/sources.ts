@@ -38,12 +38,19 @@ function isIgnored(name: string): boolean {
   );
 }
 
-/** Duck typing de propósito: o core instalado no app pode ser outra cópia que a do plugin. */
-const looksLikePlugin = (value: unknown): value is PluginDefinition =>
-  typeof value === 'object' &&
-  value !== null &&
-  typeof (value as { name?: unknown }).name === 'string' &&
-  typeof (value as { setup?: unknown }).setup === 'function';
+/**
+ * Duck typing de propósito: o core instalado no app pode ser outra cópia que a do plugin.
+ * `commands` ou `on` contam como o `setup`: o plugin só declarativo não tem `setup` (ADR 0079).
+ */
+const looksLikePlugin = (value: unknown): value is PluginDefinition => {
+  if (typeof value !== 'object' || value === null) return false;
+  const { name, setup, commands, on } = value as Record<string, unknown>;
+  return (
+    typeof name === 'string' && (typeof setup === 'function' || isObject(commands) || isObject(on))
+  );
+};
+
+const isObject = (value: unknown): boolean => typeof value === 'object' && value !== null;
 
 /** Módulo da entrada da pasta: o próprio arquivo, ou o `index.*` de uma subpasta. */
 async function moduleOf(dir: string, entry: { name: string; isDirectory(): boolean }) {
@@ -66,9 +73,9 @@ async function moduleOf(dir: string, entry: { name: string; isDirectory(): boole
 /**
  * Descobre os plugins de uma pasta. Convenção: cada arquivo `.ts`/`.mts`/`.js`/`.mjs` e cada
  * subpasta com `index.*` é um módulo que exporta (export nomeado) um ou mais plugins; todo
- * export com `name` string e `setup` função entra. Ficam de fora nomes começando com `_` ou
- * `.`, testes e `.d.ts`. A ordem é a alfabética dos nomes — nunca a do sistema de arquivos —
- * e um módulo sem plugin é erro, porque quase sempre é engano.
+ * export com `name` string e `setup` função (ou `commands`/`on`) entra. Ficam de fora nomes
+ * começando com `_` ou `.`, testes e `.d.ts`. A ordem é a alfabética dos nomes — nunca a do
+ * sistema de arquivos — e um módulo sem plugin é erro, porque quase sempre é engano.
  */
 export async function discoverPlugins(dir: string): Promise<PluginEntry[]> {
   let entries: { name: string; isDirectory(): boolean }[];
