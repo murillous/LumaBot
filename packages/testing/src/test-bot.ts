@@ -9,11 +9,12 @@ import {
 } from '@zapforge/core';
 import type { Interaction, TransportEvents } from '@zapforge/core/adapter';
 import { FakeTransport, type SentMessage } from './fake-transport.ts';
-import { buildMessage, DEFAULT_SENDER, type IncomingMessage } from './incoming.ts';
+import { buildMessage, type IncomingMessage } from './incoming.ts';
+import { DEFAULT_SENDER, PROFILES, type ProfileName } from './profiles.ts';
 
 /** Quem clica e onde, no `click()`. */
 export interface ClickOptions {
-  /** Campos do remetente que diferem de `DEFAULT_SENDER`. */
+  /** Campos do remetente que diferem do padrão: o do perfil ou `DEFAULT_SENDER`. */
   readonly sender?: Partial<Contact>;
   /** Padrão: o chat da mensagem que o envio cita ou, sem citação, conversa privada no `chatId`. */
   readonly chat?: Chat;
@@ -22,8 +23,13 @@ export interface ClickOptions {
 }
 
 export interface TestBotOptions extends Omit<BotConfig, 'transport'> {
-  /** Padrão: um `FakeTransport` com todas as capabilities. */
+  /** Padrão: um `FakeTransport` do `profile` ou, sem perfil, com todas as capabilities. */
   readonly transport?: FakeTransport;
+  /**
+   * Perfil da plataforma (ADR 0073), atalho para `transport: new FakeTransport({ profile })`. Não
+   * combina com `transport`: o perfil vai no transport.
+   */
+  readonly profile?: ProfileName;
 }
 
 /** Bot rodando sobre um `FakeTransport`; cada ação espera o bot assentar antes de resolver. */
@@ -55,24 +61,34 @@ export interface TestBot {
  * intervalo entre envios e sem reconexão. Qualquer um deles pode ser sobrescrito.
  */
 export async function createTestBot(options: TestBotOptions = {}): Promise<TestBot> {
-  const transport = options.transport ?? new FakeTransport();
+  const { profile, ...config } = options;
+  if (profile !== undefined && config.transport !== undefined) {
+    throw new TypeError('createTestBot: passe `profile` ou `transport`, não os dois');
+  }
+  const transport = config.transport ?? new FakeTransport(profile === undefined ? {} : { profile });
+  // O remetente padrão segue o perfil: sem telefone no Telegram, no Discord e no web.
+  const sender =
+    transport.profile === undefined ? DEFAULT_SENDER : PROFILES[transport.profile].sender;
   const bot = createBot({
     // Com `logLevel`, quem cria o logger é o bot, com os `secrets` da config.
-    ...(options.logLevel === undefined && { logger: createLogger({ level: 'silent' }) }),
+    ...(config.logLevel === undefined && { logger: createLogger({ level: 'silent' }) }),
     env: {},
     reconnection: false,
-    ...options,
-    outbound: { globalIntervalMs: 0, chatIntervalMs: 0, ...options.outbound },
+    ...config,
+    outbound: { globalIntervalMs: 0, chatIntervalMs: 0, ...config.outbound },
     transport,
   });
   await bot.start();
+  // Contadores do bot, não do módulo (ADR 0004): os IDs recomeçam em cada `TestBot`.
+  let received = 0;
+  const build = { nextId: () => `in-${++received}`, sender };
   let clicks = 0;
   return {
     bot,
     transport,
     sent: transport.sent,
     async receive(input) {
-      const message = buildMessage(input);
+      const message = buildMessage(input, build);
       registerRaw(transport, message, input);
       transport.emit('message', message);
       await bot.settled();
@@ -90,7 +106,7 @@ export async function createTestBot(options: TestBotOptions = {}): Promise<TestB
       const interaction: Interaction = {
         id: `click-${clicks}`,
         chat: options.chat ?? sent.quoted?.chat ?? { id: sent.chatId, isGroup: false },
-        sender: { ...DEFAULT_SENDER, ...options.sender },
+        sender: { ...sender, ...options.sender },
         actionId: action.id,
         timestamp: Date.now(),
       };

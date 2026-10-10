@@ -30,6 +30,15 @@ import {
   type TransportEvents,
   TypedEmitter,
 } from '@zapforge/core/adapter';
+import {
+  DEFAULT_SELF,
+  PROFILE_NAMES,
+  PROFILES,
+  type ProfileName,
+  type TransportProfile,
+} from './profiles.ts';
+
+export { DEFAULT_SELF };
 
 /** Um envio feito pelo bot, na ordem em que chegou ao transport. */
 export interface SentMessage {
@@ -49,25 +58,31 @@ export interface SentMessage {
 }
 
 export interface FakeTransportOptions {
-  /** Padrão: todas as capabilities do core. */
+  /**
+   * Perfil da plataforma (ADR 0073): capabilities, limites e contatos como o transport dela
+   * declararia. As opções abaixo substituem o campo do perfil. Ausente: todas as capabilities,
+   * sem limites, contatos com telefone.
+   */
+  readonly profile?: ProfileName;
+  /** Padrão: as do perfil ou, sem perfil, todas as capabilities do core. */
   readonly capabilities?: Iterable<Capability>;
-  /** Contato da sessão depois do `connect()`. */
+  /** Contato da sessão depois do `connect()`. Padrão: o do perfil ou `DEFAULT_SELF`. */
   readonly self?: Contact;
   /** Grupos que `getGroupMetadata` conhece; dá para incluir depois com `setGroup`. */
   readonly groups?: readonly GroupMetadata[];
   /**
-   * Limites de tamanho, para testar a divisão de texto longo (ADR 0061). Padrão: nenhum, e o
-   * texto vai inteiro.
+   * Limites de tamanho, para testar a divisão de texto longo (ADR 0061). Padrão: os do perfil ou,
+   * sem perfil, nenhum, e o texto vai inteiro.
    */
   readonly limits?: TextLimits;
 }
-
-export const DEFAULT_SELF: Contact = { id: 'bot@fake', name: 'Bot', phone: '5500000000000' };
 
 export class FakeTransport implements Transport {
   readonly name = 'fake';
   readonly capabilities: ReadonlySet<Capability>;
   readonly native: unknown = { kind: 'fake-transport' };
+  /** Perfil usado na criação; o `TestBot` tira dele o remetente padrão. */
+  readonly profile?: ProfileName;
   readonly limits?: TextLimits;
   readonly sent: SentMessage[] = [];
   readonly reactions: { readonly key: MessageKey; readonly emoji: string | null }[] = [];
@@ -99,9 +114,12 @@ export class FakeTransport implements Transport {
   #nextId = 0;
 
   constructor(options: FakeTransportOptions = {}) {
-    this.capabilities = new Set(options.capabilities ?? CAPABILITIES);
-    this.#selfOnConnect = options.self ?? DEFAULT_SELF;
-    if (options.limits !== undefined) this.limits = options.limits;
+    const profile = options.profile === undefined ? undefined : profileOf(options.profile);
+    if (options.profile !== undefined) this.profile = options.profile;
+    this.capabilities = new Set(options.capabilities ?? profile?.capabilities ?? CAPABILITIES);
+    this.#selfOnConnect = options.self ?? profile?.self ?? DEFAULT_SELF;
+    const limits = options.limits ?? profile?.limits;
+    if (limits !== undefined) this.limits = limits;
     for (const group of options.groups ?? []) this.setGroup(group);
   }
 
@@ -219,4 +237,15 @@ export class FakeTransport implements Transport {
     this.typing.length = 0;
     this.participantUpdates.length = 0;
   }
+}
+
+// Vindo de JS, um nome errado cairia em silêncio no "todas as capabilities", que é o que o
+// perfil existe para evitar.
+function profileOf(name: ProfileName): TransportProfile {
+  if (!Object.hasOwn(PROFILES, name)) {
+    throw new TypeError(
+      `FakeTransport: perfil desconhecido '${String(name)}' (perfis: ${PROFILE_NAMES.join(', ')})`,
+    );
+  }
+  return PROFILES[name];
 }

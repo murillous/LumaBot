@@ -3,7 +3,6 @@
 // para o `expect.extend`, e isso soma ~6 MB de RSS que não são do kernel.
 
 export {
-  DEFAULT_SELF,
   FakeTransport,
   type FakeTransportOptions,
   type SentMessage,
@@ -11,11 +10,18 @@ export {
 export { fixtures, type MediaFixture } from './fixtures.ts';
 export {
   DEFAULT_CHAT,
-  DEFAULT_SENDER,
   type IncomingAttachment,
   type IncomingMedia,
   type IncomingMessage,
 } from './incoming.ts';
+export {
+  DEFAULT_SELF,
+  DEFAULT_SENDER,
+  PROFILE_NAMES,
+  PROFILES,
+  type ProfileName,
+  type TransportProfile,
+} from './profiles.ts';
 export {
   type ClickOptions,
   createTestBot,

@@ -40,6 +40,15 @@ const MIGRATIONS: readonly string[] = [
     PRIMARY KEY (session, type, id)
   ) WITHOUT ROWID;
   `,
+  // Travas com validade (ADR 0074). `expires_at` em ms desde a época, pelo relógio do processo:
+  // quem divide um arquivo SQLite está na mesma máquina.
+  `
+  CREATE TABLE leases (
+    name TEXT PRIMARY KEY,
+    owner TEXT NOT NULL,
+    expires_at INTEGER NOT NULL
+  ) WITHOUT ROWID;
+  `,
 ];
 
 /** Versão do schema que este adapter conhece (a do `PRAGMA user_version` depois do boot). */

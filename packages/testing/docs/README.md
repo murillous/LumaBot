@@ -45,6 +45,7 @@ iniciado. Os padrões mudam para o caso de teste:
 | Opção | Padrão no kit | Por quê |
 | --- | --- | --- |
 | `transport` | `new FakeTransport()`, com todas as capabilities | |
+| `profile` | nenhum | Atalho para `transport: new FakeTransport({ profile })` ([perfis](#perfis-de-plataforma)). Não combina com `transport` |
 | `logger` | `silent` | Saída limpa. Com `logLevel`, o bot cria o logger dele |
 | `env` | `{}` | Nenhum `ZAPFORGE_*` da máquina entra na config dos plugins |
 | `outbound` | `globalIntervalMs` e `chatIntervalMs` em 0 | Os envios saem na hora |
@@ -82,8 +83,8 @@ await bot.receive({ text: '!config', sender: { phone: '5511999999999' } });
 | Campo | Padrão |
 | --- | --- |
 | `chat` | `DEFAULT_CHAT` (`chat@fake`, conversa privada). Uma string vira conversa privada com esse ID |
-| `sender` | `DEFAULT_SENDER` (`user@fake`, telefone `5511900000000`). Os campos informados substituem os do padrão |
-| `id` | Um ID único |
+| `sender` | O remetente do perfil ou, sem perfil, `DEFAULT_SENDER` (`user@fake`, telefone `5511900000000`). Os campos informados substituem os do padrão |
+| `id` | `in-1`, `in-2`... Cada `TestBot` tem a própria contagem |
 | `timestamp` | `Date.now()` |
 | `fromMe`, `isForwarded`, `isViewOnce` | `false` |
 
@@ -116,6 +117,77 @@ await bot.click(bot.sent[0], 'Notas', { raw: { callback_query: { id: 'cq1' } } }
 
 Para outra interação, como um comando nativo emitido com `bot.emit('interaction', ...)`, registre
 o objeto com `bot.transport.setRaw(interaction, raw)` antes de emitir.
+
+### Outras plataformas
+
+O `Chat` e o `sender` completos simulam o que não existe no WhatsApp: thread, servidor, remetente
+bot, claims e tenant.
+
+```ts
+// Thread do Discord, num servidor
+await bot.receive({ text: '!s', chat: { id: 't1', isGroup: true, kind: 'thread', parentId: 'srv1' } });
+// Outro bot no canal (o `ignoreBots` do core descarta por padrão)
+await bot.receive({ text: '!ping', sender: { isBot: true } });
+// Usuário do web, com os claims do JWT e o tenant verificado
+await bot.receive({
+  text: '!notas',
+  chat: { id: 'escola-a:sala', isGroup: false, tenantId: 'escola-a' },
+  sender: { id: 'escola-a:u1', phone: null, claims: { papel: 'professora' } },
+});
+```
+
+## Perfis de plataforma
+
+Sem perfil, o `FakeTransport` declara todas as capabilities, e o plugin nunca é testado num
+transport sem grupo, sem citação ou sem figurinha. Com `profile`, o transport declara o que a
+plataforma declararia ([ADR 0073](../../../docs/adr/0073-kit-de-testes-multiplataforma.md)):
+
+```ts
+const bot = await createTestBot({ profile: 'telegram', plugins: [meuPlugin()] });
+```
+
+| Perfil | Capabilities | Limites | Contatos |
+| --- | --- | --- | --- |
+| `whatsapp` | As do Baileys: todas, menos `actions` e `send.album` | Nenhum | Com telefone (`DEFAULT_SELF`, `DEFAULT_SENDER`) |
+| `telegram` | Sem `groups.add`, `pairing` | Texto 4096, legenda 1024, álbum 10 | `username`, `phone: null`; o `self` tem `isBot` |
+| `discord` | Sem `groups.add`, `groups.promote`, `send.voice`, `send.sticker`, `pairing` | Texto e legenda 2000, álbum 10, 25 botões | `username`, `phone: null`; o `self` tem `isBot` |
+| `web` | Só `actions`, `typing`, `send.text`, `send.image`, `send.document` e `media.download` | Nenhum | Só ID e nome |
+
+A lista completa de cada um está em `PROFILES`. O `whatsapp` é o que o Baileys declara, e um teste
+no `transport-baileys` garante isso. Os outros seguem a matriz do plano (§6.10) e serão confirmados
+quando cada transport nascer. Até lá, podem mudar numa minor do kit.
+
+O `receive()` e o `click()` usam o remetente do perfil, inclusive com o perfil passado no
+`FakeTransport` à mão. As opções `capabilities`, `limits` e `self` do `FakeTransport` substituem o
+campo do perfil. Para tirar uma capability do perfil:
+
+```ts
+const transport = new FakeTransport({
+  profile: 'telegram',
+  capabilities: PROFILES.telegram.capabilities.filter((c) => c !== 'polls'),
+});
+```
+
+O plugin que exige uma capability fora do perfil (`requires`) é ignorado no boot, como seria no
+transport real. Owner por telefone não casa com o remetente sem telefone; use `{ id }`.
+
+### O mesmo teste em todos os perfis
+
+```ts
+import { createTestBot, PROFILE_NAMES } from '@zapforge/testing';
+
+describe.each(PROFILE_NAMES)('no %s', (profile) => {
+  it('responde ao !ping', async () => {
+    const bot = await createTestBot({ profile, plugins: [ping()] });
+    await bot.receive({ text: '!ping' });
+    expect(bot.sent).toContainText('pong');
+    await bot.stop();
+  });
+});
+```
+
+Prefira `toContainText` a `toHaveReplied` na matriz: no perfil `web`, sem `quoted`, a resposta sai
+sem citar.
 
 ## Botões
 
@@ -230,7 +302,7 @@ O `FakeTransport` implementa o `Transport` do core sem rede. Ele também serve p
 
 ```ts
 const transport = new FakeTransport({
-  capabilities: ['send.text', 'quoted'],  // padrão: todas
+  capabilities: ['send.text', 'quoted'],  // padrão: as do perfil ou todas
   groups: [{ id: 'grupo@fake', title: 'Grupo', description: null, ownerId: null, participants }],
 });
 const bot = await createTestBot({ transport, plugins: [meuPlugin()] });
@@ -238,6 +310,7 @@ const bot = await createTestBot({ transport, plugins: [meuPlugin()] });
 
 | Membro | O que faz |
 | --- | --- |
+| `profile` | O perfil da criação, ou `undefined` |
 | `sent` | Envios: `{ chatId, content, quoted, mentions, key }` |
 | `reactions`, `edits`, `deletions` | `react`, `edit` e `delete`, com a `MessageKey` devolvida pelo envio |
 | `typing`, `participantUpdates` | `sendTyping` e `updateGroupParticipants` (que cobra `groups.add`, `groups.remove` ou `groups.promote`, conforme a ação) |
@@ -251,7 +324,8 @@ Um método ligado a uma capability que o transport não declara lança `Unsuppor
 transport real. Um plugin que exige essa capability (`requires`) é ignorado no boot, e
 `bot.bot.plugins()` mostra o motivo.
 
-O `self` é `null` até o `connect()` e depois vale `DEFAULT_SELF`, ou o `self` passado nas opções.
+O `self` é `null` até o `connect()` e depois vale o `self` passado nas opções, o do perfil ou
+`DEFAULT_SELF`.
 
 ## Fora do Vitest: `@zapforge/testing/bot`
 

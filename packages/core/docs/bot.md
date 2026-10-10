@@ -673,11 +673,35 @@ const suporte = createBot({ transport: transportSuporte, storage, session: 'supo
   `<sessão>:<namespace>` ([Storage](storage.md#para-o-kernel)).
 - A mesma sessão não roda duas vezes no mesmo storage: o `start()` do segundo bot rejeita com
   `BotConfigError`, sem afetar o primeiro. Depois do `stop()` a sessão fica livre.
-- Entre processos o storage não sabe quem está vivo; ali quem protege é o transport, com
-  `DisconnectReason` `'replaced'` ([Reconexão](#reconexão)).
+- Entre processos que dividem o banco, quem protege é a trava da sessão
+  ([Trava entre processos](#trava-entre-processos)). Com um banco por processo, só o transport
+  percebe o mesmo número em dois lugares, com `DisconnectReason` `'replaced'`
+  ([Reconexão](#reconexão)).
 - O auth state do transport segue o mesmo nome: `storage.authState('<sessão>')`, que o transport
   por fábrica já recebe pronto em `deps.auth`.
 - Um storage compartilhado só fecha quando o último bot que o usa para.
+
+### Trava entre processos
+
+Dois processos com a mesma sessão sobre o mesmo banco responderiam em dobro: o Discord aceita o
+mesmo token em vários gateways, e o web não derruba a conexão antiga. Por isso o `start()` trava a
+sessão no storage antes de carregar os plugins
+([ADR 0074](../../../docs/adr/0074-trava-de-sessao-entre-processos.md)):
+
+| Situação | O que acontece |
+| --- | --- |
+| Trava livre | O bot a adquire por 30 s e a renova a cada 10 s enquanto roda |
+| Ocupada por outro processo vivo | O `start()` tenta a cada 10 s, por até 30 s, e rejeita com `BotConfigError` sem conectar |
+| Ocupada por um processo que caiu | A trava vence em até 30 s, e o `start()` sobe sozinho dentro dessa espera |
+| `stop()` durante a espera | O `start()` rejeita na hora com `BotStateError` |
+| Renovação falha por I/O | `warn` no log; o próximo intervalo tenta de novo |
+| Outro processo assumiu a trava (pausa maior que 30 s) | `error` no log e o bot para |
+| `stop()` | Libera a trava antes de fechar o storage: outro processo sobe na hora |
+
+- A trava é por nome de sessão, sem olhar o transport: um bot de Discord e um de WhatsApp com a
+  mesma sessão no mesmo banco se recusam. Dê um `session` diferente a cada um.
+- Só storages que podem ser divididos entre processos têm a trava (`@zapforge/storage-sqlite`,
+  Postgres). O de memória vive num processo só e não cria timer.
 
 ## Transport por fábrica
 

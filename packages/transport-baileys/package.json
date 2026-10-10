@@ -23,5 +23,8 @@
   "dependencies": {
     "@zapforge/core": "workspace:*",
     "baileys": "7.0.0-rc14"
+  },
+  "devDependencies": {
+    "@zapforge/testing": "workspace:*"
   }
 }
