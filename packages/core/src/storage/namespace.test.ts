@@ -1,7 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ReservedNamespaceError } from './errors.ts';
 import { createMemoryStorage } from './memory.ts';
-import { isReservedNamespace, kernelStorage, pluginStorage, sessionStorage } from './namespace.ts';
+import {
+  isReservedNamespace,
+  kernelStorage,
+  pluginStorage,
+  sessionStorage,
+  sharedStorage,
+} from './namespace.ts';
 
 describe('namespaces de storage', () => {
   it('prefixo "$" é do kernel', () => {
@@ -58,5 +64,26 @@ describe('namespaces de storage', () => {
     // ":" e "$" seriam o caminho para o namespace de outra sessão ou do kernel.
     expect(() => pluginStorage(port, 'suporte:sticker')).toThrow(ReservedNamespaceError);
     expect(() => pluginStorage(vendas, '$config')).toThrow(ReservedNamespaceError);
+  });
+
+  it('sharedStorage fica em "$shared:<plugin>", sem prefixo de sessão (ADR 0075)', () => {
+    const port = createMemoryStorage();
+    const spy = vi.spyOn(port, 'forNamespace');
+    pluginStorage(sharedStorage(port), 'rank');
+    pluginStorage(sharedStorage(port), 'rank', 'escola-a');
+    expect(spy.mock.calls).toEqual([['$shared:rank'], ['$shared:rank@escola-a']]);
+  });
+
+  it('o escopo compartilhado não coincide com sessão, kernel nem outro plugin', async () => {
+    const port = createMemoryStorage();
+    await pluginStorage(sharedStorage(port), 'rank').kv.set('k', 'shared');
+    await pluginStorage(sharedStorage(port), 'outro').kv.set('k', 'outro');
+
+    expect(await pluginStorage(port, 'rank').kv.get('k')).toBeUndefined();
+    expect(await pluginStorage(sessionStorage(port, 'vendas'), 'rank').kv.get('k')).toBeUndefined();
+    expect(await kernelStorage(port, 'shared').kv.get('k')).toBeUndefined();
+    expect(await pluginStorage(sharedStorage(port), 'rank').kv.get('k')).toBe('shared');
+    // Nenhum nome de plugin chega ao "$shared:" pelo namespace da sessão.
+    expect(() => pluginStorage(port, '$shared:rank')).toThrow(ReservedNamespaceError);
   });
 });

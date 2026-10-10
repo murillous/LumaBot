@@ -161,6 +161,30 @@ ctx.commands.add({
 `forTenant('')` lança `TypeError`. Trocar o ID de tenant "esquece" os dados do anterior, como
 trocar o nome da sessão.
 
+### Dados comuns a vários bots
+
+Com vários bots no mesmo storage (um por transport: WhatsApp, Telegram, web), o `ctx.storage` de
+cada um fica na sua sessão. Para o que deve ser um só em todos eles (um rank, as personas, a
+memória de uma assistente), o plugin pede `ctx.storage.shared`
+([ADR 0075](../../../docs/adr/0075-varios-bots-e-escopo-compartilhado.md)). Ele tem o mesmo `kv`
+e as mesmas `collection` e só o próprio plugin o alcança, em qualquer sessão.
+
+IDs de contato e de chat só são únicos dentro de um transport: o `42` do Telegram não é o `42` do
+Discord. Quando a chave vem de um ID, componha com `ctx.transportName`:
+
+```ts
+const key = `${ctx.transportName}:${c.message.sender.id}`;
+const pontos = ((await ctx.storage.shared.kv.get<number>(key)) ?? 0) + 1;
+await ctx.storage.shared.kv.set(key, pontos);
+```
+
+- O `shared` segue o tenant como o `ctx.storage`: no chat de um tenant, grava no `shared` daquele
+  tenant, e `ctx.storage.shared.forTenant(id)` escolhe um à mão.
+- Não há transação. Ler, somar e gravar a mesma chave em dois bots ao mesmo tempo pode perder um
+  dos incrementos, como já acontece em dois chats do mesmo bot. Quando isso importa, guarde um
+  documento por pessoa numa coleção em vez de um contador comum.
+- O que não deve ser comum continua no `ctx.storage`, sem mudança.
+
 ## Para o kernel
 
 Tudo nesta seção é interno do kernel, não exportado ([ADR 0034](../../../docs/adr/0034-biblioteca-sem-runner.md)).
@@ -187,6 +211,21 @@ O nome da sessão é kebab-case (sem `:`), e `pluginStorage` também recusa `:` 
 (`ReservedNamespaceError`): nenhum plugin forja o namespace de outra sessão, nem na `'default'`,
 que fica sem prefixo para manter o formato de quem não passa `session`. `authState(session)` e
 `close()` passam direto: o auth state já é separado por sessão.
+
+### Escopo compartilhado
+
+`sharedStorage(port)` é a visão do storage comum às sessões
+([ADR 0075](../../../docs/adr/0075-varios-bots-e-escopo-compartilhado.md)): monta sobre o
+`storage` do `createBot`, não sobre o da sessão, e prefixa todo namespace com `$shared:`. O
+`ctx.storage.shared` é o `tenantStorage(sharedStorage(port), plugin, scope)`.
+
+| Sessão | `ctx.storage` | `ctx.storage.shared` | No tenant `escola-a` |
+| --- | --- | --- | --- |
+| `'default'` | `rank` | `$shared:rank` | `$shared:rank@escola-a` |
+| `'vendas'` | `vendas:rank` | `$shared:rank` | `$shared:rank@escola-a` |
+
+Começa com `$`, então nenhum namespace de plugin de sessão alguma coincide com ele, e os
+componentes do kernel não têm `:` no nome.
 
 ### Escopo de tenant
 

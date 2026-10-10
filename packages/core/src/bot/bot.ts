@@ -55,7 +55,7 @@ import { InboundQueue, type InboundQueueOptions, type InboundQueueStats } from '
 import { createSchedulerService } from '#scheduler/service.ts';
 import { createServiceRegistry, ServiceConflictError } from '#services/registry.ts';
 import { createMemoryStorage } from '#storage/memory.ts';
-import { DEFAULT_SESSION, sessionStorage } from '#storage/namespace.ts';
+import { DEFAULT_SESSION, sessionStorage, sharedStorage } from '#storage/namespace.ts';
 import type { StoragePort } from '#storage/types.ts';
 import { TenantScope } from '#tenant/scope.ts';
 import { type Capability, hasCapability } from '#transport/capabilities.ts';
@@ -980,11 +980,13 @@ export function createBot(config: BotConfig): Bot {
       bus,
       services,
       storage: scoped,
+      shared: sharedStorage(storage),
       tenants,
       scheduler,
       send,
       groups,
       transport: {
+        name: transport.name,
         capabilities,
         get self() {
           return transport.self;

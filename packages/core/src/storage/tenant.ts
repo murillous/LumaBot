@@ -23,6 +23,19 @@ export interface TenantStorage extends PluginStorage {
 }
 
 /**
+ * `ctx.storage`: o da sessão do bot e, em `shared`, o comum a todas as sessões que dividem o
+ * storage (ADR 0075). Os dois seguem o tenant corrente.
+ */
+export interface PluginContextStorage extends TenantStorage {
+  /**
+   * Dados do plugin comuns a todos os bots no mesmo storage (WhatsApp, Telegram, web...). Os IDs
+   * de contato e de chat só são únicos dentro de um transport: componha a chave com
+   * `ctx.transportName` quando ela vier de um ID.
+   */
+  readonly shared: TenantStorage;
+}
+
+/**
  * Storage do plugin que segue o `scope`. Os storages por tenant ficam em cache (as coleções do
  * adapter criam o índice na primeira operação de cada objeto); o número de tenants de um bot é o
  * de clientes do dono, não o de usuários.
