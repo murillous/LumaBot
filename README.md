@@ -111,7 +111,8 @@ PR que muda um pacote publicável leva um changeset (`pnpm changeset`) — ver
 Todo push e PR para `main`/`develop` roda dois workflows:
 
 - [`ci.yml`](.github/workflows/ci.yml) — kernel: jobs `Lint`, `Typecheck`, `Testes` e `Build`
-  (os mesmos comandos da tabela acima), com o store do pnpm em cache. O job `Benchmark` é um
+  (os mesmos comandos da tabela acima), com o store do pnpm em cache. O job `Testes` sobe um
+  Postgres em container para o `@zapforge/storage-postgres`. O job `Benchmark` é um
   placeholder até o M2.
 - [`legacy-ci.yml`](.github/workflows/legacy-ci.yml) — suíte do `legacy/`, sem alteração.
 

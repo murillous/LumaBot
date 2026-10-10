@@ -34,6 +34,22 @@ jobs:
   test:
     name: Testes
     runs-on: ubuntu-latest
+    # Postgres em container para a suíte de contrato do @zapforge/storage-postgres. Com a URL
+    # ausente no CI, os testes dele falham em vez de serem pulados.
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      ZAPFORGE_TEST_POSTGRES_URL: postgres://postgres:postgres@localhost:5432/postgres
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup

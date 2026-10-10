@@ -706,7 +706,7 @@ sessão no storage antes de carregar os plugins
 - A trava é por nome de sessão, sem olhar o transport: um bot de Discord e um de WhatsApp com a
   mesma sessão no mesmo banco se recusam. Dê um `session` diferente a cada um.
 - Só storages que podem ser divididos entre processos têm a trava (`@zapforge/storage-sqlite`,
-  Postgres). O de memória vive num processo só e não cria timer.
+  `@zapforge/storage-postgres`). O de memória vive num processo só e não cria timer.
 
 ## Transport por fábrica
 

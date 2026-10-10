@@ -197,3 +197,4 @@ ADR 0055). Ao serem aceitos, entram aqui e no índice numérico.
 | [0075](0075-varios-bots-e-escopo-compartilhado.md) | D75 | Vários bots num storage e escopo compartilhado opt-in: `ctx.storage.shared` em `$shared:<plugin>`, por tenant, e `ctx.transportName` (detalha D04, substitui parte do D36) | Aceito |
 | [0076](0076-http-do-core.md) | D76 | HTTP do core: `createHttp` dividido pelos bots, rotas de plugin e de transport por sessão, WebSocket e `/health` pelo estado (detalha D20/D37/D75) | Aceito |
 | [0077](0077-transport-web.md) | D77 | `@zapforge/transport-web`: chat por WebSocket com JWT no primeiro frame, conversa escolhida pelo cliente, buffer para cliente fora e mídia por HTTP (detalha D55, sobre o D76) | Aceito |
+| [0078](0078-postgres-via-pg.md) | D78 | Postgres pelo `pg`: schema próprio, documentos em `jsonb`, migrations sob advisory lock e testes contra Postgres em container no CI (detalha D14/D15) | Aceito |
