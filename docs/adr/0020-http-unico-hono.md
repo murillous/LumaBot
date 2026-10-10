@@ -1,6 +1,6 @@
 # ADR 0020 — Servidor HTTP único no core (Hono)
 
-**Status:** Aceito (2026-10-06) · Decisão **D20** do [plano](../../ZAPFORGE_PLAN.md#4-decisões)
+**Status:** Aceito (2026-10-06) · Decisão **D20** do [plano](../../ZAPFORGE_PLAN.md#4-decisões) · Forma, caminhos por sessão e rotas de transport: [ADR 0076](0076-http-do-core.md)
 
 ## Contexto
 

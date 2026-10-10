@@ -27,6 +27,8 @@ import { ArmedTimers, ContextExpiredError, settleWithin } from '#deadline.ts';
 import { createEventBus, type EmittableEventName } from '#events/bus.ts';
 import type { BotEvents, ListenerExtras, PluginErrorEvent } from '#events/types.ts';
 import { createGroups } from '#groups/groups.ts';
+import { sessionHttp } from '#http/server.ts';
+import type { HttpServer } from '#http/types.ts';
 import { createDeferredLogger } from '#logger/deferred.ts';
 import { createLogger, createNoopLogger } from '#logger/logger.ts';
 import { createSecretSet, type SecretSet } from '#logger/secrets.ts';
@@ -157,6 +159,11 @@ export interface BotConfig {
    * aviso no log — os dados somem ao reiniciar.
    */
   readonly storage?: StoragePort;
+  /**
+   * Servidor HTTP do processo (`createHttp`), o mesmo para todos os bots (ADR 0076). Dá
+   * `ctx.http` aos plugins e `TransportDeps.http` ao transport; a porta só abre se houver rota.
+   */
+  readonly http?: HttpServer;
   /** Plugins da config (pacotes npm que o app importa). */
   readonly plugins?: readonly PluginDefinition[];
   /** Pastas de plugins locais (ver `collectPlugins`), relativas a `cwd`. */
@@ -334,6 +341,8 @@ const DIRECT_EVENTS: { readonly [E in DirectEvent]: (payload: BotEvents[E]) => E
  * usa.
  */
 const MENU_OWNER = '#menu';
+// Dono das rotas do transport na tabela HTTP da sessão; nome de plugin não tem `$`.
+const TRANSPORT_ROUTE_OWNER = '$transport';
 const MENU_STEP = 'choice';
 
 const MIDDLEWARE_PRIORITY = {
@@ -380,12 +389,30 @@ export function createBot(config: BotConfig): Bot {
       log.error('listener de commands.onChange do transport falhou', { err: error }),
   });
   const registry = createCommandRegistry({ onChange: () => catalog.changed() });
+  // Rotas da sessão no servidor do processo (ADR 0076); só entram nele no start().
+  const http = config.http === undefined ? undefined : sessionHttp(config.http, session, getLog);
+  let resolvedTransport: Transport | undefined;
   const transport = resolveTransport(config.transport, {
     session,
     auth,
     log: createDeferredLogger(() => transportLog ?? log),
     commands: catalog.commands,
+    ...(http && {
+      http: http.scope(
+        TRANSPORT_ROUTE_OWNER,
+        () => {
+          if (resolvedTransport === undefined) {
+            throw new Error('http.basePath: leia depois que a fábrica devolver o transport');
+          }
+          return `/transports/${encodeURIComponent(resolvedTransport.name)}`;
+        },
+        (error, route) => log.error(`rota ${route} do transport falhou`, { err: error }),
+      ),
+    }),
   });
+  resolvedTransport = transport;
+  // O transport registra rotas na fábrica; publicadas no start(), retiradas no stop.
+  let httpAttached = false;
   let releaseSession: ReleaseSession | undefined;
   // Trava da sessão entre processos (ADR 0074); só existe com storage que a implementa.
   let sessionLease: SessionLease | undefined;
@@ -985,6 +1012,11 @@ export function createBot(config: BotConfig): Bot {
       scheduler,
       send,
       groups,
+      http,
+      onHttpError: (event) => {
+        logPluginError(event);
+        void bus.emit('plugin.error', event);
+      },
       transport: {
         name: transport.name,
         capabilities,
@@ -1056,6 +1088,9 @@ export function createBot(config: BotConfig): Bot {
       // Antes de `booted`: um bot recusado aqui não fecha o storage do bot que usa a sessão.
       releaseSession = claimSession(storage, session);
       booted = true;
+      // Ligada já no boot: o `/health` mostra a sessão subindo (503) até ela ficar `running`.
+      http?.attach(() => state);
+      httpAttached = http !== undefined;
       if (config.storage === undefined) {
         log.warn('sem storage configurado: usando memória, os dados somem ao reiniciar');
       }
@@ -1093,6 +1128,15 @@ export function createBot(config: BotConfig): Bot {
     } catch (error) {
       log.error('falha ao carregar os plugins; encerrando', { err: error });
       // O transport nunca conectou: o encerramento não chama `disconnect()`.
+      await failBoot(error);
+    }
+    // Com as rotas dos plugins e do transport registradas, abre a porta (se houver rota) antes
+    // do connect: o transport pode precisar do webhook de pé para conectar. Porta ocupada derruba
+    // o boot.
+    try {
+      await http?.listen();
+    } catch (error) {
+      log.error('falha ao abrir a porta HTTP; encerrando', { err: error });
       await failBoot(error);
     }
     // Daqui em diante, mudança na lista de comandos avisa o transport.
@@ -1150,6 +1194,14 @@ export function createBot(config: BotConfig): Bot {
     if (connectCalled) {
       try {
         await transport.disconnect();
+      } catch (error) {
+        errors.push(error);
+      }
+    }
+    // Os teardowns já tiraram as rotas dos plugins; sai a do transport, e o último bot fecha a porta.
+    if (httpAttached) {
+      try {
+        await http?.detach();
       } catch (error) {
         errors.push(error);
       }

@@ -162,6 +162,9 @@ export function telegram(options: TelegramOptions): (deps: TransportDeps) => Tra
   transport sai da fábrica pronto para `connect()`, sem passo de inicialização extra.
 - `commands` é a lista de comandos do bot, para o menu nativo da plataforma (ver
   [Comandos nativos](#comandos-nativos)).
+- `http` são as rotas HTTP e WebSocket do transport sob `/transports/<name>`, para webhooks e
+  chat próprio; só existe com `http` no `createBot`. Registre na fábrica (ver
+  [HTTP → Rotas no transport](http.md#rotas-no-transport)).
 - `TransportDeps` só cresce por adição: desestruture o que usa.
 
 ## Comandos nativos

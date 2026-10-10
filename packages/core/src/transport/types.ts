@@ -3,6 +3,7 @@
 // eventos chegam ao kernel já normalizados.
 
 import type { CommandInfo } from '#commands/command.ts';
+import type { HttpRoutes } from '#http/types.ts';
 import type { Logger } from '#logger/types.ts';
 import type { Chat, Contact, Message } from '#message/types.ts';
 import type { AuthStateStore } from '#storage/types.ts';
@@ -463,6 +464,12 @@ export interface TransportDeps {
    * do Telegram; ADR 0064). Opcional para quem monta o `TransportDeps` fora do `createBot`.
    */
   readonly commands?: TransportCommands;
+  /**
+   * Rotas HTTP e WebSocket do transport sob `/transports/<name>` (webhooks, chat web; ADR 0076).
+   * Só existe com `http` na config do bot. Registre na fábrica: a porta abre antes do
+   * `connect()`. O `basePath` só pode ser lido depois que a fábrica devolve o transport.
+   */
+  readonly http?: HttpRoutes;
 }
 
 /**

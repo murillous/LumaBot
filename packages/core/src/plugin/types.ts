@@ -9,6 +9,7 @@ import type { RoleCheck, RoleName } from '#commands/roles.ts';
 import type { Conversations } from '#conversations/conversations.ts';
 import type { EventSubscriber } from '#events/types.ts';
 import type { Groups } from '#groups/groups.ts';
+import type { HttpRoutes } from '#http/types.ts';
 import type { Logger } from '#logger/types.ts';
 import type { Contact } from '#message/types.ts';
 import type { Outbound } from '#outbound/types.ts';
@@ -100,6 +101,11 @@ export interface PluginContext<
   readonly send: Outbound;
   /** Metadados e participantes de grupo (ADR 0040). */
   readonly groups: Groups;
+  /**
+   * Rotas HTTP e WebSocket do plugin sob `/plugins/<nome>` (ADR 0076). Sem `http` na config do
+   * bot, `route` e `ws` lançam `BotConfigError` (o plugin cai no `setup`).
+   */
+  readonly http: HttpRoutes;
   /**
    * O que o transport suporta. Para recurso opcional: confira aqui em vez de exigir em
    * `requires` (ex.: reagir se der, responder em texto se não).

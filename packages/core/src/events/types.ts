@@ -12,10 +12,18 @@ export interface PluginErrorEvent {
   readonly plugin: string;
   /**
    * Onde a falha aconteceu. `role`: a checagem de um papel custom que o plugin define. `step`: um
-   * passo de conversa (ADR 0060).
+   * passo de conversa (ADR 0060). `http`: uma rota ou WebSocket do plugin (ADR 0076).
    */
-  readonly phase: 'listener' | 'command' | 'step' | 'role' | 'setup' | 'teardown' | 'scheduler';
-  /** Evento, comando, passo, papel ou job em processamento, quando houver. */
+  readonly phase:
+    | 'listener'
+    | 'command'
+    | 'step'
+    | 'role'
+    | 'setup'
+    | 'teardown'
+    | 'scheduler'
+    | 'http';
+  /** Evento, comando, passo, papel, job ou rota (`POST /webhook`) em processamento, quando houver. */
   readonly event: string | null;
   readonly error: unknown;
   readonly timedOut: boolean;

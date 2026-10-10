@@ -87,7 +87,7 @@ nenhum prazo resolve isso.
 | `connection.status` / `connection.qr` | `ConnectionStatus` / `{ qr }` |
 | `connection.pairing-code` | `{ code }` (pareamento por código, ADR 0050) |
 | `command` | `CommandEvent`: `{ plugin, name, invokedAs, status, message }` ([abaixo](#comandos-command)) |
-| `plugin.error` | `PluginErrorEvent`: `{ plugin, phase, event, error, timedOut }`; `phase` é `listener`, `command`, `step` (passo de conversa), `role`, `setup`, `teardown` ou `scheduler` |
+| `plugin.error` | `PluginErrorEvent`: `{ plugin, phase, event, error, timedOut }`; `phase` é `listener`, `command`, `step` (passo de conversa), `role`, `setup`, `teardown`, `scheduler` ou `http` (rota ou WebSocket do plugin; `event` é a rota, como `'POST /webhook'`) |
 
 O `interaction` do transport (clique num botão) não chega aos plugins como evento: o kernel roda
 o comando ou o passo do botão ([Ações e botões](actions.md)).

@@ -8,7 +8,7 @@ A API pública se divide por público ([ADR 0034](../../../docs/adr/0034-bibliot
 
 | Import | Para quem | O que traz |
 | --- | --- | --- |
-| `@zapforge/core` | Autor de plugin e app | `definePlugin`, `command`, `secret`, tipos dos contextos, eventos, mensagem, storage do plugin e os erros que o plugin trata; `createBot` e sua config, middlewares oficiais, `createLogger`, `createSecretSet`, `createMemoryStorage` |
+| `@zapforge/core` | Autor de plugin e app | `definePlugin`, `command`, `secret`, tipos dos contextos, eventos, mensagem, storage do plugin e os erros que o plugin trata; `createBot` e sua config, `createHttp`, middlewares oficiais, `createLogger`, `createSecretSet`, `createMemoryStorage` |
 | `@zapforge/core/adapter` | Autor de transport ou storage | Contratos `Transport`/`StoragePort`, `TypedEmitter`, `createMessage`, `createMedia`, `messageKey`, `ReconnectionPolicy`, helpers de capability, normalização de consultas, `StorageClosedError` |
 | `@zapforge/core/storage-contract` | Autor de storage | Suíte de contrato (`defineStorageContract`) |
 
@@ -21,6 +21,7 @@ explícita.
 | Guia | Assunto |
 | --- | --- |
 | [Transport](transport.md) | Contrato `Transport`, eventos, capabilities e política de reconexão |
+| [HTTP e WebSocket](http.md) | `createHttp`, `ctx.http` e `deps.http`: caminhos por sessão, `/health`, rotas e WebSocket de plugin e de transport |
 | [Bot](bot.md) | `createBot` e opções, fluxo da mensagem, ordem de boot e shutdown, reconexão, exemplo ponta a ponta |
 | [Modelo de mensagem](message.md) | `Message`, narrowing, mídia lazy e `createMessage` para transports |
 | [Fila de entrada](inbound-queue.md) | `InboundQueue`: mesmo chat em série, backlog, métricas, shutdown |

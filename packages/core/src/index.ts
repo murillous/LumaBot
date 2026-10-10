@@ -80,6 +80,18 @@ export type {
   SubscribeOptions,
 } from '#events/types.ts';
 export type { Groups } from '#groups/groups.ts';
+export { createHttp, HttpRouteConflictError } from '#http/server.ts';
+export type {
+  HttpHandler,
+  HttpMethod,
+  HttpOptions,
+  HttpRequestInfo,
+  HttpRoutes,
+  HttpServer,
+  HttpSocket,
+  HttpSocketAccept,
+  HttpSocketHandlers,
+} from '#http/types.ts';
 export { createLogger, type LogDestination, type LoggerOptions } from '#logger/logger.ts';
 export { createSecretSet, type SecretSet, type SecretSource } from '#logger/secrets.ts';
 export type { LogFields, Logger, LogLevel } from '#logger/types.ts';
