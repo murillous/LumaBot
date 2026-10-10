@@ -393,8 +393,9 @@ Em ordem (plano §5.3):
 1. Cria o logger, reserva a sessão no storage (`BotConfigError` se outro bot vivo já a usa),
    liga a sessão ao servidor HTTP, se houver (`BotConfigError` se a sessão já está nele), e (sem
    `storage`) avisa que os dados estão em memória.
-2. Pausa a fila de saída até o primeiro `open`, assina os eventos do transport e empilha os
-   ganchos de parada internos.
+2. Pausa a fila de saída até o primeiro `open`, assina os eventos do transport, empilha os
+   ganchos de parada internos e adquire a trava da sessão no storage
+   ([Trava entre processos](#trava-entre-processos)).
 3. Carrega os plugins: coleta (`plugins` + `pluginDirs`) → config → `setup` de cada um → tabela
    de boot no log → checagem de conflito de comando, papel e serviço.
    Com `http` e alguma rota (de plugin ou do transport), abre a porta; porta ocupada derruba o

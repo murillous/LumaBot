@@ -9,7 +9,7 @@ handler nessa hora, mesmo que o bot tenha reiniciado no meio. Um único loop ser
 setup(ctx) {
   ctx.scheduler.on('reminder.fire', async (payload) => {
     const { chatId, text } = payload as { chatId: string; text: string };
-    await ctx.send.text(chatId, text);
+    await ctx.send.send(chatId, text);
   });
 
   const id = await ctx.scheduler.at(new Date(Date.now() + 60_000), 'reminder.fire', {

@@ -2,6 +2,9 @@
 
 Como usar o kernel. O porquê das decisões está nos [ADRs](../../../docs/adr/README.md).
 
+Comece pela [visão geral](overview.md): as peças, como se ligam, os escopos e o mapa de módulos.
+Os formatos que o core valida (manifesto, config, `BotConfig`) estão em [Schemas](schemas.md).
+
 ## Pontos de entrada
 
 A API pública se divide por público ([ADR 0034](../../../docs/adr/0034-biblioteca-sem-runner.md)):
@@ -20,6 +23,8 @@ explícita.
 
 | Guia | Assunto |
 | --- | --- |
+| [Visão geral](overview.md) | Peças do kernel, escopos, regras gerais, mapa de `src/` e campos do `PluginContext` |
+| [Schemas](schemas.md) | O que o core valida (manifesto, compatibilidade, config de plugin e do bot, comando, mensagem, storage, capabilities), quando e com que erro |
 | [Transport](transport.md) | Contrato `Transport`, `defineTransport`, eventos, capabilities e política de reconexão |
 | [HTTP e WebSocket](http.md) | `createHttp`, `ctx.http` e `deps.http`: caminhos por sessão, `/health`, rotas e WebSocket de plugin e de transport |
 | [Bot](bot.md) | `createBot` e opções, fluxo da mensagem, ordem de boot e shutdown, reconexão, exemplo ponta a ponta |

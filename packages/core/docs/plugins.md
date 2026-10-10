@@ -55,10 +55,12 @@ problemas encontrados. Regras:
 | `dependsOn` | nome de plugin → faixa semver; não pode citar o próprio plugin. |
 | `after` | nomes de plugin; não pode citar o próprio plugin. |
 | `priority` | número finito; padrão 0. |
-
+| `config` | schema Zod ([Config](config.md#declarar)). |
+| `messages` | objeto chave → texto. |
 | `commands` | objeto nome → comando, cada um com `run` função; o nome segue as regras do `command()` (ver abaixo). |
 | `on` | objeto evento → função; o evento tem que existir em `BotEvents` (erro de digitação é recusado). |
 | `setup` | função; opcional quando o plugin declara `commands` ou `on`. |
+| `teardown` | função, se presente. |
 
 Faixas aceitas: `^`, `~`, `>=`, `>`, `<=`, `<`, `=`, curingas (`*`, `x`, `1.x`, `1.2`),
 comparadores separados por espaço (E) e `||` (OU) — a semântica do npm, inclusive a de
