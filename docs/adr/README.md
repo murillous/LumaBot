@@ -191,3 +191,4 @@ ADR 0055). Ao serem aceitos, entram aqui e no índice numérico.
 | [0069](0069-unioes-de-tipo-antes-do-1-0.md) | D69 | Uniões de tipo de mensagem e de conteúdo antes do 1.0: fechadas, adição é minor (detalha D09/D10/D27) | Aceito |
 | [0070](0070-capabilities-multiplataforma.md) | D70 | Capabilities multiplataforma: `typing` no lugar de `presence`, uma reação da sessão por mensagem, enquete com `multiple` e a lista só do core (detalha D10/D16) | Aceito |
 | [0071](0071-voto-em-enquete.md) | D71 | Voto em enquete: evento `poll.vote` com a escolha inteira por índice, filtrado como a reação (completa D70, segue D38) | Aceito |
+| [0072](0072-isolamento-por-tenant.md) | D72 | Isolamento automático por tenant: `chat.tenantId` e o mesmo `ctx.storage` no escopo do tenant corrente (detalha D36/D15) | Aceito |

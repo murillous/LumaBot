@@ -36,6 +36,10 @@ setup(ctx) {
   de classe, `bigint`, funções e referências circulares. Converta antes (`date.getTime()`).
 - **Validação.** `at` rejeita com `TypeError` se a data é inválida (`new Date('x')`, `NaN`,
   `Infinity`) ou se o nome do job é vazio. Data no passado é válida: o job dispara logo.
+- **Tenant de origem.** O job agendado numa mensagem ou num evento de chat com `tenantId` guarda
+  o tenant, e o handler roda no escopo dele: o `ctx.storage` lê os dados daquele tenant
+  ([ADR 0072](../../../docs/adr/0072-isolamento-por-tenant.md)). O job agendado fora dele (no
+  `setup`) roda sem tenant, mesmo que o loop do scheduler tenha sido acordado num handler.
 - **Registre o `on` no `setup`.** Os jobs são do plugin, não do `setup`: continuam no storage
   quando o plugin é desabilitado ou recarregado e disparam quando ele registrar o handler.
 
@@ -91,6 +95,7 @@ const scheduler = createSchedulerService({
   onError: (event) => { /* plugin.error: log + barramento */ },
   onLateError: (event) => { /* opcional: rejeição depois do prazo, só log */ },
   onStorageError: (error) => { /* log */ },
+  tenants, // opcional: TenantScope do bot (ADR 0072)
   jobTimeoutMs: 30_000, // opcional
   storageRetryMs: 5000, // opcional
   maxConcurrentJobs: 10, // opcional
@@ -105,6 +110,9 @@ await scheduler.stop();                           // gancho de parada
 - **Um serviço por bot.** Os jobs de todos os plugins ficam em uma coleção do namespace do kernel
   (`kernelStorage(storage, 'scheduler')`, coleção `jobs`, indexada por `fireAt`). Nenhum plugin
   alcança essa coleção pelo `ctx.storage`.
+- **Tenant no documento.** `at` grava o `tenant` corrente do `TenantScope` (campo ausente sem
+  tenant), e o handler roda em `tenants.run(doc.tenant, …)`. Sem tenant, o `run` sai do escopo:
+  o loop acordado por um `at` dentro de um handler herdaria o tenant dele.
 - **Um único timer.** O serviço arma no máximo um `setTimeout`, para o próximo job. Sem job
   futuro, não há timer (nada de polling). Um job mais distante que o teto do `setTimeout`
   (~24,8 dias) arma o teto; o loop acorda, recalcula e rearma.

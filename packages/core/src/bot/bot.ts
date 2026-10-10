@@ -57,6 +57,7 @@ import { createServiceRegistry, ServiceConflictError } from '#services/registry.
 import { createMemoryStorage } from '#storage/memory.ts';
 import { DEFAULT_SESSION, sessionStorage } from '#storage/namespace.ts';
 import type { StoragePort } from '#storage/types.ts';
+import { TenantScope } from '#tenant/scope.ts';
 import { type Capability, hasCapability } from '#transport/capabilities.ts';
 import type {
   CommandInteraction,
@@ -457,8 +458,12 @@ export function createBot(config: BotConfig): Bot {
   const groups = createGroups(transport, enqueueAction(outbound, transport));
   // Cópia: o plugin recebe um `ReadonlySet`, mas um cast não deve alterar o do transport.
   const capabilities: ReadonlySet<Capability> = new Set(transport.capabilities);
+  // Tenant da mensagem ou do evento em andamento (ADR 0072): o storage dos plugins e os jobs
+  // agendados seguem ele.
+  const tenants = new TenantScope();
   const scheduler = createSchedulerService({
     storage: scoped,
+    tenants,
     jobTimeoutMs: timeouts.jobMs,
     onError: (event) => {
       logPluginError(event);
@@ -792,13 +797,15 @@ export function createBot(config: BotConfig): Bot {
 
   /**
    * Põe a mensagem (nova ou editada) ou o clique na fila do chat dele: o mesmo chat anda em
-   * série.
+   * série. A tarefa roda no escopo do tenant do chat (ADR 0072).
    */
   function enqueue<T extends Message | Interaction>(
     item: T,
     handle: (item: T) => Promise<void>,
   ): void {
-    const result = inbound.enqueue(item.chat.id, () => handle(item));
+    const result = inbound.enqueue(item.chat.id, () =>
+      tenants.run(item.chat.tenantId, () => handle(item)),
+    );
     if (result !== 'queued') {
       log.warn('mensagem descartada pela fila de entrada', {
         chatId: item.chat.id,
@@ -820,13 +827,18 @@ export function createBot(config: BotConfig): Bot {
       const { chat, fromMe, fromBot } = origin(payload);
       if ((fromMe && dropsSelf) || (fromBot && dropsBots)) return;
       if (chat !== null && !chatIsAllowed(chat)) return;
-      if (ready) {
-        void bus.emit(event, payload);
-        return;
-      }
-      // Boot abortado ou `stop()` antes do fim: o evento é descartado, como a mensagem.
-      void readyPromise.then((ok) => {
-        if (ok) void bus.emit(event, payload);
+      // Os listeners rodam no escopo do tenant do chat (ADR 0072). Ele vem do payload, não da
+      // origem: entrada e saída do grupo passam pelo filtro sem chat, mas são de um tenant.
+      const tenant = 'chat' in payload ? payload.chat.tenantId : undefined;
+      tenants.run(tenant, () => {
+        if (ready) {
+          void bus.emit(event, payload);
+          return;
+        }
+        // Boot abortado ou `stop()` antes do fim: o evento é descartado, como a mensagem.
+        void readyPromise.then((ok) => {
+          if (ok) void bus.emit(event, payload);
+        });
       });
     });
   }
@@ -963,6 +975,7 @@ export function createBot(config: BotConfig): Bot {
       bus,
       services,
       storage: scoped,
+      tenants,
       scheduler,
       send,
       groups,

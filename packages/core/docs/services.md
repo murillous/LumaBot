@@ -78,6 +78,10 @@ O tipo vem de importar o pacote do provedor (ou só o tipo dele): é esse import
   reload do provedor recarrega em cascata quem declara `dependsOn` nele
   ([ADR 0041](../../../docs/adr/0041-reload-em-cascata.md)), então guardar a instância no `setup`
   é seguro. Quem usa o serviço sem `dependsOn` não recarrega junto e fica com a instância antiga.
+- **Tenant.** Chamado no handler de uma mensagem com `chat.tenantId`, o serviço roda no escopo
+  daquele tenant: o `ctx.storage` do provedor grava no tenant certo sem receber nada
+  ([ADR 0072](../../../docs/adr/0072-isolamento-por-tenant.md)). Estado em memória (um `Map` no
+  plugin) não ganha escopo. Guarde no `ctx.storage` o que é de um cliente.
 
 ## Registry
 

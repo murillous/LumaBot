@@ -34,7 +34,7 @@ import type { SchedulerService } from '#scheduler/service.ts';
 import type { Scheduler } from '#scheduler/types.ts';
 import type { ServiceRegistry } from '#services/registry.ts';
 import type { ServiceAccess } from '#services/types.ts';
-import { pluginStorage } from '#storage/namespace.ts';
+import { type TenantStorage, tenantStorage } from '#storage/tenant.ts';
 import type {
   Collection,
   CollectionOptions,
@@ -43,6 +43,7 @@ import type {
   PluginStorage,
   StoragePort,
 } from '#storage/types.ts';
+import type { TenantScope } from '#tenant/scope.ts';
 import type { Capability } from '#transport/capabilities.ts';
 import type { Unsubscribe } from '#transport/types.ts';
 import type { UnsafeAccess } from '#unsafe/access.ts';
@@ -66,6 +67,8 @@ export interface PluginContextDeps {
   readonly bus: EventBus;
   readonly services: ServiceRegistry;
   readonly storage: StoragePort;
+  /** Tenant corrente (ADR 0072): o `ctx.storage` do plugin grava no namespace dele. */
+  readonly tenants: TenantScope;
   readonly scheduler: SchedulerService;
   readonly send: Outbound;
   readonly groups: Groups;
@@ -222,7 +225,7 @@ export function createPluginContextFactory(deps: PluginContextDeps): PluginConte
         get: (service) => services.get(service),
         has: (service) => services.has(service),
       } satisfies ServiceAccess,
-      storage: liveStorage(pluginStorage(deps.storage, name), live),
+      storage: liveTenantStorage(tenantStorage(deps.storage, name, deps.tenants), live),
       scheduler: {
         at: live('scheduler.at', (when: Date | number, job: string, payload?: JsonValue) =>
           scheduler.at(when, job, payload),
@@ -321,6 +324,14 @@ function liveStorage(storage: PluginStorage, live: Live): PluginStorage {
         ),
       };
     },
+  };
+}
+
+/** `liveStorage` também no storage de cada tenant escolhido com `forTenant`. */
+function liveTenantStorage(storage: TenantStorage, live: Live): TenantStorage {
+  return {
+    ...liveStorage(storage, live),
+    forTenant: (tenantId) => liveStorage(storage.forTenant(tenantId), live),
   };
 }
 

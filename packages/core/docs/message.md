@@ -142,6 +142,7 @@ transport não sabe:
 | `kind` | `'dm' \| 'group' \| 'channel' \| 'thread'` | Tipo do chat (tabela abaixo). Ausente: vale só o `isGroup` |
 | `parentId` | `string` | Espaço a que o chat pertence: o servidor do Discord ou o supergrupo do Telegram |
 | `title` | `string` | Nome do chat: assunto do grupo, nome do canal ou do tópico |
+| `tenantId` | `string` | Cliente do dono a que a conversa pertence, verificado pelo transport (claim do JWT no web). Põe o `ctx.storage` no escopo dele ([storage](storage.md#tenants)) |
 
 | `kind` | WhatsApp | Telegram | Discord | Web |
 | --- | --- | --- | --- | --- |

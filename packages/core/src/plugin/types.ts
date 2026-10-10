@@ -14,7 +14,7 @@ import type { Contact } from '#message/types.ts';
 import type { Outbound } from '#outbound/types.ts';
 import type { Scheduler } from '#scheduler/types.ts';
 import type { ServiceAccess } from '#services/types.ts';
-import type { PluginStorage } from '#storage/types.ts';
+import type { TenantStorage } from '#storage/tenant.ts';
 import type { Capability } from '#transport/capabilities.ts';
 import type { Unsafe } from '#unsafe/types.ts';
 
@@ -85,7 +85,12 @@ export interface PluginContext<
   readonly conversations: Conversations;
   readonly events: EventSubscriber;
   readonly services: ServiceAccess;
-  readonly storage: PluginStorage;
+  /**
+   * Storage do plugin. Numa mensagem ou evento de chat com `tenantId`, e em tudo o que o handler
+   * dispara, vale o namespace daquele tenant; fora dele (`setup`, timer solto, job sem tenant),
+   * o da sessão, compartilhado entre tenants. `forTenant(id)` escolhe um tenant à mão (ADR 0072).
+   */
+  readonly storage: TenantStorage;
   readonly scheduler: Scheduler;
   /**
    * Envio e ações sobre mensagens e chats (`react`, `edit`, `delete`, `typing`), todos pela

@@ -126,6 +126,41 @@ Regras que valem em todo adapter:
 Os métodos são `async`: o erro chega como rejeição. A exceção é `collection()` com índice
 inválido, que lança na hora.
 
+### Tenants
+
+Quando um bot atende vários clientes do dono (escolas, empresas), o transport marca o
+`chat.tenantId` ([ADR 0072](../../../docs/adr/0072-isolamento-por-tenant.md)). O plugin não
+filtra nada: numa mensagem ou num evento desse chat, o mesmo `ctx.storage` grava e lê no
+namespace daquele tenant. Isso vale também para o que o handler dispara:
+
+- a closure do `setup` que usa `ctx.storage`, e a coleção obtida no `setup`;
+- o service de outro plugin chamado pelo handler, que grava no storage dele, no mesmo tenant;
+- o timer ou a promise iniciados no handler;
+- o job agendado no handler, que guarda o tenant e roda nele ([scheduler](scheduler.md)).
+
+Fora disso (`setup`, timer iniciado no `setup`, job agendado sem tenant), vale o escopo da
+sessão, o mesmo dos transports sem tenant. Ele é **compartilhado entre os tenants**: serve para o
+que é do plugin inteiro, não de um cliente.
+
+`forTenant(id)` escolhe um tenant à mão, de qualquer lugar, inclusive do handler de outro tenant.
+Serve para o `setup`, para um job sem tenant ou para um plugin de administração. Quem pode usar
+esse comando é decidido pelo `role`:
+
+```ts
+ctx.commands.add({
+  name: 'resumo',
+  role: 'owner',
+  async run(c) {
+    const escola = c.args[0] ?? '';
+    const alunos = await ctx.storage.forTenant(escola).collection('alunos').find();
+    await c.reply(`${alunos.length} alunos`);
+  },
+});
+```
+
+`forTenant('')` lança `TypeError`. Trocar o ID de tenant "esquece" os dados do anterior, como
+trocar o nome da sessão.
+
 ## Para o kernel
 
 Tudo nesta seção é interno do kernel, não exportado ([ADR 0034](../../../docs/adr/0034-biblioteca-sem-runner.md)).
@@ -152,6 +187,21 @@ O nome da sessão é kebab-case (sem `:`), e `pluginStorage` também recusa `:` 
 (`ReservedNamespaceError`): nenhum plugin forja o namespace de outra sessão, nem na `'default'`,
 que fica sem prefixo para manter o formato de quem não passa `session`. `authState(session)` e
 `close()` passam direto: o auth state já é separado por sessão.
+
+### Escopo de tenant
+
+O tenant entra depois do nome do plugin, com `@`: `pluginStorage(port, 'notas', 'escola-a')` é o
+namespace `notas@escola-a` (na sessão `vendas`, `vendas:notas@escola-a`). O ID do tenant vem do
+transport e pode ter qualquer caractere, por isso fica no fim. Nem a sessão nem o plugin têm `@`
+ou `:` (`pluginStorage` recusa os dois no nome do plugin), e o primeiro dos dois no namespace diz
+de quem ele é. `<sessão>:<plugin>:<tenant>` não serviria: `escola:t1` seria tanto o tenant `t1`
+do plugin `escola` na sessão `default` quanto o plugin `t1` da sessão `escola`.
+
+O `ctx.storage` é o `tenantStorage(port, plugin, scope)`. O `TenantScope` do bot é um
+`AsyncLocalStorage`: a fila de entrada roda cada mensagem no escopo do `chat.tenantId`, e o
+`forward` faz o mesmo com os eventos diretos. O storage resolve o namespace a cada operação, com
+cache por tenant, e o scheduler, o kernel e o `$config` não passam por ele. A mensagem sem tenant
+não entra no `AsyncLocalStorage`, então não paga nada.
 
 ## Auth state (para transports)
 
