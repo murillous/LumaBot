@@ -193,3 +193,4 @@ ADR 0055). Ao serem aceitos, entram aqui e no índice numérico.
 | [0071](0071-voto-em-enquete.md) | D71 | Voto em enquete: evento `poll.vote` com a escolha inteira por índice, filtrado como a reação (completa D70, segue D38) | Aceito |
 | [0072](0072-isolamento-por-tenant.md) | D72 | Isolamento automático por tenant: `chat.tenantId` e o mesmo `ctx.storage` no escopo do tenant corrente (detalha D36/D15) | Aceito |
 | [0073](0073-kit-de-testes-multiplataforma.md) | D73 | Kit de testes multiplataforma: perfis `whatsapp`/`telegram`/`discord`/`web` com capabilities, limites e contatos; `whatsapp` conferido contra o Baileys (detalha D52/D22) | Aceito |
+| [0074](0074-trava-de-sessao-entre-processos.md) | D74 | Trava de sessão entre processos: lease com validade no `StoragePort`, renovada pelo bot (detalha D36/D14) | Aceito |

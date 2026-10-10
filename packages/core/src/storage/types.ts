@@ -154,6 +154,20 @@ export interface StoragePort {
    * o objeto, sem I/O: o `createBot` o chama para entregar à fábrica do transport (ADR 0037).
    */
   authState(session: string): AuthStateStore;
+  /**
+   * Trava com validade entre processos (ADR 0074): o bot a usa para que a mesma sessão não rode
+   * em dois processos que dividem o banco. Grava `owner` como dono de `name` por `ttlMs` e
+   * devolve `true` se a trava estava livre, vencida ou já era de `owner` (é assim que se renova);
+   * `false` se outro dono a tem dentro da validade. Atômica entre processos; a validade é medida
+   * pelo relógio do adapter (no Postgres, o do servidor).
+   *
+   * Opcional só para storage que vive num processo (memória): sem ela o bot não trava a sessão
+   * entre processos. Adapter cujo banco pode ser dividido precisa implementá-la, e a suíte de
+   * contrato cobra (`processLocal`).
+   */
+  acquireLease?(name: string, owner: string, ttlMs: number): Promise<boolean>;
+  /** Libera a trava se `owner` é o dono; a de outro dono fica como está. Par de `acquireLease`. */
+  releaseLease?(name: string, owner: string): Promise<void>;
   /** Libera recursos. Idempotente; depois dele toda operação rejeita com `StorageClosedError`. */
   close(): Promise<void>;
 }

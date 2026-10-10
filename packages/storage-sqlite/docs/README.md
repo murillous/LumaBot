@@ -51,6 +51,7 @@ O schema pertence ao adapter, e nenhum plugin cria tabela (ADR 0015).
 | `documents` | Documentos de todas as coleções: `namespace`, `collection`, `id` e `doc` em JSON. O `seq` é a ordem de inserção |
 | `auth_creds` | Credenciais de cada sessão do transport |
 | `auth_keys` | Chaves do auth state: `(session, type, id) → value` |
+| `leases` | Trava de cada sessão entre processos: `name → (owner, expires_at)`, com `expires_at` em ms pelo relógio da máquina ([ADR 0074](../../../docs/adr/0074-trava-de-sessao-entre-processos.md)) |
 
 Os filtros viram condições sobre `json_extract(doc, '$.campo')` e conferem o `json_type`, para
 que `1`, `'1'` e `true` continuem diferentes. Um campo declarado em `indexes` ganha um índice de
@@ -70,5 +71,5 @@ edite uma migration que já foi publicada.
 
 `src/sqlite.contract.test.ts` roda a suíte de contrato do core em memória e em arquivo. Em
 arquivo, a suíte também fecha e reabre o banco para verificar a persistência.
-`src/sqlite.test.ts` cobre o que é do adapter: WAL, migrations, índices e o tamanho do lote
-do auth state.
+`src/sqlite.test.ts` cobre o que é do adapter: WAL, migrations, índices, o tamanho do lote
+do auth state e a trava disputada por duas conexões ao mesmo arquivo.

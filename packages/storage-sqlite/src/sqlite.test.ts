@@ -116,3 +116,29 @@ describe('sqlite: auth state', () => {
     expect(await auth.getKeys('t', ['1'])).toEqual({});
   });
 });
+
+describe('sqlite: trava da sessão (ADR 0074)', () => {
+  it('duas conexões no mesmo arquivo disputam a mesma trava', async () => {
+    // Cada `sqlite()` abre a própria conexão: é o que dois processos sobre o arquivo fazem.
+    const a = sqlite({ path: file });
+    const b = sqlite({ path: file });
+    expect(await a.acquireLease?.('session:default', 'a', 60_000)).toBe(true);
+    expect(await b.acquireLease?.('session:default', 'b', 60_000)).toBe(false);
+    await a.releaseLease?.('session:default', 'a');
+    expect(await b.acquireLease?.('session:default', 'b', 60_000)).toBe(true);
+    await a.close();
+    await b.close();
+  });
+
+  it('banco no schema 1 ganha a tabela de travas sem perder dados', async () => {
+    const old = sqlite({ path: file });
+    await old.forNamespace('p').kv.set('k', 1);
+    await old.close();
+    inspect((db) => db.exec('DROP TABLE leases; PRAGMA user_version = 1'));
+
+    const port = sqlite({ path: file });
+    expect(await port.forNamespace('p').kv.get('k')).toBe(1);
+    expect(await port.acquireLease?.('session:default', 'a', 60_000)).toBe(true);
+    await port.close();
+  });
+});

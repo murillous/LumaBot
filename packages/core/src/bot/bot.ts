@@ -75,6 +75,7 @@ import {
 import { CommandTimeoutError, createPluginContextFactory } from './plugin-context.ts';
 import { type BotReconnectionOptions, createReconnector, type Reconnector } from './reconnect.ts';
 import { claimSession, type ReleaseSession } from './session.ts';
+import { acquireSessionLease, type SessionLease } from './session-lease.ts';
 import {
   type RegisteredStopHook,
   runStopHooks,
@@ -386,6 +387,10 @@ export function createBot(config: BotConfig): Bot {
     commands: catalog.commands,
   });
   let releaseSession: ReleaseSession | undefined;
+  // Trava da sessão entre processos (ADR 0074); só existe com storage que a implementa.
+  let sessionLease: SessionLease | undefined;
+  // O `stop()` durante o `start()` aborta a espera pela trava em vez de esperar a validade.
+  const bootAbort = new AbortController();
   // `connect()` já foi chamado: só então o shutdown desconecta.
   let connectCalled = false;
   // Desfaz a assinatura dos eventos do transport; existe depois que o start() a fez.
@@ -1058,6 +1063,18 @@ export function createBot(config: BotConfig): Bot {
       outbound.pause();
       unsubscribe = subscribeTransport();
       registerInternalHooks();
+      // Antes dos plugins, que já gravam no storage e agendam jobs da sessão. Depois de assinar
+      // os eventos: os que chegarem esperam a trava na fila do boot, como esperam os plugins.
+      sessionLease = await acquireSessionLease({
+        storage,
+        session,
+        log,
+        signal: bootAbort.signal,
+        onLost: () => {
+          log.error('outro processo assumiu a trava da sessão; parando o bot', { session });
+          bot.stop().catch((error: unknown) => log.error('falha ao parar o bot', { err: error }));
+        },
+      });
     } catch (error) {
       // Nada conectou ainda: só desfaz o que foi registrado.
       await shutdown().catch((cleanup: unknown) =>
@@ -1137,6 +1154,12 @@ export function createBot(config: BotConfig): Bot {
     }
     // Storage por último: os teardowns e o scheduler ainda o usam até aqui. Se outro bot (outra
     // sessão) ainda o usa, quem fecha é o último a parar.
+    // Liberada no stop limpo, a sessão sobe em outro processo na hora, sem esperar a validade.
+    try {
+      await sessionLease?.release();
+    } catch (error) {
+      errors.push(error);
+    }
     const lastUser = releaseSession?.() ?? true;
     if (booted && lastUser) {
       try {
@@ -1219,6 +1242,7 @@ export function createBot(config: BotConfig): Bot {
           return shutdown();
         case 'starting': {
           stopRequested = true;
+          bootAbort.abort(new BotStateError('start(): bot parado durante a inicialização', state));
           // Espera o boot assentar (sucesso ou falha) e só então encerra; se o start já
           // encerrou por falha, `shutdown` devolve a mesma promise.
           const afterStart = (): Promise<void> => shutdown();
