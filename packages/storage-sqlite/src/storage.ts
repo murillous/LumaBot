@@ -262,6 +262,22 @@ export function createSqliteStorage(db: DatabaseSync): StoragePort {
     authState(session: string): AuthStateStore {
       return createAuthState(session);
     },
+    async acquireLease(name: string, owner: string, ttlMs: number): Promise<boolean> {
+      ensureOpen();
+      const now = Date.now();
+      // Um comando só, então atômico entre conexões: o upsert não toca a linha (0 mudanças) se
+      // ela é de outro dono e ainda vale.
+      const { changes } = statement(
+        'INSERT INTO leases (name, owner, expires_at) VALUES (?, ?, ?) ' +
+          'ON CONFLICT (name) DO UPDATE SET owner = excluded.owner, expires_at = excluded.expires_at ' +
+          'WHERE leases.owner = excluded.owner OR leases.expires_at <= ?',
+      ).run(name, owner, now + ttlMs, now);
+      return Number(changes) > 0;
+    },
+    async releaseLease(name: string, owner: string): Promise<void> {
+      ensureOpen();
+      statement('DELETE FROM leases WHERE name = ? AND owner = ?').run(name, owner);
+    },
     async close(): Promise<void> {
       if (closed) return;
       closed = true;

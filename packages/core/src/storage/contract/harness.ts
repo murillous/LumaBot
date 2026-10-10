@@ -21,6 +21,12 @@ export interface StorageContractOptions {
    * do M1-11 depende disso). Sem ela, esses testes não são registrados.
    */
   readonly reopen?: (port: StoragePort) => Promise<StoragePort>;
+  /**
+   * `true` para storage que vive num processo só (memória): dispensa a trava com validade
+   * (`acquireLease`/`releaseLease`, ADR 0074), que só protege banco dividido entre processos.
+   * Sem ela, a suíte exige a trava.
+   */
+  readonly processLocal?: boolean;
   /** Opcional: limpeza depois do `close()` de cada teste (apagar arquivo, dropar schema). */
   readonly dispose?: () => void | Promise<void>;
 }

@@ -2,8 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { defineStorageContract } from './contract/index.ts';
 import { createMemoryStorage } from './memory.ts';
 
-// O adapter em memória é a referência: precisa passar na suíte inteira.
-defineStorageContract({ describe, it }, { name: 'memória', create: createMemoryStorage });
+// O adapter em memória é a referência: precisa passar na suíte inteira, menos a trava entre
+// processos (ADR 0074), que ele não tem por viver num processo só.
+defineStorageContract(
+  { describe, it },
+  { name: 'memória', create: createMemoryStorage, processLocal: true },
+);
 
 // Memória não persiste; aqui `reopen` devolve o mesmo port só para exercitar os testes de
 // persistência da própria suíte (que os adapters SQLite/Postgres rodam de verdade).
@@ -12,6 +16,7 @@ defineStorageContract(
   {
     name: 'memória com reopen simulado',
     create: createMemoryStorage,
+    processLocal: true,
     reopen: async (port) => port,
   },
 );

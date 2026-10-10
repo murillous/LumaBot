@@ -6,6 +6,7 @@ import { authStateContract, persistenceContract } from './auth.ts';
 import { collectionContract } from './collection.ts';
 import { type ContractTestApi, contractCase, type StorageContractOptions } from './harness.ts';
 import { kvContract } from './kv.ts';
+import { leaseContract } from './lease.ts';
 
 export type { ContractTestApi, StorageContractOptions } from './harness.ts';
 
@@ -25,6 +26,7 @@ export function defineStorageContract(api: ContractTestApi, options: StorageCont
     kvContract(api, test);
     collectionContract(api, test);
     authStateContract(api, test);
+    if (options.processLocal !== true) leaseContract(api, test);
     if (options.reopen !== undefined) persistenceContract(api, test);
   });
 }

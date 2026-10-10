@@ -258,7 +258,8 @@ Para produção, o adapter padrão é o `sqlite({ path })` do
 
 ### Escrevendo um adapter
 
-Implemente `StoragePort` (`forNamespace`, `authState`, `close`). `authState(session)` só monta o
+Implemente `StoragePort` (`forNamespace`, `authState`, `close` e, se o banco pode ser dividido
+entre processos, a trava: veja [Trava com validade](#trava-com-validade)). `authState(session)` só monta o
 objeto, sem I/O: o `createBot` o chama para entregar o auth à fábrica do transport
 ([ADR 0037](../../../docs/adr/0037-transport-por-fabrica.md)), onde não pode haver efeito
 colateral; a leitura fica nos métodos. `@zapforge/core/adapter` exporta as peças que
@@ -288,6 +289,28 @@ suíte num adapter SQL:
 - `setKeys` numa transação; `close()` idempotente; depois dele, rejeite com
   `StorageClosedError`.
 
+### Trava com validade
+
+`acquireLease(name, owner, ttlMs)` e `releaseLease(name, owner)` são o que impede a mesma sessão
+de rodar em dois processos sobre o mesmo banco
+([ADR 0074](../../../docs/adr/0074-trava-de-sessao-entre-processos.md)). O bot trava
+`session:<sessão>` no `start()` e renova chamando `acquireLease` de novo com o mesmo dono.
+
+| Estado da trava `name` | `acquireLease(name, owner, ttlMs)` |
+| --- | --- |
+| Não existe ou venceu | Grava `owner` por `ttlMs`; `true` |
+| É de `owner` | Renova por `ttlMs` a partir de agora; `true` |
+| É de outro dono e ainda vale | Não muda nada; `false` |
+
+`releaseLease` apaga a trava só se ela é de `owner`. A decisão precisa ser **atômica entre
+processos**: um comando só (o upsert com `WHERE` do SQLite, `INSERT ... ON CONFLICT DO UPDATE
+... WHERE` no Postgres) ou uma transação. Meça a validade com o relógio do banco quando ele é
+dividido entre máquinas (`now()` do Postgres); o SQLite, que fica numa máquina só, usa
+`Date.now()`.
+
+Os dois métodos são opcionais no tipo só para storage que vive num processo (o de memória). A
+suíte de contrato os exige, a menos que as opções digam `processLocal: true`.
+
 ### Suíte de contrato
 
 A suíte vem num subpath próprio, fora do entry principal, e não depende de runner: recebe o
@@ -313,4 +336,6 @@ defineStorageContract(
 ```
 
 Cada teste recebe um port novo e o fecha no fim. Com `reopen`, a suíte também verifica que KV,
-coleções (inclusive a ordem de inserção) e auth state sobrevivem a um restart.
+coleções (inclusive a ordem de inserção) e auth state sobrevivem a um restart. A suíte também
+cobre a [trava com validade](#trava-com-validade); um adapter que vive num processo só a dispensa
+com `processLocal: true`.
