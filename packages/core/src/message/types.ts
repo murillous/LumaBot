@@ -22,14 +22,18 @@ export type MessageType =
   | 'poll'
   | 'unknown';
 
-/** Participante de uma conversa. `id` é o identificador nativo do transport (ex.: JID). */
+/**
+ * Participante de uma conversa. `id` é o identificador nativo do transport, opaco para o core (o
+ * user ID do Telegram, o snowflake do Discord, o JID do WhatsApp).
+ */
 export interface Contact {
   readonly id: string;
   readonly name: string | null;
   /**
    * Telefone só com dígitos, com DDI (`'5511999999999'`), ou `null` se o transport não souber.
-   * Fica separado de `id` porque o ID nativo nem sempre carrega o número (no WhatsApp, um LID);
-   * só o transport sabe resolvê-lo. É com ele que o roteador reconhece os `owners` telefone.
+   * `null` também onde a plataforma não tem telefone (Discord, web). Fica separado de `id` porque
+   * o ID nativo nem sempre carrega o número (no WhatsApp, um LID); só o transport sabe resolvê-lo.
+   * É com ele que o roteador reconhece os `owners` telefone.
    */
   readonly phone: string | null;
   /** `@usuario` sem o `@` (Telegram, Discord); ausente se a plataforma não tiver (ADR 0057). */

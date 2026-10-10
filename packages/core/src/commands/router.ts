@@ -18,8 +18,8 @@ import { createRoleRegistry, type RoleContext, type RoleRegistry } from './roles
 /**
  * Porta para consultar admins de grupo. Vem do transport (`isChatAdmin` ou capability `groups`,
  * ADR 0059); o core não importa transport, então quem compõe o bot injeta. Recebe o chat
- * inteiro, porque no Discord o admin é do servidor (`parentId`), e o contato inteiro, porque no
- * WhatsApp o id do remetente e o do participante podem vir em espaços diferentes (LID e JID de
+ * inteiro, porque no Discord o admin é do servidor (`parentId`), e o contato inteiro, porque o id
+ * do remetente e o do participante podem vir em espaços diferentes (no WhatsApp, LID e JID de
  * telefone), e o telefone é o que os liga (ADR 0046).
  */
 export type IsGroupAdmin = (chat: Chat, sender: Contact) => boolean | Promise<boolean>;
@@ -214,8 +214,9 @@ export function createCommandRouter(options: CommandRouterOptions = {}): Command
     if (role === 'everyone') return true;
     const { message } = ctx;
     // Dono é superusuário: passa também em `group-admin`. Owner por telefone compara com
-    // `sender.phone`, não com o `sender.id`: no WhatsApp o ID pode ser um LID, de onde não sai o
-    // número (M1-16.4). Owner `{ id }` compara com o `sender.id`, para quem não tem telefone.
+    // `sender.phone`, não com o `sender.id`: o ID é opaco e nem sempre carrega o número (no
+    // WhatsApp, um LID; M1-16.4). Owner `{ id }` compara com o `sender.id`, para quem não tem
+    // telefone.
     const { id, phone } = message.sender;
     if (ownerIds.has(id) || (phone !== null && ownerPhones.has(phone))) return true;
     if (role === 'owner') return false;

@@ -37,7 +37,7 @@ recebe o filho com o chat:
 ```ts
 const pluginLog = root.child({ plugin: 'clima' });
 pluginLog.child({ chatId: message.chat.id }).info('previsão enviada', { cidade });
-// {"level":30,...,"plugin":"clima","chatId":"123@g.us","cidade":"Recife","msg":"previsão enviada"}
+// {"level":30,...,"plugin":"clima","chatId":"grupo-1","cidade":"Recife","msg":"previsão enviada"}
 ```
 
 O filho herda nível, destino e redação do pai. Repetir uma chave num filho (`child({ chatId })`

@@ -3,22 +3,31 @@
 Saída explícita para quando a API normalizada ainda não cobre o que o plugin precisa
 ([ADR 0011](../../../docs/adr/0011-escape-hatch-unsafe-native.md),
 [ADR 0066](../../../docs/adr/0066-objeto-bruto-da-mensagem.md)). Dá acesso ao objeto nativo do
-transport (no Baileys, o socket) em `native`, e ao objeto bruto de cada mensagem em `raw()`.
+transport em `native` (o socket do Baileys, o `Client` do discord.js, o `Bot` do grammY), e ao
+objeto bruto de cada mensagem em `raw()`.
 
 ## Usando num plugin
 
 ```ts
-import type { WASocket } from 'baileys';
+import type { Client } from 'discord.js';
 
 export const plugin = definePlugin({
-  name: 'stickers',
+  name: 'servidores',
   version: '1.0.0',
   engine: '^0.1.0',
-  transports: ['baileys'], // o uso do escape hatch prende o plugin a este transport
+  transports: ['discord'], // o uso do escape hatch prende o plugin a este transport
   setup(ctx) {
-    const socket = ctx.unsafe.native as WASocket; // `unknown`: estreite antes de usar
+    const client = ctx.unsafe.native as Client; // `unknown`: estreite antes de usar
   },
 });
+```
+
+No `transport-baileys`, o mesmo acesso dá o socket:
+
+```ts
+import type { WASocket } from 'baileys';
+
+const socket = ctx.unsafe.native as WASocket; // com `transports: ['baileys']` no manifesto
 ```
 
 - `native` é `unknown`: o core não promete nada sobre o formato. Estreite (cast ou checagem)

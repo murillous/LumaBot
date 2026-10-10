@@ -118,8 +118,8 @@ export interface PluginStorage {
 }
 
 /**
- * Lote de chaves do auth state: tipo → id → valor. `null` remove a chave. Mesmo formato do
- * `SignalKeyStore.set` do Baileys, mas com valores já em JSON.
+ * Lote de chaves do auth state: tipo → id → valor. `null` remove a chave. Serve ao transport que
+ * guarda chaves por contato (o Signal do WhatsApp, por exemplo), com valores já em JSON.
  */
 export type AuthKeyData = {
   readonly [type: string]: { readonly [id: string]: JsonValue | null };

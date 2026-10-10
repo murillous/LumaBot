@@ -214,7 +214,7 @@ Os oficiais entram nesta ordem (de fora para dentro), e os do app depois, com pr
 createBot({
   transport,
   middlewares: {
-    chatFilter: { block: ['123@g.us'] },
+    chatFilter: { block: ['grupo-1'] },
     rateLimit: { max: 10, windowMs: 1000 },
     use: [
       timing,                                  // prioridade 0

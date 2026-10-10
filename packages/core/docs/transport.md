@@ -1,8 +1,9 @@
 # Transport
 
-O `Transport` é a porta entre o kernel e um canal de mensageria (WhatsApp via Baileys, Cloud
-API etc.). O core só conhece a interface; cada adapter traduz o formato nativo para os tipos
-normalizados. Porquê: [ADR 0003](../../../docs/adr/0003-transport-abstrato.md),
+O `Transport` é a porta entre o kernel e um canal de mensageria: WhatsApp, Telegram, Discord ou
+um chat web próprio. O core só conhece a interface; cada adapter traduz o formato nativo para os
+tipos normalizados, e nada do contrato supõe uma plataforma. Porquê:
+[ADR 0003](../../../docs/adr/0003-transport-abstrato.md),
 [ADR 0010](../../../docs/adr/0010-capabilities-do-transporte.md),
 [ADR 0011](../../../docs/adr/0011-escape-hatch-unsafe-native.md).
 
@@ -12,7 +13,7 @@ normalizados. Porquê: [ADR 0003](../../../docs/adr/0003-transport-abstrato.md),
 import type { Transport } from '@zapforge/core/adapter';
 
 interface Transport {
-  readonly name: string;                         // 'baileys'
+  readonly name: string;                         // 'baileys', 'telegram', 'web'...
   readonly capabilities: ReadonlySet<Capability>;
   readonly self: Contact | null;                 // null até a primeira conexão aberta
   readonly native: unknown;                      // escape hatch (ctx.unsafe.native)
@@ -41,7 +42,7 @@ esperar o `open`; rejeita só se nem deu para começar. O resto chega por `conne
 
 - `open` quando dá para enviar. O `Bot` só despacha a fila de saída depois do primeiro `open`:
   um transport que nunca o emite não envia nada.
-- `closed` se a tentativa cair, inclusive antes de o `connect()` resolver (no Baileys, o restart
+- `closed` se a tentativa cair, inclusive antes de o `connect()` resolver (no WhatsApp, o restart
   pedido pelo servidor logo depois do pareamento). O `Bot` guarda essa queda e reconecta quando o
   `connect()` termina, a menos que um `open` venha depois dela.
 
@@ -54,13 +55,16 @@ quem chama checa a capability antes (ver abaixo).
 
 ## Ids de contato
 
-Os ids de contato (`sender.id`, `GroupParticipant.id`, `mentions`, os ids de
-`updateGroupParticipants`) podem vir em espaços diferentes. No WhatsApp, o mesmo contato aparece
-como LID (`123@lid`) num lugar e como JID de telefone (`5511999999999@s.whatsapp.net`) em outro,
-conforme o modo de endereçamento do grupo. O que liga os dois é o `phone`:
+O `id` do contato (`sender.id`, `GroupParticipant.id`, `mentions`, os ids de
+`updateGroupParticipants`) é o identificador nativo da plataforma, opaco para o core: o user ID do
+Telegram, o snowflake do Discord, o `sub` do JWT no web. Numa plataforma, o mesmo contato pode
+aparecer com IDs de espaços diferentes; no WhatsApp, conforme o modo de endereçamento do grupo
+(detalhes na [doc do `transport-baileys`](../../transport-baileys/docs/README.md#contatos-e-telefone)).
+Onde a plataforma tem telefone, é o `phone` que liga os dois:
 
 - O adapter preenche `phone` (só dígitos, com DDI) no remetente, nos participantes e no
-  `transport.self` sempre que souber resolvê-lo; `null` só quando não souber.
+  `transport.self` sempre que souber resolvê-lo. Sem telefone na plataforma (Discord, web) ou sem
+  como resolvê-lo, vai `null`.
 - Para saber se dois contatos são o mesmo, compare o `id` e, se os dois tiverem, o `phone`. É o
   que o kernel faz no `role: 'group-admin'`
   ([ADR 0046](../../../docs/adr/0046-ids-de-contato-e-metadata-de-grupo.md)). Os `owners` da
@@ -118,15 +122,15 @@ o adapter: o erro vai para o `onError` passado no construtor.
 ```ts
 import { TypedEmitter, type TransportEvents } from '@zapforge/core/adapter';
 
-class BaileysTransport implements Transport {
+class TelegramTransport implements Transport {
   readonly #events = new TypedEmitter<TransportEvents>((error, event) =>
     this.#log.error({ error, event }, 'handler de evento falhou'),
   );
 
   on: Transport['on'] = (event, handler) => this.#events.on(event, handler);
 
-  #onUpsert(raw: proto.IWebMessageInfo) {
-    this.#events.emit('message', toMessage(raw));
+  #onUpdate(update: Update) {
+    if (update.message) this.#events.emit('message', toMessage(update.message));
   }
 }
 ```
@@ -141,14 +145,16 @@ Um adapter que precisa do bot (credenciais, logger) exporta uma fábrica, não a
 ```ts
 import type { Transport, TransportDeps } from '@zapforge/core/adapter';
 
-export function baileys(options: BaileysOptions): (deps: TransportDeps) => Transport {
+export function telegram(options: TelegramOptions): (deps: TransportDeps) => Transport {
   // Valide `options` aqui: um erro na fábrica vira `BotConfigError` no `createBot`.
-  return ({ session, auth, log }) => new BaileysTransport(options, { session, auth, log });
+  return ({ log, commands }) => new TelegramTransport(options, { log, commands });
 }
 ```
 
 - `auth` é o `AuthStateStore` da sessão (`getCreds`/`setCreds`/`getKeys`/`setKeys`/`clear`): o
-  adapter converte o formato nativo para JSON e guarda ali, sem arquivo próprio.
+  adapter que pareia (o do WhatsApp) converte o formato nativo para JSON e guarda ali, sem arquivo
+  próprio. Um transport por token, como o acima, recebe o token pelas opções e pode ignorá-lo
+  ([Storage → Auth state](storage.md#auth-state-para-transports)).
 - `log` já vem com `{ transport: name }` e passa pela censura de segredos do bot. Antes do
   `start()` descarta as linhas; guarde a referência, ela passa a valer sozinha.
 - A fábrica roda dentro do `createBot`, que não pode ter efeito colateral (ADR 0004): **só monte o
@@ -233,7 +239,7 @@ Discord) e, depois, como mensagem comum no chat. A `MessageKey` devolvida é a d
 ```ts
 await transport.send(chatId, { type: 'text', text: 'oi @fulano' }, {
   quoted: ctx.message,           // responde citando (capability `quoted`)
-  mentions: ['5511999@s.whatsapp.net'], // capability `mentions`
+  mentions: [contato.id],        // capability `mentions`: o `id` do contato, como o transport o entregou
 });
 await transport.send(chatId, { type: 'image', media: buffer, caption: 'legenda' });
 await transport.send(chatId, { type: 'document', media: { url }, fileName, mimetype });
@@ -458,8 +464,8 @@ chegar à fila. Mesmo assim, lance o `retryAfterMs` quando ele chegar.
 
 `pacing` dá o ritmo padrão da fila de saída para a plataforma
 ([ADR 0067](../../../docs/adr/0067-retry-after-e-ritmo-do-transport.md)). O que o app passa em
-`createBot({ outbound })` sobrescreve cada campo, e o campo ausente cai no padrão do core, a
-política anti-ban do WhatsApp (300 ms global, 1000 ms por chat).
+`createBot({ outbound })` sobrescreve cada campo, e o campo ausente cai no padrão do core (300 ms
+global, 1000 ms por chat), conservador porque nasceu da política anti-ban do WhatsApp.
 
 ```ts
 // Telegram: 30 mensagens/s no total e cerca de 1/s por chat privado.
@@ -497,8 +503,8 @@ no Telegram e no Discord, bot não adiciona ninguém. `remove` tira a pessoa sem
 
 O kernel chama `getGroupMetadata` a cada comando `group-admin` de quem não é owner, e o plugin
 pode chamá-lo por `ctx.groups.metadata` quando quiser. Por isso ele precisa ser barato: o adapter
-mantém cache por grupo e o invalida em `group.participants` e `group.updated` (no Baileys,
-`cachedGroupMetadata`). O core não cacheia
+mantém cache por grupo e o invalida em `group.participants` e `group.updated` (o
+`transport-baileys` usa o `cachedGroupMetadata` do Baileys). O core não cacheia
 ([ADR 0046](../../../docs/adr/0046-ids-de-contato-e-metadata-de-grupo.md)).
 
 ## Capabilities

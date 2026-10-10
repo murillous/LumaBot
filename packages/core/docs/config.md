@@ -225,7 +225,7 @@ Donos do bot (`createBot({ owners })`). Cada entrada é um telefone ou um `{ id 
 [ADR 0056](../../../docs/adr/0056-owners-por-telefone-ou-id.md)):
 
 - **Telefone** (string): só dígitos com DDI, como `Contact.phone`, comparado com `sender.phone`.
-  Aceita espaço, `+`, `-`, `.`, `(` e `)`; o resto (letras, `@` de JID) é `BotConfigError`, assim
+  Aceita espaço, `+`, `-`, `.`, `(` e `)`; o resto (letras, `@`) é `BotConfigError`, assim
   como menos de 8 ou mais de 15 dígitos.
 - **`{ id }`**: o ID nativo do contato, comparado com `sender.id` exatamente como o transport o
   entrega. É o caminho para Discord, Telegram e web, onde não há telefone. Vai sempre em texto
@@ -235,10 +235,10 @@ Donos do bot (`createBot({ owners })`). Cada entrada é um telefone ou um `{ id 
 ```ts
 createBot({ transport, owners: ['+55 11 99999-9999', '5511999999999'] }); // ['5511999999999']
 createBot({ transport, owners: [{ id: '123456789012345678' }] });         // Discord
-createBot({ transport, owners: ['5511999999999@s.whatsapp.net'] });        // BotConfigError
+createBot({ transport, owners: ['5511999999999@s.whatsapp.net'] });        // BotConfigError: ID vai em { id }
 ```
 
 Telefone e `{ id }` nunca se cruzam: `{ id: '5511999999999' }` não casa com quem tem esse
-telefone, nem `'5511999999999'` com quem tem esse ID. No WhatsApp, prefira o telefone: o
-`sender.id` pode chegar como LID ou como JID de telefone, e um `{ id }` só casa no espaço em que
-foi escrito. Repetidos saem, a ordem fica.
+telefone, nem `'5511999999999'` com quem tem esse ID. Onde a plataforma tem telefone, prefira-o:
+no WhatsApp o `sender.id` do mesmo contato muda de espaço conforme o grupo, e um `{ id }` só casa
+no espaço em que foi escrito. Repetidos saem, a ordem fica.

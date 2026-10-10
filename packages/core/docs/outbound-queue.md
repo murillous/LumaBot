@@ -26,7 +26,7 @@ const queue = new OutboundQueue({
   sendTimeoutMs: 30_000, // padrão
 });
 
-await queue.send('123@g.us', { type: 'text', text: 'aviso' }, { priority: 'low' });
+await queue.send('grupo-1', { type: 'text', text: 'aviso' }, { priority: 'low' });
 
 const reply = createReply(queue, message);
 await reply('pong'); // cita `message`, prioridade high
@@ -49,7 +49,7 @@ import { createOutbound } from '#outbound/actions.ts';
 
 const outbound = createOutbound(queue, transport);
 await outbound.react(message.key, '👍'); // UnsupportedError sem a capability `reactions`
-await queue.enqueue('123@g.us', () => transport.sendTyping('123@g.us', 'text'));
+await queue.enqueue('grupo-1', () => transport.sendTyping('grupo-1', 'text'));
 ```
 
 Um "digitando" explícito ocupa o intervalo do chat: o envio logo depois dele espera
@@ -63,8 +63,9 @@ Um "digitando" explícito ocupa o intervalo do chat: o envio logo depois dele es
 - Um chat esperando o próprio intervalo não segura os outros: eles só esperam o global.
 - Na fila ociosa, o primeiro envio sai na hora, de forma síncrona, dentro do `send`.
 
-Os padrões são conservadores (≈3 msg/s no total, 1 msg/s por chat), a política anti-ban do
-WhatsApp. A latência sob carga sobe por design: é o preço de não tomar ban.
+Os padrões são conservadores (≈3 msg/s no total, 1 msg/s por chat): vêm da política anti-ban do
+WhatsApp, a plataforma mais restritiva. A latência sob carga sobe por design: é o preço de não
+tomar ban.
 
 O transport pode dar outro ritmo padrão, o da plataforma dele, em `transport.pacing`
 ([Transport](transport.md#ritmo), [ADR 0067](../../../docs/adr/0067-retry-after-e-ritmo-do-transport.md)).
@@ -119,7 +120,7 @@ e o custo é zero.
   em `sent`.
 
 ```ts
-await queue.send('123@g.us', textoLongo); // atalho: só o texto, cru ou formatado
+await queue.send('grupo-1', textoLongo); // atalho: só o texto, cru ou formatado
 ```
 
 O `ctx.send.edit` não divide: acima de `limits.text`, rejeita com `RangeError` sem enfileirar.
@@ -131,7 +132,7 @@ O conteúdo `{ type: 'album', items, caption? }` envia várias mídias de uma ve
 `document`, sem legenda própria; a legenda é do álbum.
 
 ```ts
-await queue.send('123@g.us', {
+await queue.send('grupo-1', {
   type: 'album',
   items: [
     { type: 'image', media: foto },
