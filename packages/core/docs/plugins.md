@@ -203,7 +203,8 @@ O loader não conhece comandos, eventos, storage nem serviços: recebe
 registrou pelo contexto. Um `setup` que estoura o prazo continua rodando em segundo plano
 (não há como abortar código síncrono/arbitrário); a fábrica deve fazer o contexto recusar
 registros depois do `dispose`, para o setup atrasado não deixar nada para trás — a do `Bot` lança
-`PluginHostStateError` em `commands.add`, `events.on`, `services.provide` e `scheduler.on`, e
+`PluginHostStateError` em `commands.add`, `events.on`, `services.provide`, `scheduler.on`,
+`http.route` e `http.ws` (o `dispose` tira as rotas e fecha os WebSockets delas), e
 rejeita com `ContextExpiredError` `send` (com as ações), `groups`, `storage` (KV e coleções) e
 `scheduler.at`/`cancel`.
 
@@ -260,6 +261,7 @@ setup(ctx) {
 | `ctx.self` | contato da sessão; `null` até a primeira conexão | — | — |
 | `ctx.transportName` | `name` do transport (`baileys`, `web`...), para compor chaves de ID no [`ctx.storage.shared`](storage.md#dados-comuns-a-vários-bots) | — | — |
 | `ctx.capabilities` | `ReadonlySet` do que o transport suporta | — | — |
+| `ctx.http.route(method, path, handler)` / `ctx.http.ws(path, accept)` | rota HTTP ou WebSocket sob `/plugins/<nome>` ([HTTP](http.md)) | — | — |
 
 - As ações aceitam `{ priority }` (padrão `'normal'`). O atalho `c.react(emoji)`, no comando e nos
   listeners de mensagem, usa a chave da mensagem recebida e prioridade `'high'`, como o `reply`.

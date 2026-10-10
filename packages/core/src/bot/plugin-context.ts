@@ -7,6 +7,7 @@ import type { CommandDefinition } from '#commands/command.ts';
 import type { Prefixes } from '#commands/prefixes.ts';
 import { type RoleCheck, RoleTimeoutError } from '#commands/roles.ts';
 import type { CommandRouter } from '#commands/router.ts';
+import { BotConfigError } from '#config/owners.ts';
 import type { PluginConfigs } from '#config/plugin-configs.ts';
 import {
   type ConversationRegistry,
@@ -25,6 +26,8 @@ import {
 import type { EventBus } from '#events/bus.ts';
 import type { BotEventName, EventSubscriber, PluginErrorEvent } from '#events/types.ts';
 import type { Groups } from '#groups/groups.ts';
+import type { SessionHttp } from '#http/server.ts';
+import type { HttpRoutes } from '#http/types.ts';
 import type { Logger } from '#logger/types.ts';
 import type { Contact } from '#message/types.ts';
 import type { Outbound } from '#outbound/types.ts';
@@ -74,6 +77,10 @@ export interface PluginContextDeps {
   readonly scheduler: SchedulerService;
   readonly send: Outbound;
   readonly groups: Groups;
+  /** Rotas da sessão no servidor HTTP; ausente sem `http` na config do bot (ADR 0076). */
+  readonly http: SessionHttp | undefined;
+  /** Falha de uma rota ou WebSocket do plugin (`phase: 'http'`). */
+  readonly onHttpError: (event: PluginErrorEvent) => void;
   /** Nome, capabilities e contato da sessão, lidos do transport a cada acesso. */
   readonly transport: {
     readonly name: string;
@@ -251,6 +258,7 @@ export function createPluginContextFactory(deps: PluginContextDeps): PluginConte
             deps.groups.updateParticipants(...args),
         ),
       } satisfies Groups,
+      http: pluginHttp(name, deps, guard),
       transportName: deps.transport.name,
       capabilities: deps.transport.capabilities,
       get self(): Contact | null {
@@ -271,8 +279,50 @@ export function createPluginContextFactory(deps: PluginContextDeps): PluginConte
         deps.bus.removePlugin(name);
         deps.services.removePlugin(name);
         deps.scheduler.removePlugin(name);
+        deps.http?.removeOwner(name);
       },
     };
+  };
+}
+
+/** `ctx.http`: rotas sob `/plugins/<nome>`, recusadas depois do `dispose` ou sem servidor. */
+function pluginHttp(
+  name: string,
+  deps: PluginContextDeps,
+  guard: (what: string) => void,
+): HttpRoutes {
+  if (deps.http === undefined) {
+    const missing = (): never => {
+      throw new BotConfigError(
+        `plugin "${name}": ctx.http sem servidor; passe \`http: createHttp({ port })\` no createBot`,
+      );
+    };
+    return {
+      get basePath(): string {
+        return missing();
+      },
+      route: missing,
+      ws: missing,
+    };
+  }
+  const routes = deps.http.scope(
+    name,
+    () => `/plugins/${name}`,
+    (error, route) =>
+      deps.onHttpError({ plugin: name, phase: 'http', event: route, error, timedOut: false }),
+  );
+  return {
+    get basePath() {
+      return routes.basePath;
+    },
+    route(method, path, handler) {
+      guard('http.route');
+      routes.route(method, path, handler);
+    },
+    ws(path, accept) {
+      guard('http.ws');
+      routes.ws(path, accept);
+    },
   };
 }
 

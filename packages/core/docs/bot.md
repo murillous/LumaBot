@@ -22,6 +22,7 @@ Só `transport` é obrigatório; `createBot({ transport })` sobe um bot sem plug
 | `transport` | — | O canal: um `Transport` pronto ou a fábrica `(deps) => Transport` ([Transport por fábrica](#transport-por-fábrica)) |
 | `session` | `'default'` | Sessão (o número) que o bot opera; kebab-case. Escopo de tudo o que ele persiste ([Sessão](#sessão)) |
 | `storage` | memória, com aviso no log | `StoragePort` de plugins, scheduler e overrides de config. O bot o fecha no `stop()` (o último a parar, se vários o dividem) |
+| `http` | — | Servidor HTTP do processo (`createHttp`), o mesmo para todos os bots; dá `ctx.http` e `deps.http` ([HTTP](http.md)) |
 | `plugins` | `[]` | Plugins da config (pacotes npm que o app importa) |
 | `pluginDirs` / `cwd` | — / `process.cwd()` | Pastas de plugins locais ([Plugins](plugins.md#fontes-config-e-plugindirs)) |
 | `disabledPlugins` | `[]` | Nomes que não carregam |
@@ -389,12 +390,15 @@ idle ──start()──▶ starting ──boot ok──▶ running ──stop()
 
 Em ordem (plano §5.3):
 
-1. Cria o logger, reserva a sessão no storage (`BotConfigError` se outro bot vivo já a usa) e
-   (sem `storage`) avisa que os dados estão em memória.
+1. Cria o logger, reserva a sessão no storage (`BotConfigError` se outro bot vivo já a usa),
+   liga a sessão ao servidor HTTP, se houver (`BotConfigError` se a sessão já está nele), e (sem
+   `storage`) avisa que os dados estão em memória.
 2. Pausa a fila de saída até o primeiro `open`, assina os eventos do transport e empilha os
    ganchos de parada internos.
 3. Carrega os plugins: coleta (`plugins` + `pluginDirs`) → config → `setup` de cada um → tabela
    de boot no log → checagem de conflito de comando, papel e serviço.
+   Com `http` e alguma rota (de plugin ou do transport), abre a porta; porta ocupada derruba o
+   boot ([HTTP](http.md)).
 4. **Só se o boot dos plugins deu certo**, chama `transport.connect()`; conectado, liga a
    reconexão automática.
 5. Liga o scheduler (dispara os jobs vencidos no downtime) e passa a `running`.
@@ -437,6 +441,7 @@ enquanto os plugins sobem, o transport nem conecta (sem QR nem handshake à toa)
 | — | ganchos do app registrados **antes** do `start()` | | |
 | — | abandono dos internos | sem prazo | Encerra à força o que os ganchos internos não encerraram (abaixo) |
 | — | `transport.disconnect()` | sem prazo | só se o `connect()` chegou a ser chamado |
+| — | saída do servidor HTTP | sem prazo | tira as rotas do transport; o último bot a sair fecha a porta |
 | — | `storage.close()` | sem prazo | só se o bot chegou a dar `start()` e nenhum outro bot (outra sessão) ainda usa o storage |
 
 O scheduler para antes do `teardown`: nenhum job dispara contra um plugin em descida, e o
@@ -749,5 +754,7 @@ await Promise.all([zap.start(), tg.start()]);
 - Cada bot tem seus dados na própria sessão. O plugin que quer um dado comum aos dois usa
   `ctx.storage.shared` ([Storage](storage.md#dados-comuns-a-vários-bots)).
 - O storage só fecha quando o último bot para ([Sessão](#sessão)).
+- Com HTTP, passe a mesma instância de `createHttp` a todos: um servidor, uma porta, e as rotas de
+  cada sessão sob `/sessions/<sessão>` ([HTTP](http.md#caminhos)).
 - Um bot só não tem vários transports: as capabilities, a fila de saída e a reconexão são de um
   transport.
