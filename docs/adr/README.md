@@ -192,3 +192,4 @@ ADR 0055). Ao serem aceitos, entram aqui e no índice numérico.
 | [0070](0070-capabilities-multiplataforma.md) | D70 | Capabilities multiplataforma: `typing` no lugar de `presence`, uma reação da sessão por mensagem, enquete com `multiple` e a lista só do core (detalha D10/D16) | Aceito |
 | [0071](0071-voto-em-enquete.md) | D71 | Voto em enquete: evento `poll.vote` com a escolha inteira por índice, filtrado como a reação (completa D70, segue D38) | Aceito |
 | [0072](0072-isolamento-por-tenant.md) | D72 | Isolamento automático por tenant: `chat.tenantId` e o mesmo `ctx.storage` no escopo do tenant corrente (detalha D36/D15) | Aceito |
+| [0075](0075-varios-bots-e-escopo-compartilhado.md) | D75 | Vários bots num storage e escopo compartilhado opt-in: `ctx.storage.shared` em `$shared:<plugin>`, por tenant, e `ctx.transportName` (detalha D04, substitui parte do D36) | Aceito |

@@ -709,3 +709,21 @@ Duas chamadas a `createBot` não compartilham nada — roteador, barramento, fil
 registry de serviços, logger e storage padrão são da instância. A mesma `PluginDefinition` pode
 servir aos dois bots: cada um monta o próprio contexto. É o caminho para multi-sessão
 ([ADR 0004](../../../docs/adr/0004-uma-sessao-por-processo.md)).
+
+Para servir várias plataformas, suba um bot por transport no mesmo processo, todos com a mesma
+instância de storage e uma sessão cada
+([ADR 0075](../../../docs/adr/0075-varios-bots-e-escopo-compartilhado.md)):
+
+```ts
+const storage = sqlite({ path: 'data/bot.db' });
+const plugins = [rank, ajuda];
+const zap = createBot({ session: 'whatsapp', transport: baileys(), storage, plugins });
+const tg = createBot({ session: 'telegram', transport: transportTelegram, storage, plugins });
+await Promise.all([zap.start(), tg.start()]);
+```
+
+- Cada bot tem seus dados na própria sessão. O plugin que quer um dado comum aos dois usa
+  `ctx.storage.shared` ([Storage](storage.md#dados-comuns-a-vários-bots)).
+- O storage só fecha quando o último bot para ([Sessão](#sessão)).
+- Um bot só não tem vários transports: as capabilities, a fila de saída e a reconexão são de um
+  transport.

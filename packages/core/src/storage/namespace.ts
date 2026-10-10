@@ -2,7 +2,8 @@
 // alcança os dados do kernel (jobs do scheduler, overrides de config) nem os de outra sessão
 // são estas funções: todo namespace começado por "$" é do kernel, ":" separa a sessão do resto,
 // "@" separa o plugin do tenant (ADR 0072), e `pluginStorage` recusa os três no nome do plugin.
-// Assim a garantia não depende da validação de nome de plugin (M1-8).
+// Assim a garantia não depende da validação de nome de plugin (M1-8). O escopo compartilhado entre
+// sessões (ADR 0075) fica em `$shared:<plugin>`: espaço do kernel, que nenhuma sessão alcança.
 
 import { ReservedNamespaceError } from './errors.ts';
 import type { PluginStorage, StoragePort } from './types.ts';
@@ -10,6 +11,7 @@ import type { PluginStorage, StoragePort } from './types.ts';
 const KERNEL_PREFIX = '$';
 const SESSION_SEPARATOR = ':';
 const TENANT_SEPARATOR = '@';
+const SHARED_PREFIX = `${KERNEL_PREFIX}shared${SESSION_SEPARATOR}`;
 
 /** Sessão cujos namespaces ficam sem prefixo: o formato de quem não passa `session`. */
 export const DEFAULT_SESSION = 'default';
@@ -71,6 +73,19 @@ export function sessionStorage(port: StoragePort, session: string): StoragePort 
   if (session === DEFAULT_SESSION) return port;
   return {
     forNamespace: (namespace) => port.forNamespace(`${session}${SESSION_SEPARATOR}${namespace}`),
+    authState: (name) => port.authState(name),
+    close: () => port.close(),
+  };
+}
+
+/**
+ * Visão do storage comum a todas as sessões (ADR 0075): `forNamespace('x')` vira `'$shared:x'`, sem
+ * o prefixo de sessão. Começa com "$", então o namespace de plugin de nenhuma sessão coincide com
+ * ele; os componentes do kernel não usam ":" no nome. `authState` e `close` passam direto.
+ */
+export function sharedStorage(port: StoragePort): StoragePort {
+  return {
+    forNamespace: (namespace) => port.forNamespace(`${SHARED_PREFIX}${namespace}`),
     authState: (name) => port.authState(name),
     close: () => port.close(),
   };

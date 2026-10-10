@@ -14,7 +14,7 @@ import type { Contact } from '#message/types.ts';
 import type { Outbound } from '#outbound/types.ts';
 import type { Scheduler } from '#scheduler/types.ts';
 import type { ServiceAccess } from '#services/types.ts';
-import type { TenantStorage } from '#storage/tenant.ts';
+import type { PluginContextStorage } from '#storage/tenant.ts';
 import type { Capability } from '#transport/capabilities.ts';
 import type { Unsafe } from '#unsafe/types.ts';
 
@@ -89,8 +89,9 @@ export interface PluginContext<
    * Storage do plugin. Numa mensagem ou evento de chat com `tenantId`, e em tudo o que o handler
    * dispara, vale o namespace daquele tenant; fora dele (`setup`, timer solto, job sem tenant),
    * o da sessão, compartilhado entre tenants. `forTenant(id)` escolhe um tenant à mão (ADR 0072).
+   * `shared` é o comum a todas as sessões no mesmo storage, também por tenant (ADR 0075).
    */
-  readonly storage: TenantStorage;
+  readonly storage: PluginContextStorage;
   readonly scheduler: Scheduler;
   /**
    * Envio e ações sobre mensagens e chats (`react`, `edit`, `delete`, `typing`), todos pela
@@ -104,6 +105,11 @@ export interface PluginContext<
    * `requires` (ex.: reagir se der, responder em texto se não).
    */
   readonly capabilities: ReadonlySet<Capability>;
+  /**
+   * `Transport.name` do bot (`baileys`, `web`...). IDs de contato e de chat só são únicos dentro
+   * de um transport: no `ctx.storage.shared`, componha com ele a chave que vier de um ID.
+   */
+  readonly transportName: string;
   /** Contato da própria sessão; `null` até a primeira conexão aberta. */
   readonly self: Contact | null;
   readonly unsafe: Unsafe;

@@ -34,7 +34,7 @@ import type { SchedulerService } from '#scheduler/service.ts';
 import type { Scheduler } from '#scheduler/types.ts';
 import type { ServiceRegistry } from '#services/registry.ts';
 import type { ServiceAccess } from '#services/types.ts';
-import { type TenantStorage, tenantStorage } from '#storage/tenant.ts';
+import { type PluginContextStorage, type TenantStorage, tenantStorage } from '#storage/tenant.ts';
 import type {
   Collection,
   CollectionOptions,
@@ -67,13 +67,16 @@ export interface PluginContextDeps {
   readonly bus: EventBus;
   readonly services: ServiceRegistry;
   readonly storage: StoragePort;
+  /** Storage comum às sessões (ADR 0075), de onde sai o `ctx.storage.shared`. */
+  readonly shared: StoragePort;
   /** Tenant corrente (ADR 0072): o `ctx.storage` do plugin grava no namespace dele. */
   readonly tenants: TenantScope;
   readonly scheduler: SchedulerService;
   readonly send: Outbound;
   readonly groups: Groups;
-  /** Capabilities e contato da sessão, lidos do transport a cada acesso. */
+  /** Nome, capabilities e contato da sessão, lidos do transport a cada acesso. */
   readonly transport: {
+    readonly name: string;
     readonly capabilities: ReadonlySet<Capability>;
     readonly self: Contact | null;
   };
@@ -225,7 +228,10 @@ export function createPluginContextFactory(deps: PluginContextDeps): PluginConte
         get: (service) => services.get(service),
         has: (service) => services.has(service),
       } satisfies ServiceAccess,
-      storage: liveTenantStorage(tenantStorage(deps.storage, name, deps.tenants), live),
+      storage: {
+        ...liveTenantStorage(tenantStorage(deps.storage, name, deps.tenants), live),
+        shared: liveTenantStorage(tenantStorage(deps.shared, name, deps.tenants), live),
+      } satisfies PluginContextStorage,
       scheduler: {
         at: live('scheduler.at', (when: Date | number, job: string, payload?: JsonValue) =>
           scheduler.at(when, job, payload),
@@ -245,6 +251,7 @@ export function createPluginContextFactory(deps: PluginContextDeps): PluginConte
             deps.groups.updateParticipants(...args),
         ),
       } satisfies Groups,
+      transportName: deps.transport.name,
       capabilities: deps.transport.capabilities,
       get self(): Contact | null {
         return deps.transport.self;

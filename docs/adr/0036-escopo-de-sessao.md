@@ -1,6 +1,6 @@
 # ADR 0036 — Escopo de sessão no bot e no storage
 
-**Status:** Aceito (2026-10-07) · Detalha as decisões **D04** ([ADR 0004](0004-uma-sessao-por-processo.md)) e **D14** ([ADR 0014](0014-storage-port-sqlite-postgres.md))
+**Status:** Aceito (2026-10-07) · Detalha as decisões **D04** ([ADR 0004](0004-uma-sessao-por-processo.md)) e **D14** ([ADR 0014](0014-storage-port-sqlite-postgres.md)) · "Dados compartilhados entre sessões fora da v1": substituído pelo [ADR 0075](0075-varios-bots-e-escopo-compartilhado.md)
 
 ## Contexto
 

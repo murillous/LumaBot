@@ -157,6 +157,7 @@ const entries: Record<string, { file: string; load: () => Promise<object> } & En
       'PluginConfigJsonSchema',
       'PluginConfigView',
       'PluginContext',
+      'PluginContextStorage',
       'PluginDefinition',
       'PluginErrorEvent',
       'PluginManifest',
