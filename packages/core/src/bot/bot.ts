@@ -61,6 +61,7 @@ import { DEFAULT_SESSION, sessionStorage, sharedStorage } from '#storage/namespa
 import type { StoragePort } from '#storage/types.ts';
 import { TenantScope } from '#tenant/scope.ts';
 import { type Capability, hasCapability } from '#transport/capabilities.ts';
+import { transportIssues } from '#transport/methods.ts';
 import type {
   CommandInteraction,
   Interaction,
@@ -1349,14 +1350,23 @@ function validateSession(session: string): string {
 
 /** Instância pronta, ou a que a fábrica monta; fábrica que lança é erro de config. */
 function resolveTransport(transport: BotConfig['transport'], deps: TransportDeps): Transport {
-  if (typeof transport !== 'function') return transport;
-  try {
-    return transport(deps);
-  } catch (error) {
-    throw new BotConfigError('transport: a fábrica lançou ao montar o transport', {
-      cause: error,
-    });
+  let resolved: Transport;
+  if (typeof transport !== 'function') resolved = transport;
+  else {
+    try {
+      resolved = transport(deps);
+    } catch (error) {
+      throw new BotConfigError('transport: a fábrica lançou ao montar o transport', {
+        cause: error,
+      });
+    }
   }
+  // Capability sem o método dela só falharia quando um plugin a usasse (ADR 0080).
+  const issues = transportIssues(resolved);
+  if (issues.length > 0) {
+    throw new BotConfigError(`transport inválido:\n- ${issues.join('\n- ')}`);
+  }
+  return resolved;
 }
 
 /** `transport.connect()` com um throw síncrono do adapter virando rejeição. */

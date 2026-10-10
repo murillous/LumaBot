@@ -199,3 +199,4 @@ ADR 0055). Ao serem aceitos, entram aqui e no índice numérico.
 | [0077](0077-transport-web.md) | D77 | `@zapforge/transport-web`: chat por WebSocket com JWT no primeiro frame, conversa escolhida pelo cliente, buffer para cliente fora e mídia por HTTP (detalha D55, sobre o D76) | Aceito |
 | [0078](0078-postgres-via-pg.md) | D78 | Postgres pelo `pg`: schema próprio, documentos em `jsonb`, migrations sob advisory lock e testes contra Postgres em container no CI (detalha D14/D15) | Aceito |
 | [0079](0079-acucar-no-manifesto-do-plugin.md) | D79 | Açúcar no manifesto do plugin: `commands` e `on` declarativos, `run` que devolve texto responde e `send.text` implícito (detalha D16/D22) | Aceito |
+| [0080](0080-acucar-para-o-autor-de-transport.md) | D80 | Açúcar para o autor de transport: `defineTransport` com descrição e kit, e coerência capability ↔ método conferida no `createBot` (detalha D03/D10/D37) | Aceito |

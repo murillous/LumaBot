@@ -50,8 +50,64 @@ esperar o `open`; rejeita só se nem deu para começar. O resto chega por `conne
 após um `connect()` que falhou ou que ainda não terminou, ou mais de uma vez. O shutdown do
 `Bot` conta com isso.
 
-Todo método existe em todo transport. O que o canal não suporta lança `UnsupportedError`;
-quem chama checa a capability antes (ver abaixo).
+O tipo `Transport` tem todos os métodos. O kernel confere a capability antes de chamar, então
+quem escreve uma classe implementa os das capabilities que declara e faz o resto lançar
+`UnsupportedError`. O objeto escrito à mão (em JS, por exemplo) pode simplesmente omiti-los. O
+`createBot` recusa com `BotConfigError` o transport que declara uma capability sem o método dela
+(`reactions` sem `react`), que declara uma capability desconhecida ou que não tem `connect`,
+`disconnect`, `on` ou `send`
+([ADR 0080](../../../docs/adr/0080-acucar-para-o-autor-de-transport.md)).
+
+## Forma curta: `defineTransport`
+
+Para não montar à mão o emissor, o `on()`, o `self`, o `Set` de capabilities e os métodos que só
+lançam `UnsupportedError`, descreva só o que é do adapter:
+
+```js
+import { defineTransport } from '@zapforge/core/adapter';
+
+export function echo(options) {
+  // Valide `options` aqui: o erro sai no app, antes do createBot.
+  return defineTransport((deps, { emit, setSelf }) => ({
+    name: 'echo',
+    capabilities: ['send.text', 'reactions'],
+    async connect() {
+      setSelf({ id: 'bot', name: null, phone: null });
+      emit('connection.status', { status: 'open' });
+    },
+    async disconnect() {},
+    async send(chatId, content) {
+      // ... entrega na plataforma
+      return { chatId, id: 'id-da-plataforma', fromMe: true, senderId: null };
+    },
+    async react(key, emoji) {
+      // ... só porque declarou `reactions`
+    },
+  }));
+}
+```
+
+`defineTransport(build)` devolve a fábrica que o app passa em `createBot({ transport })`
+([Adapter com fábrica](#adapter-com-fábrica)). O `build` recebe as `TransportDeps` e um kit:
+
+- `emit(evento, payload)` entrega um evento ao kernel. O erro de um handler vai para o
+  `deps.log`, nunca para o adapter.
+- `setSelf(contato)` define o `Transport.self`. Chame ao abrir a conexão.
+
+A descrição (`TransportSpec`) é o contrato sem o `on` e o `self`: `capabilities` em lista, e
+`react`, `edit`, `delete`, `sendTyping`, `getGroupMetadata`, `updateGroupParticipants`, `raw`,
+`isChatAdmin`, `native`, `limits` e `pacing` opcionais. O transport montado:
+
+- confere a capability no `send` (a do conteúdo, mais citação, menções e botões) e em cada
+  método antes de chamar o do adapter, que roda com `this` na descrição;
+- faz o método não implementado rejeitar com `UnsupportedError`;
+- só expõe `raw`, `isChatAdmin`, `limits` e `pacing` quando a descrição os tem.
+
+Descrição inválida (capability com erro de digitação, capability sem o método, `send` faltando)
+lança `TypeError` com todos os problemas, e o `createBot` o converte em `BotConfigError`.
+
+O adapter com estado grande, como o do Baileys, pode seguir em classe com `implements Transport`.
+As duas formas dão o mesmo `Transport` ao kernel.
 
 ## Ids de contato
 
