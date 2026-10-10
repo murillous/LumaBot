@@ -159,7 +159,7 @@ if (kind === 'thread' && parentId !== undefined) {
 ```
 
 Um tópico do Telegram não tem ID próprio: o transport compõe o `chat.id` do chat e do tópico, e
-`ctx.send.text(chat.id, …)` cai no tópico, não no "General". Uma thread do Discord já tem ID
+`ctx.send.send(chat.id, …)` cai no tópico, não no "General". Uma thread do Discord já tem ID
 próprio. Nos dois casos, `parentId` é o espaço, não o canal-pai: é o que o `chatFilter` e o
 admin leem.
 
