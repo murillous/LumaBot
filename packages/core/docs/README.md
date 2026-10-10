@@ -31,7 +31,7 @@ explícita.
 | [Ações e botões](actions.md) | `ctx.reply(text, { actions })`: o clique roda um comando ou um passo; menu numerado sem botões |
 | [Storage](storage.md) | KV e coleções por plugin, auth state, adapter em memória e suíte de contrato |
 | [Scheduler](scheduler.md) | `ctx.scheduler`: `at`/`on`/`cancel`, persistência, restart, entrega pelo menos uma vez |
-| [Plugins](plugins.md) | `definePlugin`, manifesto, fontes (config + `pluginDirs`), ordem, tabela de boot, `setup`/`teardown`/`reload` |
+| [Plugins](plugins.md) | `definePlugin`, manifesto, forma curta (`commands`/`on`, plugin em JS), fontes (config + `pluginDirs`), ordem, tabela de boot, `setup`/`teardown`/`reload` |
 | [Texto formatado](text.md) | `fmt`, `bold`, `italic`, `code`, `link`, `mention`, `plainText`; texto cru; divisão do texto longo |
 | [Fila de saída](outbound-queue.md) | `OutboundQueue`: taxa global/por chat, prioridade, retry, humanização; `createReply` |
 | [Eventos](events.md) | Barramento: eventos do §6.4, filtros, prioridade, `claim()`, isolamento |

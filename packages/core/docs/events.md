@@ -25,6 +25,10 @@ setup(ctx) {
 `on()` devolve a função que desfaz a assinatura (idempotente). No teardown o kernel remove todas
 as do plugin, então não é preciso guardá-la só para isso.
 
+Listener fixo, sem opções, também pode ir no `on` do manifesto, com o contexto do plugin no 2º
+argumento: `on: { 'group.joined': (e, ctx) => ... }`
+([Plugins → Forma curta](plugins.md#forma-curta-commands-e-on)).
+
 ### Contexto dos eventos de mensagem
 
 Em `message`, `message:<tipo>` e `message.edited`, o contexto traz também

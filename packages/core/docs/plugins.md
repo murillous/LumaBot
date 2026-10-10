@@ -52,10 +52,88 @@ problemas encontrados. Regras:
 | `after` | nomes de plugin; não pode citar o próprio plugin. |
 | `priority` | número finito; padrão 0. |
 
+| `commands` | objeto nome → comando, cada um com `run` função; o nome segue as regras do `command()` (ver abaixo). |
+| `on` | objeto evento → função; o evento tem que existir em `BotEvents` (erro de digitação é recusado). |
+| `setup` | função; opcional quando o plugin declara `commands` ou `on`. |
+
 Faixas aceitas: `^`, `~`, `>=`, `>`, `<=`, `<`, `=`, curingas (`*`, `x`, `1.x`, `1.2`),
 comparadores separados por espaço (E) e `||` (OU) — a semântica do npm, inclusive a de
 pré-release: `^1.0.0` não aceita `1.1.0-beta`. Faixas com hífen (`1.0.0 - 2.0.0`) não são
 aceitas.
+
+## Forma curta: `commands` e `on`
+
+Comandos e listeners fixos vão direto no manifesto
+([ADR 0079](../../../docs/adr/0079-acucar-no-manifesto-do-plugin.md)):
+
+```ts
+export const saldo = definePlugin({
+  name: 'saldo',
+  version: '1.0.0',
+  engine: '<1.0.0',
+  config: z.object({ moeda: z.string().default('R$') }),
+  commands: {
+    ping: { description: 'Responde pong', run: () => 'pong' },
+    saldo: {
+      description: 'Mostra seu saldo',
+      run: async (c, { storage, config }) => {
+        const valor = (await storage.kv.get(c.message.sender.id)) ?? 0;
+        return `${config.moeda} ${valor}`;
+      },
+    },
+  },
+  on: {
+    'group.joined': (e, { send }) => send.send(e.payload.chat.id, 'Oi, grupo!'),
+  },
+});
+```
+
+- **O nome vem da chave.** O resto é o mesmo `CommandDefinition` (`aliases`, `role`, `accepts`,
+  `onReject`, `timeoutMs`...). `on` aceita um listener por evento, sem opções.
+- **O 2º argumento é o contexto do plugin**, o mesmo do `setup`: `storage`, `config`, `send`,
+  `log`, `services`... Com TypeScript, `config` sai tipado pelo schema.
+- **Devolver texto responde.** Um `run` que devolve string ou `fmt` responde citando a mensagem,
+  como terminar com `await c.reply(texto)`. Isso vale para qualquer comando, também os do
+  `setup`. Outro valor (`undefined`, a chave de um `c.reply(...)` devolvido) não responde nada.
+- **`send.text` vem implícito.** Declarar `commands` já exige a capability `send.text`. O que
+  depende de outra capability (mídia, reação) continua em `requires`.
+- **Um caminho só.** O kernel registra os declarados com `ctx.commands.add` e `ctx.events.on`
+  antes do `setup`, então prazo, recusa, teardown e reload são os da forma longa. O `setup` já
+  os vê em `ctx.commands.list()`, e um conflito de nome derruba o boot como sempre.
+- **O `setup` fica para o dinâmico:** registrar sob condição da config, vários listeners do mesmo
+  evento, listener com `priority` ou filtro, papéis custom, rotas HTTP, serviços.
+
+Como os comandos ficam no manifesto, dá para listá-los sem rodar o plugin (template, doc gerada,
+menu nativo da plataforma).
+
+### Em JavaScript
+
+Nada aqui depende do TypeScript. Um plugin numa pasta de `pluginDirs` pode ser um objeto puro, sem
+importar o core:
+
+```js
+// plugins/ping.mjs
+export const ping = {
+  name: 'ping',
+  version: '1.0.0',
+  engine: '<1.0.0',
+  commands: {
+    ping: { description: 'Responde pong', run: () => 'pong' },
+  },
+};
+```
+
+Sem o compilador, a validação é a rede: `definePlugin` (ou o boot, para o objeto puro) recusa
+com `PluginManifestError` o comando sem `run`, o nome com espaço, o `name` repetido dentro do
+comando, o `aliases` que não é lista e o evento com erro de digitação (`on: { mesage }`), um
+problema por linha.
+
+### Exportar com `isolatedDeclarations`
+
+Pacote publicável anota o export: `export const ping: PluginDefinition = definePlugin({...})`.
+A anotação larga aceita o plugin com config tipada (o `run` e os listeners do manifesto têm
+parâmetro bivariante). Dentro do plugin a config segue tipada. Quem o recebe só o passa ao
+`createBot` e não precisa do tipo estreito.
 
 ## Fontes: config e `pluginDirs`
 
@@ -76,8 +154,8 @@ As duas fontes dão a mesma `PluginDefinition`; a lista da config vem primeiro, 
 pasta na ordem dada. Convenção de pasta (`discoverPlugins(dir)`):
 
 - cada arquivo `.ts`/`.mts`/`.js`/`.mjs` e cada subpasta com `index.*` é um módulo de plugin;
-- todo export (nomeado) com `name` string e `setup` função entra — um módulo pode exportar
-  vários; o mesmo objeto exportado duas vezes conta uma;
+- todo export (nomeado) com `name` string e `setup` função (ou `commands`/`on` objeto) entra —
+  um módulo pode exportar vários; o mesmo objeto exportado duas vezes conta uma;
 - ficam de fora nomes começando com `_` ou `.`, `*.test.*`/`*.spec.*` e `.d.ts` — use `_` para
   helpers e pastas auxiliares;
 - a ordem é a alfabética dos nomes, nunca a do sistema de arquivos;

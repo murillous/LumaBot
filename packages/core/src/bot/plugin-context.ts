@@ -3,7 +3,7 @@
 // host de plugins só recebe a fábrica.
 
 import { commandInfo } from '#commands/catalog.ts';
-import type { CommandDefinition } from '#commands/command.ts';
+import type { CommandContext, CommandDefinition } from '#commands/command.ts';
 import type { Prefixes } from '#commands/prefixes.ts';
 import { type RoleCheck, RoleTimeoutError } from '#commands/roles.ts';
 import type { CommandRouter } from '#commands/router.ts';
@@ -21,6 +21,7 @@ import {
   ContextExpiredError,
   Deadline,
   ExecutionTimeoutError,
+  isThenable,
   settleWithin,
 } from '#deadline.ts';
 import type { EventBus } from '#events/bus.ts';
@@ -47,6 +48,7 @@ import type {
   StoragePort,
 } from '#storage/types.ts';
 import type { TenantScope } from '#tenant/scope.ts';
+import { isFormatted } from '#text/format.ts';
 import type { Capability } from '#transport/capabilities.ts';
 import type { Unsubscribe } from '#transport/types.ts';
 import type { UnsafeAccess } from '#unsafe/access.ts';
@@ -425,12 +427,27 @@ function wrapCommand(
   };
   return {
     ...definition,
-    run: (ctx) => timed('run', (deadline) => run(views.run(ctx, deadline))),
+    run: (ctx) =>
+      timed('run', (deadline) => {
+        const view = views.run(ctx, deadline);
+        return replyWithResult(view, run(view));
+      }),
     ...(onReject && {
       onReject: (ctx, rejection) =>
         timed('onReject', (deadline) => onReject(views.run(ctx, deadline), rejection)),
     }),
   };
+}
+
+/**
+ * `run` que devolve texto (string ou `fmt`) responde com ele, como o `onReject` (ADR 0079): o
+ * mesmo que terminar com `await ctx.reply(texto)`, dentro do prazo do comando. Outro valor, como
+ * a chave de um `c.reply(...)` devolvido, é ignorado.
+ */
+function replyWithResult(ctx: CommandContext, result: unknown): unknown {
+  const answer = (value: unknown): unknown =>
+    typeof value === 'string' || isFormatted(value) ? ctx.reply(value) : undefined;
+  return isThenable(result) ? Promise.resolve(result).then(answer) : answer(result);
 }
 
 /**

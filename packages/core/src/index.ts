@@ -158,8 +158,11 @@ export {
 } from '#plugin/report.ts';
 export { PluginDiscoveryError } from '#plugin/sources.ts';
 export type {
+  PluginCommand,
   PluginContext,
   PluginDefinition,
+  PluginListener,
+  PluginListeners,
   PluginManifest,
   PluginMessages,
 } from '#plugin/types.ts';

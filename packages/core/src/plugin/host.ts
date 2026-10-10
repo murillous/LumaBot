@@ -1,6 +1,7 @@
 import type { Logger } from '#logger/types.ts';
 import { type CapabilityHolder, missingCapabilities } from '#transport/capabilities.ts';
 import { CORE_VERSION } from '#version.ts';
+import { installDeclared, requiredCapabilities } from './declared.ts';
 import { assertPluginDefinition } from './define.ts';
 import { sortPlugins } from './order.ts';
 import {
@@ -206,7 +207,7 @@ export function createPluginHost(options: PluginHostOptions): PluginHost {
     if (definition.transports && !definition.transports.includes(transport.name)) {
       return { kind: 'transport', expected: definition.transports, actual: transport.name };
     }
-    const missing = missingCapabilities(transport, definition.requires ?? []);
+    const missing = missingCapabilities(transport, requiredCapabilities(definition));
     if (missing.length > 0) return { kind: 'capabilities', missing };
     for (const [dependency, range] of Object.entries(definition.dependsOn ?? {})) {
       const slot = byName.get(dependency);
@@ -230,9 +231,11 @@ export function createPluginHost(options: PluginHostOptions): PluginHost {
     );
     if (!created.ok) return fail(base, created.error);
     const handle = created.value;
-    const setup = await runPhase(definition.name, 'setup', setupTimeoutMs, () =>
-      definition.setup(handle.context),
-    );
+    // O declarado entra na fase do `setup`: um conflito de nome falha e desfaz como na forma longa.
+    const setup = await runPhase(definition.name, 'setup', setupTimeoutMs, () => {
+      installDeclared(definition, handle.context);
+      return definition.setup?.(handle.context);
+    });
     if (!setup.ok) {
       // Sem teardown: ele pareia com um setup que terminou. O dispose limpa o registro parcial.
       const disposed = await runPhase(definition.name, 'dispose', teardownTimeoutMs, () =>

@@ -13,18 +13,18 @@ export function pairing(write: PairingOutput): PluginDefinition {
     name: 'pairing',
     version: '0.0.0',
     engine: '<1.0.0',
-    setup(ctx) {
-      ctx.events.on('connection.qr', ({ payload }) => {
+    on: {
+      'connection.qr': ({ payload }) => {
         qrcode.generate(payload.qr, { small: true }, (art) => {
           write(`\nEscaneie no WhatsApp (Aparelhos conectados → Conectar aparelho):\n${art}\n`);
         });
-      });
-      ctx.events.on('connection.pairing-code', ({ payload }) => {
+      },
+      'connection.pairing-code': ({ payload }) => {
         write(
           `\nCódigo de pareamento: ${payload.code}\n` +
             'No WhatsApp: Aparelhos conectados → Conectar com número de telefone.\n',
         );
-      });
+      },
     },
   });
 }

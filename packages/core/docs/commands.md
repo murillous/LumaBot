@@ -30,6 +30,12 @@ que não passou por `command()` também falha no boot com `TypeError`, em vez de
 `timeoutMs` que não seja finito e > 0 falha do mesmo jeito, com `RangeError`.
 O nome vai **sem** o prefixo.
 
+No bot, o `run` que devolve texto (string ou `fmt`) responde com ele, citando a mensagem: o mesmo
+que terminar com `await ctx.reply(texto)`, dentro do prazo do comando
+([ADR 0079](../../../docs/adr/0079-acucar-no-manifesto-do-plugin.md)). Outro valor não responde
+nada, então `run: (c) => c.reply('x')` não responde duas vezes. Comando fixo também pode ir direto
+no manifesto, em `commands` ([Plugins → Forma curta](plugins.md#forma-curta-commands-e-on)).
+
 ## No bot
 
 O plugin registra com `ctx.commands.add(definição)` no `setup`; o `Bot` monta o roteador com

@@ -86,6 +86,11 @@ export interface CommandDefinition {
     ctx: RejectContext,
     rejection: CommandRejection,
   ) => string | null | undefined | Promise<string | null | undefined>;
+  /**
+   * No bot, devolver texto (string ou `fmt`) responde citando a mensagem, como terminar com
+   * `await ctx.reply(texto)` (ADR 0079). Outro valor é ignorado. O tipo segue `unknown` para
+   * `run: (c) => c.reply('x')` continuar valendo.
+   */
   readonly run: (ctx: CommandContext) => unknown;
   /**
    * Prazo do `run` e do `onReject` no bot, em ms. Padrão: `timeouts.commandMs` do bot. Para o

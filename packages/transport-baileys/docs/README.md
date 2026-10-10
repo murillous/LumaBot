@@ -19,9 +19,7 @@ const telaDePareamento = definePlugin({
   name: 'tela-de-pareamento',
   version: '1.0.0',
   engine: '>=0.0.0',
-  setup: (ctx) => {
-    ctx.events.on('connection.qr', ({ payload }) => mostrarQr(payload.qr));
-  },
+  on: { 'connection.qr': ({ payload }) => mostrarQr(payload.qr) },
 });
 
 const bot = createBot({
