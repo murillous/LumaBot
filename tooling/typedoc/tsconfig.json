@@ -1,0 +1,14 @@
+{
+  // Programa só para o TypeDoc: as entradas públicas de cada pacote, lidas do fonte.
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": false,
+    "declaration": false,
+    "emitDeclarationOnly": false,
+    "declarationMap": false,
+    "isolatedDeclarations": false,
+    "noEmit": true
+  },
+  "include": ["../../packages/*/src/**/*.ts"],
+  "exclude": ["../../packages/*/src/**/*.test.ts", "../../packages/create-plugin/**"]
+}
