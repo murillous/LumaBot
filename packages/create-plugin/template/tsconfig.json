@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "target": "es2024",
+    "lib": ["es2024"],
+    "types": [],
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "moduleDetection": "force",
+    "verbatimModuleSyntax": true,
+    "allowImportingTsExtensions": true,
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noEmit": true,
+    // Tipos explícitos no que o pacote exporta: o tsdown gera o .d.ts sem rodar o compilador.
+    "declaration": true,
+    "isolatedDeclarations": true,
+    "skipLibCheck": true
+  },
+  "include": ["src"]
+}
