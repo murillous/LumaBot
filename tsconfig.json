@@ -11,7 +11,7 @@
     "noEmit": true
   },
   // Scripts de pacote (fora do `src/` de cada um) também passam pelo typecheck daqui.
-  "include": ["*.config.ts", "packages/*/scripts"],
+  "include": ["*.config.ts", "packages/*/scripts", "tooling/*.ts"],
   "references": [
     { "path": "packages/core" },
     { "path": "packages/transport-baileys" },

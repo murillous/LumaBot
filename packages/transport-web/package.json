@@ -3,6 +3,13 @@
   "version": "0.0.0",
   "description": "Transport do ZapForge para chat web: WebSocket com JWT, conversas e mídia por HTTP.",
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/murillous/LumaBot.git",
+    "directory": "packages/transport-web"
+  },
+  "homepage": "https://github.com/murillous/LumaBot/tree/develop/packages/transport-web/docs#readme",
+  "bugs": "https://github.com/murillous/LumaBot/issues",
   "type": "module",
   "imports": {
     "#*": "./src/*"
@@ -26,10 +33,13 @@
     "build": "tsdown"
   },
   "dependencies": {
-    "@zapforge/core": "workspace:*",
+    "@zapforge/core": "workspace:^",
     "jose": "^6.2.12"
   },
   "devDependencies": {
-    "@zapforge/testing": "workspace:*"
+    "@zapforge/testing": "workspace:^"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

@@ -3,6 +3,13 @@
   "version": "0.0.0",
   "description": "Kit de testes do ZapForge: bot com transport falso e matchers para o Vitest.",
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/murillous/LumaBot.git",
+    "directory": "packages/testing"
+  },
+  "homepage": "https://github.com/murillous/LumaBot/tree/develop/packages/testing/docs#readme",
+  "bugs": "https://github.com/murillous/LumaBot/issues",
   "type": "module",
   "imports": {
     "#*": "./src/*"
@@ -26,9 +33,12 @@
     "build": "tsdown"
   },
   "dependencies": {
-    "@zapforge/core": "workspace:*"
+    "@zapforge/core": "workspace:^"
   },
   "peerDependencies": {
     "vitest": "^5.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

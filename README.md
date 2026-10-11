@@ -31,6 +31,8 @@ Requer Node 24+ (`engines` na raiz; `.nvmrc` para `nvm use`/`fnm use`).
 | `pnpm bench` | Build e benchmark das metas de performance ([`bench/`](bench/docs/README.md)) |
 | `pnpm changeset` | Registra a mudança de um pacote publicável |
 | `pnpm version-packages` | Consome os changesets (versões e changelogs) e sincroniza o `CORE_VERSION` |
+| `pnpm check:packages` | Confere os pacotes publicáveis depois do build: publint no tarball e metadados do publish |
+| `pnpm release` | Build e `changeset publish`; quem roda é o workflow de release ([`docs/release.md`](docs/release.md)) |
 
 ### Novo pacote
 
@@ -47,6 +49,12 @@ packages/<nome>/
 {
   "name": "@zapforge/<nome>",
   "version": "0.0.0",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/murillous/LumaBot.git",
+    "directory": "packages/<nome>"
+  },
   "type": "module",
   "imports": { "#*": "./src/*" },
   "exports": {
@@ -57,7 +65,8 @@ packages/<nome>/
     }
   },
   "files": ["dist"],
-  "scripts": { "build": "tsdown" }
+  "scripts": { "build": "tsdown" },
+  "publishConfig": { "access": "public" }
 }
 ```
 
@@ -89,7 +98,7 @@ O `tsc` só checa tipos; o JS publicado sai do tsdown, com as dependências fora
 ### Imports
 
 - **Entre pacotes**: pelo nome (`import { … } from '@zapforge/core'`), com a dependência
-  `"@zapforge/core": "workspace:*"` — sem `paths` no tsconfig. A condição `@zapforge/source`
+  `"@zapforge/core": "workspace:^"` (no publish vira `^<versão>`) — sem `paths` no tsconfig. A condição `@zapforge/source`
   nos `exports` aponta para o fonte: TypeScript (`customConditions`) e Vitest já a usam, e
   para rodar sem build use `node --conditions=@zapforge/source src/main.ts`. Fora dela, o
   pacote resolve para `dist/`.
@@ -107,7 +116,9 @@ e `catch` sem nenhuma instrução — inclusive só com comentário (plugin em
 ### Changesets
 
 PR que muda um pacote publicável leva um changeset (`pnpm changeset`) — ver
-[`.changeset/README.md`](.changeset/README.md).
+[`.changeset/README.md`](.changeset/README.md). O workflow de release transforma os changesets
+de `develop` num PR de versão e publica no npm depois do merge dele: fluxo, segredos e como
+reverter em [`docs/release.md`](docs/release.md).
 
 ### CI
 
@@ -119,11 +130,16 @@ Todo push e PR para `main`/`develop` roda dois workflows:
   ([e2e](packages/create-plugin/docs/README.md#e2e)). O job `Testes` sobe um
   Postgres em container para o `@zapforge/storage-postgres`. O job `Benchmark` mede as metas
   de performance e falha com piora > 10% sobre o baseline do commit-base, medido no mesmo
-  runner ([ADR 0054](docs/adr/0054-baseline-do-benchmark.md)).
+  runner ([ADR 0054](docs/adr/0054-baseline-do-benchmark.md)). O job `Pacotes` builda e roda o
+  `pnpm check:packages`, para um pacote que não publicaria quebrar no PR e não no release.
 - [`legacy-ci.yml`](.github/workflows/legacy-ci.yml) — suíte do `legacy/`, sem alteração.
 
 O setup comum (Node do `.nvmrc`, pnpm do `packageManager`, `pnpm install --frozen-lockfile`)
 fica em [`.github/actions/setup`](.github/actions/setup/action.yml).
+
+O push em `develop` também roda o [`release.yml`](.github/workflows/release.yml), que abre o PR
+de versão ou publica os pacotes ([`docs/release.md`](docs/release.md),
+[ADR 0082](docs/adr/0082-release-a-partir-de-develop.md)).
 
 ## Licença
 

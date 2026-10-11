@@ -3,6 +3,13 @@
   "version": "0.0.0",
   "description": "Storage do ZapForge em Postgres, para vários processos dividindo o banco.",
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/murillous/LumaBot.git",
+    "directory": "packages/storage-postgres"
+  },
+  "homepage": "https://github.com/murillous/LumaBot/tree/develop/packages/storage-postgres/docs#readme",
+  "bugs": "https://github.com/murillous/LumaBot/issues",
   "type": "module",
   "imports": {
     "#*": "./src/*"
@@ -21,10 +28,13 @@
     "build": "tsdown"
   },
   "dependencies": {
-    "@zapforge/core": "workspace:*",
+    "@zapforge/core": "workspace:^",
     "pg": "^8.23.1"
   },
   "devDependencies": {
     "@types/pg": "^8.23.1"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }
