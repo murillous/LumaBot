@@ -12,9 +12,15 @@ import { ping } from '#plugins/ping.ts';
 
 const config = loadConfig();
 // O app cria o logger para registrar também a falha de boot; o mesmo SecretSet vai para o bot,
-// que censura nele os segredos da config de plugin.
+// que censura nele os segredos da config de plugin. No terminal, linha legível; redirecionado
+// (serviço, agregador), JSON.
 const secrets = createSecretSet();
-const log = createLogger({ level: config.logLevel, secrets, bindings: { app: 'lumabot' } });
+const log = createLogger({
+  level: config.logLevel,
+  format: process.stdout.isTTY ? 'pretty' : 'json',
+  secrets,
+  bindings: { app: 'lumabot' },
+});
 
 const bot = createBot({
   transport: baileys({ pairing: config.pairing }),

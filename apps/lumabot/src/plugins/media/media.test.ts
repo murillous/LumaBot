@@ -1,5 +1,10 @@
-import type { OutgoingContent } from '@usebridger/core';
-import { createTestBot, fixtures, type TestBot } from '@usebridger/testing';
+import {
+  createTestBot,
+  FakeTransport,
+  fixtures,
+  type SentMediaType,
+  type TestBot,
+} from '@usebridger/testing';
 import { PDFDocument } from 'pdf-lib';
 import sharp from 'sharp';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -20,25 +25,10 @@ afterEach(async () => {
 });
 
 /** Bytes do primeiro envio do tipo dado; falha se o bot não enviou nenhum. */
-function sentBytes(type: OutgoingContent['type']): Buffer {
-  const content = bot.sent.find((sent) => sent.content.type === type)?.content;
-  if (!content || !('media' in content) || !Buffer.isBuffer(content.media)) {
-    throw new Error(`nenhum envio de ${type} com bytes`);
-  }
-  return content.media;
-}
-
-/** WebP animado de dois quadros, como uma figurinha animada. */
-async function animatedSticker(): Promise<Buffer> {
-  const frame = (red: number) =>
-    sharp({
-      create: { width: 64, height: 64, channels: 4, background: { r: red, g: 0, b: 0, alpha: 1 } },
-    })
-      .png()
-      .toBuffer();
-  return sharp([await frame(255), await frame(0)], { join: { animated: true } })
-    .webp()
-    .toBuffer();
+function sentBytes(type: SentMediaType): Buffer {
+  const bytes = bot.sentMedia(type)[0]?.bytes;
+  if (!bytes) throw new Error(`nenhum envio de ${type} com bytes`);
+  return bytes;
 }
 
 async function pdfPages(bytes: Buffer): Promise<number> {
@@ -125,12 +115,22 @@ describe('!sticker', () => {
     expect(bot.sent).toHaveReplied('❌ Não consegui baixar esse link.');
   });
 
-  it('num transport sem figurinha, avisa em vez de falhar', async () => {
+  it('num transport sem figurinha, o comando fica de fora e o !image segue', async () => {
     bot = await createTestBot({ plugins: [media()], profile: 'web' });
 
     await bot.receive({ text: '!s', image: fixtures.image() });
+    expect(bot.sent).toHaveLength(0);
 
-    expect(bot.sent).toHaveReplied('ℹ️ Este chat não aceita esse tipo de mídia.');
+    await bot.receive({ text: '!i', quoted: { sticker: fixtures.sticker() } });
+    expect(bot.sent).toContainImage();
+  });
+
+  it('o uso cita o prefixo do chat', async () => {
+    bot = await createTestBot({ plugins: [media()], prefix: '/' });
+
+    await bot.receive({ text: '/s' });
+
+    expect(bot.sent).toHaveReplied('ℹ️ Responda a uma imagem/vídeo com /sticker');
   });
 });
 
@@ -157,11 +157,9 @@ describe('!gif', () => {
   it('converte a figurinha animada em MP4', async () => {
     bot = await createTestBot({ plugins: [media()] });
 
-    await bot.receive({
-      text: '!g',
-      quoted: { sticker: { data: await animatedSticker(), mimetype: 'image/webp' } },
-    });
+    await bot.receive({ text: '!g', quoted: { sticker: fixtures.animatedSticker() } });
 
+    expect(bot.sent).toContainVideo();
     // Caixa `ftyp` do MP4 nos bytes 4 a 8.
     expect(sentBytes('video').subarray(4, 8).toString('latin1')).toBe('ftyp');
   });
@@ -181,8 +179,10 @@ describe('!pdf', () => {
 
     await bot.receive({ text: '!pdf Relatório Março', image: fixtures.image() });
 
-    const sent = bot.sent.find((s) => s.content.type === 'document')?.content;
-    expect(sent).toMatchObject({ fileName: 'relatorio-marco.pdf', mimetype: 'application/pdf' });
+    expect(bot.sent).toContainDocument({
+      fileName: 'relatorio-marco.pdf',
+      mimetype: 'application/pdf',
+    });
     expect(await pdfPages(sentBytes('document'))).toBe(1);
   });
 
@@ -192,6 +192,21 @@ describe('!pdf', () => {
     await bot.receive({ text: '!pdf' });
 
     expect(bot.sent).toHaveReplied(/^ℹ️ Envie uma imagem com !pdf/);
+    expect(bot.transport.reactions.map((r) => r.emoji)).toEqual(['❌']);
+  });
+
+  it('num transport sem reações, responde sem reagir', async () => {
+    bot = await createTestBot({
+      plugins: [media()],
+      transport: new FakeTransport({
+        capabilities: ['send.text', 'send.document', 'media.download', 'quoted'],
+      }),
+    });
+
+    await bot.receive({ text: '!pdf', image: fixtures.image() });
+
+    expect(bot.sent).toContainDocument({ mimetype: 'application/pdf' });
+    expect(bot.transport.reactions).toHaveLength(0);
   });
 });
 
@@ -206,8 +221,7 @@ describe('!mergepdf', () => {
     expect(bot.sent).toHaveReplied('📎 PDF adicionado (2).');
 
     await bot.receive({ text: '!mergepdf done Trabalho Final' });
-    const sent = bot.sent.find((s) => s.content.type === 'document')?.content;
-    expect(sent).toMatchObject({ fileName: 'trabalho-final.pdf' });
+    expect(bot.sent).toContainDocument({ fileName: 'trabalho-final.pdf' });
     expect(await pdfPages(sentBytes('document'))).toBe(2);
 
     await bot.receive({ text: '!mergepdf done' });
@@ -245,6 +259,18 @@ describe('!mergepdf', () => {
     bot = await createTestBot({ plugins: [media()] });
 
     await bot.receive({ text: '!mergepdf', image: fixtures.image() });
+
+    expect(bot.sent).toHaveReplied(/^ℹ️ Envie\/responda PDFs com !mergepdf/);
+  });
+
+  it('documento que não é PDF fica fora da lista', async () => {
+    bot = await createTestBot({ plugins: [media()] });
+
+    await bot.receive({
+      text: '!mergepdf',
+      document: { data: Buffer.from('oi'), mimetype: 'text/plain' },
+      fileName: 'a.txt',
+    });
 
     expect(bot.sent).toHaveReplied(/^ℹ️ Envie\/responda PDFs com !mergepdf/);
   });

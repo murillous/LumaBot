@@ -48,8 +48,10 @@ Por variáveis de ambiente, lidas em `src/config.ts`. Variável vazia vale como 
 A config dos plugins segue o padrão do core (`BRIDGER_<PLUGIN>__<CAMPO>`,
 [Config](https://github.com/murillous/usebridger/blob/develop/packages/core/docs/config.md)).
 
-Valor inválido derruba o boot com a variável na mensagem. O log sai em JSON, uma linha por evento;
-o QR e o código de pareamento saem fora dele, direto no stdout.
+Valor inválido derruba o boot com a variável na mensagem. No terminal, o log sai legível
+(`14:03:22 INFO  [media] mensagem chave=valor`, com cor); com o stdout redirecionado (serviço,
+arquivo, agregador), em JSON, uma linha por evento. O Baileys só escreve a partir de `warn`. O QR
+e o código de pareamento saem fora do log, direto no stdout.
 
 ## Plugins do app
 
