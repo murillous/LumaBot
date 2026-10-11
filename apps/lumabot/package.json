@@ -1,8 +1,8 @@
 {
-  "name": "@usebridger/lumabot",
+  "name": "lumabot",
   "version": "0.0.0",
   "private": true,
-  "description": "LumaBot sobre o kernel Bridger: compõe transport, storage e plugins.",
+  "description": "LumaBot sobre o Bridger: compõe transport, storage e plugins.",
   "license": "Apache-2.0",
   "type": "module",
   "imports": {
@@ -11,16 +11,16 @@
   "scripts": {
     "build": "tsdown",
     "start": "node dist/main.mjs",
-    "dev": "node --conditions=@usebridger/source src/main.ts"
+    "dev": "node src/main.ts"
   },
   "dependencies": {
-    "@usebridger/core": "workspace:*",
-    "@usebridger/storage-sqlite": "workspace:*",
-    "@usebridger/transport-baileys": "workspace:*",
+    "@usebridger/core": "^0.2.0",
+    "@usebridger/storage-sqlite": "^0.2.0",
+    "@usebridger/transport-baileys": "^0.2.0",
     "qrcode-terminal": "^0.12.0"
   },
   "devDependencies": {
     "@types/qrcode-terminal": "^0.12.2",
-    "@usebridger/testing": "workspace:*"
+    "@usebridger/testing": "^0.2.0"
   }
 }

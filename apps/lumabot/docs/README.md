@@ -1,10 +1,11 @@
 # apps/lumabot — documentação
 
-O LumaBot sobre o kernel Bridger. O app só compõe o bot: transport
-([Baileys](../../../packages/transport-baileys/docs/README.md)), storage
-([SQLite](../../../packages/storage-sqlite/docs/README.md)) e a lista de plugins, e cuida do
+O LumaBot sobre o [Bridger](https://github.com/murillous/usebridger), consumido do npm
+(`@usebridger/*`). O app só compõe o bot: transport
+([Baileys](https://github.com/murillous/usebridger/blob/develop/packages/transport-baileys/docs/README.md)), storage
+([SQLite](https://github.com/murillous/usebridger/blob/develop/packages/storage-sqlite/docs/README.md)) e a lista de plugins, e cuida do
 processo (sinais, código de saída). O kernel é uma biblioteca sem runner
-([ADR 0034](../../../docs/adr/0034-biblioteca-sem-runner.md)).
+([ADR 0034](https://github.com/murillous/usebridger/blob/develop/docs/adr/0034-biblioteca-sem-runner.md)).
 
 > M2-5: app mínimo, com o plugin `ping`. As features do legacy chegam como plugins nos marcos
 > seguintes.
@@ -15,11 +16,11 @@ Na raiz, depois do `pnpm install`:
 
 ```sh
 pnpm build
-pnpm --filter @usebridger/lumabot start   # roda dist/main.mjs
+pnpm --filter lumabot start   # roda dist/main.mjs
 ```
 
-Para desenvolver sem build, `pnpm --filter @usebridger/lumabot dev` executa o `.ts` direto (type
-stripping do Node, com a condição `@usebridger/source`).
+Para desenvolver sem build, `pnpm --filter lumabot dev` executa o `.ts` direto (type stripping
+do Node).
 
 No primeiro uso o terminal mostra o QR: no celular, *Aparelhos conectados → Conectar aparelho*.
 Depois do pareamento o servidor pede um restart e o bot reconecta sozinho. Mande `!ping` de outro
@@ -40,7 +41,7 @@ Por variáveis de ambiente, lidas em `src/config.ts`. Variável vazia vale como 
 | `LUMABOT_LOG_LEVEL` | `info` | `trace`, `debug`, `info`, `warn`, `error`, `fatal` ou `silent` |
 
 A config dos plugins segue o padrão do core (`BRIDGER_<PLUGIN>__<CAMPO>`,
-[Config](../../../packages/core/docs/config.md)).
+[Config](https://github.com/murillous/usebridger/blob/develop/packages/core/docs/config.md)).
 
 Valor inválido derruba o boot com a variável na mensagem. O log sai em JSON, uma linha por evento;
 o QR e o código de pareamento saem fora dele, direto no stdout.
@@ -55,4 +56,4 @@ Ficam em `src/plugins/` e entram na lista do `createBot` em `src/main.ts`.
 | `ping` | `!ping` responde `pong`: prova o caminho transport → kernel → fila de saída → transport |
 
 Os testes sobem cada plugin num bot de verdade sobre o transport falso do
-[`@usebridger/testing`](../../../packages/testing/docs/README.md).
+[`@usebridger/testing`](https://github.com/murillous/usebridger/blob/develop/packages/testing/docs/README.md).

@@ -1,6 +1,6 @@
 name: CI
 
-# Kernel Bridger (workspace pnpm). O legacy/ tem o próprio workflow (legacy-ci.yml).
+# App da Luma sobre o Bridger (workspace pnpm). O legacy/ tem o próprio workflow (legacy-ci.yml).
 on:
   push:
     branches: [main, develop]
@@ -34,22 +34,6 @@ jobs:
   test:
     name: Testes
     runs-on: ubuntu-latest
-    # Postgres em container para a suíte de contrato do @usebridger/storage-postgres. Com a URL
-    # ausente no CI, os testes dele falham em vez de serem pulados.
-    services:
-      postgres:
-        image: postgres:17-alpine
-        env:
-          POSTGRES_PASSWORD: postgres
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
-    env:
-      BRIDGER_TEST_POSTGRES_URL: postgres://postgres:postgres@localhost:5432/postgres
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
@@ -62,60 +46,3 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
       - run: pnpm build
-
-  # Pacote quebrado (export para arquivo fora do tarball, metadado que o publish exige) aparece
-  # no PR, não no release (#246).
-  packages:
-    name: Pacotes
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: ./.github/actions/setup
-      - run: pnpm build
-      - run: pnpm check:packages
-
-  # Aceite do create-bridger-plugin (ADR 0081): o projeto gerado instala, passa no typecheck e no
-  # teste e builda, sobre os tarballs do core, do kit e do scaffold.
-  scaffold:
-    name: Scaffold
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: ./.github/actions/setup
-      - run: pnpm build
-      - run: pnpm --filter create-bridger-plugin e2e
-
-  # Metas do plano §7 e piora > 10% sobre o baseline (ADR 0054). O baseline é medido neste mesmo
-  # runner: entre máquinas diferentes, a variação passa dos 10%.
-  benchmark:
-    name: Benchmark
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          # O baseline é o primeiro pai do commit testado: a base, no merge commit do PR; o commit
-          # anterior, no push.
-          fetch-depth: 2
-      - uses: ./.github/actions/setup
-
-      - name: Baseline
-        run: |
-          git worktree add "$RUNNER_TEMP/base" HEAD^1
-          cd "$RUNNER_TEMP/base"
-          if [ ! -f bench/package.json ]; then
-            echo "::warning title=Benchmark::A base não tem bench/; vale só a meta."
-            exit 0
-          fi
-          pnpm install --frozen-lockfile
-          pnpm build
-          # A base fora da meta ainda serve de régua; sem o relatório, o passo seguinte falha.
-          node bench/dist/main.mjs --out "$RUNNER_TEMP/base.json" ||
-            echo "::warning title=Benchmark::A base saiu com erro; veja o log deste passo."
-
-      - name: Benchmark
-        run: |
-          if [ -f "$RUNNER_TEMP/base/bench/package.json" ]; then
-            pnpm bench --baseline "$RUNNER_TEMP/base.json"
-          else
-            pnpm bench
-          fi

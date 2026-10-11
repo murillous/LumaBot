@@ -1,13 +1,13 @@
 # legacy/ fica fora do workspace: segue com npm e o próprio package-lock até a paridade.
 packages:
-  - packages/*
-  - plugins/*
   - apps/*
-  - bench
-  - tooling/typedoc
 # Scripts de instalação dispensáveis: o do baileys só checa a versão do Node (o `engines` da raiz
 # já cobre) e o do protobufjs só avisa sobre versões. Negados explicitamente, o install não pede
 # aprovação.
 allowBuilds:
   baileys: false
   protobufjs: false
+# O Bridger é nosso e sai pelo release do usebridger (Trusted Publisher): a quarentena de versão
+# nova do pnpm só atrasaria a adoção de cada release.
+minimumReleaseAgeExclude:
+  - '@usebridger/*'

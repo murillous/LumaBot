@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/tsconfig",
-  // Base de todos os pacotes de packages/*, plugins/* e apps/*. Cada pacote estende este
-  // arquivo e define só rootDir/outDir/include/references (caminhos aqui seriam relativos à raiz).
+  // Base dos pacotes de apps/*. Cada pacote estende este arquivo e define só
+  // rootDir/outDir/include (caminhos aqui seriam relativos à raiz).
   "compilerOptions": {
     // Node 24 roda ES2024 nativo — nada de downlevel.
     "target": "es2024",
@@ -19,16 +19,13 @@
     "erasableSyntaxOnly": true,
     "allowImportingTsExtensions": true,
 
-    // Aliases @usebridger/*: cada pacote exporta o fonte sob esta condição (ver README).
-    "customConditions": ["@usebridger/source"],
-
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "noImplicitOverride": true,
     "noFallthroughCasesInSwitch": true,
     "noPropertyAccessFromIndexSignature": true,
 
-    // O tsc só checa tipos (`tsc -b`); o JS e os .d.ts publicados saem do tsdown. Project
+    // O tsc só checa tipos (`tsc -b`); o JS sai do tsdown. Project
     // references exigem composite + emissão de declarações, que vão para .tsbuild/ (ignorado).
     "composite": true,
     "declaration": true,

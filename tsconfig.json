@@ -1,6 +1,6 @@
 {
   // Solution da raiz: `pnpm typecheck` roda `tsc -b` nos arquivos de config da raiz e em todos
-  // os pacotes listados em `references` — ao criar um pacote, adicione-o lá.
+  // os pacotes listados em `references` — ao criar um app, adicione-o lá.
   "extends": "./tsconfig.base.json",
   "compilerOptions": {
     "composite": false,
@@ -10,17 +10,6 @@
     "isolatedDeclarations": false,
     "noEmit": true
   },
-  // Scripts de pacote (fora do `src/` de cada um) também passam pelo typecheck daqui.
-  "include": ["*.config.ts", "packages/*/scripts", "tooling/*.ts"],
-  "references": [
-    { "path": "packages/core" },
-    { "path": "packages/transport-baileys" },
-    { "path": "packages/transport-web" },
-    { "path": "packages/storage-sqlite" },
-    { "path": "packages/storage-postgres" },
-    { "path": "packages/testing" },
-    { "path": "packages/create-plugin" },
-    { "path": "apps/lumabot" },
-    { "path": "bench" }
-  ]
+  "include": ["*.config.ts"],
+  "references": [{ "path": "apps/lumabot" }]
 }
