@@ -3,12 +3,19 @@ import { createTestBot, fixtures, type TestBot } from '@usebridger/testing';
 import { PDFDocument } from 'pdf-lib';
 import sharp from 'sharp';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { checkBinary } from '#plugins/binary.ts';
 import { media } from './media.ts';
+
+// A checagem do FFmpeg é a de verdade (o CI o instala); um teste a faz falhar.
+vi.mock('#plugins/binary.ts', async (importOriginal) => ({
+  checkBinary: vi.fn((await importOriginal<typeof import('#plugins/binary.ts')>()).checkBinary),
+}));
 
 let bot: TestBot;
 
 afterEach(async () => {
   vi.unstubAllGlobals();
+  vi.mocked(checkBinary).mockRestore();
   await bot.stop();
 });
 
@@ -241,4 +248,13 @@ describe('!mergepdf', () => {
 
     expect(bot.sent).toHaveReplied(/^ℹ️ Envie\/responda PDFs com !mergepdf/);
   });
+});
+
+it('sem o FFmpeg, imagem e PDF seguem funcionando', async () => {
+  vi.mocked(checkBinary).mockRejectedValueOnce(new Error('`ffmpeg` não roda'));
+  bot = await createTestBot({ plugins: [media()] });
+
+  await bot.receive({ text: '!s', image: fixtures.image() });
+
+  expect(bot.sent).toContainSticker();
 });

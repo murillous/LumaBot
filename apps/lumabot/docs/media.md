@@ -32,7 +32,8 @@ que envia (`send.sticker`, `send.image`, `send.video`, `send.document`) e, sem e
 
 Vídeo → figurinha e figurinha animada → MP4 rodam o binário `ffmpeg`, que precisa estar no
 `PATH` (com `libwebp` e `libx264`, como nos builds do apt e do gyan.dev). Imagem e PDF não
-dependem dele: usam Sharp e pdf-lib. O FFmpeg trabalha em arquivos num diretório temporário
+dependem dele: usam Sharp e pdf-lib. Por isso, sem o FFmpeg, o plugin sobe mesmo assim: o `setup`
+só registra o aviso `ffmpeg indisponível` no log. O FFmpeg trabalha em arquivos num diretório temporário
 (`os.tmpdir()`), apagado ao fim de cada conversão.
 
 O FFmpeg não lê WebP animado, então o `!gif` passa a figurinha para GIF com o Sharp antes.
