@@ -19,6 +19,9 @@ pnpm build
 pnpm --filter lumabot start   # roda dist/main.mjs
 ```
 
+O plugin `media` roda o `ffmpeg` do sistema: instale-o e deixe-o no `PATH` (ver
+[media.md](media.md#ffmpeg)).
+
 Para desenvolver sem build, `pnpm --filter lumabot dev` executa o `.ts` direto (type stripping
 do Node).
 
@@ -54,6 +57,7 @@ Ficam em `src/plugins/` e entram na lista do `createBot` em `src/main.ts`.
 | --- | --- |
 | `pairing` | Desenha no terminal o QR (`connection.qr`) ou mostra o código (`connection.pairing-code`). O log do bot só avisa que chegou um QR, sem o valor |
 | `ping` | `!ping` responde `pong`: prova o caminho transport → kernel → fila de saída → transport |
+| [`media`](media.md) | Figurinha, imagem, GIF e PDF: `!sticker`, `!image`, `!gif`, `!pdf`, `!mergepdf` |
 
 Os testes sobem cada plugin num bot de verdade sobre o transport falso do
 [`@usebridger/testing`](https://github.com/murillous/usebridger/blob/develop/packages/testing/docs/README.md).

@@ -37,6 +37,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
+      # O plugin media converte vídeo e animação com o binário do FFmpeg, e os testes o rodam.
+      - name: FFmpeg
+        run: command -v ffmpeg || (sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg)
       - run: pnpm test
 
   build:
