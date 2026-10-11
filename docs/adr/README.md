@@ -35,6 +35,7 @@ sendo a referência; um ADR novo entra nos dois.
 - [0023](0023-migracao-incremental-legacy.md) — Migração incremental (`legacy/`)
 - [0025](0025-sem-i18n-objeto-messages.md) — Sem i18n formal na v1; objeto `messages`
 - [0027](0027-releases-changesets.md) — Releases com Changesets
+- [0082](0082-release-a-partir-de-develop.md) — Release a partir de `develop`, Trusted Publishing no npm e PR de versão por GitHub App (detalha D27)
 - [0028](0028-licenca-apache-2.md) — Licença Apache-2.0
 - [0029](0029-open-core-repo-privado.md) — Open core com repo privado
 - [0031](0031-nome-zapforge.md) — Nome: ZapForge
@@ -201,3 +202,4 @@ ADR 0055). Ao serem aceitos, entram aqui e no índice numérico.
 | [0079](0079-acucar-no-manifesto-do-plugin.md) | D79 | Açúcar no manifesto do plugin: `commands` e `on` declarativos, `run` que devolve texto responde e `send.text` implícito (detalha D16/D22) | Aceito |
 | [0080](0080-acucar-para-o-autor-de-transport.md) | D80 | Açúcar para o autor de transport: `defineTransport` com descrição e kit, e coerência capability ↔ método conferida no `createBot` (detalha D03/D10/D37) | Aceito |
 | [0081](0081-create-zapforge-plugin.md) | D81 | `create-zapforge-plugin`: scaffold sem dependências, template com o plugin portátil na forma curta e aceite por e2e sobre os tarballs (detalha D22) | Aceito |
+| [0082](0082-release-a-partir-de-develop.md) | D82 | Release a partir de `develop`: gate no mesmo job, Trusted Publishing no npm com bootstrap por token e PR de versão aberto por GitHub App (detalha D27) | Aceito |

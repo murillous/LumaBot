@@ -3,6 +3,13 @@
   "version": "0.0.0",
   "description": "Cria um plugin do ZapForge pronto para desenvolver, testar e publicar.",
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/murillous/LumaBot.git",
+    "directory": "packages/create-plugin"
+  },
+  "homepage": "https://github.com/murillous/LumaBot/tree/develop/packages/create-plugin/docs#readme",
+  "bugs": "https://github.com/murillous/LumaBot/issues",
   "type": "module",
   "imports": {
     "#*": "./src/*"
@@ -20,5 +27,8 @@
   "scripts": {
     "build": "tsdown",
     "e2e": "node scripts/e2e.ts"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

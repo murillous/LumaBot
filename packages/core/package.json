@@ -3,6 +3,13 @@
   "version": "0.0.0",
   "description": "Kernel do ZapForge: bot de mensageria extensível por plugins.",
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/murillous/LumaBot.git",
+    "directory": "packages/core"
+  },
+  "homepage": "https://github.com/murillous/LumaBot/tree/develop/packages/core/docs#readme",
+  "bugs": "https://github.com/murillous/LumaBot/issues",
   "type": "module",
   "imports": {
     "#*": "./src/*"
@@ -39,5 +46,8 @@
   },
   "devDependencies": {
     "@types/ws": "^8.18.2"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

@@ -3,6 +3,13 @@
   "version": "0.0.0",
   "description": "Storage do ZapForge em SQLite (node:sqlite), sem dependência nativa.",
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/murillous/LumaBot.git",
+    "directory": "packages/storage-sqlite"
+  },
+  "homepage": "https://github.com/murillous/LumaBot/tree/develop/packages/storage-sqlite/docs#readme",
+  "bugs": "https://github.com/murillous/LumaBot/issues",
   "type": "module",
   "imports": {
     "#*": "./src/*"
@@ -21,6 +28,9 @@
     "build": "tsdown"
   },
   "dependencies": {
-    "@zapforge/core": "workspace:*"
+    "@zapforge/core": "workspace:^"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

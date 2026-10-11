@@ -3,6 +3,13 @@
   "version": "0.0.0",
   "description": "Transport do ZapForge para o WhatsApp via Baileys.",
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/murillous/LumaBot.git",
+    "directory": "packages/transport-baileys"
+  },
+  "homepage": "https://github.com/murillous/LumaBot/tree/develop/packages/transport-baileys/docs#readme",
+  "bugs": "https://github.com/murillous/LumaBot/issues",
   "type": "module",
   "imports": {
     "#*": "./src/*"
@@ -21,10 +28,13 @@
     "build": "tsdown"
   },
   "dependencies": {
-    "@zapforge/core": "workspace:*",
+    "@zapforge/core": "workspace:^",
     "baileys": "7.0.0-rc14"
   },
   "devDependencies": {
-    "@zapforge/testing": "workspace:*"
+    "@zapforge/testing": "workspace:^"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

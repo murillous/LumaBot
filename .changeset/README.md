@@ -9,3 +9,7 @@ descreva a mudança para quem usa o pacote. O arquivo gerado aqui vai no mesmo P
 `package.json` novo. Use ele, e não o `changeset version` direto: sem a sincronização o
 `version.test.ts` do core fica vermelho.
 Pacotes `private` (ex.: `apps/*`) ficam de fora.
+
+No dia a dia ninguém roda esses comandos à mão: o push em `develop` faz o workflow de release
+abrir o PR de versão com o `pnpm version-packages` e, depois do merge, publicar. Ver
+[`docs/release.md`](../docs/release.md).
