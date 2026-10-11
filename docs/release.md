@@ -41,7 +41,7 @@ checks do `ci.yml`. Por isso o PR é aberto com o token de um App:
 1. Crie um App na conta `murillous` (Settings → Developer settings → GitHub Apps), sem webhook,
    com as permissões de repositório **Contents: Read and write** e **Pull requests: Read and
    write**.
-2. Instale o App só no repositório `LumaBot`.
+2. Instale o App só no repositório `usebridger`.
 3. Gere uma chave privada e salve o ID e a chave como `RELEASE_APP_ID` e
    `RELEASE_APP_PRIVATE_KEY`.
 
@@ -50,7 +50,7 @@ checks do `ci.yml`. Por isso o PR é aberto com o token de um App:
 Em regime, o workflow publica sem token: o pnpm troca o token OIDC do GitHub Actions
 (`id-token: write`) por uma credencial de curta duração do npm e publica com provenance. Para
 cada pacote, em npmjs.com → pacote → Settings → **Trusted Publisher**: GitHub Actions, dono
-`murillous`, repositório `LumaBot`, workflow `release.yml`.
+`murillous`, repositório `usebridger`, workflow `release.yml`.
 
 O Trusted Publishing não cria pacote: só publica num pacote que já existe.
 
