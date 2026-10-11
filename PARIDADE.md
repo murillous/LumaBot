@@ -17,9 +17,9 @@ e agora vive aqui.
 | [x] | `!gif` / `!g` (figurinha animada → vídeo) | [media](apps/lumabot/docs/media.md) |
 | [x] | `!pdf` (imagem → PDF, com nome opcional) | [media](apps/lumabot/docs/media.md) |
 | [x] | `!mergepdf` / `!joinpdf` (acumula PDFs; `done <nome>`; `clear`) | [media](apps/lumabot/docs/media.md) |
-| [ ] | `!download` / `!d` (vídeo Twitter/X, Instagram) | download |
-| [ ] | Envio de fotos baixadas e recodificação compacta do vídeo (PR #28) | download |
-| [ ] | `!audio` / `!a` (MP3 de qualquer link, yt-dlp) | download |
+| [x] | `!download` / `!d` (vídeo Twitter/X, Instagram) | [download](apps/lumabot/docs/download.md) |
+| [x] | Envio de fotos baixadas e recodificação compacta do vídeo (PR #28) | [download](apps/lumabot/docs/download.md) |
+| [x] | `!audio` / `!a` (MP3 de link de site conhecido pelo yt-dlp) | [download](apps/lumabot/docs/download.md) |
 | [ ] | `@everyone` / `@todos` | everyone |
 | [ ] | `!help` / `!menu` | help |
 | [ ] | `!meunumero` | utils |

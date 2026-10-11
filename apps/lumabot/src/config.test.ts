@@ -33,4 +33,11 @@ describe('loadConfig', () => {
   it('nível de log desconhecido lança com o nome da variável', () => {
     expect(() => loadConfig({ LUMABOT_LOG_LEVEL: 'verbose' })).toThrow(/LUMABOT_LOG_LEVEL/);
   });
+
+  it('lê o arquivo de cookies do yt-dlp', () => {
+    expect(loadConfig({ LUMABOT_YTDLP_COOKIES: '/srv/cookies.txt' }).ytdlpCookies).toBe(
+      '/srv/cookies.txt',
+    );
+    expect(loadConfig({ LUMABOT_YTDLP_COOKIES: '' })).not.toHaveProperty('ytdlpCookies');
+  });
 });

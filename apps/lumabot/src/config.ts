@@ -9,6 +9,8 @@ export interface AppConfig {
   readonly dbPath: string;
   readonly pairing: BaileysPairing;
   readonly logLevel: LogLevel;
+  /** Cookies (formato Netscape) que o plugin `download` repassa ao yt-dlp. */
+  readonly ytdlpCookies?: string;
 }
 
 const LOG_LEVELS: readonly LogLevel[] = [
@@ -35,5 +37,6 @@ export function loadConfig(env: ConfigEnv = process.env): AppConfig {
     dbPath: env['LUMABOT_DB'] || 'data/lumabot.sqlite',
     pairing: phone ? { phone } : 'qr',
     logLevel: logLevel as LogLevel,
+    ...(env['LUMABOT_YTDLP_COOKIES'] ? { ytdlpCookies: env['LUMABOT_YTDLP_COOKIES'] } : {}),
   };
 }

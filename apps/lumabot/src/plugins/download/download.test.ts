@@ -1,0 +1,133 @@
+import { writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import type { OutgoingContent } from '@usebridger/core';
+import { createTestBot, FakeTransport, fixtures, type TestBot } from '@usebridger/testing';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { download } from './download.ts';
+import { downloadAudio, downloadVideo, TooLargeError } from './yt-dlp.ts';
+
+// O yt-dlp iria à internet: o mock grava uma fixture no diretório, como ele gravaria. A
+// recodificação (`compactVideo`) é a de verdade, com o FFmpeg.
+vi.mock('./yt-dlp.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./yt-dlp.ts')>()),
+  downloadVideo: vi.fn(),
+  downloadAudio: vi.fn(),
+}));
+
+const URL = 'https://x.com/luma/status/1';
+let bot: TestBot;
+
+/** Faz o yt-dlp falso "baixar" estes bytes com esta extensão. */
+function ytDlpWrites(fn: typeof downloadVideo | typeof downloadAudio, data: Buffer, ext: string) {
+  vi.mocked(fn).mockImplementation(async (_url, dir) => {
+    const file = join(dir, `media.${ext}`);
+    await writeFile(file, data);
+    return file;
+  });
+}
+
+function sent(type: OutgoingContent['type']): OutgoingContent | undefined {
+  return bot.sent.find((s) => s.content.type === type)?.content;
+}
+
+beforeEach(() => {
+  vi.mocked(downloadVideo).mockReset();
+  vi.mocked(downloadAudio).mockReset();
+});
+
+afterEach(async () => {
+  await bot.stop();
+});
+
+it('!download envia o vídeo recodificado, com reações de andamento', async () => {
+  ytDlpWrites(downloadVideo, fixtures.video().data, 'webm');
+  bot = await createTestBot({ plugins: [download()] });
+
+  await bot.receive({ text: `!download ${URL}` });
+
+  const video = sent('video');
+  expect(video).toMatchObject({ caption: '🎬 Pronto!', mimetype: 'video/mp4' });
+  const bytes = video && 'media' in video ? video.media : null;
+  expect(Buffer.isBuffer(bytes) && bytes.subarray(4, 8).toString('latin1')).toBe('ftyp');
+  expect(bot.transport.reactions.map((r) => r.emoji)).toEqual(['⏳', '✅']);
+});
+
+it('foto do post vai como imagem, sem passar pelo FFmpeg', async () => {
+  ytDlpWrites(downloadVideo, fixtures.image().data, 'jpg');
+  bot = await createTestBot({ plugins: [download()] });
+
+  await bot.receive({ text: `!d ${URL}` });
+
+  expect(bot.sent).toContainImage();
+  expect(sent('image')).toMatchObject({ caption: '🖼️ Pronto!' });
+});
+
+it('usa o link da mensagem citada, sem a pontuação do fim, e repassa os cookies', async () => {
+  ytDlpWrites(downloadVideo, fixtures.image().data, 'jpg');
+  bot = await createTestBot({ plugins: [download({ cookies: '/srv/cookies.txt' })] });
+
+  await bot.receive({ text: '!d', quoted: { text: `olha isso: ${URL}!` } });
+
+  expect(downloadVideo).toHaveBeenCalledWith(
+    URL,
+    expect.any(String),
+    expect.objectContaining({ cookies: '/srv/cookies.txt' }),
+  );
+});
+
+it('sem link, explica o uso', async () => {
+  bot = await createTestBot({ plugins: [download()] });
+
+  await bot.receive({ text: '!download' });
+
+  expect(bot.sent).toHaveReplied(/^ℹ️ Cole o link do vídeo/);
+  expect(downloadVideo).not.toHaveBeenCalled();
+});
+
+it('arquivo grande demais tem resposta própria', async () => {
+  vi.mocked(downloadVideo).mockRejectedValue(new TooLargeError(URL));
+  bot = await createTestBot({ plugins: [download()] });
+
+  await bot.receive({ text: `!d ${URL}` });
+
+  expect(bot.sent).toHaveReplied('❌ Arquivo muito grande para enviar (máx. 100 MB).');
+});
+
+it('falha do yt-dlp responde erro e reage ❌', async () => {
+  vi.mocked(downloadVideo).mockRejectedValue(new Error('yt-dlp falhou: Private video'));
+  bot = await createTestBot({ plugins: [download()] });
+
+  await bot.receive({ text: `!d ${URL}` });
+
+  expect(bot.sent).toHaveReplied(/^❌ Não consegui baixar esse vídeo/);
+  expect(bot.transport.reactions.map((r) => r.emoji)).toEqual(['⏳', '❌']);
+});
+
+it('num transport sem vídeo, avisa sem baixar', async () => {
+  bot = await createTestBot({
+    plugins: [download()],
+    transport: new FakeTransport({ capabilities: ['send.text', 'quoted'] }),
+  });
+
+  await bot.receive({ text: `!d ${URL}` });
+
+  expect(bot.sent).toHaveReplied('ℹ️ Este chat não aceita esse tipo de mídia.');
+  expect(downloadVideo).not.toHaveBeenCalled();
+});
+
+it('!audio envia o MP3', async () => {
+  ytDlpWrites(downloadAudio, fixtures.audio().data, 'mp3');
+  bot = await createTestBot({ plugins: [download()] });
+
+  await bot.receive({ text: '!a https://youtu.be/abc' });
+
+  expect(sent('audio')).toMatchObject({ mimetype: 'audio/mpeg' });
+});
+
+it('!audio sem link explica o uso', async () => {
+  bot = await createTestBot({ plugins: [download()] });
+
+  await bot.receive({ text: '!audio' });
+
+  expect(bot.sent).toHaveReplied(/^ℹ️ Cole o link junto com o comando/);
+});

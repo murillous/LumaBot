@@ -19,8 +19,9 @@ pnpm build
 pnpm --filter lumabot start   # roda dist/main.mjs
 ```
 
-O plugin `media` roda o `ffmpeg` do sistema: instale-o e deixe-o no `PATH` (ver
-[media.md](media.md#ffmpeg)).
+Os plugins `media` e `download` rodam o `ffmpeg` do sistema, e o `download`, também o `yt-dlp`:
+instale os dois e deixe-os no `PATH` (ver [media.md](media.md#ffmpeg) e
+[download.md](download.md#binários)).
 
 Para desenvolver sem build, `pnpm --filter lumabot dev` executa o `.ts` direto (type stripping
 do Node).
@@ -41,6 +42,7 @@ Por variáveis de ambiente, lidas em `src/config.ts`. Variável vazia vale como 
 | --- | --- | --- |
 | `LUMABOT_DB` | `data/lumabot.sqlite` | Arquivo do banco, relativo ao diretório de onde o processo roda. Guarda as credenciais do WhatsApp: apagar o arquivo (e os `-wal`/`-shm`) obriga a parear de novo |
 | `LUMABOT_PAIRING_PHONE` | — | Número com DDI, só dígitos (`5511999999999`). Com ele, o bot pede um código de pareamento em vez do QR: digite-o em *Aparelhos conectados → Conectar com número de telefone* |
+| `LUMABOT_YTDLP_COOKIES` | — | Arquivo de cookies (formato Netscape) que o plugin `download` repassa ao yt-dlp ([download.md](download.md#config)) |
 | `LUMABOT_LOG_LEVEL` | `info` | `trace`, `debug`, `info`, `warn`, `error`, `fatal` ou `silent` |
 
 A config dos plugins segue o padrão do core (`BRIDGER_<PLUGIN>__<CAMPO>`,
@@ -58,6 +60,7 @@ Ficam em `src/plugins/` e entram na lista do `createBot` em `src/main.ts`.
 | `pairing` | Desenha no terminal o QR (`connection.qr`) ou mostra o código (`connection.pairing-code`). O log do bot só avisa que chegou um QR, sem o valor |
 | `ping` | `!ping` responde `pong`: prova o caminho transport → kernel → fila de saída → transport |
 | [`media`](media.md) | Figurinha, imagem, GIF e PDF: `!sticker`, `!image`, `!gif`, `!pdf`, `!mergepdf` |
+| [`download`](download.md) | Vídeo, foto e áudio de links pelo yt-dlp: `!download`, `!audio` |
 
 Os testes sobem cada plugin num bot de verdade sobre o transport falso do
 [`@usebridger/testing`](https://github.com/murillous/usebridger/blob/develop/packages/testing/docs/README.md).
