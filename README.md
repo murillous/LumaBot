@@ -4,7 +4,8 @@ Bot de WhatsApp com a **Luma**, assistente virtual com personalidade.
 
 O repositório tem duas versões do bot:
 
-- [`legacy/`](legacy/README.md) — o LumaBot em produção até a paridade (JavaScript, npm).
+- [`legacy/`](legacy/README.md) — o LumaBot em produção até a paridade (JavaScript, npm),
+  acompanhada em [`PARIDADE.md`](PARIDADE.md).
 - [`apps/lumabot/`](apps/lumabot/docs/README.md) — a nova versão, escrita sobre o
   [Bridger](https://github.com/murillous/usebridger), o kernel de bot de mensageria extraído
   daqui e publicado no npm como `@usebridger/*`. As features do legacy chegam aos poucos, como

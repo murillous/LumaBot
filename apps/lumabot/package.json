@@ -17,7 +17,10 @@
     "@usebridger/core": "^0.2.0",
     "@usebridger/storage-sqlite": "^0.2.0",
     "@usebridger/transport-baileys": "^0.2.0",
-    "qrcode-terminal": "^0.12.0"
+    "node-webpmux": "^3.2.1",
+    "pdf-lib": "^1.17.1",
+    "qrcode-terminal": "^0.12.0",
+    "sharp": "^0.35.5"
   },
   "devDependencies": {
     "@types/qrcode-terminal": "^0.12.2",

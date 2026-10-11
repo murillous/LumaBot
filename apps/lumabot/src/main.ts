@@ -5,6 +5,7 @@ import { createBot, createLogger, createSecretSet } from '@usebridger/core';
 import { sqlite } from '@usebridger/storage-sqlite';
 import { baileys } from '@usebridger/transport-baileys';
 import { loadConfig } from '#config.ts';
+import { media } from '#plugins/media/media.ts';
 import { pairing } from '#plugins/pairing.ts';
 import { ping } from '#plugins/ping.ts';
 
@@ -19,7 +20,7 @@ const bot = createBot({
   storage: sqlite({ path: config.dbPath }),
   logger: log,
   secrets,
-  plugins: [pairing((text) => process.stdout.write(text)), ping],
+  plugins: [pairing((text) => process.stdout.write(text)), ping, media()],
 });
 
 // `once`: um segundo Ctrl+C cai no comportamento padrão e mata o processo se o stop travar.
