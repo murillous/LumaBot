@@ -1,6 +1,6 @@
 # Benchmark — documentação
 
-Mede as metas de performance do [plano §7](../../ZAPFORGE_PLAN.md#7-metas-de-performance)
+Mede as metas de performance do [plano §7](../../BRIDGER_PLAN.md#7-metas-de-performance)
 ([ADR 0030](../../docs/adr/0030-metas-de-performance.md)) sobre o `FakeTransport`, sem rede.
 
 ## Rodar
@@ -69,7 +69,7 @@ Como ler as metas:
   pequeno retido por mensagem já passa de 45 MB em 1M mensagens; a folga de 5 MB absorve o ruído
   do heap.
 - **`idle-memory`** mede o processo inteiro. Cerca de 45 MB são do próprio Node. O bot vem do
-  `@zapforge/testing/bot`, que não importa o Vitest: o entry principal o carrega para registrar
+  `@usebridger/testing/bot`, que não importa o Vitest: o entry principal o carrega para registrar
   os matchers, o que soma ~6 MB que não são do kernel. No runner do CI (Linux), o RSS fica uns
   10 MB acima do medido no Windows.
 - **`overhead`** inclui o custo do `settled()`, então é um teto do overhead real.

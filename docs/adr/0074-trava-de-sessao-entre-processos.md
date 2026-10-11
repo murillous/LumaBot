@@ -80,7 +80,7 @@ Alternativas consideradas:
 
 ## Consequências
 
-- Mudança aditiva no contrato (dois métodos opcionais). O `@zapforge/storage-sqlite` ganha a
+- Mudança aditiva no contrato (dois métodos opcionais). O `@usebridger/storage-sqlite` ganha a
   tabela `leases` numa migration nova (schema 2), aplicada sozinha no boot.
 - Quem roda a suíte de contrato com um adapter de um processo só passa `processLocal: true`. Foi
   a única mudança em teste existente (`memory.test.ts`).

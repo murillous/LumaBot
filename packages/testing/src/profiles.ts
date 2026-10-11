@@ -3,7 +3,7 @@
 // fonte é a matriz da §6.10 do plano. O `whatsapp` e o `web` são o que o Baileys e o web declaram,
 // e um teste em cada transport confere. Telegram e Discord são previsão até o transport nascer.
 
-import type { Capability, Contact, TextLimits } from '@zapforge/core';
+import type { Capability, Contact, TextLimits } from '@usebridger/core';
 
 export interface TransportProfile {
   readonly capabilities: readonly Capability[];
@@ -100,7 +100,7 @@ const discord: TransportProfile = {
   sender: { id: 'user@fake', name: 'Usuário', phone: null, username: 'usuario' },
 };
 
-// O que o `@zapforge/transport-web` declara (ADR 0077); um teste lá confere.
+// O que o `@usebridger/transport-web` declara (ADR 0077); um teste lá confere.
 const web: TransportProfile = {
   capabilities: [
     ...COMMON,

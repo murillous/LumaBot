@@ -1,5 +1,5 @@
 ---
-'@zapforge/core': minor
+'@usebridger/core': minor
 ---
 
 Papéis custom nomeados (M1-19, ADR 0035). `ctx.roles.define(nome, check)` deixa um plugin definir

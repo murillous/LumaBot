@@ -76,7 +76,7 @@ Alternativas consideradas:
 - **Enquete: `multiple?: boolean`** no lugar de `selectableCount?: number`, no `OutgoingContent` e
   no `ctx.reply.poll`. O Baileys manda `selectableCount` 0 (quantas quiser) ou 1. Quiz, enquete
   anônima e duração ficam no `native`. O evento de voto vira issue própria (#312).
-- **A lista é só a do core.** Capability nova entra numa minor do `@zapforge/core`; o
+- **A lista é só a do core.** Capability nova entra numa minor do `@usebridger/core`; o
   `isCapability` continua recusando nome desconhecido. Limites ficam em `Transport.limits`.
 - **Apagar mensagem de outros** não ganha capability: `delete` documenta que exige admin ou a
   permissão da plataforma e rejeita com `retryable: false` sem ela. **Mensagem efêmera** fica para

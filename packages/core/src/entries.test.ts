@@ -11,9 +11,9 @@ interface EntryExports {
 }
 
 const entries: Record<string, { file: string; load: () => Promise<object> } & EntryExports> = {
-  '@zapforge/core': {
+  '@usebridger/core': {
     file: './index.ts',
-    load: () => import('@zapforge/core'),
+    load: () => import('@usebridger/core'),
     values: [
       'BotConfigError',
       'BotStateError',
@@ -241,9 +241,9 @@ const entries: Record<string, { file: string; load: () => Promise<object> } & En
       'WithId',
     ],
   },
-  '@zapforge/core/adapter': {
+  '@usebridger/core/adapter': {
     file: './adapter.ts',
-    load: () => import('@zapforge/core/adapter'),
+    load: () => import('@usebridger/core/adapter'),
     values: [
       'CAPABILITIES',
       'ReconnectionPolicy',
@@ -298,9 +298,9 @@ const entries: Record<string, { file: string; load: () => Promise<object> } & En
       'TransportSpec',
     ],
   },
-  '@zapforge/core/storage-contract': {
+  '@usebridger/core/storage-contract': {
     file: './storage/contract/index.ts',
-    load: () => import('@zapforge/core/storage-contract'),
+    load: () => import('@usebridger/core/storage-contract'),
     values: ['defineStorageContract'],
     types: ['ContractTestApi', 'StorageContractOptions'],
   },

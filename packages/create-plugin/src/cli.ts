@@ -4,14 +4,14 @@ import { parseArgs } from 'node:util';
 import { detectPackageManager, type PackageManager } from './config.ts';
 import { generate, PluginNameError, pluginNames, TargetNotEmptyError } from './generate.ts';
 
-const USAGE = `Uso: create-zapforge-plugin <nome-do-pacote>
+const USAGE = `Uso: create-bridger-plugin <nome-do-pacote>
 
 Cria a pasta do plugin com manifesto, teste, README e changesets.
 
-  npm create zapforge-plugin@latest zapforge-plugin-ola
-  pnpm create zapforge-plugin @acme/zapforge-plugin-ola
+  npm create bridger-plugin@latest bridger-plugin-ola
+  pnpm create bridger-plugin @acme/bridger-plugin-ola
 
-O nome do plugin é o do pacote sem escopo e sem o prefixo zapforge-plugin- (ola).`;
+O nome do plugin é o do pacote sem escopo e sem o prefixo bridger-plugin- (ola).`;
 
 /** Saída do CLI; o `main` liga ao terminal e os testes capturam. */
 export interface CliIo {

@@ -4,7 +4,7 @@
 // decifra o voto com `decryptPollVote`.
 
 import { createHash } from 'node:crypto';
-import type { TransportEvents } from '@zapforge/core/adapter';
+import type { TransportEvents } from '@usebridger/core/adapter';
 import {
   decryptPollVote,
   jidNormalizedUser,

@@ -26,7 +26,7 @@ export interface PluginManifest {
   /** Único no bot; usado em enable/disable, logs, namespace de storage e rotas. */
   readonly name: string;
   readonly version: string;
-  /** Faixa semver do `@zapforge/core` com que o plugin funciona. */
+  /** Faixa semver do `@usebridger/core` com que o plugin funciona. */
   readonly engine: string;
   /** Capabilities do transport sem as quais o plugin não carrega. */
   readonly requires?: readonly Capability[];

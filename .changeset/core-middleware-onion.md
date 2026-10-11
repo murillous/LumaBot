@@ -1,5 +1,5 @@
 ---
-'@zapforge/core': patch
+'@usebridger/core': patch
 ---
 
 Os middlewares passam a envolver comando e listeners, como o ADR 0012 define (#225). Antes,

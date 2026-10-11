@@ -1,4 +1,4 @@
-import { command, definePlugin } from '@zapforge/core';
+import { command, definePlugin } from '@usebridger/core';
 import { afterEach, describe, expect, it } from 'vitest';
 import { fixtures } from './fixtures.ts';
 import { createTestBot, type TestBot } from './test-bot.ts';

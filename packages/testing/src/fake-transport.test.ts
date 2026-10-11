@@ -1,4 +1,4 @@
-import { bold, UnsupportedError } from '@zapforge/core';
+import { bold, UnsupportedError } from '@usebridger/core';
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_SELF, FakeTransport } from './fake-transport.ts';
 import { buildMessage } from './incoming.ts';

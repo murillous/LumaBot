@@ -10,7 +10,7 @@ O ADR 0024 pôs `owner` / `group-admin` / `everyone` no roteador e deixou papéi
 "middleware de plugin". A revisão do M1 mostrou dois problemas:
 
 1. O `PluginContext` não tem como registrar middleware: middlewares só existem na config do app.
-   Pela visão do ADR 0034 (quem usa o ZapForge escreve plugins, não mexe no app), papel custom
+   Pela visão do ADR 0034 (quem usa o Bridger escreve plugins, não mexe no app), papel custom
    ficaria sem caminho.
 2. Mesmo que o plugin registrasse middleware, middleware é a ferramenta errada para controle de
    acesso: ele roda antes do roteador, então não sabe qual comando foi digitado nem que papel
@@ -29,7 +29,7 @@ plugin e papéis nomeados juntos (mais API sem consumidor concreto); nenhum meca
   Os nomes são tipados por declaration merging, como os serviços (ADR 0018):
 
   ```ts
-  declare module '@zapforge/core' {
+  declare module '@usebridger/core' {
     interface Roles { moderador: true }
   }
   ```

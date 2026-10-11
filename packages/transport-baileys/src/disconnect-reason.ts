@@ -2,7 +2,7 @@
 // cima dele, e `logged-out`/`auth-failed` apagam as credenciais: só entram aqui quando o aparelho
 // ou o servidor rejeitou a credencial de fato (ADR 0045).
 
-import type { DisconnectReason } from '@zapforge/core';
+import type { DisconnectReason } from '@usebridger/core';
 import { DisconnectReason as Code } from 'baileys';
 
 export interface CloseContext {

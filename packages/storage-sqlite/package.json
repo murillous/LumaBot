@@ -1,22 +1,22 @@
 {
-  "name": "@zapforge/storage-sqlite",
+  "name": "@usebridger/storage-sqlite",
   "version": "0.0.0",
-  "description": "Storage do ZapForge em SQLite (node:sqlite), sem dependência nativa.",
+  "description": "Storage do Bridger em SQLite (node:sqlite), sem dependência nativa.",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/murillous/LumaBot.git",
+    "url": "git+https://github.com/murillous/usebridger.git",
     "directory": "packages/storage-sqlite"
   },
-  "homepage": "https://github.com/murillous/LumaBot/tree/develop/packages/storage-sqlite/docs#readme",
-  "bugs": "https://github.com/murillous/LumaBot/issues",
+  "homepage": "https://github.com/murillous/usebridger/tree/develop/packages/storage-sqlite/docs#readme",
+  "bugs": "https://github.com/murillous/usebridger/issues",
   "type": "module",
   "imports": {
     "#*": "./src/*"
   },
   "exports": {
     ".": {
-      "@zapforge/source": "./src/index.ts",
+      "@usebridger/source": "./src/index.ts",
       "types": "./dist/index.d.mts",
       "default": "./dist/index.mjs"
     }
@@ -28,7 +28,7 @@
     "build": "tsdown"
   },
   "dependencies": {
-    "@zapforge/core": "workspace:^"
+    "@usebridger/core": "workspace:^"
   },
   "publishConfig": {
     "access": "public"

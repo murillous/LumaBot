@@ -1,5 +1,5 @@
 ---
-'@zapforge/core': minor
+'@usebridger/core': minor
 ---
 
 O plugin passa a fazer pela API pública tudo o que o transport sabe, sem `ctx.unsafe.native`

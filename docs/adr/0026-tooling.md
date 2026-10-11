@@ -1,6 +1,6 @@
 # ADR 0026 — Tooling: Node 24, pnpm, tsdown, Vitest, Biome
 
-**Status:** Aceito (2026-10-06) · Decisão **D26** do [plano](../../ZAPFORGE_PLAN.md#4-decisões)
+**Status:** Aceito (2026-10-06) · Decisão **D26** do [plano](../../BRIDGER_PLAN.md#4-decisões)
 
 ## Contexto
 

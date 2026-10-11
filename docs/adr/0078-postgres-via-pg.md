@@ -7,7 +7,7 @@ e **D15** ([ADR 0015](0015-storage-kv-e-colecoes.md)), no molde do SQLite
 
 ## Contexto
 
-O `@zapforge/storage-postgres` é o adapter oficial para vários processos dividindo o banco (D14),
+O `@usebridger/storage-postgres` é o adapter oficial para vários processos dividindo o banco (D14),
 e o segundo adapter real: é ele que mostra se o `StoragePort` vazou o SQLite (#119). Ele precisa
 de um driver, de um lugar para as tabelas dentro de um banco que pode ser de outros sistemas, e
 de um jeito de evoluir o schema com vários processos subindo ao mesmo tempo.
@@ -24,7 +24,7 @@ Para o driver, havia duas alternativas:
 - O adapter usa o **`pg`**, com um `Pool`. A fábrica é assíncrona (`await postgres({...})`):
   conecta e migra no boot, e um banco fora do ar ou um schema mais novo rejeitam ali, não na
   primeira mensagem.
-- As tabelas ficam num **schema Postgres próprio**, `zapforge` por padrão (opção `schema`). O
+- As tabelas ficam num **schema Postgres próprio**, `bridger` por padrão (opção `schema`). O
   nome é validado (`[a-z_][a-z0-9_]*`), porque vai interpolado no SQL.
 - O schema é o **mesmo desenho do SQLite**: `kv`, `documents`, `auth_creds`, `auth_keys` e
   `leases`, com namespace, coleção e chave em colunas separadas e `seq` como ordem de inserção.
@@ -43,7 +43,7 @@ Para o driver, havia duas alternativas:
 - A trava mede a validade pelo **relógio do servidor** (`clock_timestamp()`), porque os
   processos podem estar em máquinas diferentes.
 - Os testes rodam contra um **Postgres de verdade**: um container de serviço no job de testes do
-  CI e, localmente, a URL em `ZAPFORGE_TEST_POSTGRES_URL`. Sem a URL, os testes do banco são
+  CI e, localmente, a URL em `BRIDGER_TEST_POSTGRES_URL`. Sem a URL, os testes do banco são
   pulados fora do CI e falham no CI. Cada teste usa um schema novo, apagado no fim.
 
 ## Consequências
@@ -51,7 +51,7 @@ Para o driver, havia duas alternativas:
 - A mesma suíte de contrato passa no SQLite e no Postgres sem nenhuma mudança no core: o port
   não vazou o SQLite (D14).
 - Uma dependência de runtime (`pg`), sem addon nativo.
-- Um banco Postgres pode guardar o ZapForge ao lado de outros sistemas, e bots com dados
+- Um banco Postgres pode guardar o Bridger ao lado de outros sistemas, e bots com dados
   separados no mesmo banco usam schemas diferentes.
 - O `jsonb` recusa `\u0000` em texto e reordena as chaves do documento. A ordem das chaves não é
   contrato; o `\u0000` em campo de documento faz a escrita rejeitar.

@@ -10,7 +10,7 @@ afterEach(() => {
 });
 
 function io(overrides: Partial<CliIo> = {}) {
-  const cwd = mkdtempSync(join(tmpdir(), 'create-zapforge-plugin-'));
+  const cwd = mkdtempSync(join(tmpdir(), 'create-bridger-plugin-'));
   dirs.push(cwd);
   const out: string[] = [];
   const err: string[] = [];
@@ -24,16 +24,16 @@ function io(overrides: Partial<CliIo> = {}) {
 it('cria a pasta e mostra os próximos passos no gerenciador que rodou', () => {
   const { io: cli, out } = io({ packageManager: 'pnpm' });
 
-  expect(run(['@acme/zapforge-plugin-ola'], cli)).toBe(0);
+  expect(run(['@acme/bridger-plugin-ola'], cli)).toBe(0);
 
-  expect(existsSync(join(cli.cwd, 'zapforge-plugin-ola', 'src', 'index.ts'))).toBe(true);
-  expect(out.join('\n')).toContain('cd zapforge-plugin-ola\n  pnpm install\n  pnpm test');
+  expect(existsSync(join(cli.cwd, 'bridger-plugin-ola', 'src', 'index.ts'))).toBe(true);
+  expect(out.join('\n')).toContain('cd bridger-plugin-ola\n  pnpm install\n  pnpm test');
 });
 
 it('sem gerenciador informado, os passos saem com npm', () => {
   const { io: cli, out } = io();
 
-  run(['zapforge-plugin-ola'], cli);
+  run(['bridger-plugin-ola'], cli);
 
   expect(out.join('\n')).toContain('npm install');
 });
@@ -42,14 +42,14 @@ it('--help mostra o uso e sai com 0', () => {
   const { io: cli, out } = io();
 
   expect(run(['--help'], cli)).toBe(0);
-  expect(out.join('\n')).toContain('Uso: create-zapforge-plugin');
+  expect(out.join('\n')).toContain('Uso: create-bridger-plugin');
 });
 
 it.each([[[]], [['a', 'b']]])('sem um nome só (%j), mostra o uso e sai com 1', (argv) => {
   const { io: cli, err } = io();
 
   expect(run(argv, cli)).toBe(1);
-  expect(err.join('\n')).toContain('Uso: create-zapforge-plugin');
+  expect(err.join('\n')).toContain('Uso: create-bridger-plugin');
 });
 
 it('opção desconhecida sai com 1 dizendo qual', () => {
@@ -69,8 +69,8 @@ it('nome inválido sai com 1 e não cria nada', () => {
 
 it('pasta já ocupada sai com 1', () => {
   const { io: cli, err } = io();
-  run(['zapforge-plugin-ola'], cli);
+  run(['bridger-plugin-ola'], cli);
 
-  expect(run(['zapforge-plugin-ola'], cli)).toBe(1);
+  expect(run(['bridger-plugin-ola'], cli)).toBe(1);
   expect(err.join('\n')).toContain('já existe e não está vazia');
 });

@@ -1,6 +1,6 @@
 # ADR 0008 — Sem hot-reload de código na v1
 
-**Status:** Aceito (2026-10-06) · Decisão **D08** do [plano](../../ZAPFORGE_PLAN.md#4-decisões)
+**Status:** Aceito (2026-10-06) · Decisão **D08** do [plano](../../BRIDGER_PLAN.md#4-decisões)
 
 ## Contexto
 

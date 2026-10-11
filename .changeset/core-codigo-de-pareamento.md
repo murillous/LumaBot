@@ -1,5 +1,5 @@
 ---
-'@zapforge/core': minor
+'@usebridger/core': minor
 ---
 
 Novo evento `connection.pairing-code` (`{ code }`, ADR 0050): o transport que pareia por código o

@@ -2,8 +2,8 @@
 // envelopes (ephemeral, viewOnce, documentWithCaption), resolve o telefone de cada contato,
 // inclusive com LID (M1-16.4, ADR 0046), e monta a citada como `Message` também.
 
-import type { Contact, Message } from '@zapforge/core';
-import { createMessage, type MediaSource, type MessageInit } from '@zapforge/core/adapter';
+import type { Contact, Message } from '@usebridger/core';
+import { createMessage, type MediaSource, type MessageInit } from '@usebridger/core/adapter';
 import {
   isJidGroup,
   isLidUser,

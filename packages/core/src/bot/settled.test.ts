@@ -1,5 +1,5 @@
 // M1-16 (#237): `bot.settled()` espera o bot terminar de processar o que recebeu — fila de
-// entrada, listeners em andamento e fila de saída —, sem polling. Base do `@zapforge/testing`.
+// entrada, listeners em andamento e fila de saída —, sem polling. Base do `@usebridger/testing`.
 
 import { afterEach, describe, expect, it } from 'vitest';
 import { command } from '#commands/command.ts';

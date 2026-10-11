@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { defineStorageContract } from '@zapforge/core/storage-contract';
+import { defineStorageContract } from '@usebridger/core/storage-contract';
 import { describe, it } from 'vitest';
 import { sqlite } from './index.ts';
 
@@ -17,7 +17,7 @@ defineStorageContract(
   {
     name: 'sqlite em arquivo',
     create: () => {
-      dir = mkdtempSync(join(tmpdir(), 'zapforge-sqlite-'));
+      dir = mkdtempSync(join(tmpdir(), 'bridger-sqlite-'));
       return sqlite({ path: join(dir, 'bot.sqlite') });
     },
     reopen: async (port) => {

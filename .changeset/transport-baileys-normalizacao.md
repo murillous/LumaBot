@@ -1,5 +1,5 @@
 ---
-'@zapforge/transport-baileys': minor
+'@usebridger/transport-baileys': minor
 ---
 
 O transport passa a receber mensagens (#104): cada mensagem nova do `messages.upsert` vira o

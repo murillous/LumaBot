@@ -9,7 +9,7 @@ import type { Message } from '#message/types.ts';
  * Papéis custom, preenchidos por declaration merging no plugin que os define:
  *
  * ```ts
- * declare module '@zapforge/core' {
+ * declare module '@usebridger/core' {
  *   interface Roles { moderador: true }
  * }
  * ```

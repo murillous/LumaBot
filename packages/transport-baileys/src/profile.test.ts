@@ -1,8 +1,8 @@
 // O perfil `whatsapp` do kit de testes promete as capabilities e os limites do Baileys (ADR 0073).
 // Se um dos dois mudar sem o outro, o plugin testado no perfil passa e falha no transport real.
 
-import { createLogger, createMemoryStorage, type Transport } from '@zapforge/core';
-import { PROFILES } from '@zapforge/testing/bot';
+import { createLogger, createMemoryStorage, type Transport } from '@usebridger/core';
+import { PROFILES } from '@usebridger/testing/bot';
 import { describe, expect, it } from 'vitest';
 import { FakeDriver } from './fake-socket.test-support.ts';
 import { BaileysTransport } from './transport.ts';

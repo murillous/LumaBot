@@ -5,7 +5,7 @@
  * Mapa nome → tipo do serviço, preenchido por declaration merging no plugin que provê:
  *
  * ```ts
- * declare module '@zapforge/core' {
+ * declare module '@usebridger/core' {
  *   interface Services { ai: AiService }
  * }
  * ```

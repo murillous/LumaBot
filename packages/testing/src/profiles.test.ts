@@ -1,5 +1,5 @@
-import { command, definePlugin } from '@zapforge/core';
-import { CAPABILITIES } from '@zapforge/core/adapter';
+import { command, definePlugin } from '@usebridger/core';
+import { CAPABILITIES } from '@usebridger/core/adapter';
 import { afterEach, describe, expect, it } from 'vitest';
 import { FakeTransport } from './fake-transport.ts';
 import { DEFAULT_SELF, DEFAULT_SENDER, PROFILE_NAMES, PROFILES } from './profiles.ts';

@@ -1,5 +1,5 @@
 ---
-'@zapforge/testing': minor
+'@usebridger/testing': minor
 ---
 
 Fixtures de mídia (#114): `fixtures.image()`, `video()`, `audio()`, `voice()`, `sticker()` e

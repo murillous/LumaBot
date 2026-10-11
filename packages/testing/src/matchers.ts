@@ -1,8 +1,8 @@
 // Matchers do Vitest sobre o que o bot enviou. Recebem `bot.sent` ou o próprio `TestBot`
 // (`expect(bot).toHaveReplied('pong')`). O registro (`expect.extend`) acontece ao importar
-// `@zapforge/testing`, então o exemplo do plano funciona só com o import do `createTestBot`.
+// `@usebridger/testing`, então o exemplo do plano funciona só com o import do `createTestBot`.
 
-import type { OutgoingContent } from '@zapforge/core';
+import type { OutgoingContent } from '@usebridger/core';
 import { expect } from 'vitest';
 import type { SentMessage } from './fake-transport.ts';
 

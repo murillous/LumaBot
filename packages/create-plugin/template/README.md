@@ -1,6 +1,6 @@
 # __package__
 
-Plugin do [ZapForge](https://github.com/murillous/LumaBot). Responde `!ola` cumprimentando quem
+Plugin do [Bridger](https://github.com/murillous/usebridger). Responde `!ola` cumprimentando quem
 chamou.
 
 ## Usar no bot
@@ -10,7 +10,7 @@ npm install __package__
 ```
 
 ```ts
-import { createBot } from '@zapforge/core';
+import { createBot } from '@usebridger/core';
 import { __export__ } from '__package__';
 
 const bot = createBot({ transport, plugins: [__export__] });
@@ -21,7 +21,7 @@ await bot.start();
 
 | Comando | O que faz |
 | --- | --- |
-| `npm test` | Roda os testes (Vitest + `@zapforge/testing`), sem rede e sem WhatsApp |
+| `npm test` | Roda os testes (Vitest + `@usebridger/testing`), sem rede e sem WhatsApp |
 | `npm run typecheck` | Confere os tipos |
 | `npm run build` | Gera `dist/` (JS e `.d.ts`) |
 | `npm run changeset` | Registra uma mudança para o changelog |

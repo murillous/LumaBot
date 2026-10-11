@@ -1,5 +1,5 @@
 ---
-'@zapforge/testing': minor
+'@usebridger/testing': minor
 ---
 
 O `FakeTransport` segue o contrato de grupos multiplataforma do core (ADR 0059): o

@@ -1,6 +1,6 @@
 # ADR 0027 — Releases com Changesets
 
-**Status:** Aceito (2026-10-06) · Decisão **D27** do [plano](../../ZAPFORGE_PLAN.md#4-decisões)
+**Status:** Aceito (2026-10-06) · Decisão **D27** do [plano](../../BRIDGER_PLAN.md#4-decisões)
 
 ## Contexto
 

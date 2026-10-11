@@ -7,7 +7,7 @@ O detalhe está em [Config no core](../../packages/core/docs/config.md).
 ## Declarar
 
 ```ts
-import { definePlugin, secret } from '@zapforge/core';
+import { definePlugin, secret } from '@usebridger/core';
 import { z } from 'zod';
 
 export const clima = definePlugin({
@@ -52,14 +52,14 @@ O dono do bot define a config em três lugares. Para cada campo, vale o primeiro
 
 | Ordem | Onde | Exemplo para o `clima` |
 | --- | --- | --- |
-| 1 | Variável de ambiente | `ZAPFORGE_CLIMA__API_KEY=abc12345` |
+| 1 | Variável de ambiente | `BRIDGER_CLIMA__API_KEY=abc12345` |
 | 2 | `pluginConfig` na config do app | `createBot({ pluginConfig: { clima: { cidade: 'Recife' } } })` |
 | 3 | Override salvo pelo dashboard | `bot.config.setOverrides('clima', { unidade: 'F' })` |
 | 4 | O `.default()` do schema | `'São Paulo'` |
 
-O nome da variável é `ZAPFORGE_<PLUGIN>__<CAMPO>`, em maiúsculas com `_`: o plugin `user-names`
-com o campo `openai.apiKey` vira `ZAPFORGE_USER_NAMES__OPENAI__API_KEY`. Os textos de `messages`
-seguem a mesma regra: `ZAPFORGE_CLIMA__MESSAGES__SEM_DADOS`.
+O nome da variável é `BRIDGER_<PLUGIN>__<CAMPO>`, em maiúsculas com `_`: o plugin `user-names`
+com o campo `openai.apiKey` vira `BRIDGER_USER_NAMES__OPENAI__API_KEY`. Os textos de `messages`
+seguem a mesma regra: `BRIDGER_CLIMA__MESSAGES__SEM_DADOS`.
 
 Documente no README do plugin os campos e a variável de cada segredo: é o que o dono do bot
 precisa para configurá-lo.

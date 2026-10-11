@@ -1,7 +1,7 @@
-// Entry `@zapforge/transport-baileys`: a fábrica que o app passa em `createBot({ transport })`
+// Entry `@usebridger/transport-baileys`: a fábrica que o app passa em `createBot({ transport })`
 // (ADR 0037). A classe fica interna: o transport precisa das dependências do bot.
 
-import type { Transport, TransportDeps } from '@zapforge/core/adapter';
+import type { Transport, TransportDeps } from '@usebridger/core/adapter';
 import { Browsers, fetchLatestBaileysVersion, makeWASocket, type WAVersion } from 'baileys';
 import { type BaileysDriver, type BaileysPairing, BaileysTransport } from './transport.ts';
 

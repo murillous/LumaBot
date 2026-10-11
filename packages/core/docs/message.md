@@ -166,10 +166,10 @@ admin leem.
 ## Construindo mensagens (transports)
 
 O transport mapeia o formato nativo para `MessageInit` e chama `createMessage`. No exemplo, uma
-foto do Telegram (a versão do WhatsApp está no `@zapforge/transport-baileys`):
+foto do Telegram (a versão do WhatsApp está no `@usebridger/transport-baileys`):
 
 ```ts
-import { createMessage } from '@zapforge/core/adapter';
+import { createMessage } from '@usebridger/core/adapter';
 
 const quoted = createMessage({ /* ... */ });   // citada: construída do mesmo jeito
 
@@ -222,7 +222,7 @@ const msg = createMessage({
   grupo), com a mesma regra de `messageKey`.
 - `media` recebe um `MediaSource` (o loader nativo); `createMessage` o embrulha com
   `createMedia`, que aplica laziness e cache. `createMedia` também sai de
-  `@zapforge/core/adapter` para quem precisar de uma `Media` avulsa. O `fileName` do
+  `@usebridger/core/adapter` para quem precisar de uma `Media` avulsa. O `fileName` do
   `MediaSource` é opcional e vai para o `Media`.
 - Com mais de uma mídia, `attachments` recebe a lista de `MediaSource`, começando pela própria
   `media`, e o `type` é o do primeiro. Sem a lista, `attachments` sai `[media]`, ou vazio nos tipos

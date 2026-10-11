@@ -54,7 +54,7 @@ export interface PluginConfigView {
 
 /**
  * JSON Schema (draft 2020-12) da entrada da config; campos secretos com `secret: true`,
- * `writeOnly: true` e `x-zapforge-override: false` (não editáveis por override).
+ * `writeOnly: true` e `x-bridger-override: false` (não editáveis por override).
  */
 export type PluginConfigJsonSchema = Readonly<Record<string, unknown>>;
 
@@ -223,11 +223,11 @@ function secretStrings(value: unknown, into: string[]): void {
 }
 
 /** Anotação do JSON Schema que diz ao dashboard que o campo não aceita override. */
-const OVERRIDE_ANNOTATION = 'x-zapforge-override';
+const OVERRIDE_ANNOTATION = 'x-bridger-override';
 
 /**
  * No JSON Schema exportado, marca campo secreto como não editável por override e troca o
- * `default` dele pela máscara. `x-zapforge-override` em vez de `readOnly`: o campo já é
+ * `default` dele pela máscara. `x-bridger-override` em vez de `readOnly`: o campo já é
  * `writeOnly`, e `readOnly` + `writeOnly` juntos se contradizem no JSON Schema.
  */
 function markSecrets(node: unknown): void {

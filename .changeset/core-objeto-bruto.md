@@ -1,5 +1,5 @@
 ---
-'@zapforge/core': minor
+'@usebridger/core': minor
 ---
 
 Objeto bruto da mensagem no escape hatch (ADR 0066).

@@ -1,8 +1,8 @@
 {
-  "name": "@zapforge/bench",
+  "name": "@usebridger/bench",
   "version": "0.0.0",
   "private": true,
-  "description": "Benchmarks do kernel ZapForge (metas da seção 7 do plano).",
+  "description": "Benchmarks do kernel Bridger (metas da seção 7 do plano).",
   "license": "Apache-2.0",
   "type": "module",
   "imports": {
@@ -13,8 +13,8 @@
     "bench": "node dist/main.mjs"
   },
   "dependencies": {
-    "@zapforge/core": "workspace:*",
-    "@zapforge/testing": "workspace:*",
+    "@usebridger/core": "workspace:*",
+    "@usebridger/testing": "workspace:*",
     "zod": "^4.6.5"
   }
 }

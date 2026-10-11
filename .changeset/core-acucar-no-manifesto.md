@@ -1,5 +1,5 @@
 ---
-'@zapforge/core': minor
+'@usebridger/core': minor
 ---
 
 Forma curta do plugin (ADR 0079). O manifesto aceita `commands` (nome → comando) e `on`

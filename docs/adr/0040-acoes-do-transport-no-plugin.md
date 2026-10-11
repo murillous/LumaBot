@@ -21,7 +21,7 @@ Alternativas consideradas:
   mudança na fila, mas presença e banimento em massa fugiriam do anti-ban.
 - **Nada pela fila**, tudo direto com prazo. Contraria o ADR 0019: reação e edição também são
   tráfego que o WhatsApp conta.
-- **Exportar `messageKey()` em `@zapforge/core`** em vez de pôr a chave na `Message`. O plugin
+- **Exportar `messageKey()` em `@usebridger/core`** em vez de pôr a chave na `Message`. O plugin
   teria de lembrar de chamar, e a chave da mensagem citada exigiria a mesma chamada.
 - **Superfície nova `ctx.messages`** para reagir, editar e apagar. O nome colide com
   `ctx.plugin.messages` (os textos do plugin, ADR 0025).
@@ -70,4 +70,4 @@ Alternativas consideradas:
   quem usa `createMessage` não muda.
 - Um `groups.metadata` pendurado não tem prazo próprio: o prazo da execução (comando, listener,
   job, setup) já limita quem espera.
-- O kit de testes do M2-3 (`@zapforge/testing`) espelha esta superfície.
+- O kit de testes do M2-3 (`@usebridger/testing`) espelha esta superfície.

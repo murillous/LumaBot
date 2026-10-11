@@ -74,14 +74,14 @@ describe('createPluginConfigs: precedência', () => {
     const { configs } = await setup({
       overrides: { sticker: { a: 'override', b: 'override', c: 'override' } },
       file: { sticker: { a: 'file', b: 'file' } },
-      env: { ZAPFORGE_STICKER__A: 'env' },
+      env: { BRIDGER_STICKER__A: 'env' },
     });
     const { config } = await configs.resolve('sticker');
     expect(config).toEqual({ a: 'env', b: 'file', c: 'override', d: 'default', quality: 80 });
   });
 
   it('converte o texto do env para o tipo do campo', async () => {
-    const { configs } = await setup({ env: { ZAPFORGE_STICKER__QUALITY: '55' } });
+    const { configs } = await setup({ env: { BRIDGER_STICKER__QUALITY: '55' } });
     expect((await configs.resolve('sticker')).config).toMatchObject({ quality: 55 });
   });
 
@@ -92,7 +92,7 @@ describe('createPluginConfigs: precedência', () => {
     const { configs } = await setup({
       plugins: [nested],
       file: { nested: { db: { host: 'arquivo', port: 1 } } },
-      env: { ZAPFORGE_NESTED__DB__PORT: '5432' },
+      env: { BRIDGER_NESTED__DB__PORT: '5432' },
     });
     expect((await configs.resolve('nested')).config).toEqual({
       db: { host: 'arquivo', port: 5432 },
@@ -115,7 +115,7 @@ describe('createPluginConfigs: erros de validação', () => {
     const { configs } = await setup({
       overrides: { sticker: { b: 3 } },
       file: { sticker: { quality: 500 } },
-      env: { ZAPFORGE_STICKER__A: 'ok', ZAPFORGE_AI__API_KEY: 'curta' },
+      env: { BRIDGER_STICKER__A: 'ok', BRIDGER_AI__API_KEY: 'curta' },
     });
     const error = await configError(configs.resolve('sticker'));
     expect(error.plugin).toBe('sticker');
@@ -129,9 +129,9 @@ describe('createPluginConfigs: erros de validação', () => {
 
     const envError = await configError(configs.resolve('ai'));
     expect(envError.issues).toEqual([
-      expect.objectContaining({ path: 'apiKey', source: 'env', env: 'ZAPFORGE_AI__API_KEY' }),
+      expect.objectContaining({ path: 'apiKey', source: 'env', env: 'BRIDGER_AI__API_KEY' }),
     ]);
-    expect(envError.message).toContain('fonte: env ZAPFORGE_AI__API_KEY');
+    expect(envError.message).toContain('fonte: env BRIDGER_AI__API_KEY');
   });
 
   it('campo obrigatório ausente aponta que não há default', async () => {
@@ -142,7 +142,7 @@ describe('createPluginConfigs: erros de validação', () => {
   });
 
   it('a mensagem de erro não contém o valor rejeitado (pode ser secreto)', async () => {
-    const { configs } = await setup({ env: { ZAPFORGE_AI__API_KEY: 'qxzw' } });
+    const { configs } = await setup({ env: { BRIDGER_AI__API_KEY: 'qxzw' } });
     const error = await configError(configs.resolve('ai'));
     expect(error.message).not.toContain('qxzw');
     expect(JSON.stringify(error.issues)).not.toContain('qxzw');
@@ -186,7 +186,7 @@ describe('createPluginConfigs: messages (ADR 0025)', () => {
     const { configs } = await setup({
       overrides: { sticker: { messages: { needMedia: 'override', done: 'override' } } },
       file: { sticker: { messages: { needMedia: 'arquivo' } } },
-      env: { ZAPFORGE_STICKER__MESSAGES__DONE: 'env' },
+      env: { BRIDGER_STICKER__MESSAGES__DONE: 'env' },
     });
     const { messages, config } = await configs.resolve('sticker');
     expect(messages).toEqual({ needMedia: 'arquivo', done: 'env' });
@@ -214,7 +214,7 @@ describe('createPluginConfigs: messages (ADR 0025)', () => {
 });
 
 describe('createPluginConfigs: secrets', () => {
-  const env = { ZAPFORGE_AI__API_KEY: 'sk-secreta-123' };
+  const env = { BRIDGER_AI__API_KEY: 'sk-secreta-123' };
 
   it('describe mascara campos secretos, inclusive aninhados', async () => {
     const { configs } = await setup({ env, file: { ai: { openai: { token: 'tok-abc' } } } });
@@ -307,7 +307,7 @@ describe('createPluginConfigs: setOverrides', () => {
     const { configs } = await setup({
       overrides: { sticker: { c: 'override', messages: { done: 'Feito' } } },
       file: { sticker: { b: 'file' } },
-      env: { ZAPFORGE_STICKER__A: 'env' },
+      env: { BRIDGER_STICKER__A: 'env' },
     });
     const view = await configs.describe('sticker');
     expect(view.sources).toEqual({
@@ -323,7 +323,7 @@ describe('createPluginConfigs: setOverrides', () => {
 
   it('describe informa a fonte de campos aninhados', async () => {
     const { configs } = await setup({
-      env: { ZAPFORGE_AI__API_KEY: 'sk-secreta-123' },
+      env: { BRIDGER_AI__API_KEY: 'sk-secreta-123' },
       file: { ai: { openai: { token: 'tok-abc' } } },
     });
     expect((await configs.describe('ai')).sources).toEqual({
@@ -338,7 +338,7 @@ describe('createPluginConfigs: setOverrides', () => {
     const configs = createPluginConfigs({
       plugins: [sticker],
       storage: createMemoryStorage(),
-      env: { ZAPFORGE_STICKER__A: 'env' },
+      env: { BRIDGER_STICKER__A: 'env' },
       file: { sticker: { quality: 30, messages: { done: 'Arquivo' } } },
       log: logger,
     });
@@ -385,7 +385,7 @@ describe('createPluginConfigs: setOverrides', () => {
 });
 
 describe('createPluginConfigs: segredos fora do override', () => {
-  const env = { ZAPFORGE_AI__API_KEY: 'sk-secreta-123' };
+  const env = { BRIDGER_AI__API_KEY: 'sk-secreta-123' };
 
   it('rejeita segredo raso e aninhado, aponta env e arquivo, e nada é gravado', async () => {
     const { configs, kv } = await setup({ env, overrides: { ai: { model: 'pro' } } });
@@ -401,8 +401,8 @@ describe('createPluginConfigs: segredos fora do override', () => {
       expect.objectContaining({ path: 'openai.token', source: 'override' }),
     ]);
     expect(error.message).toContain('campo secreto não pode ser definido por override');
-    expect(error.message).toContain('ZAPFORGE_AI__API_KEY');
-    expect(error.message).toContain('ZAPFORGE_AI__OPENAI__TOKEN');
+    expect(error.message).toContain('BRIDGER_AI__API_KEY');
+    expect(error.message).toContain('BRIDGER_AI__OPENAI__TOKEN');
     expect(error.message).toContain('pluginConfig["ai"].openai.token');
     expect(error.message).not.toMatch(/sk-override-1|tok-override/);
     expect(await kv.get('ai')).toEqual({ model: 'pro' });
@@ -473,12 +473,12 @@ describe('createPluginConfigs: segredos fora do override', () => {
         Record<string, unknown> & { properties?: Record<string, Record<string, unknown>> }
       >;
     };
-    expect(schema.properties['apiKey']).toMatchObject({ 'x-zapforge-override': false });
+    expect(schema.properties['apiKey']).toMatchObject({ 'x-bridger-override': false });
     expect(schema.properties['openai']?.properties?.['token']).toMatchObject({
       secret: true,
-      'x-zapforge-override': false,
+      'x-bridger-override': false,
     });
-    expect(schema.properties['model']).not.toHaveProperty('x-zapforge-override');
+    expect(schema.properties['model']).not.toHaveProperty('x-bridger-override');
   });
 });
 
@@ -547,9 +547,9 @@ describe('erros do autor no schema (ADR 0032)', () => {
     });
     const error: unknown = await resolveOf(definition).catch((e: unknown) => e);
     expect(error).toBeInstanceOf(TypeError);
-    expect((error as Error).message).toContain('ZAPFORGE_IA__OPEN_AI_KEY (openAIKey, openAiKey)');
+    expect((error as Error).message).toContain('BRIDGER_IA__OPEN_AI_KEY (openAIKey, openAiKey)');
     expect((error as Error).message).toContain(
-      'ZAPFORGE_IA__MESSAGES__OK_DONE (messages.okDone, messages.ok_done)',
+      'BRIDGER_IA__MESSAGES__OK_DONE (messages.okDone, messages.ok_done)',
     );
   });
 });

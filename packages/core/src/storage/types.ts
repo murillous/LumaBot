@@ -1,6 +1,6 @@
 // Contrato do StoragePort (M1-10, ADR 0014/0015). A semântica fina (tipos mistos, campo
 // ausente, ordenação, cópias) está em docs/storage.md e é fixada pela suíte de contrato
-// (`@zapforge/core/storage-contract`): todo adapter — memória, SQLite, Postgres — passa nela.
+// (`@usebridger/core/storage-contract`): todo adapter — memória, SQLite, Postgres — passa nela.
 // Nada aqui pode amarrar a SQL nem a um engine (ADR 0015).
 
 /** Valor serializável que todo adapter (memória, SQLite, Postgres) consegue guardar. */

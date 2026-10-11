@@ -1,5 +1,5 @@
 ---
-'@zapforge/core': minor
+'@usebridger/core': minor
 ---
 
 Comando pode declarar o próprio prazo com `command({ timeoutMs })` (#227, ADR 0042). Ele vale para

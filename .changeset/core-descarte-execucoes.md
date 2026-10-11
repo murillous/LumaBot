@@ -1,5 +1,5 @@
 ---
-'@zapforge/core': patch
+'@usebridger/core': patch
 ---
 
 Corrige o descarte do plugin com execuções em andamento (M1-16, ADR 0033). Antes, um reload por

@@ -1,4 +1,4 @@
-// Entry do subpath `@zapforge/core/storage-contract`: a suíte que todo adapter de storage
+// Entry do subpath `@usebridger/core/storage-contract`: a suíte que todo adapter de storage
 // (memória, SQLite do M2-2, Postgres do M3-1) roda para provar que segue o contrato. Fica fora
 // do entry principal para que plugins em produção não carreguem código de teste.
 
@@ -15,7 +15,7 @@ export type { ContractTestApi, StorageContractOptions } from './harness.ts';
  *
  * ```ts
  * import { describe, it } from 'vitest';
- * import { defineStorageContract } from '@zapforge/core/storage-contract';
+ * import { defineStorageContract } from '@usebridger/core/storage-contract';
  *
  * defineStorageContract({ describe, it }, { name: 'sqlite', create: () => sqlite(':memory:') });
  * ```

@@ -1,5 +1,5 @@
 // Migrations internas do adapter, como no SQLite (ADR 0051): o schema é do adapter, não dos
-// plugins (ADR 0015). Tudo vive num schema Postgres próprio (`zapforge` por padrão), e a versão
+// plugins (ADR 0015). Tudo vive num schema Postgres próprio (`bridger` por padrão), e a versão
 // fica numa tabela dele. O boot inteiro é uma transação só, porque DDL no Postgres é
 // transacional: ou o banco sai na versão nova, ou fica como estava.
 
@@ -100,7 +100,7 @@ export async function migrate(pool: Pool, schema: string): Promise<void> {
   await transaction(pool, async (client) => {
     // Vários processos subindo juntos: a trava (da transação) faz um migrar e os outros
     // esperarem e encontrarem o schema pronto, em vez de disputar o mesmo CREATE.
-    await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`zapforge:${schema}`]);
+    await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`bridger:${schema}`]);
     await client.query(`CREATE SCHEMA IF NOT EXISTS ${s}`);
     await client.query(`CREATE TABLE IF NOT EXISTS ${s}.schema_version (version integer NOT NULL)`);
     const { rows } = await client.query<{ version: number }>(
@@ -113,7 +113,7 @@ export async function migrate(pool: Pool, schema: string): Promise<void> {
     if (current > SCHEMA_VERSION) {
       throw new Error(
         `storage-postgres: o schema ${schema} está na versão ${current}, mais nova que a deste ` +
-          `adapter (${SCHEMA_VERSION}). Atualize o @zapforge/storage-postgres.`,
+          `adapter (${SCHEMA_VERSION}). Atualize o @usebridger/storage-postgres.`,
       );
     }
     for (let version = current; version < SCHEMA_VERSION; version++) {

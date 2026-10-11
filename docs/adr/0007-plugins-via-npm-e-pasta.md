@@ -1,6 +1,6 @@
 # ADR 0007 — Plugins via npm e via pasta (`pluginDirs`)
 
-**Status:** Aceito (2026-10-06) · Decisão **D07** do [plano](../../ZAPFORGE_PLAN.md#4-decisões)
+**Status:** Aceito (2026-10-06) · Decisão **D07** do [plano](../../BRIDGER_PLAN.md#4-decisões)
 
 ## Contexto
 

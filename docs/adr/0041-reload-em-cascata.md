@@ -7,7 +7,7 @@
 
 Mudar a config de um plugin recarrega só ele (`teardown` → `dispose` → contexto novo → `setup`).
 Quem depende dele costuma pegar o serviço no `setup` (`const ai = ctx.services.get('ai')`, como
-ensina o [plano §6.7](../../ZAPFORGE_PLAN.md#67-services-entre-plugins)) e guarda a instância
+ensina o [plano §6.7](../../BRIDGER_PLAN.md#67-services-entre-plugins)) e guarda a instância
 antiga (#226). Depois do reload, essa instância usa o contexto descartado do provedor: `storage`,
 `send` e `scheduler` rejeitam com `ContextExpiredError` ([ADR 0033](0033-cancelamento-cooperativo.md)),
 e a config nova não chega a quem usa o serviço. Se o `setup` novo do provedor falha, o dependente

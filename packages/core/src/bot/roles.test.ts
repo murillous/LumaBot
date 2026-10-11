@@ -17,7 +17,7 @@ import {
   sentTexts,
 } from './harness.test-support.ts';
 
-declare module '@zapforge/core' {
+declare module '@usebridger/core' {
   interface Roles {
     moderador: true;
     'test.outro': true;

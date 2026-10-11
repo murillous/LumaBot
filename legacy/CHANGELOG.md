@@ -9,12 +9,12 @@ e este projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR
 
 ### Added
 
-- Workflow `Legacy CI` (`.github/workflows/legacy-ci.yml`): roda a suíte do `legacy/` num container `node:20-slim` com as fontes da imagem de produção e `TZ=America/Sao_Paulo`, a cada push/PR em `main` e `develop` (ZapForge M0-4.2).
+- Workflow `Legacy CI` (`.github/workflows/legacy-ci.yml`): roda a suíte do `legacy/` num container `node:20-slim` com as fontes da imagem de produção e `TZ=America/Sao_Paulo`, a cada push/PR em `main` e `develop` (Bridger M0-4.2).
 
 ### Changed
 
-- Código do LumaBot movido para `legacy/` (ZapForge M0-4.1), preservando o histórico git. Comandos (`npm ci`, `npm test`, `npm start`) agora rodam a partir de `legacy/`; `.github/` e `ZAPFORGE_PLAN.md` ficam na raiz.
-- Deploy de produção aponta para `legacy/` (ZapForge M0-4.3): o workflow `deploy-ec2.yml` builda a imagem com contexto `legacy/` e só dispara para mudanças em `legacy/`. `docs/07-Producao.md` ganhou o passo a passo de migração de servidores PM2/Docker instalados a partir da raiz.
+- Código do LumaBot movido para `legacy/` (Bridger M0-4.1), preservando o histórico git. Comandos (`npm ci`, `npm test`, `npm start`) agora rodam a partir de `legacy/`; `.github/` e `BRIDGER_PLAN.md` ficam na raiz.
+- Deploy de produção aponta para `legacy/` (Bridger M0-4.3): o workflow `deploy-ec2.yml` builda a imagem com contexto `legacy/` e só dispara para mudanças em `legacy/`. `docs/07-Producao.md` ganhou o passo a passo de migração de servidores PM2/Docker instalados a partir da raiz.
 
 ## [1.5.0] — 2026-09-03
 

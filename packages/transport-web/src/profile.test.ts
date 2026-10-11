@@ -1,8 +1,8 @@
 // O perfil `web` do kit de testes promete as capabilities e os limites deste transport (ADR 0073,
 // 0077). Se um dos dois mudar sem o outro, o plugin testado no perfil passa e falha no web real.
 
-import { createLogger, type Transport } from '@zapforge/core';
-import { PROFILES } from '@zapforge/testing/bot';
+import { createLogger, type Transport } from '@usebridger/core';
+import { PROFILES } from '@usebridger/testing/bot';
 import { describe, expect, it } from 'vitest';
 import { createVerifier } from './jwt.ts';
 import { WebTransport } from './transport.ts';

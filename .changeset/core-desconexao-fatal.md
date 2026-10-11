@@ -1,5 +1,5 @@
 ---
-'@zapforge/core': minor
+'@usebridger/core': minor
 ---
 
 Desconexão fatal e transport sem pareamento (ADR 0068). Corrige o laço de `clean-session` de um

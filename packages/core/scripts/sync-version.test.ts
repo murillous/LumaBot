@@ -7,7 +7,7 @@ import { syncCoreVersion } from './sync-version.ts';
 let dir: string;
 
 beforeEach(() => {
-  dir = mkdtempSync(join(tmpdir(), 'zapforge-sync-version-'));
+  dir = mkdtempSync(join(tmpdir(), 'bridger-sync-version-'));
   mkdirSync(join(dir, 'src'));
 });
 

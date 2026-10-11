@@ -1,5 +1,5 @@
 ---
-'@zapforge/transport-baileys': patch
+'@usebridger/transport-baileys': patch
 ---
 
 As chaves do auth state passam por um cache em memória por tentativa de conexão

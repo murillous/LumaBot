@@ -1,5 +1,5 @@
 ---
-'@zapforge/core': minor
+'@usebridger/core': minor
 ---
 
 Novo evento `command` (#254, ADR 0049): sai depois de todo comando que casou, com

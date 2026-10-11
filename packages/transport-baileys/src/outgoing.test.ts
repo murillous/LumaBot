@@ -1,5 +1,5 @@
-import { bold, fmt, mention, UnsupportedError } from '@zapforge/core';
-import { createMessage } from '@zapforge/core/adapter';
+import { bold, fmt, mention, UnsupportedError } from '@usebridger/core';
+import { createMessage } from '@usebridger/core/adapter';
 import type { GroupMetadata as BaileysGroupMetadata, WAMessage } from 'baileys';
 import { describe, expect, it } from 'vitest';
 import { toMessage } from './normalize.ts';

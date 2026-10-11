@@ -1,5 +1,5 @@
 ---
-'@zapforge/testing': minor
+'@usebridger/testing': minor
 ---
 
 O `FakeTransport` implementa `raw()` e ganha `setRaw(source, raw)`, e o `receive()` (também na

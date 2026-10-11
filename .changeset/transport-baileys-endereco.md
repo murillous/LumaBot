@@ -1,5 +1,5 @@
 ---
-'@zapforge/transport-baileys': minor
+'@usebridger/transport-baileys': minor
 ---
 
 A localização traz o endereço em `location.address` quando o WhatsApp o informa (ADR 0069). O

@@ -1,6 +1,6 @@
-// Entry `@zapforge/core` (ADR 0034): o que o autor de plugin usa e o pouco que o app usa para
+// Entry `@usebridger/core` (ADR 0034): o que o autor de plugin usa e o pouco que o app usa para
 // compor o bot. Peças do kernel (host, barramento, filas, scheduler, roteador) não saem daqui;
-// transports e storages usam `@zapforge/core/adapter`. A lista de exports é fixada em
+// transports e storages usam `@usebridger/core/adapter`. A lista de exports é fixada em
 // `entries.test.ts`: export novo é decisão explícita.
 
 export type { CommandAction, MessageAction, StepAction } from '#actions/actions.ts';

@@ -186,7 +186,7 @@ export class ContextExpiredError extends Error {
  * visões por plugin derivam o contexto por `Object.create`, e a chave precisa ser alcançável
  * pela cadeia de protótipos.
  */
-export const DEADLINE: unique symbol = Symbol('zapforge.deadline');
+export const DEADLINE: unique symbol = Symbol('bridger.deadline');
 
 export interface WithDeadline {
   readonly [DEADLINE]?: Deadline;

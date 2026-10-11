@@ -1,6 +1,6 @@
 # ADR 0006 — Luma é um plugin (`plugin-ai`)
 
-**Status:** Aceito (2026-10-06) · Decisão **D06** do [plano](../../ZAPFORGE_PLAN.md#4-decisões)
+**Status:** Aceito (2026-10-06) · Decisão **D06** do [plano](../../BRIDGER_PLAN.md#4-decisões)
 
 ## Contexto
 
@@ -12,7 +12,7 @@ Alternativas consideradas: IA embutida no kernel.
 
 ## Decisão
 
-A IA **não entra no core**. A Luma vira o plugin `@zapforge/plugin-ai`, entregue no M5.
+A IA **não entra no core**. A Luma vira o plugin `@usebridger/plugin-ai`, entregue no M5.
 
 ## Consequências
 

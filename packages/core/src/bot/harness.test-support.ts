@@ -1,5 +1,5 @@
 // Apoio aos testes do pipeline do Bot (M1-16). Não é exportado. O core não usa o
-// `@zapforge/testing`, que depende dele (ADR 0053).
+// `@usebridger/testing`, que depende dele (ADR 0053).
 
 import type { LogFields, Logger, LogLevel } from '#logger/types.ts';
 import type { Contact, TextMessage } from '#message/types.ts';

@@ -1,8 +1,8 @@
 ---
-'@zapforge/core': minor
+'@usebridger/core': minor
 ---
 
-`defineTransport` em `@zapforge/core/adapter` (ADR 0080): o adapter descreve só `name`,
+`defineTransport` em `@usebridger/core/adapter` (ADR 0080): o adapter descreve só `name`,
 `capabilities` (em lista), `connect`, `disconnect`, `send` e os métodos das capabilities que
 declara, e recebe um kit com `emit` e `setSelf`. O `Transport` montado traz o emissor, o `on()`,
 o `self`, a checagem de capability em cada método e o `UnsupportedError` no que falta. Novos

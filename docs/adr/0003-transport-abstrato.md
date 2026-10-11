@@ -1,6 +1,6 @@
 # ADR 0003 — `Transport` abstrato, só Baileys na v1
 
-**Status:** Aceito (2026-10-06) · Decisão **D03** do [plano](../../ZAPFORGE_PLAN.md#4-decisões) · "Só Baileys na v1": substituído pelo [ADR 0055](0055-plataformas-alvo-e-transport-web.md)
+**Status:** Aceito (2026-10-06) · Decisão **D03** do [plano](../../BRIDGER_PLAN.md#4-decisões) · "Só Baileys na v1": substituído pelo [ADR 0055](0055-plataformas-alvo-e-transport-web.md)
 
 ## Contexto
 
@@ -14,7 +14,7 @@ Alternativas consideradas: multi-transporte já na v1; expor o Baileys diretamen
 
 O core define uma interface `Transport` com capabilities (ver
 [ADR 0010](0010-capabilities-do-transporte.md)). A v1 entrega **só**
-`@zapforge/transport-baileys`; os demais transports viram adapters depois, os
+`@usebridger/transport-baileys`; os demais transports viram adapters depois, os
 comerciais em repo privado (ver [ADR 0029](0029-open-core-repo-privado.md)).
 
 ## Consequências

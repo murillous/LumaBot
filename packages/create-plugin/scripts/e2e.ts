@@ -11,7 +11,7 @@ import { basename, join } from 'node:path';
  * antes, como o `pnpm pack`.
  */
 const packages = join(import.meta.dirname, '..', '..');
-const root = mkdtempSync(join(tmpdir(), 'zapforge-e2e-'));
+const root = mkdtempSync(join(tmpdir(), 'bridger-e2e-'));
 
 function sh(command: string, cwd: string): void {
   console.log(`\n$ ${command}  (${cwd})`);
@@ -42,14 +42,14 @@ try {
   // relativos: o tar do Git Bash lê `C:` de um caminho absoluto como host remoto.
   mkdirSync(join(root, 'cli'));
   sh(`tar -xzf "packs/${basename(scaffold)}" -C cli`, root);
-  sh('node cli/package/dist/cli.mjs zapforge-plugin-e2e', root);
+  sh('node cli/package/dist/cli.mjs bridger-plugin-e2e', root);
 
-  const project = join(root, 'zapforge-plugin-e2e');
+  const project = join(root, 'bridger-plugin-e2e');
   // O core e o kit ainda não estão no npm: o override vale também para a dependência do kit no
   // core, e o projeto fica com uma cópia só de cada pacote, como no registry.
   writeFileSync(
     join(project, 'pnpm-workspace.yaml'),
-    `overrides:\n  '@zapforge/core': 'file:${core}'\n  '@zapforge/testing': 'file:${testing}'\n`,
+    `overrides:\n  '@usebridger/core': 'file:${core}'\n  '@usebridger/testing': 'file:${testing}'\n`,
   );
   sh('pnpm install', project);
   sh('pnpm run typecheck', project);

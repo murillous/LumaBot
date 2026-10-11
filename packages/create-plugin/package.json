@@ -1,21 +1,21 @@
 {
-  "name": "create-zapforge-plugin",
+  "name": "create-bridger-plugin",
   "version": "0.0.0",
-  "description": "Cria um plugin do ZapForge pronto para desenvolver, testar e publicar.",
+  "description": "Cria um plugin do Bridger pronto para desenvolver, testar e publicar.",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/murillous/LumaBot.git",
+    "url": "git+https://github.com/murillous/usebridger.git",
     "directory": "packages/create-plugin"
   },
-  "homepage": "https://github.com/murillous/LumaBot/tree/develop/packages/create-plugin/docs#readme",
-  "bugs": "https://github.com/murillous/LumaBot/issues",
+  "homepage": "https://github.com/murillous/usebridger/tree/develop/packages/create-plugin/docs#readme",
+  "bugs": "https://github.com/murillous/usebridger/issues",
   "type": "module",
   "imports": {
     "#*": "./src/*"
   },
   "bin": {
-    "create-zapforge-plugin": "./dist/cli.mjs"
+    "create-bridger-plugin": "./dist/cli.mjs"
   },
   "files": [
     "dist",

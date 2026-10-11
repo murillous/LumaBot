@@ -9,7 +9,7 @@ import {
   createLogger,
   createMemoryStorage,
   definePlugin,
-} from '@zapforge/core';
+} from '@usebridger/core';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { FakeDriver } from './fake-socket.test-support.ts';
 import { BaileysTransport } from './transport.ts';

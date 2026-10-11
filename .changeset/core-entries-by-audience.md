@@ -1,19 +1,19 @@
 ---
-'@zapforge/core': minor
+'@usebridger/core': minor
 ---
 
-API pública por público (M1-17, ADR 0034). **Breaking:** o `@zapforge/core` deixa de exportar
+API pública por público (M1-17, ADR 0034). **Breaking:** o `@usebridger/core` deixa de exportar
 peças do kernel e o que é de transport/storage passa para o novo subpath
-`@zapforge/core/adapter`.
+`@usebridger/core/adapter`.
 
-- `@zapforge/core`: API do autor de plugin e da composição do app (inalterada para quem só
+- `@usebridger/core`: API do autor de plugin e da composição do app (inalterada para quem só
   usa `definePlugin`, `command`, `secret`, `createBot`, middlewares oficiais, `createLogger`,
   `createSecretSet`, `createMemoryStorage`, tipos de contexto, mensagem, eventos e storage do
   plugin). Os tipos de transport que aparecem na API do plugin ficam nele: `MediaInput`,
   `MessageKey`, `OutgoingContent`, `SendOptions`, `ConnectionStatus`, `DisconnectReason`,
   `GroupParticipantAction`, `Unsubscribe`, além do `Capability` e do `UnsupportedError`.
-- Novo `@zapforge/core/adapter`, para quem escreve transport ou storage. Saem do
-  `@zapforge/core` e passam a vir dele: `createMessage`/`MessageInit`, `createMedia`/
+- Novo `@usebridger/core/adapter`, para quem escreve transport ou storage. Saem do
+  `@usebridger/core` e passam a vir dele: `createMessage`/`MessageInit`, `createMedia`/
   `MediaSource`, `TypedEmitter`/`EmitterErrorHandler`, `messageKey`, `ReconnectionPolicy` e
   seus tipos (`ReconnectionDecision`, `ReconnectionPolicyOptions`, `ReconnectionState`),
   `CAPABILITIES`, `CapabilityHolder`, `hasCapability`, `assertCapability`,

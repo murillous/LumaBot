@@ -1,7 +1,7 @@
-# ADRs do ZapForge
+# ADRs do Bridger
 
 Registros de decisão de arquitetura (o PORQUÊ) do monorepo. Cada ADR corresponde a uma
-decisão da [seção 4 do plano](../../ZAPFORGE_PLAN.md#4-decisões) (`ADR 00NN` = `DNN`).
+decisão da [seção 4 do plano](../../BRIDGER_PLAN.md#4-decisões) (`ADR 00NN` = `DNN`).
 Os ADRs do LumaBot atual continuam em [`legacy/docs/adr/`](../../legacy/docs/adr/).
 
 ## Formato
@@ -28,7 +28,7 @@ sendo a referência; um ADR novo entra nos dois.
 - [0026](0026-tooling.md) — Tooling: Node 24, pnpm, tsdown, Vitest, Biome
 - [0030](0030-metas-de-performance.md) — Metas de performance com benchmark no CI
 - [0054](0054-baseline-do-benchmark.md) — Baseline do benchmark medido no mesmo job, a partir do commit base (detalha D30)
-- [0034](0034-biblioteca-sem-runner.md) — ZapForge é uma biblioteca, sem runner; API pública por público
+- [0034](0034-biblioteca-sem-runner.md) — Bridger é uma biblioteca, sem runner; API pública por público
 
 **Projeto: migração, licença, release e nome**
 
@@ -38,7 +38,8 @@ sendo a referência; um ADR novo entra nos dois.
 - [0082](0082-release-a-partir-de-develop.md) — Release a partir de `develop`, Trusted Publishing no npm e PR de versão por GitHub App (detalha D27)
 - [0028](0028-licenca-apache-2.md) — Licença Apache-2.0
 - [0029](0029-open-core-repo-privado.md) — Open core com repo privado
-- [0031](0031-nome-zapforge.md) — Nome: ZapForge
+- [0031](0031-nome-do-kernel.md) — Nome do kernel (substituído pelo D83)
+- [0083](0083-nome-bridger.md) — Nome: Bridger, no escopo `@usebridger` (substitui D31)
 
 **Bot, sessão e escopo do core**
 
@@ -107,7 +108,7 @@ sendo a referência; um ADR novo entra nos dois.
 - [0022](0022-kit-de-autor.md) — Kit de autor na v1
 - [0044](0044-espera-pelo-bot-assentar.md) — `bot.settled()` espera o bot processar o que recebeu (detalha D22/D34)
 - [0052](0052-kit-de-testes-sobre-o-vitest.md) — Kit de testes sobre o Vitest, com `receive()` que espera o bot assentar (detalha D22/D44)
-- [0053](0053-core-testa-sem-o-kit.md) — O core se testa com apoios próprios, não com o `@zapforge/testing` (detalha D22/D52)
+- [0053](0053-core-testa-sem-o-kit.md) — O core se testa com apoios próprios, não com o `@usebridger/testing` (detalha D22/D52)
 
 **Multiplataforma**
 
@@ -151,10 +152,10 @@ ADR 0055). Ao serem aceitos, entram aqui e no índice numérico.
 | [0028](0028-licenca-apache-2.md) | D28 | Licença Apache-2.0 | Aceito |
 | [0029](0029-open-core-repo-privado.md) | D29 | Open core com repo privado | Aceito (transports públicos: ADR 0055) |
 | [0030](0030-metas-de-performance.md) | D30 | Metas de performance com benchmark no CI | Aceito |
-| [0031](0031-nome-zapforge.md) | D31 | Nome: ZapForge | Aceito |
+| [0031](0031-nome-do-kernel.md) | D31 | Nome do kernel | Substituído por ADR 0083 |
 | [0032](0032-camadas-da-config-de-plugin.md) | D32 | Camadas e convenções da config de plugin (detalha D17) | Aceito |
 | [0033](0033-cancelamento-cooperativo.md) | D33 | Cancelamento cooperativo do código de plugin (detalha D05) | Aceito |
-| [0034](0034-biblioteca-sem-runner.md) | D34 | ZapForge é uma biblioteca, sem runner; API pública por público | Aceito |
+| [0034](0034-biblioteca-sem-runner.md) | D34 | Bridger é uma biblioteca, sem runner; API pública por público | Aceito |
 | [0035](0035-papeis-nomeados-por-plugin.md) | D35 | Papéis custom nomeados, definidos por plugin (substitui parte de D12/D24) | Aceito |
 | [0036](0036-escopo-de-sessao.md) | D36 | Escopo de sessão no bot e no storage (detalha D04/D14) | Aceito |
 | [0037](0037-transport-por-fabrica.md) | D37 | Transport recebe as dependências do bot por fábrica (detalha D03) | Aceito |
@@ -173,7 +174,7 @@ ADR 0055). Ao serem aceitos, entram aqui e no índice numérico.
 | [0050](0050-codigo-de-pareamento.md) | D50 | Código de pareamento chega por evento, como o QR (detalha D03/D13) | Aceito |
 | [0051](0051-sqlite-via-node-sqlite.md) | D51 | SQLite pelo `node:sqlite`, com schema único e migrations do adapter (detalha D14/D15) | Aceito |
 | [0052](0052-kit-de-testes-sobre-o-vitest.md) | D52 | Kit de testes sobre o Vitest, com `receive()` que espera o bot assentar (detalha D22/D44) | Aceito |
-| [0053](0053-core-testa-sem-o-kit.md) | D53 | O core se testa com apoios próprios, não com o `@zapforge/testing` (detalha D22/D52) | Aceito |
+| [0053](0053-core-testa-sem-o-kit.md) | D53 | O core se testa com apoios próprios, não com o `@usebridger/testing` (detalha D22/D52) | Aceito |
 | [0054](0054-baseline-do-benchmark.md) | D54 | Baseline do benchmark medido no mesmo job, a partir do commit base (detalha D30) | Aceito |
 | [0055](0055-plataformas-alvo-e-transport-web.md) | D55 | Plataformas-alvo e um transport fora do WhatsApp antes do 1.0 (substitui parte de D03, detalha D29) | Aceito |
 | [0056](0056-owners-por-telefone-ou-id.md) | D56 | Owners por telefone ou por ID do contato (detalha D24/D46) | Aceito |
@@ -197,9 +198,10 @@ ADR 0055). Ao serem aceitos, entram aqui e no índice numérico.
 | [0074](0074-trava-de-sessao-entre-processos.md) | D74 | Trava de sessão entre processos: lease com validade no `StoragePort`, renovada pelo bot (detalha D36/D14) | Aceito |
 | [0075](0075-varios-bots-e-escopo-compartilhado.md) | D75 | Vários bots num storage e escopo compartilhado opt-in: `ctx.storage.shared` em `$shared:<plugin>`, por tenant, e `ctx.transportName` (detalha D04, substitui parte do D36) | Aceito |
 | [0076](0076-http-do-core.md) | D76 | HTTP do core: `createHttp` dividido pelos bots, rotas de plugin e de transport por sessão, WebSocket e `/health` pelo estado (detalha D20/D37/D75) | Aceito |
-| [0077](0077-transport-web.md) | D77 | `@zapforge/transport-web`: chat por WebSocket com JWT no primeiro frame, conversa escolhida pelo cliente, buffer para cliente fora e mídia por HTTP (detalha D55, sobre o D76) | Aceito |
+| [0077](0077-transport-web.md) | D77 | `@usebridger/transport-web`: chat por WebSocket com JWT no primeiro frame, conversa escolhida pelo cliente, buffer para cliente fora e mídia por HTTP (detalha D55, sobre o D76) | Aceito |
 | [0078](0078-postgres-via-pg.md) | D78 | Postgres pelo `pg`: schema próprio, documentos em `jsonb`, migrations sob advisory lock e testes contra Postgres em container no CI (detalha D14/D15) | Aceito |
 | [0079](0079-acucar-no-manifesto-do-plugin.md) | D79 | Açúcar no manifesto do plugin: `commands` e `on` declarativos, `run` que devolve texto responde e `send.text` implícito (detalha D16/D22) | Aceito |
 | [0080](0080-acucar-para-o-autor-de-transport.md) | D80 | Açúcar para o autor de transport: `defineTransport` com descrição e kit, e coerência capability ↔ método conferida no `createBot` (detalha D03/D10/D37) | Aceito |
-| [0081](0081-create-zapforge-plugin.md) | D81 | `create-zapforge-plugin`: scaffold sem dependências, template com o plugin portátil na forma curta e aceite por e2e sobre os tarballs (detalha D22) | Aceito |
+| [0081](0081-create-bridger-plugin.md) | D81 | `create-bridger-plugin`: scaffold sem dependências, template com o plugin portátil na forma curta e aceite por e2e sobre os tarballs (detalha D22) | Aceito |
 | [0082](0082-release-a-partir-de-develop.md) | D82 | Release a partir de `develop`: gate no mesmo job, Trusted Publishing no npm com bootstrap por token e PR de versão aberto por GitHub App (detalha D27) | Aceito |
+| [0083](0083-nome-bridger.md) | D83 | Nome: Bridger, no escopo `@usebridger/*`, com `create-bridger-plugin`, `BRIDGER_*` e schema Postgres `bridger` (substitui D31) | Aceito |

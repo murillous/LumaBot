@@ -3,7 +3,7 @@ name: Deploy LumaBot to EC2
 on:
   push:
     branches: [monteiro/cloud]
-    # O bot de produção vive em legacy/ (ZapForge M0-4.3): mudanças no kernel
+    # O bot de produção vive em legacy/ (Bridger M0-4.3): mudanças no kernel
     # (packages/, plugins/, apps/) não disparam deploy.
     paths:
       - 'legacy/**'

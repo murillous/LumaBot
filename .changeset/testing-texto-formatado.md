@@ -1,5 +1,5 @@
 ---
-'@zapforge/testing': minor
+'@usebridger/testing': minor
 ---
 
 `FakeTransport` aceita `limits`, para testar a divisão de texto longo, e registra em `edits` a

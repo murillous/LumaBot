@@ -7,8 +7,8 @@
 // `{ v: 1 }` casaria `true` e `{ v: '[1]' }` casaria um array. Toda comparação usa `IS`, que
 // nunca dá NULL: assim o `ne` pode ser o `NOT` exato do `eq`, inclusive para campo ausente.
 
-import type { Scalar } from '@zapforge/core';
-import type { NormalizedCondition, NormalizedSort } from '@zapforge/core/adapter';
+import type { Scalar } from '@usebridger/core';
+import type { NormalizedCondition, NormalizedSort } from '@usebridger/core/adapter';
 
 export type SqlParam = string | number;
 

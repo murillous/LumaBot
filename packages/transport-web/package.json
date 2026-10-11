@@ -1,27 +1,27 @@
 {
-  "name": "@zapforge/transport-web",
+  "name": "@usebridger/transport-web",
   "version": "0.0.0",
-  "description": "Transport do ZapForge para chat web: WebSocket com JWT, conversas e mídia por HTTP.",
+  "description": "Transport do Bridger para chat web: WebSocket com JWT, conversas e mídia por HTTP.",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/murillous/LumaBot.git",
+    "url": "git+https://github.com/murillous/usebridger.git",
     "directory": "packages/transport-web"
   },
-  "homepage": "https://github.com/murillous/LumaBot/tree/develop/packages/transport-web/docs#readme",
-  "bugs": "https://github.com/murillous/LumaBot/issues",
+  "homepage": "https://github.com/murillous/usebridger/tree/develop/packages/transport-web/docs#readme",
+  "bugs": "https://github.com/murillous/usebridger/issues",
   "type": "module",
   "imports": {
     "#*": "./src/*"
   },
   "exports": {
     ".": {
-      "@zapforge/source": "./src/index.ts",
+      "@usebridger/source": "./src/index.ts",
       "types": "./dist/index.d.mts",
       "default": "./dist/index.mjs"
     },
     "./client": {
-      "@zapforge/source": "./src/client.ts",
+      "@usebridger/source": "./src/client.ts",
       "types": "./dist/client.d.mts",
       "default": "./dist/client.mjs"
     }
@@ -33,11 +33,11 @@
     "build": "tsdown"
   },
   "dependencies": {
-    "@zapforge/core": "workspace:^",
+    "@usebridger/core": "workspace:^",
     "jose": "^6.2.12"
   },
   "devDependencies": {
-    "@zapforge/testing": "workspace:^"
+    "@usebridger/testing": "workspace:^"
   },
   "publishConfig": {
     "access": "public"

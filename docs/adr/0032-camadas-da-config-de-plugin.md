@@ -16,8 +16,8 @@ inválida derrubar o boot.
 
 ## Decisão
 
-- **Env**: `ZAPFORGE_<PLUGIN>__<CAMPO>`, com plugin kebab-case e campos camelCase em
-  SCREAMING_SNAKE e `__` entre níveis (`ZAPFORGE_USER_NAMES__OPENAI__API_KEY`). Só campos
+- **Env**: `BRIDGER_<PLUGIN>__<CAMPO>`, com plugin kebab-case e campos camelCase em
+  SCREAMING_SNAKE e `__` entre níveis (`BRIDGER_USER_NAMES__OPENAI__API_KEY`). Só campos
   declarados no schema são lidos; o texto é convertido para o tipo do campo (número, booleano,
   literal, JSON para arrays/objetos). O prefixo evita colisão com variáveis de outras
   ferramentas; o `__` deixa nome de plugin e de campo inequívocos. Dois campos que geram a mesma
@@ -27,7 +27,7 @@ inválida derrubar o boot.
   do bot). A mesma forma de entrada vale para os overrides do storage
   (`kernelStorage(port, 'config').kv`, chave = nome do plugin).
 - **`messages`** é chave reservada da entrada (`{ quality: 90, messages: { needMedia: '…' } }`),
-  com a mesma precedência dos campos (inclusive `ZAPFORGE_<PLUGIN>__MESSAGES__<CHAVE>`). O schema
+  com a mesma precedência dos campos (inclusive `BRIDGER_<PLUGIN>__MESSAGES__<CHAVE>`). O schema
   do plugin não pode ter campo `messages`; chave que o manifesto não declara é erro.
 - **Segredo** é metadado do schema: `secret(z.string())` grava `{ secret: true, writeOnly: true }`
   no registro do Zod. Assim o JSON Schema exportado para o dashboard já carrega a marca, e o
@@ -46,7 +46,7 @@ inválida derrubar o boot.
   só de env ou do arquivo. Override legado com segredo (gravado antes desta regra ou direto no
   banco) tem o campo ignorado na leitura, com `warn` sem o valor, em vez de falhar o plugin: um
   dado antigo não deve desligar o plugin. O JSON Schema marca o campo com
-  `x-zapforge-override: false` (e não `readOnly`, que contradiz o `writeOnly` já presente) para
+  `x-bridger-override: false` (e não `readOnly`, que contradiz o `writeOnly` já presente) para
   o dashboard não oferecer a edição.
 - **Segredos no log** chegam por uma fonte viva (`SecretSet`) compartilhada entre a config e o
   logger, porque a config é resolvida depois que o logger existe e muda no reload. O logger

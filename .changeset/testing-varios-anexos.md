@@ -1,5 +1,5 @@
 ---
-'@zapforge/testing': minor
+'@usebridger/testing': minor
 ---
 
 O `receive()` aceita `attachments` depois da mídia principal, com o tipo novo `IncomingAttachment`

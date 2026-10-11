@@ -1,6 +1,6 @@
 // #273 (ADR 0061): a árvore neutra do core na marcação do WhatsApp.
 
-import { bold, code, fmt, italic, link, mention } from '@zapforge/core';
+import { bold, code, fmt, italic, link, mention } from '@usebridger/core';
 import { describe, expect, it } from 'vitest';
 import { renderWhatsApp } from './format.ts';
 

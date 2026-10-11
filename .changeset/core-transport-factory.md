@@ -1,5 +1,5 @@
 ---
-'@zapforge/core': minor
+'@usebridger/core': minor
 ---
 
 Transport por fábrica (M1-21, ADR 0037). `BotConfig.transport` aceita também
@@ -8,4 +8,4 @@ Transport por fábrica (M1-21, ADR 0037). `BotConfig.transport` aceita também
 (`{ transport: name }`, com a censura de segredos), que descarta as linhas até o `start()`.
 Fábrica que lança vira `BotConfigError` com o erro em `cause`. Com fábrica, a decisão
 `clean-session` da reconexão limpa o `auth` sem `reconnection.clearSession`, que segue como
-override. `TransportDeps` sai em `@zapforge/core/adapter`. Instâncias prontas continuam aceitas.
+override. `TransportDeps` sai em `@usebridger/core/adapter`. Instâncias prontas continuam aceitas.

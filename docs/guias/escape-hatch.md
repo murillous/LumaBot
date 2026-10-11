@@ -32,7 +32,7 @@ Devolve a mensagem no formato da plataforma, com o que a `Message` normalizada n
 Discord, um embed:
 
 ```ts
-import { command, definePlugin } from '@zapforge/core';
+import { command, definePlugin } from '@usebridger/core';
 import type { Message as DiscordMessage } from 'discord.js';
 
 export const embeds = definePlugin({

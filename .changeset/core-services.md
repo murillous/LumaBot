@@ -1,5 +1,5 @@
 ---
-'@zapforge/core': minor
+'@usebridger/core': minor
 ---
 
 Service registry entre plugins (M1-9): `createServiceRegistry()` com `forPlugin(name)` (o

@@ -1,5 +1,5 @@
 ---
-'@zapforge/core': minor
+'@usebridger/core': minor
 ---
 
 A espera do `reply` na fila de saída não conta mais no prazo do handler (#240, ADR 0047). Antes,

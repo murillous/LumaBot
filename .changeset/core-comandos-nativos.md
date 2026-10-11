@@ -1,5 +1,5 @@
 ---
-'@zapforge/core': minor
+'@usebridger/core': minor
 ---
 
 Comandos nativos: o transport lê a lista de comandos e recebe os comandos chamados pelo menu da
@@ -13,5 +13,5 @@ plataforma (ADR 0064).
   digitado, sem prefixo, com papel, recusa e evento `command`.
 - Quem lê `Interaction.actionId` precisa estreitar o tipo antes (`interaction.command ===
   undefined`).
-- Novos exports em `@zapforge/core/adapter`: os tipos `TransportCommands`, `ActionInteraction` e
+- Novos exports em `@usebridger/core/adapter`: os tipos `TransportCommands`, `ActionInteraction` e
   `CommandInteraction`.

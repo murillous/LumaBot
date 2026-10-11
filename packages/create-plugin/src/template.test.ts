@@ -27,11 +27,11 @@ it('as ferramentas do template são as do workspace', () => {
 
 it('a faixa do core no template aceita a versão atual dele', () => {
   // `<1.0.0` vale enquanto o core for 0.x (D27). Na 1.0, a faixa do template (peer, dev,
-  // `@zapforge/testing` e o `engine` do manifesto) passa a ser `^1.0.0`.
+  // `@usebridger/testing` e o `engine` do manifesto) passa a ser `^1.0.0`.
   const { version } = manifest(join(repo, 'packages', 'core', 'package.json'));
   expect(version.startsWith('0.')).toBe(true);
-  expect(template.peerDependencies?.['@zapforge/core']).toBe('<1.0.0');
-  expect(template.devDependencies?.['@zapforge/core']).toBe('<1.0.0');
-  expect(template.devDependencies?.['@zapforge/testing']).toBe('<1.0.0');
+  expect(template.peerDependencies?.['@usebridger/core']).toBe('<1.0.0');
+  expect(template.devDependencies?.['@usebridger/core']).toBe('<1.0.0');
+  expect(template.devDependencies?.['@usebridger/testing']).toBe('<1.0.0');
   expect(readFileSync(join(TEMPLATE_DIR, 'src', 'index.ts'), 'utf8')).toContain("engine: '<1.0.0'");
 });

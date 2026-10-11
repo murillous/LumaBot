@@ -1,5 +1,5 @@
 ---
-'@zapforge/core': minor
+'@usebridger/core': minor
 ---
 
 Escape hatch `ctx.unsafe.native` (M1-15): `createUnsafeAccess({ transport, log })` cria, por bot,

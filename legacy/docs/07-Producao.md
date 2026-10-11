@@ -4,7 +4,7 @@
 
 Este guia cobre o deploy seguro e eficiente do LumaBot em produção usando Docker, Docker Compose e Nginx.
 
-> **Monorepo ZapForge:** o LumaBot vive em `legacy/` do repositório. Todos os
+> **Monorepo Bridger:** o LumaBot vive em `legacy/` do repositório. Todos os
 > caminhos e comandos deste guia são relativos a `legacy/` — rode-os de lá.
 > Servidores instalados antes da mudança precisam da migração descrita em
 > [Migração para `legacy/`](#migração-para-legacy).
@@ -233,7 +233,7 @@ docker-compose -f docker/compose.prod.yml up -d app
 
 ## Migração para `legacy/`
 
-Com o monorepo ZapForge (M0-4), o código saiu da raiz do repositório para
+Com o monorepo Bridger (M0-4), o código saiu da raiz do repositório para
 `legacy/`. A imagem Docker é a mesma (o `Dockerfile` usa `legacy/` como contexto e
 o layout interno `/app` não mudou), mas **servidores instalados a partir da raiz
 precisam de um passo manual** quando essa mudança chegar à `main`. Faça-o numa

@@ -264,7 +264,7 @@ Quanto do auth state o transport usa depende de como a plataforma autentica:
   da sessão entre execuções, usa só `getCreds`/`setCreds`.
 - **Por pareamento** (WhatsApp): as credenciais nascem no pareamento e ficam em `setCreds`; as
   chaves de criptografia por contato, em `getKeys`/`setKeys`. É o que o
-  `@zapforge/transport-baileys` faz no lugar do `useMultiFileAuthState`, com a conversão de
+  `@usebridger/transport-baileys` faz no lugar do `useMultiFileAuthState`, com a conversão de
   `Buffer` em `src/auth-state.ts` ([Credenciais](../../transport-baileys/docs/README.md#credenciais)).
 
 O `clear()` é do bot, na limpeza de sessão (`clean-session`), que só existe para transport com a
@@ -277,9 +277,9 @@ próprios), descarta tudo no `close()`. Serve para testes e é a referência exe
 contrato.
 
 Para produção, o adapter padrão é o `sqlite({ path })` do
-[`@zapforge/storage-sqlite`](../../storage-sqlite/docs/README.md). Para vários processos dividindo
+[`@usebridger/storage-sqlite`](../../storage-sqlite/docs/README.md). Para vários processos dividindo
 o banco, use o `await postgres({ connectionString })` do
-[`@zapforge/storage-postgres`](../../storage-postgres/docs/README.md).
+[`@usebridger/storage-postgres`](../../storage-postgres/docs/README.md).
 
 ### Escrevendo um adapter
 
@@ -287,7 +287,7 @@ Implemente `StoragePort` (`forNamespace`, `authState`, `close` e, se o banco pod
 entre processos, a trava: veja [Trava com validade](#trava-com-validade)). `authState(session)` só monta o
 objeto, sem I/O: o `createBot` o chama para entregar o auth à fábrica do transport
 ([ADR 0037](../../../docs/adr/0037-transport-por-fabrica.md)), onde não pode haver efeito
-colateral; a leitura fica nos métodos. `@zapforge/core/adapter` exporta as peças que
+colateral; a leitura fica nos métodos. `@usebridger/core/adapter` exporta as peças que
 deixam os erros e a validação iguais aos dos outros adapters:
 
 | Função | Para quê |
@@ -345,7 +345,7 @@ A suíte vem num subpath próprio, fora do entry principal, e não depende de ru
 ```ts
 // packages/storage-sqlite/src/sqlite.contract.test.ts
 import { describe, it } from 'vitest';
-import { defineStorageContract } from '@zapforge/core/storage-contract';
+import { defineStorageContract } from '@usebridger/core/storage-contract';
 import { sqlite } from './sqlite.ts';
 
 defineStorageContract(

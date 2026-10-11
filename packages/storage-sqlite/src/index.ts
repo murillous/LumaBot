@@ -1,8 +1,8 @@
-// Entry `@zapforge/storage-sqlite`: o adapter de storage padrão, que o app passa em
+// Entry `@usebridger/storage-sqlite`: o adapter de storage padrão, que o app passa em
 // `createBot({ storage })`. Usa o `node:sqlite` do próprio Node (ADR 0051): nada de addon nativo
 // para compilar no `pnpm install`.
 
-import type { StoragePort } from '@zapforge/core/adapter';
+import type { StoragePort } from '@usebridger/core/adapter';
 import { openDatabase } from './schema.ts';
 import { createSqliteStorage } from './storage.ts';
 

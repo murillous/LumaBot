@@ -33,4 +33,4 @@ implementar); ligação manual pelo app (o que existe hoje).
 - O app escreve `transport: baileys({...})` e `storage: sqlite({...})` sem ligar um ao outro.
 - O adapter loga pelo logger do bot, com os segredos censurados.
 - Os testes que passam uma instância (`new RecordingTransport()`) seguem válidos sem mudança.
-- `TransportDeps` vira contrato de adapter: fica na entrada `@zapforge/core/adapter` (ADR 0034).
+- `TransportDeps` vira contrato de adapter: fica na entrada `@usebridger/core/adapter` (ADR 0034).

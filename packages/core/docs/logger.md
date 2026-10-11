@@ -4,7 +4,7 @@
 API pública é a interface `Logger` — o pino não aparece nela, então plugins não dependem dele.
 
 ```ts
-import { createLogger } from '@zapforge/core';
+import { createLogger } from '@usebridger/core';
 
 const log = createLogger({ level: 'debug', bindings: { app: 'meu-bot' } });
 

@@ -6,8 +6,8 @@ import {
   createBot,
   createLogger,
   type Message,
-} from '@zapforge/core';
-import type { Interaction, TransportEvents } from '@zapforge/core/adapter';
+} from '@usebridger/core';
+import type { Interaction, TransportEvents } from '@usebridger/core/adapter';
 import { FakeTransport, type SentMessage } from './fake-transport.ts';
 import { buildMessage, type IncomingMessage } from './incoming.ts';
 import { DEFAULT_SENDER, PROFILES, type ProfileName } from './profiles.ts';
@@ -57,7 +57,7 @@ export interface TestBot {
 
 /**
  * Cria e sobe um bot para teste. Os padrões tiram o que só atrapalha num teste: log desligado,
- * ambiente vazio (nenhum `ZAPFORGE_*` da máquina vaza para a config), fila de saída sem
+ * ambiente vazio (nenhum `BRIDGER_*` da máquina vaza para a config), fila de saída sem
  * intervalo entre envios e sem reconexão. Qualquer um deles pode ser sobrescrito.
  */
 export async function createTestBot(options: TestBotOptions = {}): Promise<TestBot> {

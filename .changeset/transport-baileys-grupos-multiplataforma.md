@@ -1,5 +1,5 @@
 ---
-'@zapforge/transport-baileys': minor
+'@usebridger/transport-baileys': minor
 ---
 
 Segue o contrato de grupos multiplataforma do core (ADR 0059). Os eventos `group.*` trazem o grupo

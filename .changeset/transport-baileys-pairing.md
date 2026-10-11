@@ -1,5 +1,5 @@
 ---
-'@zapforge/transport-baileys': patch
+'@usebridger/transport-baileys': patch
 ---
 
 O Baileys declara a capability `pairing`: credencial rejeitada (403, 411) continua limpando a

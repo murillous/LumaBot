@@ -97,9 +97,9 @@ Usar uma capability que o transport não tem rejeita com `UnsupportedError` (com
 | `groups.promote` | ✓ | ✓ | — | — |
 | `pairing` | ✓ | — | — | — |
 
-As colunas do WhatsApp (`@zapforge/transport-baileys`) e do web (`@zapforge/transport-web`) são o
+As colunas do WhatsApp (`@usebridger/transport-baileys`) e do web (`@usebridger/transport-web`) são o
 que esses transports declaram hoje. As do Telegram e do Discord são a previsão do
-[plano](../../ZAPFORGE_PLAN.md#610-capabilities-por-transport): esses transports ainda não
+[plano](../../BRIDGER_PLAN.md#610-capabilities-por-transport): esses transports ainda não
 existem, e as colunas se confirmam quando cada um nascer. O kit de testes usa a mesma matriz nos
 [perfis](testes.md#perfis-de-plataforma).
 

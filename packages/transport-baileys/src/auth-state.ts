@@ -2,8 +2,8 @@
 // `useMultiFileAuthState`. O store só guarda JSON; os `Buffer`/`Uint8Array` do Baileys vão e
 // voltam pelo `BufferJSON`, como no arquivo que o `useMultiFileAuthState` gravaria.
 
-import type { JsonValue } from '@zapforge/core';
-import type { AuthKeyData, AuthStateStore } from '@zapforge/core/adapter';
+import type { JsonValue } from '@usebridger/core';
+import type { AuthKeyData, AuthStateStore } from '@usebridger/core/adapter';
 import {
   type AuthenticationState,
   BufferJSON,

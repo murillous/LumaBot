@@ -1,5 +1,5 @@
 ---
-'@zapforge/core': patch
+'@usebridger/core': patch
 ---
 
 Docs e comentários do core sem enquadramento de WhatsApp: IDs de contato e de chat descritos como

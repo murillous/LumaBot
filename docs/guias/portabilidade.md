@@ -3,7 +3,7 @@
 O mesmo plugin pode rodar no WhatsApp, no Telegram, no Discord e num chat web. Ele só precisa
 evitar o que é de uma plataforma: marcação na mão, ID que parece telefone, botão que não existe
 em todo lugar. Este guia junta essas regras. O exemplo do
-[`create-zapforge-plugin`](../../packages/create-plugin/docs/README.md) já nasce portátil.
+[`create-bridger-plugin`](../../packages/create-plugin/docs/README.md) já nasce portátil.
 
 ## Capabilities: exija pouco, confira o resto
 
@@ -25,7 +25,7 @@ Cada plataforma marca negrito de um jeito: `*a*` no WhatsApp, `**a**` no Discord
 Telegram. Escreva com os helpers do core, e o transport traduz:
 
 ```ts
-import { bold, code, fmt, link, mention } from '@zapforge/core';
+import { bold, code, fmt, link, mention } from '@usebridger/core';
 
 return fmt`Notas de ${bold(aluno.nome)}: ${code(nota.toFixed(1))}`;
 await c.reply(fmt`Oi ${mention(c.message.sender)}, veja ${link('https://exemplo.com', 'o site')}`);
@@ -145,7 +145,7 @@ O kit tem um perfil por plataforma, com as capabilities, os limites e o formato 
 cada uma. Rode o mesmo teste em todos:
 
 ```ts
-import { createTestBot, PROFILE_NAMES } from '@zapforge/testing';
+import { createTestBot, PROFILE_NAMES } from '@usebridger/testing';
 import { describe, expect, it } from 'vitest';
 
 describe.each(PROFILE_NAMES)('no %s', (profile) => {

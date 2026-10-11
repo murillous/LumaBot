@@ -1,5 +1,5 @@
 // Transport mínimo só para os testes do core. Não é exportado. O `FakeTransport` do
-// `@zapforge/testing` depende do core, então o core não pode usá-lo sem criar um ciclo (ADR 0053);
+// `@usebridger/testing` depende do core, então o core não pode usá-lo sem criar um ciclo (ADR 0053);
 // os dois seguem o mesmo contrato do `Transport`.
 
 import type { Message, MessageOf, MessageType, TextMessage } from '#message/types.ts';

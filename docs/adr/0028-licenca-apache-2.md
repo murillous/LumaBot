@@ -1,6 +1,6 @@
 # ADR 0028 — Licença Apache-2.0
 
-**Status:** Aceito (2026-10-06) · Decisão **D28** do [plano](../../ZAPFORGE_PLAN.md#4-decisões)
+**Status:** Aceito (2026-10-06) · Decisão **D28** do [plano](../../BRIDGER_PLAN.md#4-decisões)
 
 ## Contexto
 

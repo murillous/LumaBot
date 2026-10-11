@@ -1,5 +1,5 @@
 ---
-'@zapforge/core': minor
+'@usebridger/core': minor
 ---
 
 Adiciona `createBot(config)` com `start()`/`stop()`, máquina de estados (`bot.state`) e ganchos

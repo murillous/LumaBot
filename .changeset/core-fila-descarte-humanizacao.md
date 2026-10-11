@@ -1,5 +1,5 @@
 ---
-'@zapforge/core': patch
+'@usebridger/core': patch
 ---
 
 O `close({ drain: false })` da fila de saída passa a alcançar o envio que está no "digitando"

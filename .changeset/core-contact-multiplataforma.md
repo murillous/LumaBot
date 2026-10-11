@@ -1,5 +1,5 @@
 ---
-'@zapforge/core': minor
+'@usebridger/core': minor
 ---
 
 O `Contact` ganha os campos opcionais `username` (o `@usuario` do Telegram e do Discord), `isBot`

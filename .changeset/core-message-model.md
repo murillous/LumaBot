@@ -1,5 +1,5 @@
 ---
-'@zapforge/core': minor
+'@usebridger/core': minor
 ---
 
 Modelo de mensagem (M1-3): `createMessage` para transports construírem mensagens normalizadas

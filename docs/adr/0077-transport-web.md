@@ -1,4 +1,4 @@
-# ADR 0077 — `@zapforge/transport-web`: chat por WebSocket com JWT, conversa por usuário e mídia por HTTP
+# ADR 0077 — `@usebridger/transport-web`: chat por WebSocket com JWT, conversa por usuário e mídia por HTTP
 
 **Status:** Aceito (2026-10-10) · Detalha **D55** ([ADR 0055](0055-plataformas-alvo-e-transport-web.md))
 sobre o HTTP do core (**D76**, [ADR 0076](0076-http-do-core.md)) · Confirma a coluna web da matriz
@@ -47,7 +47,7 @@ Alternativas consideradas:
 
 ## Decisão
 
-- **Pacote `@zapforge/transport-web`**, público (D55), com a fábrica `web(options)` (D37). Exige
+- **Pacote `@usebridger/transport-web`**, público (D55), com a fábrica `web(options)` (D37). Exige
   `http` no `createBot`: sem `deps.http`, a fábrica lança e o `createBot` recusa com
   `BotConfigError`. Rotas sob o `basePath` do transport (D76): `GET /chat` (WebSocket),
   `POST /media`, `GET /media/:id` e `OPTIONS /media`.
@@ -86,7 +86,7 @@ Alternativas consideradas:
   existe: o transport não guarda mensagens, então `quoted` chega `null`.
 - **Origem:** com `origins`, o upgrade e o upload de outra origem recebem 403, e o CORS do upload
   só responde a elas. Sem `origins`, qualquer origem passa: quem autoriza é o token.
-- **Cliente de referência** em `@zapforge/transport-web/client`: `connectWebChat()` sobre o
+- **Cliente de referência** em `@usebridger/transport-web/client`: `connectWebChat()` sobre o
   `WebSocket` e o `fetch` globais (navegador e Node 24). Ele cobre o protocolo e serve aos testes
   de ponta a ponta.
 

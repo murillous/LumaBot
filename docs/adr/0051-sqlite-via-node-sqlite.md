@@ -5,7 +5,7 @@ e **D15** ([ADR 0015](0015-storage-kv-e-colecoes.md))
 
 ## Contexto
 
-O `@zapforge/storage-sqlite` é o adapter padrão, o do "clona e roda" (D14). Ele precisa de um
+O `@usebridger/storage-sqlite` é o adapter padrão, o do "clona e roda" (D14). Ele precisa de um
 driver SQLite e de um jeito de criar e evoluir as tabelas.
 
 Para o driver, havia duas alternativas:
@@ -23,7 +23,7 @@ pertence só ao adapter.
 ## Decisão
 
 - O adapter usa o **`node:sqlite`** (`DatabaseSync`) e não tem dependência de runtime além do
-  `@zapforge/core`.
+  `@usebridger/core`.
 - O schema é **fixo e genérico**: uma tabela para o KV, uma para os documentos de todas as
   coleções (com o documento em JSON numa coluna `doc`) e duas para o auth state. Namespace,
   coleção e chave ficam em colunas separadas. Um índice declarado vira um índice de expressão

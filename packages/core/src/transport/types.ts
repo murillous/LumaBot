@@ -1,5 +1,5 @@
 // Contrato do transport (ADR 0003). O core só conhece esta interface; cada adapter
-// (`@zapforge/transport-baileys` etc.) traduz o formato nativo para os tipos daqui, então os
+// (`@usebridger/transport-baileys` etc.) traduz o formato nativo para os tipos daqui, então os
 // eventos chegam ao kernel já normalizados.
 
 import type { CommandInfo } from '#commands/command.ts';

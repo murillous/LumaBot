@@ -8,7 +8,7 @@ import { baseType, literalValues, objectShape } from './schema.ts';
 /** Ambiente consultado: nome → valor. `process.env` tem esse formato. */
 export type ConfigEnv = Readonly<Record<string, string | undefined>>;
 
-const ENV_PREFIX = 'ZAPFORGE';
+const ENV_PREFIX = 'BRIDGER';
 
 /** O ambiente do processo. Lido na chamada, nunca no import. */
 export const processEnv = (): ConfigEnv => process.env;
@@ -23,8 +23,8 @@ export function toEnvSegment(name: string): string {
 }
 
 /**
- * Nome da variável de um campo: `ZAPFORGE_<PLUGIN>__<CAMPO>[__<SUBCAMPO>...]`. O `__` separa
- * níveis, então `user-names` + `apiKey` vira `ZAPFORGE_USER_NAMES__API_KEY`.
+ * Nome da variável de um campo: `BRIDGER_<PLUGIN>__<CAMPO>[__<SUBCAMPO>...]`. O `__` separa
+ * níveis, então `user-names` + `apiKey` vira `BRIDGER_USER_NAMES__API_KEY`.
  */
 export function envName(plugin: string, path: readonly string[]): string {
   return [`${ENV_PREFIX}_${toEnvSegment(plugin)}`, ...path.map(toEnvSegment)].join('__');

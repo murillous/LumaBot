@@ -1,5 +1,5 @@
 ---
-'@zapforge/core': minor
+'@usebridger/core': minor
 ---
 
 Roteador de comandos (M1-6): `command()` para declarar comandos, prefixo configurável, aliases,

@@ -1,5 +1,5 @@
 ---
-'@zapforge/core': patch
+'@usebridger/core': patch
 ---
 
 O `stop()` desarma o prazo de comando, `onReject`, checagem de papel, consulta de admin do grupo e

@@ -9,7 +9,7 @@ import {
   createLogger,
   createMemoryStorage,
   definePlugin,
-} from '@zapforge/core';
+} from '@usebridger/core';
 import { DisconnectReason } from 'baileys';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { boom, FakeDriver } from './fake-socket.test-support.ts';

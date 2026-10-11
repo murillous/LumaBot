@@ -1,5 +1,5 @@
 ---
-'@zapforge/testing': minor
+'@usebridger/testing': minor
 ---
 
 Novo pacote: kit de testes para autores de plugin (#113). `createTestBot({ plugins })` sobe um

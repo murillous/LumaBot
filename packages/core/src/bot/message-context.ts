@@ -30,7 +30,7 @@ export interface MessageContextDeps {
 
 // Chave simbólica, não campo `#privado`: o roteador e os listeners recebem objetos derivados por
 // `Object.create(ctx)`, e campo privado não é alcançável pela cadeia de protótipos.
-const STATE: unique symbol = Symbol('zapforge.messageContext');
+const STATE: unique symbol = Symbol('bridger.messageContext');
 
 interface State {
   readonly deps: MessageContextDeps;
@@ -105,7 +105,7 @@ function pluginReply(ctx: object, plugin: string): Reply | undefined {
  * extras com `Object.assign`, que leria (e criaria) `reply` e `log`; com o contexto inteiro numa
  * chave só, cada listener resolve o que usar.
  */
-export const KERNEL_CONTEXT: unique symbol = Symbol('zapforge.kernelContext');
+export const KERNEL_CONTEXT: unique symbol = Symbol('bridger.kernelContext');
 
 export interface WithKernelContext {
   readonly [KERNEL_CONTEXT]: KernelMessageContext;

@@ -14,7 +14,7 @@ import {
   type HttpServer,
   type Message,
   type Transport,
-} from '@zapforge/core';
+} from '@usebridger/core';
 import { SignJWT } from 'jose';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { connectWebChat, type WebChatClient } from './client.ts';

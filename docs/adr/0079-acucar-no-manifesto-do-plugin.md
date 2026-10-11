@@ -19,7 +19,7 @@ sente mais essa cerimônia. A investigação respondeu aos quatro pontos da issu
 - **`commands` e `on` declarativos.** O comando e o listener fixos não dependem de nada que só
   existe no `setup`. O que depende (config, storage, envio) chega pelo contexto do plugin, que dá
   para passar como argumento. A lista no manifesto fica conhecida sem rodar o plugin: serve ao
-  `create-zapforge-plugin` (#121), à doc gerada (#125) e ao menu nativo (ADR 0064).
+  `create-bridger-plugin` (#121), à doc gerada (#125) e ao menu nativo (ADR 0064).
 - **`requires` deduzido.** O `requires` só é conferido no boot, contra o transport. Um comando
   declarado pode responder texto, então exige `send.text`. O resto (mídia, reação, `ctx.send`) é
   dinâmico: não dá para deduzir sem executar.
@@ -69,7 +69,7 @@ Alternativas consideradas:
 - O `ping` cai para uma linha de comando: `commands: { ping: { description, run: () => 'pong' } }`.
 - Um `run` que devolvia uma string por acaso passa a responder com ela. É mudança de
   comportamento antes do 1.0: entra no changeset.
-- Os tipos `PluginCommand`, `PluginListener` e `PluginListeners` saem em `@zapforge/core`.
+- Os tipos `PluginCommand`, `PluginListener` e `PluginListeners` saem em `@usebridger/core`.
 - O caminho quente ganha um teste de tipo no retorno de cada comando. O benchmark não mostrou
   diferença fora do ruído.
 - Os guias do M3-4 (#122) e o template do #121 ainda não existem: nascem com a forma curta.

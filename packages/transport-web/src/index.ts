@@ -1,7 +1,7 @@
-// Entry `@zapforge/transport-web`: a fábrica que o app passa em `createBot({ transport })`
+// Entry `@usebridger/transport-web`: a fábrica que o app passa em `createBot({ transport })`
 // (ADR 0037, 0077). A classe fica interna: o transport precisa das rotas HTTP do bot.
 
-import type { Transport, TransportDeps } from '@zapforge/core/adapter';
+import type { Transport, TransportDeps } from '@usebridger/core/adapter';
 import { createVerifier } from './jwt.ts';
 import { type WebOptions, WebTransport } from './transport.ts';
 

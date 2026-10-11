@@ -1,7 +1,7 @@
-# ZapForge
+# Bridger
 
 Kernel de bot de mensageria extensível por plugins — em construção.
-Plano, decisões e marcos: [`ZAPFORGE_PLAN.md`](ZAPFORGE_PLAN.md).
+Plano, decisões e marcos: [`BRIDGER_PLAN.md`](BRIDGER_PLAN.md).
 O porquê de cada decisão (`DNN` no plano, `ADR 00NN`) está nos ADRs em [`docs/adr/`](docs/adr/README.md).
 Para escrever um plugin, comece pelos [guias do autor](docs/guias/README.md).
 
@@ -47,19 +47,19 @@ packages/<nome>/
 
 ```json
 {
-  "name": "@zapforge/<nome>",
+  "name": "@usebridger/<nome>",
   "version": "0.0.0",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/murillous/LumaBot.git",
+    "url": "git+https://github.com/murillous/usebridger.git",
     "directory": "packages/<nome>"
   },
   "type": "module",
   "imports": { "#*": "./src/*" },
   "exports": {
     ".": {
-      "@zapforge/source": "./src/index.ts",
+      "@usebridger/source": "./src/index.ts",
       "types": "./dist/index.d.mts",
       "default": "./dist/index.mjs"
     }
@@ -70,7 +70,7 @@ packages/<nome>/
 }
 ```
 
-`tsconfig.json` (em `references`, os pacotes `@zapforge/*` de que este depende):
+`tsconfig.json` (em `references`, os pacotes `@usebridger/*` de que este depende):
 
 ```json
 {
@@ -97,10 +97,10 @@ O `tsc` só checa tipos; o JS publicado sai do tsdown, com as dependências fora
 
 ### Imports
 
-- **Entre pacotes**: pelo nome (`import { … } from '@zapforge/core'`), com a dependência
-  `"@zapforge/core": "workspace:^"` (no publish vira `^<versão>`) — sem `paths` no tsconfig. A condição `@zapforge/source`
+- **Entre pacotes**: pelo nome (`import { … } from '@usebridger/core'`), com a dependência
+  `"@usebridger/core": "workspace:^"` (no publish vira `^<versão>`) — sem `paths` no tsconfig. A condição `@usebridger/source`
   nos `exports` aponta para o fonte: TypeScript (`customConditions`) e Vitest já a usam, e
-  para rodar sem build use `node --conditions=@zapforge/source src/main.ts`. Fora dela, o
+  para rodar sem build use `node --conditions=@usebridger/source src/main.ts`. Fora dela, o
   pacote resolve para `dist/`.
 - **Dentro do pacote**: relativo só para a mesma pasta ou abaixo (`./sub/x.ts`). Para subir
   de pasta, use o alias do próprio pacote (`import { env } from '#config/env.ts'`, via
@@ -126,9 +126,9 @@ Todo push e PR para `main`/`develop` roda dois workflows:
 
 - [`ci.yml`](.github/workflows/ci.yml) — kernel: jobs `Lint`, `Typecheck`, `Testes` e `Build`
   (os mesmos comandos da tabela acima), com o store do pnpm em cache. O job `Scaffold` gera um
-  plugin com o `create-zapforge-plugin` e confere que ele instala, testa e builda
+  plugin com o `create-bridger-plugin` e confere que ele instala, testa e builda
   ([e2e](packages/create-plugin/docs/README.md#e2e)). O job `Testes` sobe um
-  Postgres em container para o `@zapforge/storage-postgres`. O job `Benchmark` mede as metas
+  Postgres em container para o `@usebridger/storage-postgres`. O job `Benchmark` mede as metas
   de performance e falha com piora > 10% sobre o baseline do commit-base, medido no mesmo
   runner ([ADR 0054](docs/adr/0054-baseline-do-benchmark.md)). O job `Pacotes` builda e roda o
   `pnpm check:packages`, para um pacote que não publicaria quebrar no PR e não no release.

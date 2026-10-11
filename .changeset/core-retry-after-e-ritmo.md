@@ -1,5 +1,5 @@
 ---
-'@zapforge/core': minor
+'@usebridger/core': minor
 ---
 
 A fila de saída respeita a janela que a plataforma informa e o ritmo do transport (ADR 0067).

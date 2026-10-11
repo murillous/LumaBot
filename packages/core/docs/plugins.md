@@ -10,17 +10,17 @@ decide quem carrega, ordena e roda `setup`/`teardown` com prazo
 ## Declarar um plugin
 
 Para começar um plugin em pacote próprio, com teste e build prontos, use o scaffold:
-`npm create zapforge-plugin@latest zapforge-plugin-<nome>`
-([create-zapforge-plugin](../../create-plugin/docs/README.md)).
+`npm create bridger-plugin@latest bridger-plugin-<nome>`
+([create-bridger-plugin](../../create-plugin/docs/README.md)).
 
 ```ts
-import { command, definePlugin } from '@zapforge/core';
+import { command, definePlugin } from '@usebridger/core';
 import { z } from 'zod';
 
 export const sticker = definePlugin({
   name: 'sticker',                              // kebab-case, único no bot
   version: '1.2.0',                             // semver do plugin
-  engine: '^1.0.0',                             // faixa do @zapforge/core — obrigatório
+  engine: '^1.0.0',                             // faixa do @usebridger/core — obrigatório
   requires: ['media.download', 'send.sticker'], // capabilities do transport
   transports: ['baileys'],                      // opcional: fixa o(s) transport(s)
   dependsOn: { 'user-names': '^1.0.0' },        // opcional: plugin → faixa semver
@@ -147,7 +147,7 @@ O `Bot` faz isto no `start()` com `plugins` e `pluginDirs` da config. Por dentro
 
 ```ts
 import { collectPlugins } from '#plugin/sources.ts';
-import { sticker } from '@zapforge/plugin-media';
+import { sticker } from '@usebridger/plugin-media';
 
 const plugins = await collectPlugins({
   plugins: [sticker],          // pacotes npm: o app importa e passa
@@ -383,6 +383,6 @@ pendentes), então um plugin com `engine: '^0.0.0'` deixa de carregar no primeir
 
 ## Testando o plugin
 
-O [`@zapforge/testing`](../../testing/docs/README.md) sobe o plugin num bot real sobre um
+O [`@usebridger/testing`](../../testing/docs/README.md) sobe o plugin num bot real sobre um
 transport falso: `createTestBot({ plugins })`, `bot.receive({ text })` e matchers como
 `expect(bot.sent).toHaveReplied(...)`.

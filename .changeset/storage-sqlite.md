@@ -1,5 +1,5 @@
 ---
-'@zapforge/storage-sqlite': minor
+'@usebridger/storage-sqlite': minor
 ---
 
 Novo pacote: `sqlite({ path })` (#109). É o adapter de storage padrão e implementa KV, coleções e

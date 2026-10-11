@@ -1,6 +1,6 @@
 # ADR 0019 — Fila de saída anti-ban no core
 
-**Status:** Aceito (2026-10-06) · Decisão **D19** do [plano](../../ZAPFORGE_PLAN.md#4-decisões)
+**Status:** Aceito (2026-10-06) · Decisão **D19** do [plano](../../BRIDGER_PLAN.md#4-decisões)
 
 ## Contexto
 

@@ -1,4 +1,4 @@
-import { bold, command, definePlugin, fmt, type Message } from '@zapforge/core';
+import { bold, command, definePlugin, fmt, type Message } from '@usebridger/core';
 import { afterEach, describe, expect, it } from 'vitest';
 import { FakeTransport } from './fake-transport.ts';
 import { DEFAULT_CHAT, DEFAULT_SENDER } from './incoming.ts';

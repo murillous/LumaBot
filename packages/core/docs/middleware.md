@@ -7,7 +7,7 @@ barrar a mensagem, enriquecer o contexto ou medir o que acontece depois dele.
 ## Escrevendo um middleware
 
 ```ts
-import type { Middleware } from '@zapforge/core';
+import type { Middleware } from '@usebridger/core';
 
 const timing: Middleware = async (ctx, next) => {
   const start = performance.now();
@@ -116,7 +116,7 @@ remove(); // idempotente
 Todos são fábricas; registre com a prioridade que quiser. Ordem sugerida (de fora para dentro):
 
 ```ts
-import { chatFilter, ignoreBots, ignoreSelf, rateLimit, sanitize } from '@zapforge/core';
+import { chatFilter, ignoreBots, ignoreSelf, rateLimit, sanitize } from '@usebridger/core';
 
 pipeline.use(ignoreSelf(), { priority: 1000 });
 pipeline.use(ignoreBots(), { priority: 990 });

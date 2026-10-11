@@ -1,5 +1,5 @@
 ---
-'@zapforge/core': patch
+'@usebridger/core': patch
 ---
 
 Corrige o shutdown do `Bot` (M1-16): nada do bot sobrevive ao `stop()`. Antes, com o prazo total

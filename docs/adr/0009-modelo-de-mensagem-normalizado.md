@@ -1,6 +1,6 @@
 # ADR 0009 — Modelo de mensagem normalizado
 
-**Status:** Aceito (2026-10-06) · Decisão **D09** do [plano](../../ZAPFORGE_PLAN.md#4-decisões)
+**Status:** Aceito (2026-10-06) · Decisão **D09** do [plano](../../BRIDGER_PLAN.md#4-decisões)
 
 ## Contexto
 
@@ -13,7 +13,7 @@ Alternativas consideradas: expor o objeto do Baileys.
 ## Decisão
 
 O core define um modelo de mensagem normalizado
-([plano §6.3](../../ZAPFORGE_PLAN.md#63-modelo-de-mensagem)):
+([plano §6.3](../../BRIDGER_PLAN.md#63-modelo-de-mensagem)):
 
 - union discriminada por `msg.type` (`text`, `image`, `video`, `audio`, `voice`,
   `sticker`, `document`, `location`, `contact`, `poll`, `unknown`), com `voice` (PTT)

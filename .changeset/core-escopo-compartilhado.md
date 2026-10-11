@@ -1,5 +1,5 @@
 ---
-'@zapforge/core': minor
+'@usebridger/core': minor
 ---
 
 Vários bots num storage (ADR 0075): `ctx.storage.shared` guarda dados do plugin comuns a todas as

@@ -1,9 +1,9 @@
 // Ponto de entrada do LumaBot: compõe o bot e cuida do processo (ADR 0034 — o kernel não tem
 // runner). Nada de regra aqui: comportamento novo entra como plugin.
 
-import { createBot, createLogger, createSecretSet } from '@zapforge/core';
-import { sqlite } from '@zapforge/storage-sqlite';
-import { baileys } from '@zapforge/transport-baileys';
+import { createBot, createLogger, createSecretSet } from '@usebridger/core';
+import { sqlite } from '@usebridger/storage-sqlite';
+import { baileys } from '@usebridger/transport-baileys';
 import { loadConfig } from '#config.ts';
 import { pairing } from '#plugins/pairing.ts';
 import { ping } from '#plugins/ping.ts';

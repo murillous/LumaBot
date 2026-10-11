@@ -1,5 +1,5 @@
 ---
-'@zapforge/transport-baileys': minor
+'@usebridger/transport-baileys': minor
 ---
 
 O transport passa a enviar e agir (#105, #106): declara as 17 capabilities do plano §6.10 e

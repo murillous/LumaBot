@@ -1,5 +1,5 @@
 ---
-'@zapforge/core': minor
+'@usebridger/core': minor
 ---
 
 Middleware do app ganha prazo (#239, ADR 0043). Antes, um middleware que travava segurava a fila

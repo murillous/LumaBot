@@ -175,7 +175,7 @@ export interface BotConfig {
   readonly disabledPlugins?: readonly string[];
   /** Config por plugin (a camada "arquivo"; ver ADR 0032). */
   readonly pluginConfig?: PluginConfigFile;
-  /** Ambiente da config de plugin (`ZAPFORGE_*`). Padrão: `process.env`. */
+  /** Ambiente da config de plugin (`BRIDGER_*`). Padrão: `process.env`. */
   readonly env?: ConfigEnv;
   /**
    * Donos (`role: 'owner'`): telefone, aceito com pontuação e normalizado no `createBot`, ou

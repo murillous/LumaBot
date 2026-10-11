@@ -86,7 +86,7 @@ Alternativas consideradas:
   transport que não o lê segue igual. Quem lê `Interaction.actionId` sem estreitar o tipo precisa
   conferir o `actionId` ou o `command` antes: dentro do repositório, só o kernel o lê.
 - Os tipos `TransportCommands`, `ActionInteraction` e `CommandInteraction` saem em
-  `@zapforge/core/adapter`.
+  `@usebridger/core/adapter`.
 - O `CommandInvocation`, interno ao roteador, aceita `rawArgs` no lugar de `args`.
 - O registro de comandos ganha um aviso de mudança. O caminho quente não muda: nada roda por
   mensagem.

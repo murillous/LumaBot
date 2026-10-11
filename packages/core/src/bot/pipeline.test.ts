@@ -29,7 +29,7 @@ interface Saudacao {
   saudar(nome: string): string;
 }
 
-declare module '@zapforge/core' {
+declare module '@usebridger/core' {
   interface Services {
     saudacao: Saudacao;
   }

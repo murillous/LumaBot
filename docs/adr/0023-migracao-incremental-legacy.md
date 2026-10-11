@@ -1,6 +1,6 @@
 # ADR 0023 — Migração incremental (`legacy/`)
 
-**Status:** Aceito (2026-10-06) · Decisão **D23** do [plano](../../ZAPFORGE_PLAN.md#4-decisões)
+**Status:** Aceito (2026-10-06) · Decisão **D23** do [plano](../../BRIDGER_PLAN.md#4-decisões)
 
 ## Contexto
 
@@ -14,7 +14,7 @@ Alternativas consideradas: big-bang.
 O LumaBot atual vai para `legacy/`, segue em produção e mantém os testes intactos
 (rodando no CI). Os plugins são portados por ordem de complexidade (M4, M5). A virada
 acontece na **paridade**, medida pelo checklist do
-[plano §10](../../ZAPFORGE_PLAN.md#10-checklist-de-paridade-com-o-legacy). A remoção do `legacy/`
+[plano §10](../../BRIDGER_PLAN.md#10-checklist-de-paridade-com-o-legacy). A remoção do `legacy/`
 só acontece com autorização explícita do dono do repositório.
 
 ## Consequências

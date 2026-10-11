@@ -1,5 +1,5 @@
 ---
-'@zapforge/core': minor
+'@usebridger/core': minor
 ---
 
 Prefixo de comando por tipo de chat e por chat (ADR 0063). `BotConfig.prefix` aceita também

@@ -1,5 +1,5 @@
 ---
-'@zapforge/core': minor
+'@usebridger/core': minor
 ---
 
 Boot sequencial e cancelamento cooperativo (M1-16). O `start()` volta à ordem do plano: carrega

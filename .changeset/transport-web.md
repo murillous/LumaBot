@@ -1,5 +1,5 @@
 ---
-'@zapforge/transport-web': minor
+'@usebridger/transport-web': minor
 ---
 
 Pacote novo (ADR 0077): transport para o chatbot dentro de um sistema web próprio. A fábrica
@@ -11,4 +11,4 @@ o `tenantClaim` vira `chat.tenantId`. O `chat.id` é por conversa escolhida pelo
 envia com o cliente fora espera em memória por até 1 h. Mídia entra por upload com o token e sai por
 URL temporária. Capabilities: texto, imagem, vídeo, áudio, documento, download, `actions`,
 `quoted`, `typing`, edição e remoção. O cliente de referência fica em
-`@zapforge/transport-web/client`.
+`@usebridger/transport-web/client`.
