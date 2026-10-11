@@ -12,7 +12,7 @@ Cada comando usa a mídia da própria mensagem ou, na falta, a da mensagem citad
 | --- | --- | --- |
 | `!sticker` / `!s` | Imagem, vídeo, GIF, figurinha ou link | Figurinha 512×512. Texto depois do comando vira legenda na figurinha (até 3 linhas, 90 caracteres; só em imagem) |
 | `!image` / `!i` | Figurinha | PNG. Figurinha animada vira o primeiro quadro |
-| `!gif` / `!g` | Figurinha animada | MP4 H.264 (figurinha estática: sugere o `!image`) |
+| `!gif` / `!g` | Figurinha animada | Vídeo MP4 H.264 (figurinha estática: sugere o `!image`) |
 | `!pdf [nome]` | Imagem | PDF de uma página, com `nome` em slug (`Relatório Março` → `relatorio-marco.pdf`); padrão `imagem.pdf` |
 | `!mergepdf` / `!joinpdf` | PDF | Adiciona o PDF à lista de quem mandou, naquele chat |
 | `!mergepdf done [nome]` | — | Junta a lista na ordem e envia; padrão `pdf-juntado.pdf`. Também `pronto`, `finalizar` |
@@ -62,7 +62,7 @@ nos detalhes da figurinha (gravados no EXIF do WebP).
 
 ## Diferenças do legacy
 
-- `!gif` envia o MP4 como vídeo comum: o `OutgoingContent` do Bridger ainda não tem o
-  `gifPlayback` do WhatsApp, então ele não toca em loop como GIF.
+- `!gif` envia o MP4 como vídeo comum, não no modo GIF do WhatsApp (`gifPlayback`, que toca
+  em loop): decisão do dono, o vídeo basta.
 - Figurinha de vídeo e de GIF têm o mesmo limite de 20 s (o legacy dava 15 s ao GIF).
 - As métricas (`stickers_created`, `pdfs_merged`...) não foram portadas.
