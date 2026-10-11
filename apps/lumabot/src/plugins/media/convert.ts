@@ -13,11 +13,20 @@ import sharp from 'sharp';
 const execFileAsync = promisify(execFile);
 
 const STICKER_SIZE = 512;
-/** Duração máxima, em segundos, da figurinha animada feita de vídeo ou GIF. */
-const STICKER_MAX_SECONDS = 20;
-const STICKER_FPS = 15;
-/** O WhatsApp recusa figurinha animada muito pesada; o FFmpeg corta a saída neste tamanho. */
-const STICKER_MAX_KB = 800;
+/** Figurinha animada mais pesada que isso chega ao destinatário, mas não baixa. */
+const STICKER_MAX_BYTES = 800 * 1024;
+/**
+ * Tentativas da figurinha animada, da mais fiel à mais leve, até uma caber em
+ * `STICKER_MAX_BYTES`. O `-fs` do FFmpeg não serve de teto: o libwebp entrega a animação de uma
+ * vez no fim, e a saída passava de 1 MB com vídeo nítido (os baixados pelo `!download`).
+ */
+const STICKER_ATTEMPTS = [
+  { quality: 75, seconds: 20, fps: 15 },
+  { quality: 50, seconds: 10, fps: 15 },
+  { quality: 40, seconds: 8, fps: 12 },
+  { quality: 30, seconds: 6, fps: 10 },
+  { quality: 20, seconds: 4, fps: 10 },
+] as const;
 
 /** Nome e autor do pacote que o WhatsApp mostra nos detalhes da figurinha. */
 export interface StickerPack {
@@ -40,7 +49,10 @@ export async function imageToSticker(
   return withStickerExif(webp, pack);
 }
 
-/** Vídeo ou GIF → figurinha animada, recortada no centro para 512×512. */
+/**
+ * Vídeo ou GIF → figurinha animada, recortada no centro para 512×512. Falha se nem a tentativa
+ * mais leve couber no limite: figurinha que não baixa é pior que o erro.
+ */
 export async function videoToSticker(
   video: Buffer,
   pack: StickerPack,
@@ -50,28 +62,32 @@ export async function videoToSticker(
     const input = join(dir, 'in');
     const output = join(dir, 'out.webp');
     await writeFile(input, video);
-    await ffmpeg(
-      [
-        '-i',
-        input,
-        '-t',
-        String(STICKER_MAX_SECONDS),
-        '-vf',
-        `scale=${STICKER_SIZE}:${STICKER_SIZE}:force_original_aspect_ratio=increase,crop=${STICKER_SIZE}:${STICKER_SIZE},fps=${STICKER_FPS}`,
-        '-c:v',
-        'libwebp',
-        '-quality',
-        '75',
-        '-loop',
-        '0',
-        '-an',
-        '-fs',
-        `${STICKER_MAX_KB}K`,
-        output,
-      ],
-      signal,
+    for (const { quality, seconds, fps } of STICKER_ATTEMPTS) {
+      await ffmpeg(
+        [
+          '-i',
+          input,
+          '-t',
+          String(seconds),
+          '-vf',
+          `scale=${STICKER_SIZE}:${STICKER_SIZE}:force_original_aspect_ratio=increase,crop=${STICKER_SIZE}:${STICKER_SIZE},fps=${fps}`,
+          '-c:v',
+          'libwebp',
+          '-quality',
+          String(quality),
+          '-loop',
+          '0',
+          '-an',
+          output,
+        ],
+        signal,
+      );
+      const webp = await readFile(output);
+      if (webp.length <= STICKER_MAX_BYTES) return webp;
+    }
+    throw new Error(
+      `figurinha animada passa de ${STICKER_MAX_BYTES} bytes mesmo na tentativa mais leve`,
     );
-    return readFile(output);
   });
   return withStickerExif(webp, pack);
 }

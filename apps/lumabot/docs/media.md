@@ -43,13 +43,18 @@ O FFmpeg não lê WebP animado, então o `!gif` passa a figurinha para GIF com o
 | O quê | Limite | Por quê |
 | --- | --- | --- |
 | Prazo dos comandos | 60 s | Conversão segura o chat; o padrão do bot é curto para um vídeo |
-| Figurinha de vídeo | 20 s, 15 fps, até 800 KB | O WhatsApp recusa figurinha animada pesada |
+| Figurinha de vídeo | 20 s, 15 fps, até 800 KB | Figurinha animada pesada chega, mas não baixa no WhatsApp |
 | Download do link | 5 MB, até 3 redirecionamentos | O link vem de qualquer pessoa no chat |
 | Lista do `!mergepdf` | 50 MB por pessoa; some 30 min depois do último PDF | Vive em memória |
 
 O link do `!sticker` só é baixado se todos os endereços do host forem públicos: loopback, redes
 privadas, link-local (metadados de nuvem) e multicast são recusados, a cada redirecionamento.
 O tipo do arquivo sai dos bytes iniciais (GIF, MP4/MOV, WebM viram figurinha animada).
+
+Vídeo nítido (como os do `!download`) passa fácil de 800 KB. A figurinha é refeita com qualidade,
+duração e fps menores até caber: 75/20 s/15 fps, 50/10 s/15 fps, 40/8 s/12 fps, 30/6 s/10 fps e
+20/4 s/10 fps. Se nem a última cabe, o comando responde erro de conversão em vez de mandar uma
+figurinha que não baixa.
 
 A lista do `!mergepdf` fica em memória: um restart a esvazia.
 
