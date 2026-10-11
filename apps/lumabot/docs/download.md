@@ -22,7 +22,8 @@ ela, responde `unsupported` sem baixar nada.
 
 ## Binários
 
-`yt-dlp` e `ffmpeg` precisam estar no `PATH`. O yt-dlp usa o FFmpeg para juntar vídeo e áudio e
+`yt-dlp` e `ffmpeg` precisam estar no `PATH`. O `setup` roda os dois com `--version`/`-version`:
+se um faltar, o bot sobe sem o plugin, e o motivo sai no relatório de boot. O yt-dlp usa o FFmpeg para juntar vídeo e áudio e
 para extrair o MP3. Mantenha o yt-dlp atualizado (`pip install -U yt-dlp` ou o gerenciador de
 pacotes): os sites mudam e versões velhas param de baixar. O legacy baixava o binário sozinho na
 primeira execução; o app não baixa executável em tempo de execução.

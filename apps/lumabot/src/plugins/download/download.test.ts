@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import type { OutgoingContent } from '@usebridger/core';
 import { createTestBot, FakeTransport, fixtures, type TestBot } from '@usebridger/testing';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { checkBinary } from '#plugins/binary.ts';
 import { download } from './download.ts';
 import { downloadAudio, downloadVideo, TooLargeError } from './yt-dlp.ts';
 
@@ -13,6 +14,9 @@ vi.mock('./yt-dlp.ts', async (importOriginal) => ({
   downloadVideo: vi.fn(),
   downloadAudio: vi.fn(),
 }));
+
+// O CI não tem o yt-dlp: a checagem do setup é falsa, e um teste a faz falhar.
+vi.mock('#plugins/binary.ts', () => ({ checkBinary: vi.fn() }));
 
 const URL = 'https://x.com/luma/status/1';
 let bot: TestBot;
@@ -33,6 +37,7 @@ function sent(type: OutgoingContent['type']): OutgoingContent | undefined {
 beforeEach(() => {
   vi.mocked(downloadVideo).mockReset();
   vi.mocked(downloadAudio).mockReset();
+  vi.mocked(checkBinary).mockReset().mockResolvedValue();
 });
 
 afterEach(async () => {
@@ -130,4 +135,16 @@ it('!audio sem link explica o uso', async () => {
   await bot.receive({ text: '!audio' });
 
   expect(bot.sent).toHaveReplied(/^ℹ️ Cole o link junto com o comando/);
+});
+
+it('sem o yt-dlp no PATH, o bot sobe sem o plugin', async () => {
+  vi.mocked(checkBinary).mockImplementation(async (command) => {
+    if (command === 'yt-dlp') throw new Error('`yt-dlp` não roda');
+  });
+  bot = await createTestBot({ plugins: [download()] });
+
+  await bot.receive({ text: `!d ${URL}` });
+
+  expect(bot.sent).toHaveLength(0);
+  expect(downloadVideo).not.toHaveBeenCalled();
 });

@@ -7,6 +7,7 @@ import {
   definePlugin,
   type PluginDefinition,
 } from '@usebridger/core';
+import { checkBinary } from '#plugins/binary.ts';
 import { compactVideo, downloadAudio, downloadVideo, TooLargeError } from './yt-dlp.ts';
 
 /** Textos ao usuário; a config do bot sobrescreve cada um (`messages`). */
@@ -39,6 +40,14 @@ export function download(options: DownloadOptions = {}): PluginDefinition {
     version: '0.0.0',
     engine: '<1.0.0',
     messages: MESSAGES,
+    // Sem os dois, nenhum comando funciona: o setup falha e o bot sobe sem o plugin, com o
+    // motivo no relatório de boot.
+    setup: async () => {
+      await Promise.all([
+        checkBinary('yt-dlp', ['--version']),
+        checkBinary('ffmpeg', ['-version']),
+      ]);
+    },
     commands: {
       download: {
         aliases: ['d'],

@@ -7,6 +7,7 @@ import {
   type PluginContext,
   type PluginDefinition,
 } from '@usebridger/core';
+import { checkBinary } from '#plugins/binary.ts';
 import {
   imageToPdf,
   imageToSticker,
@@ -76,6 +77,15 @@ export function media(): PluginDefinition {
     // sem figurinha (Discord) não perder também imagem e PDF.
     requires: ['media.download'],
     messages: MESSAGES,
+    // Só vídeo → figurinha e o `!gif` usam o FFmpeg: sem ele, imagem e PDF seguem funcionando,
+    // e o aviso no boot explica o erro que esses dois vão dar.
+    setup: async (ctx) => {
+      try {
+        await checkBinary('ffmpeg', ['-version']);
+      } catch (err) {
+        ctx.log.warn('ffmpeg indisponível: figurinha de vídeo e !gif vão falhar', { err });
+      }
+    },
     commands: {
       sticker: {
         aliases: ['s'],
