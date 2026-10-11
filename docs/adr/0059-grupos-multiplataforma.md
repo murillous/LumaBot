@@ -59,7 +59,7 @@ Alternativas consideradas:
 - A capability `groups.admin` dá lugar a três: **`groups.add`**, **`groups.remove`** e
   **`groups.promote`**. A última vale para `promote` e `demote`, que andam juntas em toda
   plataforma. `ctx.groups.updateParticipants` cobra a capability da ação pedida. O adapter usa
-  `groupActionCapability(action)`, de `@zapforge/core/adapter`. `remove` tira a pessoa sem impedir
+  `groupActionCapability(action)`, de `@usebridger/core/adapter`. `remove` tira a pessoa sem impedir
   que volte. No Telegram, o transport bane e desbane em seguida.
 - Os eventos `group.joined`, `group.left`, `group.participants` e `group.updated` trocam
   `groupId` por **`chat: Chat`**, como `reaction` e `message.deleted`. Em `group.updated`,

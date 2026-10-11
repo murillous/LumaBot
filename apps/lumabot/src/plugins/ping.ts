@@ -1,4 +1,4 @@
-import { definePlugin, type PluginDefinition } from '@zapforge/core';
+import { definePlugin, type PluginDefinition } from '@usebridger/core';
 
 /** `!ping` → `pong`: prova que a mensagem atravessa o kernel e a resposta sai pelo transport. */
 export const ping: PluginDefinition = definePlugin({

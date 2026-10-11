@@ -2,8 +2,8 @@
 // segredo da enquete, e confere que o transport o decifra e emite `poll.vote` com os índices.
 
 import { createCipheriv, createHash, createHmac, randomBytes } from 'node:crypto';
-import { createMemoryStorage, type Logger } from '@zapforge/core';
-import type { TransportDeps, TransportEvents } from '@zapforge/core/adapter';
+import { createMemoryStorage, type Logger } from '@usebridger/core';
+import type { TransportDeps, TransportEvents } from '@usebridger/core/adapter';
 import { proto, type WAMessage } from 'baileys';
 import { describe, expect, it } from 'vitest';
 import { ContactBook } from './events.ts';

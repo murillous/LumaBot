@@ -1,6 +1,6 @@
 # ADR 0014 — `StoragePort` com SQLite e Postgres na v1; auth state no port
 
-**Status:** Aceito (2026-10-06) · Decisão **D14** do [plano](../../ZAPFORGE_PLAN.md#4-decisões)
+**Status:** Aceito (2026-10-06) · Decisão **D14** do [plano](../../BRIDGER_PLAN.md#4-decisões)
 
 ## Contexto
 
@@ -14,7 +14,7 @@ Alternativas consideradas: só SQLite; só Postgres; armazenamento em memória.
 ## Decisão
 
 O core define o `StoragePort`. A v1 entrega dois adapters oficiais:
-`@zapforge/storage-sqlite` (padrão) e `@zapforge/storage-postgres`. O auth state do
+`@usebridger/storage-sqlite` (padrão) e `@usebridger/storage-postgres`. O auth state do
 WhatsApp é guardado no mesmo port.
 
 ## Consequências

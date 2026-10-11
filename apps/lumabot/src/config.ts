@@ -1,8 +1,8 @@
 // Única camada que lê `process.env` (regra do Biome). O app recebe a config já pronta; os
 // testes injetam o ambiente.
 
-import type { ConfigEnv, LogLevel } from '@zapforge/core';
-import type { BaileysPairing } from '@zapforge/transport-baileys';
+import type { ConfigEnv, LogLevel } from '@usebridger/core';
+import type { BaileysPairing } from '@usebridger/transport-baileys';
 
 export interface AppConfig {
   /** Arquivo SQLite: dados dos plugins e credenciais do WhatsApp. */

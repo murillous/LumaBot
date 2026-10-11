@@ -1,5 +1,5 @@
 ---
-'@zapforge/core': minor
+'@usebridger/core': minor
 ---
 
 `chatFilter` e `ignoreSelf` valem para os eventos que não são mensagem (#219, ADR 0038). Antes,

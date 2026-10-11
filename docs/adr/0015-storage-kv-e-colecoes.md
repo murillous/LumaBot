@@ -1,6 +1,6 @@
 # ADR 0015 — Storage: KV com namespace + coleções
 
-**Status:** Aceito (2026-10-06) · Decisão **D15** do [plano](../../ZAPFORGE_PLAN.md#4-decisões)
+**Status:** Aceito (2026-10-06) · Decisão **D15** do [plano](../../BRIDGER_PLAN.md#4-decisões)
 
 ## Contexto
 
@@ -12,7 +12,7 @@ Alternativas consideradas: só KV; SQL com migrations por plugin.
 
 ## Decisão
 
-A API pública de storage ([plano §6.6](../../ZAPFORGE_PLAN.md#66-storage)) oferece:
+A API pública de storage ([plano §6.6](../../BRIDGER_PLAN.md#66-storage)) oferece:
 
 - **KV** com namespace por plugin;
 - **coleções** com `insert`/`find`, filtros, ordenação, limite e índices declarados.

@@ -1,5 +1,5 @@
 ---
-'@zapforge/core': minor
+'@usebridger/core': minor
 ---
 
 Resposta esperada: conversa com estado sem segurar o chat (ADR 0060).

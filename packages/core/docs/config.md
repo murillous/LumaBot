@@ -9,7 +9,7 @@ os segredos e recarrega o plugin quando a config muda
 ## Declarar
 
 ```ts
-import { definePlugin, secret } from '@zapforge/core';
+import { definePlugin, secret } from '@usebridger/core';
 import { z } from 'zod';
 
 export const ai = definePlugin({
@@ -42,7 +42,7 @@ mesclam entre camadas, arrays e valores simples substituem.
 
 | Camada | De onde vem |
 | --- | --- |
-| env | `ZAPFORGE_<PLUGIN>__<CAMPO>[__<SUBCAMPO>…]` |
+| env | `BRIDGER_<PLUGIN>__<CAMPO>[__<SUBCAMPO>…]` |
 | arquivo | `file[plugin]` — o `pluginConfig` que o app passa na config do bot |
 | overrides | `kernelStorage(storage, 'config').kv`, chave = nome do plugin (dashboard); nunca segredos |
 | default | `.default(...)` do schema |
@@ -61,9 +61,9 @@ Plugin kebab-case e campos camelCase viram SCREAMING_SNAKE; `__` separa os níve
 
 | Plugin | Campo | Variável |
 | --- | --- | --- |
-| `sticker` | `quality` | `ZAPFORGE_STICKER__QUALITY` |
-| `user-names` | `openai.apiKey` | `ZAPFORGE_USER_NAMES__OPENAI__API_KEY` |
-| `ai` | `messages.thinking` | `ZAPFORGE_AI__MESSAGES__THINKING` |
+| `sticker` | `quality` | `BRIDGER_STICKER__QUALITY` |
+| `user-names` | `openai.apiKey` | `BRIDGER_USER_NAMES__OPENAI__API_KEY` |
+| `ai` | `messages.thinking` | `BRIDGER_AI__MESSAGES__THINKING` |
 
 Só campos declarados no schema são lidos. O texto é
 convertido para o tipo do campo: número (`'42'`), booleano (`true/false`, `1/0`, `yes/no`,
@@ -82,7 +82,7 @@ O `Bot` faz isto no `start()` com `pluginConfig`, `storage`, `env` e `secrets` d
 expõe `setOverrides`/`describe`/`jsonSchema` em `bot.config`. Por dentro (interno do kernel, não exportado ([ADR 0034](../../../docs/adr/0034-biblioteca-sem-runner.md))):
 
 ```ts
-import { createLogger, createSecretSet } from '@zapforge/core';
+import { createLogger, createSecretSet } from '@usebridger/core';
 import { createPluginConfigs } from '#config/plugin-configs.ts';
 
 const secrets = createSecretSet();
@@ -103,7 +103,7 @@ const configs = createPluginConfigs({
 | `resolve(name)` | `{ config, messages }` atuais e validados; registra os segredos no `SecretSet`. Lança `PluginConfigError` |
 | `setOverrides(name, overrides)` | Recusa campo `secret`; valida a config resultante; se válida, salva (substitui; `{}` remove) e chama `reload`. Inválida rejeita sem salvar. Campo sombreado gera `warn` (abaixo) |
 | `describe(name)` | `{ config, messages, sources }`: config atual com segredos trocados por `'********'` e a fonte de cada campo |
-| `jsonSchema(name)` | JSON Schema (entrada) para gerar formulário; segredos com `x-zapforge-override: false`; `undefined` sem `config` |
+| `jsonSchema(name)` | JSON Schema (entrada) para gerar formulário; segredos com `x-bridger-override: false`; `undefined` sem `config` |
 
 `pluginConfig` citando plugin que não existe gera `warn` (provável erro de digitação).
 
@@ -169,7 +169,7 @@ censura, sem máscara e aceito por override. Para uma lista secreta, marque o ca
 `tokens: secret(z.array(z.string()))`. Um campo secreto tem estas garantias:
 
 - `describe` mostra `'********'`;
-- o JSON Schema sai com `secret: true`, `writeOnly: true` e `x-zapforge-override: false` (o
+- o JSON Schema sai com `secret: true`, `writeOnly: true` e `x-bridger-override: false` (o
   dashboard não deve oferecer edição), e um `default` secreto vira máscara;
 - `resolve`/`setOverrides` põem os valores no `SecretSet` (dono `plugin:<nome>`, trocados a cada
   resolução). O logger criado com `secrets: secretSet` censura esses valores em qualquer linha —
@@ -186,7 +186,7 @@ arquivo** ([ADR 0032](../../../docs/adr/0032-camadas-da-config-de-plugin.md)):
 await configs.setOverrides('ai', { model: 'pro', openai: { token: 'x' } });
 // PluginConfigError, nada é salvo e o plugin segue com a config atual:
 // - openai.token: campo secreto não pode ser definido por override (o storage guarda em texto
-//   puro); defina pela env ZAPFORGE_AI__OPENAI__TOKEN ou pelo arquivo pluginConfig["ai"].openai.token
+//   puro); defina pela env BRIDGER_AI__OPENAI__TOKEN ou pelo arquivo pluginConfig["ai"].openai.token
 //   (fonte: override salvo no storage)
 ```
 
@@ -200,7 +200,7 @@ Cifrar segredos no storage, para o dashboard editá-los, fica para o M5 com ADR 
 
 ## `messages` sobrescrevível
 
-A chave `messages` da entrada (arquivo, override ou `ZAPFORGE_<PLUGIN>__MESSAGES__<CHAVE>`)
+A chave `messages` da entrada (arquivo, override ou `BRIDGER_<PLUGIN>__MESSAGES__<CHAVE>`)
 sobrescreve textos do manifesto, com a mesma precedência dos campos. O resultado mesclado é
 `ctx.plugin.messages` (congelado). Chave que o manifesto não declara, ou valor que não é texto,
 é `PluginConfigError` com a lista de chaves válidas.

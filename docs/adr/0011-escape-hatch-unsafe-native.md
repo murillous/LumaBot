@@ -1,6 +1,6 @@
 # ADR 0011 — Escape hatch `ctx.unsafe.native`
 
-**Status:** Aceito (2026-10-06) · Decisão **D11** do [plano](../../ZAPFORGE_PLAN.md#4-decisões)
+**Status:** Aceito (2026-10-06) · Decisão **D11** do [plano](../../BRIDGER_PLAN.md#4-decisões)
 
 ## Contexto
 

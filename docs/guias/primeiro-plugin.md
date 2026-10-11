@@ -8,13 +8,13 @@ Precisa do Node 24 ou mais novo (`node --version`).
 ## 1. Criar o projeto
 
 ```sh
-npm create zapforge-plugin@latest zapforge-plugin-ola
-cd zapforge-plugin-ola
+npm create bridger-plugin@latest bridger-plugin-ola
+cd bridger-plugin-ola
 npm install
 ```
 
-O nome do pacote vira o nome do plugin sem o prefixo `zapforge-plugin-`: aqui, `ola`. O scaffold
-aceita escopo (`@acme/zapforge-plugin-ola`) e recusa nome inválido antes de criar qualquer
+O nome do pacote vira o nome do plugin sem o prefixo `bridger-plugin-`: aqui, `ola`. O scaffold
+aceita escopo (`@acme/bridger-plugin-ola`) e recusa nome inválido antes de criar qualquer
 arquivo ([detalhes](../../packages/create-plugin/docs/README.md)).
 
 ```
@@ -28,7 +28,7 @@ package.json        # scripts test, typecheck, build e changeset
 `src/index.ts` vem assim:
 
 ```ts
-import { bold, definePlugin, fmt, type PluginDefinition } from '@zapforge/core';
+import { bold, definePlugin, fmt, type PluginDefinition } from '@usebridger/core';
 
 export const ola: PluginDefinition = definePlugin({
   name: 'ola',
@@ -47,7 +47,7 @@ export const ola: PluginDefinition = definePlugin({
 ```
 
 - **`definePlugin`** valida o manifesto na hora. `name` identifica o plugin no bot, e `engine` é
-  a faixa de versão do `@zapforge/core` com que ele roda.
+  a faixa de versão do `@usebridger/core` com que ele roda.
 - **`commands`** declara os comandos direto no manifesto: a chave `ola` vira `!ola`.
 - **O `run` recebe a mensagem (`c`) e o contexto do plugin.** Devolver texto responde citando a
   mensagem.
@@ -62,7 +62,7 @@ export const ola: PluginDefinition = definePlugin({
 npm test
 ```
 
-O teste usa o `@zapforge/testing`: sobe um bot de verdade sobre um transport falso, sem rede, e
+O teste usa o `@usebridger/testing`: sobe um bot de verdade sobre um transport falso, sem rede, e
 roda o mesmo caso nos perfis de WhatsApp, Telegram, Discord e web.
 
 ```ts
@@ -121,16 +121,16 @@ O teste prova o comportamento. Para ver o plugin respondendo, suba um bot com o 
 chat que vive dentro de um sistema web, e converse com ele pelo terminal. Tudo roda local.
 
 ```sh
-npm install -D @zapforge/transport-web jose
+npm install -D @usebridger/transport-web jose
 ```
 
 Crie `bot.ts` na raiz do projeto:
 
 ```ts
 import { createInterface } from 'node:readline/promises';
-import { createBot, createHttp } from '@zapforge/core';
-import { web } from '@zapforge/transport-web';
-import { connectWebChat } from '@zapforge/transport-web/client';
+import { createBot, createHttp } from '@usebridger/core';
+import { web } from '@usebridger/transport-web';
+import { connectWebChat } from '@usebridger/transport-web/client';
 import { SignJWT } from 'jose';
 import { ola } from './src/index.ts';
 
@@ -184,7 +184,7 @@ bot: bom dia
 O Node 24 roda o `.ts` direto. O aviso `sem storage configurado` no início é esperado: sem um
 storage, os dados do bot ficam em memória.
 
-**No WhatsApp**, o mesmo plugin entra num bot com o `@zapforge/transport-baileys`, que pareia o
+**No WhatsApp**, o mesmo plugin entra num bot com o `@usebridger/transport-baileys`, que pareia o
 número por QR code ([transport-baileys](../../packages/transport-baileys/docs/README.md)). O
 código do plugin não muda.
 

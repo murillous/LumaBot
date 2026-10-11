@@ -1,5 +1,5 @@
 ---
-'@zapforge/transport-baileys': minor
+'@usebridger/transport-baileys': minor
 ---
 
 Segue o contrato de capabilities do core (ADR 0070). O transport declara `typing` no lugar de

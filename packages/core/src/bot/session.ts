@@ -5,7 +5,7 @@
 import { BotConfigError } from '#config/owners.ts';
 import type { StoragePort } from '#storage/types.ts';
 
-const LIVE_SESSIONS = Symbol.for('@zapforge/core/live-sessions');
+const LIVE_SESSIONS = Symbol.for('@usebridger/core/live-sessions');
 
 type Tracked = StoragePort & { [LIVE_SESSIONS]?: Set<string> };
 

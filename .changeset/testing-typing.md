@@ -1,5 +1,5 @@
 ---
-'@zapforge/testing': minor
+'@usebridger/testing': minor
 ---
 
 O `FakeTransport` segue o contrato de capabilities do core (ADR 0070): `sendTyping(chatId, kind)`

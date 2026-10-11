@@ -8,7 +8,7 @@ bot, quem precisa saber que um comando rodou assina o evento [`command`](events.
 ## Declarar um comando
 
 ```ts
-import { command } from '@zapforge/core';
+import { command } from '@usebridger/core';
 
 const sticker = command({
   name: 'sticker',
@@ -220,7 +220,7 @@ Um plugin define um papel nomeado no `setup`, e qualquer plugin o exige no coman
 declaration merging, como os serviços:
 
 ```ts
-declare module '@zapforge/core' {
+declare module '@usebridger/core' {
   interface Roles { moderador: true }
 }
 

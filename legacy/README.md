@@ -386,7 +386,7 @@ spawna o bot (`index.js`) como processo filho.
 
 ```bash
 npm install -g pm2
-cd legacy           # o LumaBot vive em legacy/ do monorepo ZapForge
+cd legacy           # o LumaBot vive em legacy/ do monorepo Bridger
 git pull && npm install && npm run dashboard:build
 pm2 start ecosystem.config.cjs
 pm2 save

@@ -6,8 +6,8 @@ import {
   type Logger,
   type Message,
   mention,
-} from '@zapforge/core';
-import { type AuthStateStore, CAPABILITIES, type TransportDeps } from '@zapforge/core/adapter';
+} from '@usebridger/core';
+import { type AuthStateStore, CAPABILITIES, type TransportDeps } from '@usebridger/core/adapter';
 import { DisconnectReason, type WAMessage, WAMessageStubType } from 'baileys';
 import { describe, expect, it, vi } from 'vitest';
 import { boom, FakeDriver } from './fake-socket.test-support.ts';

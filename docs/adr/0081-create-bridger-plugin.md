@@ -1,4 +1,4 @@
-# ADR 0081 — `create-zapforge-plugin`: scaffold sem dependências, template na forma curta e aceite por e2e
+# ADR 0081 — `create-bridger-plugin`: scaffold sem dependências, template na forma curta e aceite por e2e
 
 **Status:** Aceito (2026-10-10) · Detalha **D22** ([ADR 0022](0022-kit-de-autor.md)) · Usa a forma
 curta do **D79** ([ADR 0079](0079-acucar-no-manifesto-do-plugin.md)) e os perfis do **D73**
@@ -24,11 +24,11 @@ Três perguntas ficaram para decidir:
 
 ## Decisão
 
-- **Pacote `create-zapforge-plugin`** (sem escopo, para `npm create zapforge-plugin`) em
+- **Pacote `create-bridger-plugin`** (sem escopo, para `npm create bridger-plugin`) em
   `packages/create-plugin`, com um binário e nenhuma dependência de runtime: `node:util`
   `parseArgs` e `node:fs`.
 - **Um argumento, sem perguntas.** O nome do pacote npm, com escopo opcional. A pasta é o nome sem
-  escopo; o `name` do manifesto, o nome sem escopo e sem o prefixo `zapforge-plugin-`; o export,
+  escopo; o `name` do manifesto, o nome sem escopo e sem o prefixo `bridger-plugin-`; o export,
   o `name` em camelCase. O nome que o `definePlugin` recusaria e a pasta com arquivos são
   recusados antes de escrever. Os próximos passos saem no gerenciador que rodou o comando
   (`npm_config_user_agent`).
@@ -39,7 +39,7 @@ Três perguntas ficaram para decidir:
   `capabilities.has('reactions')`, resposta com `fmt` e `bold`, teste em
   `describe.each(PROFILE_NAMES)`. O projeto traz `tsconfig` strict com `isolatedDeclarations`,
   `tsdown` para o `dist/` e o changesets configurado.
-- **Core como peer dependency e dev dependency, faixa `<1.0.0`** (também no `@zapforge/testing` e
+- **Core como peer dependency e dev dependency, faixa `<1.0.0`** (também no `@usebridger/testing` e
   no `engine`). Um teste confere que a faixa aceita a versão atual do core e que `tsdown`,
   `typescript`, `vitest` e `@changesets/cli` têm as versões da raiz. Na 1.0, a faixa vira `^1.0.0`.
 - **Aceite por e2e, fora do `pnpm test`.** `scripts/e2e.ts` empacota core, kit e scaffold com

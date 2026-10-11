@@ -1,5 +1,5 @@
 ---
-'@zapforge/core': patch
+'@usebridger/core': patch
 ---
 
 Scheduler com concorrência limitada (M1-11): no máximo `maxConcurrentJobs` handlers (padrão 10)

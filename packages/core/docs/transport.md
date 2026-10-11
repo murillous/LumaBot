@@ -10,7 +10,7 @@ tipos normalizados, e nada do contrato supõe uma plataforma. Porquê:
 ## A interface
 
 ```ts
-import type { Transport } from '@zapforge/core/adapter';
+import type { Transport } from '@usebridger/core/adapter';
 
 interface Transport {
   readonly name: string;                         // 'baileys', 'telegram', 'web'...
@@ -64,7 +64,7 @@ Para não montar à mão o emissor, o `on()`, o `self`, o `Set` de capabilities 
 lançam `UnsupportedError`, descreva só o que é do adapter:
 
 ```js
-import { defineTransport } from '@zapforge/core/adapter';
+import { defineTransport } from '@usebridger/core/adapter';
 
 export function echo(options) {
   // Valide `options` aqui: o erro sai no app, antes do createBot.
@@ -176,7 +176,7 @@ Use o `TypedEmitter`. Um handler que lança ou rejeita não interrompe os demais
 o adapter: o erro vai para o `onError` passado no construtor.
 
 ```ts
-import { TypedEmitter, type TransportEvents } from '@zapforge/core/adapter';
+import { TypedEmitter, type TransportEvents } from '@usebridger/core/adapter';
 
 class TelegramTransport implements Transport {
   readonly #events = new TypedEmitter<TransportEvents>((error, event) =>
@@ -199,7 +199,7 @@ Um adapter que precisa do bot (credenciais, logger) exporta uma fábrica, não a
 [Bot → Transport por fábrica](bot.md#transport-por-fábrica)).
 
 ```ts
-import type { Transport, TransportDeps } from '@zapforge/core/adapter';
+import type { Transport, TransportDeps } from '@usebridger/core/adapter';
 
 export function telegram(options: TelegramOptions): (deps: TransportDeps) => Transport {
   // Valide `options` aqui: um erro na fábrica vira `BotConfigError` no `createBot`.
@@ -343,7 +343,7 @@ no terceiro parâmetro.
 - **Sem `formatted`**, `text` é cru: vai como veio. No web, trate-o como texto, nunca como HTML.
 
 ```ts
-import type { FormattedText, TextNode } from '@zapforge/core';
+import type { FormattedText, TextNode } from '@usebridger/core';
 
 function render(nodes: readonly TextNode[]): string {
   return nodes
@@ -478,7 +478,7 @@ Entregue `message.text` como a pessoa o lê, com as menções legíveis (no Disc
 `messageKey(message)`:
 
 ```ts
-import { messageKey } from '@zapforge/core/adapter';
+import { messageKey } from '@usebridger/core/adapter';
 await transport.react(messageKey(ctx.message), '👍');
 ```
 
@@ -578,7 +578,7 @@ mantém cache por grupo e o invalida em `group.participants` e `group.updated` (
 `connection.pairing-code`). Com ela, credencial rejeitada (`auth-failed`) limpa a sessão e pareia
 de novo; sem ela (transport por token), o bot para ([Política de reconexão](#política-de-reconexão)).
 
-A lista é só a do core: capability nova entra numa minor do `@zapforge/core`, e `requires` com nome
+A lista é só a do core: capability nova entra numa minor do `@usebridger/core`, e `requires` com nome
 fora dela recusa o plugin. O que cada transport declara está na matriz do plano §6.10. Limites de
 tamanho não são capability: ficam em `Transport.limits`
 ([ADR 0070](../../../docs/adr/0070-capabilities-multiplataforma.md)).
@@ -608,8 +608,8 @@ o que o plugin espera em qualquer uma.
   assim por padrão ([ADR 0071](../../../docs/adr/0071-voto-em-enquete.md)).
 
 O transport declara o subconjunto que suporta em `capabilities`. Helpers (de
-`@zapforge/core/adapter`; o plugin só vê o tipo `Capability` e o `UnsupportedError`, de
-`@zapforge/core`):
+`@usebridger/core/adapter`; o plugin só vê o tipo `Capability` e o `UnsupportedError`, de
+`@usebridger/core`):
 
 | Função | Uso |
 | --- | --- |
@@ -636,7 +636,7 @@ mesma sessão (no Baileys, `DisconnectReason.connectionReplaced`). `fatal` é er
 que reconectar não resolve ([ADR 0068](../../../docs/adr/0068-desconexao-fatal-e-transport-sem-pareamento.md)).
 
 ```ts
-import { hasCapability, ReconnectionPolicy } from '@zapforge/core/adapter';
+import { hasCapability, ReconnectionPolicy } from '@usebridger/core/adapter';
 
 const policy = new ReconnectionPolicy({
   backoff: (attempt) => Math.min(1_000 * 2 ** attempt, 30_000), // padrão: 5 s × n, até 15 s

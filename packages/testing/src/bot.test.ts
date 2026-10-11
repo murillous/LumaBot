@@ -31,7 +31,7 @@ describe('entry /bot', () => {
       const bot = await createTestBot();
       await bot.stop();
     `;
-    const args = ['--conditions=@zapforge/source', '--input-type=module', '-e', script];
+    const args = ['--conditions=@usebridger/source', '--input-type=module', '-e', script];
     await expect(run(process.execPath, args)).resolves.toBeDefined();
   });
 });

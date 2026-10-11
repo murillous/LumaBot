@@ -1,5 +1,5 @@
 ---
-'@zapforge/core': minor
+'@usebridger/core': minor
 ---
 
 Prazo em todo código de plugin e consulta ao transport no caminho do comando (M1-6, M1-16). O

@@ -1,7 +1,7 @@
 # ADR 0068 — Desconexão fatal e transport sem pareamento
 
 **Status:** Aceito (2026-10-09) · Detalha **D03** ([ADR 0003](0003-transport-abstrato.md)),
-**D13** ([escopo do core](../../ZAPFORGE_PLAN.md#4-decisões)), **D45**
+**D13** ([escopo do core](../../BRIDGER_PLAN.md#4-decisões)), **D45**
 ([ADR 0045](0045-queda-de-rede-nao-limpa-sessao.md)) e **D48**
 ([ADR 0048](0048-connect-resolve-ao-iniciar.md)) · Parte do kernel multiplataforma
 ([ADR 0055](0055-plataformas-alvo-e-transport-web.md))
@@ -39,9 +39,9 @@ O mesmo padrão nos caminhos vizinhos:
 - O Baileys não reconecta sozinho: cada fechamento do socket é terminal para ele, e o adapter já
   emite um `closed` por socket.
 
-Sobre ampliar as uniões: `DisconnectReason` sai em `@zapforge/core` (plugins o leem no
+Sobre ampliar as uniões: `DisconnectReason` sai em `@usebridger/core` (plugins o leem no
 `connection.status`), e `ReconnectionDecision` e a causa do `stop` saem em
-`@zapforge/core/adapter`. Um `switch` exaustivo com `never` no `default` deixa de compilar quando
+`@usebridger/core/adapter`. Um `switch` exaustivo com `never` no `default` deixa de compilar quando
 a união ganha membro; sem `default`, o membro novo passa reto em runtime. No repositório, o único
 `switch` sobre o motivo é o da própria política, e nenhum sobre a causa do `stop` fora do
 executor. É o mesmo problema que o #272 trata para `MessageType` e `OutgoingContent`.

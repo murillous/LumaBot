@@ -1,6 +1,6 @@
 # ADR 0025 — Sem i18n formal na v1; objeto `messages`
 
-**Status:** Aceito (2026-10-06) · Decisão **D25** do [plano](../../ZAPFORGE_PLAN.md#4-decisões)
+**Status:** Aceito (2026-10-06) · Decisão **D25** do [plano](../../BRIDGER_PLAN.md#4-decisões)
 
 ## Contexto
 

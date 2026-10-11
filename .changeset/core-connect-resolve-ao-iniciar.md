@@ -1,5 +1,5 @@
 ---
-'@zapforge/core': minor
+'@usebridger/core': minor
 ---
 
 Queda durante o `connect()` não deixa mais o bot `running` sem conexão (#253, ADR 0048). O

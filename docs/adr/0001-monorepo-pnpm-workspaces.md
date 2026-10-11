@@ -1,13 +1,13 @@
 # ADR 0001 — Monorepo com pnpm workspaces
 
-**Status:** Aceito (2026-10-06) · Decisão **D01** do [plano](../../ZAPFORGE_PLAN.md#4-decisões)
+**Status:** Aceito (2026-10-06) · Decisão **D01** do [plano](../../BRIDGER_PLAN.md#4-decisões)
 
 ## Contexto
 
-O ZapForge nasce da extração de um kernel a partir do LumaBot, que já está em
+O Bridger nasce da extração de um kernel a partir do LumaBot, que já está em
 produção. Era preciso decidir onde o kernel novo vive em relação ao bot atual.
 Refatorar o LumaBot in-place arrastaria os débitos do diagnóstico
-([plano §3](../../ZAPFORGE_PLAN.md#3-diagnóstico-do-lumabot-atual)) — estado global, comandos
+([plano §3](../../BRIDGER_PLAN.md#3-diagnóstico-do-lumabot-atual)) — estado global, comandos
 centralizados, `MessagingPort` vazando o Baileys — para dentro do kernel. Um
 repositório novo isolado, por outro lado, separa o kernel do seu primeiro
 consumidor real e dificulta validar que a API de plugins basta.

@@ -5,7 +5,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        O escopo do core é fechado ([ADR 0013](https://github.com/murillous/LumaBot/blob/develop/docs/adr/0013-escopo-do-core.md)) — veja se a ideia cabe num plugin antes.
+        O escopo do core é fechado ([ADR 0013](https://github.com/murillous/usebridger/blob/develop/docs/adr/0013-escopo-do-core.md)) — veja se a ideia cabe num plugin antes.
   - type: textarea
     id: problem
     attributes:

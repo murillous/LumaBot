@@ -1,5 +1,5 @@
 ---
-'@zapforge/transport-baileys': minor
+'@usebridger/transport-baileys': minor
 ---
 
 O transport passa a emitir os eventos do barramento além de `message` (#108): `reaction`,

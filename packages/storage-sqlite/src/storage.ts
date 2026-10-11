@@ -16,7 +16,7 @@ import type {
   PluginStorage,
   Target,
   WithId,
-} from '@zapforge/core';
+} from '@usebridger/core';
 import {
   type AuthKeyData,
   type AuthStateStore,
@@ -26,7 +26,7 @@ import {
   normalizeWhere,
   StorageClosedError,
   type StoragePort,
-} from '@zapforge/core/adapter';
+} from '@usebridger/core/adapter';
 import { transaction } from './schema.ts';
 import { fieldValueSql, orderBySql, type SqlFragment, whereSql } from './sql.ts';
 

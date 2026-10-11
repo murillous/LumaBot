@@ -1,5 +1,5 @@
 ---
-'@zapforge/core': minor
+'@usebridger/core': minor
 ---
 
 Vários anexos na mensagem e envio em álbum (ADR 0065).

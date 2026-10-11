@@ -2,12 +2,12 @@
 
 O `Bot` é a raiz do kernel: liga transport, storage, plugins, filas, middlewares, roteador,
 barramento, scheduler e logger, e todo estado fica pendurado na instância, nunca em módulo
-([ADR 0004](../../../docs/adr/0004-uma-sessao-por-processo.md)). Importar `@zapforge/core` e
+([ADR 0004](../../../docs/adr/0004-uma-sessao-por-processo.md)). Importar `@usebridger/core` e
 chamar `createBot()` não abre conexão, não agenda timer, não cria logger e não registra listener
 de processo — o efeito começa no `start()`.
 
 ```ts
-import { createBot } from '@zapforge/core';
+import { createBot } from '@usebridger/core';
 
 const bot = createBot({ transport, storage, plugins: [sticker, ai] });
 await bot.start();
@@ -27,7 +27,7 @@ Só `transport` é obrigatório; `createBot({ transport })` sobe um bot sem plug
 | `pluginDirs` / `cwd` | — / `process.cwd()` | Pastas de plugins locais ([Plugins](plugins.md#fontes-config-e-plugindirs)) |
 | `disabledPlugins` | `[]` | Nomes que não carregam |
 | `pluginConfig` | — | Config por plugin, a camada "arquivo" ([Config](config.md)) |
-| `env` | `process.env` | Ambiente lido pela config de plugin (`ZAPFORGE_*`) |
+| `env` | `process.env` | Ambiente lido pela config de plugin (`BRIDGER_*`) |
 | `owners` | `[]` | Donos: telefone, aceito com pontuação (`'+55 11 99999-9999'`), ou `{ id }` com o ID nativo do contato ([Config](config.md#owners)) — `BotConfigError` já no `createBot` se malformados |
 | `prefix` | `'!'` | Prefixo de comando: um texto para todo chat, ou `{ dm, group }` por tipo de chat; vazio é permitido ([Comandos](commands.md#prefixo-por-chat)) |
 | `logger` | criado pelo bot | `Logger` pronto. Sem ele, `createLogger({ level: logLevel, secrets })` no `start()` |
@@ -582,10 +582,10 @@ import {
   createSecretSet,
   definePlugin,
   secret,
-} from '@zapforge/core';
+} from '@usebridger/core';
 import { z } from 'zod';
 
-declare module '@zapforge/core' {
+declare module '@usebridger/core' {
   interface Services {
     clima: { previsao(cidade: string): Promise<string> };
   }
@@ -629,7 +629,7 @@ const bot = createBot({
   transport,             // ex.: baileys({ ... }) — M2
   storage,               // ex.: sqlite({ path }) — M2
   plugins: [clima],
-  pluginConfig: { clima: { cidadePadrao: 'Olinda' } }, // apiKey vem de ZAPFORGE_CLIMA__API_KEY
+  pluginConfig: { clima: { cidadePadrao: 'Olinda' } }, // apiKey vem de BRIDGER_CLIMA__API_KEY
   owners: ['+55 81 99999-9999'],
   secrets,
   logger: createLogger({ secrets }),
@@ -706,8 +706,8 @@ sessão no storage antes de carregar os plugins
 
 - A trava é por nome de sessão, sem olhar o transport: um bot de Discord e um de WhatsApp com a
   mesma sessão no mesmo banco se recusam. Dê um `session` diferente a cada um.
-- Só storages que podem ser divididos entre processos têm a trava (`@zapforge/storage-sqlite`,
-  `@zapforge/storage-postgres`). O de memória vive num processo só e não cria timer.
+- Só storages que podem ser divididos entre processos têm a trava (`@usebridger/storage-sqlite`,
+  `@usebridger/storage-postgres`). O de memória vive num processo só e não cria timer.
 
 ## Transport por fábrica
 

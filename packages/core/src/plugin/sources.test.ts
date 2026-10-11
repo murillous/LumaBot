@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { collectPlugins, discoverPlugins, PluginDiscoveryError } from './sources.ts';
 import type { PluginDefinition } from './types.ts';
 
-// Módulo de plugin escrito como JS puro: a pasta temporária não enxerga o @zapforge/core.
+// Módulo de plugin escrito como JS puro: a pasta temporária não enxerga o @usebridger/core.
 const pluginSource = (exportName: string, name: string): string =>
   `export const ${exportName} = { name: '${name}', version: '1.0.0', engine: '*', setup() {} };\n`;
 
@@ -18,7 +18,7 @@ function write(path: string, content: string): void {
 }
 
 beforeEach(() => {
-  root = mkdtempSync(join(tmpdir(), 'zapforge-plugins-'));
+  root = mkdtempSync(join(tmpdir(), 'bridger-plugins-'));
 });
 
 afterEach(() => {

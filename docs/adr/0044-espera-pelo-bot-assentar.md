@@ -5,7 +5,7 @@
 
 ## Contexto
 
-O `@zapforge/testing` (M2-3, #113) promete `await bot.receive(...)` seguido de asserções sobre o
+O `@usebridger/testing` (M2-3, #113) promete `await bot.receive(...)` seguido de asserções sobre o
 que foi enviado. Para `receive()` resolver na hora certa, o kit precisa saber quando o bot
 terminou de processar a mensagem. Pelo ADR 0029 ele só usa a API pública, e nela não havia como
 esperar: as filas têm `onIdle()`, mas são internas (ADR 0034), e `bot.stats()` só permite

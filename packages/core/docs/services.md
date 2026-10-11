@@ -7,16 +7,16 @@ Um plugin publica um serviço com `ctx.services.provide(name, impl)` e outro o c
 ## Prover
 
 O plugin que provê declara o tipo por declaration merging na interface `Services` do
-`@zapforge/core` e publica a implementação no `setup` (`definePlugin` chega no M1-8):
+`@usebridger/core` e publica a implementação no `setup` (`definePlugin` chega no M1-8):
 
 ```ts
-import { definePlugin } from '@zapforge/core';
+import { definePlugin } from '@usebridger/core';
 
 export interface AiService {
   complete(prompt: string): Promise<string>;
 }
 
-declare module '@zapforge/core' {
+declare module '@usebridger/core' {
   interface Services {
     ai: AiService;
   }
@@ -32,7 +32,7 @@ export const ai = definePlugin({
 });
 ```
 
-O `declare module` precisa mirar `'@zapforge/core'`, o mesmo especificador que o plugin
+O `declare module` precisa mirar `'@usebridger/core'`, o mesmo especificador que o plugin
 importa. `provide` só aceita nomes declarados em `Services` e a implementação com o tipo
 declarado; nome desconhecido não compila.
 

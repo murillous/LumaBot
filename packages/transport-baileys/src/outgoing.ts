@@ -9,7 +9,7 @@ import {
   type OutgoingContent,
   type SendOptions,
   UnsupportedError,
-} from '@zapforge/core';
+} from '@usebridger/core';
 import {
   type AnyMessageContent,
   type GroupMetadata as BaileysGroupMetadata,

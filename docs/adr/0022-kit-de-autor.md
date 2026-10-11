@@ -1,6 +1,6 @@
 # ADR 0022 — Kit de autor na v1
 
-**Status:** Aceito (2026-10-06) · Decisão **D22** do [plano](../../ZAPFORGE_PLAN.md#4-decisões)
+**Status:** Aceito (2026-10-06) · Decisão **D22** do [plano](../../BRIDGER_PLAN.md#4-decisões)
 
 ## Contexto
 
@@ -13,9 +13,9 @@ Alternativas consideradas: só documentação.
 
 A v1 entrega:
 
-- `@zapforge/testing` — `FakeTransport`, `createTestBot`, matchers
-  ([plano §6.9](../../ZAPFORGE_PLAN.md#69-testes-de-plugin));
-- `create-zapforge-plugin` — scaffold;
+- `@usebridger/testing` — `FakeTransport`, `createTestBot`, matchers
+  ([plano §6.9](../../BRIDGER_PLAN.md#69-testes-de-plugin));
+- `create-bridger-plugin` — scaffold;
 - docs "primeiro plugin em 5 minutos" + referência gerada via TypeDoc.
 
 ## Consequências

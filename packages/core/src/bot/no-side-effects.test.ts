@@ -46,18 +46,18 @@ function expectNoSideEffect(before: Snapshot): void {
   expect(openedSince(before, after)).toEqual([]);
 }
 
-it('importar @zapforge/core não tem side effect', async () => {
+it('importar @usebridger/core não tem side effect', async () => {
   vi.resetModules();
   const before = snapshot();
-  const core = await import('@zapforge/core');
+  const core = await import('@usebridger/core');
   expect(core.createBot).toBeTypeOf('function');
   expectNoSideEffect(before);
 });
 
 // ADR 0034: o mesmo vale para os outros pontos de entrada.
 it.each([
-  ['@zapforge/core/adapter', () => import('@zapforge/core/adapter')],
-  ['@zapforge/core/storage-contract', () => import('@zapforge/core/storage-contract')],
+  ['@usebridger/core/adapter', () => import('@usebridger/core/adapter')],
+  ['@usebridger/core/storage-contract', () => import('@usebridger/core/storage-contract')],
 ])('importar %s não tem side effect', async (_entry, load) => {
   vi.resetModules();
   const before = snapshot();
@@ -67,7 +67,7 @@ it.each([
 });
 
 it('createBot() não tem side effect até o start()', async () => {
-  const { createBot } = await import('@zapforge/core');
+  const { createBot } = await import('@usebridger/core');
   const before = snapshot();
   createBot({
     transport: new TestTransport([]),
@@ -77,7 +77,7 @@ it('createBot() não tem side effect até o start()', async () => {
 
 // ADR 0037: a fábrica do transport roda no createBot, e o logger que ela recebe não pode nascer ali.
 it('createBot() com transport por fábrica não tem side effect até o start()', async () => {
-  const { createBot } = await import('@zapforge/core');
+  const { createBot } = await import('@usebridger/core');
   const before = snapshot();
   createBot({
     transport: ({ log }) => {

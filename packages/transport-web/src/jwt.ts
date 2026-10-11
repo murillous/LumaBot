@@ -1,7 +1,7 @@
 // Verificação do JWT do sistema do dono (ADR 0077). O `jose` cuida de assinatura, algoritmo, JWKS
 // e prazos; aqui fica só a escolha da chave e o que o transport exige do payload.
 
-import type { JsonValue } from '@zapforge/core';
+import type { JsonValue } from '@usebridger/core';
 import { createRemoteJWKSet, type JWTPayload, type JWTVerifyGetKey, jwtVerify } from 'jose';
 
 interface AuthCommon {

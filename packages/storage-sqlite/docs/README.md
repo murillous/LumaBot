@@ -1,6 +1,6 @@
-# @zapforge/storage-sqlite — documentação
+# @usebridger/storage-sqlite — documentação
 
-Adapter de storage padrão do ZapForge, sobre o SQLite que vem no próprio Node (`node:sqlite`). Ele
+Adapter de storage padrão do Bridger, sobre o SQLite que vem no próprio Node (`node:sqlite`). Ele
 implementa o `StoragePort` do core ([Storage](../../core/docs/storage.md)) e passa na suíte de
 contrato. O porquê do driver e do schema está no
 [ADR 0051](../../../docs/adr/0051-sqlite-via-node-sqlite.md).
@@ -8,9 +8,9 @@ contrato. O porquê do driver e do schema está no
 ## Uso
 
 ```ts
-import { createBot } from '@zapforge/core';
-import { sqlite } from '@zapforge/storage-sqlite';
-import { baileys } from '@zapforge/transport-baileys';
+import { createBot } from '@usebridger/core';
+import { sqlite } from '@usebridger/storage-sqlite';
+import { baileys } from '@usebridger/transport-baileys';
 
 const bot = createBot({
   transport: baileys(),

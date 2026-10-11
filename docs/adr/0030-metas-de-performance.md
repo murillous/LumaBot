@@ -1,6 +1,6 @@
 # ADR 0030 — Metas de performance com benchmark no CI
 
-**Status:** Aceito (2026-10-06) · Decisão **D30** do [plano](../../ZAPFORGE_PLAN.md#4-decisões)
+**Status:** Aceito (2026-10-06) · Decisão **D30** do [plano](../../BRIDGER_PLAN.md#4-decisões)
 
 ## Contexto
 
@@ -13,7 +13,7 @@ Alternativas consideradas: "rápido" sem métrica.
 ## Decisão
 
 Metas medidas no CI com `FakeTransport`, sem I/O de rede
-([plano §7](../../ZAPFORGE_PLAN.md#7-metas-de-performance)):
+([plano §7](../../BRIDGER_PLAN.md#7-metas-de-performance)):
 
 | Métrica | Meta |
 |---|---|

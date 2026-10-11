@@ -1,7 +1,7 @@
-// Teste de tipo do aceite do M1-9: o merging é feito contra `@zapforge/core` — o mesmo
+// Teste de tipo do aceite do M1-9: o merging é feito contra `@usebridger/core` — o mesmo
 // especificador que um plugin usa —, não contra `#services/types.ts`. Se o re-export do
 // index deixar de levar a interface original, este arquivo para de compilar no `pnpm typecheck`.
-import type { ServiceAccess } from '@zapforge/core';
+import type { ServiceAccess } from '@usebridger/core';
 import { describe, expectTypeOf, it } from 'vitest';
 import { createServiceRegistry } from '#services/registry.ts';
 
@@ -9,7 +9,7 @@ interface AiService {
   complete(prompt: string): Promise<string>;
 }
 
-declare module '@zapforge/core' {
+declare module '@usebridger/core' {
   interface Services {
     ai: AiService;
   }

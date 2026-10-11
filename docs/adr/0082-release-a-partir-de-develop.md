@@ -1,13 +1,13 @@
 # ADR 0082 — Release a partir de `develop`, com Trusted Publishing no npm e PR de versão aberto por um GitHub App
 
 **Status:** Aceito (2026-10-10) · Detalha **D27** ([ADR 0027](0027-releases-changesets.md)) · Usa a
-org `zapforge` do **D31** ([ADR 0031](0031-nome-zapforge.md)) e atende o **D29**
+org `usebridger` do **D83** ([ADR 0083](0083-nome-bridger.md)) e atende o **D29**
 ([ADR 0029](0029-open-core-repo-privado.md))
 
 ## Contexto
 
-O D27 escolheu os Changesets, mas nada versionava nem publicava os pacotes `@zapforge/*` (#246).
-O `create-zapforge-plugin` (M3-3), o guia do primeiro plugin (M3-4) e o repo privado da
+O D27 escolheu os Changesets, mas nada versionava nem publicava os pacotes `@usebridger/*` (#246).
+O `create-bridger-plugin` (M3-3), o guia do primeiro plugin (M3-4) e o repo privado da
 `thera-org` (D29) instalam o core do npm. Deixar a primeira publicação para a 1.0.0 (V1-3) seria
 publicar sem nenhum `0.x` exercitado.
 
@@ -33,8 +33,8 @@ Três perguntas ficaram para decidir:
   `concurrency` não cancela execução em andamento: um publish nunca é cortado.
 - **npm por Trusted Publishing**, com `id-token: write` e provenance
   (`PNPM_CONFIG_PROVENANCE=true`). O primeiro publish de cada pacote sai pelo mesmo workflow com
-  um secret `NPM_TOKEN` granular e temporário (só publish, só `@zapforge/*` e
-  `create-zapforge-plugin`); depois de configurar o publicador confiável em cada pacote, o secret
+  um secret `NPM_TOKEN` granular e temporário (só publish, só `@usebridger/*` e
+  `create-bridger-plugin`); depois de configurar o publicador confiável em cada pacote, o secret
   é apagado.
 - **PR de versão aberto por um GitHub App** do dono do repositório (`RELEASE_APP_ID` em
   variável, `RELEASE_APP_PRIVATE_KEY` em secret), com o token de curta duração do

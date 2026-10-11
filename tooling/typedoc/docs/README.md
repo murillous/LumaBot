@@ -1,17 +1,17 @@
 # Referência da API (TypeDoc)
 
-Gera a referência HTML das entradas públicas dos pacotes `@zapforge/*` em `docs/referencia/`
+Gera a referência HTML das entradas públicas dos pacotes `@usebridger/*` em `docs/referencia/`
 (fora do git). Roda no `pnpm build` da raiz, como qualquer pacote do workspace, e sozinha com
 `pnpm docs`. Abra `docs/referencia/index.html` no navegador.
 
 ## O que entra
 
-Cada subpath dos `exports` com a condição `@zapforge/source` vira um módulo com o nome do import
-(`@zapforge/core/adapter`, `@zapforge/testing/bot`). Internos do core (host, barramento, filas)
+Cada subpath dos `exports` com a condição `@usebridger/source` vira um módulo com o nome do import
+(`@usebridger/core/adapter`, `@usebridger/testing/bot`). Internos do core (host, barramento, filas)
 não aparecem: o TypeDoc parte só das entradas listadas em `typedoc.json`. O texto de cada símbolo
 vem do TSDoc no código.
 
-O `create-zapforge-plugin` fica de fora: é um binário, sem API importável.
+O `create-bridger-plugin` fica de fora: é um binário, sem API importável.
 
 ## Novo pacote ou novo export
 

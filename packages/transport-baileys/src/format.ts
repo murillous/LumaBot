@@ -1,7 +1,7 @@
 // Texto formatado neutro do core (ADR 0061) na marcação do WhatsApp: `*negrito*`, `_itálico_`,
 // `` `código` `` e `@número` com o JID na lista de menções. Função pura.
 
-import type { FormattedText, TextNode } from '@zapforge/core';
+import type { FormattedText, TextNode } from '@usebridger/core';
 import { jidDecode } from 'baileys';
 
 export interface RenderedText {

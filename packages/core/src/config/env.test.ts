@@ -7,10 +7,8 @@ describe('envName', () => {
     expect(toEnvSegment('apiKey')).toBe('API_KEY');
     expect(toEnvSegment('openAIKey')).toBe('OPEN_AI_KEY');
     expect(toEnvSegment('user-names')).toBe('USER_NAMES');
-    expect(envName('sticker', ['quality'])).toBe('ZAPFORGE_STICKER__QUALITY');
-    expect(envName('user-names', ['openai', 'apiKey'])).toBe(
-      'ZAPFORGE_USER_NAMES__OPENAI__API_KEY',
-    );
+    expect(envName('sticker', ['quality'])).toBe('BRIDGER_STICKER__QUALITY');
+    expect(envName('user-names', ['openai', 'apiKey'])).toBe('BRIDGER_USER_NAMES__OPENAI__API_KEY');
   });
 });
 
@@ -40,13 +38,13 @@ describe('readEnvFields', () => {
       openai: z.object({ apiKey: z.string() }).optional(),
     }).shape;
     const found = readEnvFields('ai', shape, {
-      ZAPFORGE_AI__QUALITY: '9',
-      ZAPFORGE_AI__OPENAI__API_KEY: 'k',
-      ZAPFORGE_AI__INEXISTENTE: 'x',
+      BRIDGER_AI__QUALITY: '9',
+      BRIDGER_AI__OPENAI__API_KEY: 'k',
+      BRIDGER_AI__INEXISTENTE: 'x',
     });
     expect(found).toEqual([
-      { path: ['quality'], name: 'ZAPFORGE_AI__QUALITY', value: 9 },
-      { path: ['openai', 'apiKey'], name: 'ZAPFORGE_AI__OPENAI__API_KEY', value: 'k' },
+      { path: ['quality'], name: 'BRIDGER_AI__QUALITY', value: 9 },
+      { path: ['openai', 'apiKey'], name: 'BRIDGER_AI__OPENAI__API_KEY', value: 'k' },
     ]);
   });
 });
@@ -58,7 +56,7 @@ describe('envCollisions', () => {
       ok: z.string(),
     };
     expect(envCollisions('p', shape, ['ok'])).toEqual(
-      new Map([['ZAPFORGE_P__A__B_C', ['a.bC', 'a.b_c']]]),
+      new Map([['BRIDGER_P__A__B_C', ['a.bC', 'a.b_c']]]),
     );
   });
 });

@@ -84,7 +84,7 @@ describe('requiredCapabilities', () => {
 
 describe('discoverPlugins: plugin em JS só declarativo', () => {
   it('acha o objeto puro com commands, sem setup e sem importar o core', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'zapforge-declared-'));
+    const root = mkdtempSync(join(tmpdir(), 'bridger-declared-'));
     try {
       mkdirSync(join(root, 'plugins'));
       writeFileSync(

@@ -1,5 +1,5 @@
 ---
-'@zapforge/core': minor
+'@usebridger/core': minor
 ---
 
 Fila de saída anti-ban (M1-12): `OutboundQueue` implementa `Sender` com intervalo mínimo global e

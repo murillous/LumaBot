@@ -1,4 +1,4 @@
-import { createTestBot } from '@zapforge/testing';
+import { createTestBot } from '@usebridger/testing';
 import { expect, it } from 'vitest';
 import { ping } from './ping.ts';
 

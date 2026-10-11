@@ -9,7 +9,7 @@ import {
   type HttpSocketAccept,
   type HttpSocketHandlers,
   type Message,
-} from '@zapforge/core';
+} from '@usebridger/core';
 import { SignJWT } from 'jose';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createVerifier } from './jwt.ts';

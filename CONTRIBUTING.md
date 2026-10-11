@@ -1,9 +1,9 @@
-# Contribuindo com o ZapForge
+# Contribuindo com o Bridger
 
-Obrigado pelo interesse! O ZapForge é um kernel de bot de mensageria extensível por plugins,
+Obrigado pelo interesse! O Bridger é um kernel de bot de mensageria extensível por plugins,
 extraído do LumaBot. Antes de começar, vale ler:
 
-- [`ZAPFORGE_PLAN.md`](ZAPFORGE_PLAN.md) — visão, arquitetura e roadmap;
+- [`BRIDGER_PLAN.md`](BRIDGER_PLAN.md) — visão, arquitetura e roadmap;
 - [`docs/adr/`](docs/adr/README.md) — o porquê de cada decisão (D01–D31);
 - [`README.md`](README.md) — setup, comandos e convenções de pacote.
 
@@ -45,7 +45,7 @@ Todo PR precisa:
 Codificadas no Biome e verificadas no CI (detalhes no [README](README.md#regras-do-biome)):
 
 - TypeScript, ESM, **named exports apenas**;
-- imports entre pacotes pelo nome (`@zapforge/*`); dentro do pacote, nada de `../` — use o
+- imports entre pacotes pelo nome (`@usebridger/*`); dentro do pacote, nada de `../` — use o
   alias `#` do próprio pacote;
 - nunca engolir erros: trate, relance ou registre;
 - nenhum `process.env` fora da camada de config;

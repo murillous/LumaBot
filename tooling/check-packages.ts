@@ -19,7 +19,7 @@ interface Manifest {
 }
 
 // A provenance do npm recusa o publish se o `repository` não for o repositório que rodou o workflow.
-const REPOSITORY = 'git+https://github.com/murillous/LumaBot.git';
+const REPOSITORY = 'git+https://github.com/murillous/usebridger.git';
 
 function metadataProblems(dir: string, manifest: Manifest): string[] {
   const problems: string[] = [];

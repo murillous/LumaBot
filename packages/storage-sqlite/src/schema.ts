@@ -76,7 +76,7 @@ function migrate(db: DatabaseSync): void {
   if (current > SCHEMA_VERSION) {
     throw new Error(
       `storage-sqlite: o banco está no schema ${current}, mais novo que o deste adapter ` +
-        `(${SCHEMA_VERSION}). Atualize o @zapforge/storage-sqlite.`,
+        `(${SCHEMA_VERSION}). Atualize o @usebridger/storage-sqlite.`,
     );
   }
   for (let version = current; version < SCHEMA_VERSION; version++) {

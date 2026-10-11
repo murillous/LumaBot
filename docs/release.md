@@ -15,7 +15,7 @@ está no [ADR 0082](adr/0082-release-a-partir-de-develop.md); o changeset de cad
 3. Revise as versões e os changelogs e faça o merge do PR de versão. Ele roda o `ci.yml` como
    qualquer PR.
 4. O push desse merge, já sem changesets, publica com `pnpm release` (`pnpm build && changeset
-   publish`) e cria as tags `<pacote>@<versão>` (ex.: `@zapforge/core@0.1.0`). Pacote cuja versão
+   publish`) e cria as tags `<pacote>@<versão>` (ex.: `@usebridger/core@0.1.0`). Pacote cuja versão
    já está no npm é pulado.
 
 Antes da action, o job roda `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build` e
@@ -41,7 +41,7 @@ checks do `ci.yml`. Por isso o PR é aberto com o token de um App:
 1. Crie um App na conta `murillous` (Settings → Developer settings → GitHub Apps), sem webhook,
    com as permissões de repositório **Contents: Read and write** e **Pull requests: Read and
    write**.
-2. Instale o App só no repositório `LumaBot`.
+2. Instale o App só no repositório `usebridger`.
 3. Gere uma chave privada e salve o ID e a chave como `RELEASE_APP_ID` e
    `RELEASE_APP_PRIVATE_KEY`.
 
@@ -50,7 +50,7 @@ checks do `ci.yml`. Por isso o PR é aberto com o token de um App:
 Em regime, o workflow publica sem token: o pnpm troca o token OIDC do GitHub Actions
 (`id-token: write`) por uma credencial de curta duração do npm e publica com provenance. Para
 cada pacote, em npmjs.com → pacote → Settings → **Trusted Publisher**: GitHub Actions, dono
-`murillous`, repositório `LumaBot`, workflow `release.yml`.
+`murillous`, repositório `usebridger`, workflow `release.yml`.
 
 O Trusted Publishing não cria pacote: só publica num pacote que já existe.
 
@@ -59,7 +59,7 @@ O Trusted Publishing não cria pacote: só publica num pacote que já existe.
 Vale para a primeira publicação do repositório e para cada pacote novo depois dela.
 
 1. No npm, crie um token **granular** com permissão de publish só nos pacotes do release
-   (`@zapforge/*` e `create-zapforge-plugin`) e validade curta. Salve-o como o secret `NPM_TOKEN`.
+   (`@usebridger/*` e `create-bridger-plugin`) e validade curta. Salve-o como o secret `NPM_TOKEN`.
 2. Faça o merge do PR de versão. O workflow escreve o token no `~/.npmrc` do runner e publica.
 3. Configure o Trusted Publisher em cada pacote recém-criado (seção acima).
 4. Apague o secret `NPM_TOKEN` e revogue o token no npm.
@@ -84,7 +84,7 @@ Descarte a cópia depois: o PR de versão real sai do workflow.
 Nunca use `npm unpublish`: quebra quem já instalou e bloqueia o número da versão.
 
 1. Marque a versão como depreciada, apontando a saída:
-   `npm deprecate @zapforge/<pacote>@<versão> "Quebrada: use <versão-corrigida>"`.
+   `npm deprecate @usebridger/<pacote>@<versão> "Quebrada: use <versão-corrigida>"`.
 2. Se a versão ruim virou a `latest`, volte a tag para a anterior:
-   `npm dist-tag add @zapforge/<pacote>@<versão-boa> latest`.
+   `npm dist-tag add @usebridger/<pacote>@<versão-boa> latest`.
 3. Corrija em `develop` com um changeset `patch`; o próximo release publica a versão corrigida.

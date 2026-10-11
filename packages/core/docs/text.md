@@ -4,7 +4,7 @@ O plugin escreve negrito, itálico, código, link e menção uma vez só, e cada
 a marcação da plataforma ([ADR 0061](../../../docs/adr/0061-texto-formatado-neutro.md)).
 
 ```ts
-import { bold, code, fmt, italic, link, mention } from '@zapforge/core';
+import { bold, code, fmt, italic, link, mention } from '@usebridger/core';
 
 await ctx.reply(fmt`Notas de ${bold(aluno.nome)}: ${code(nota.toFixed(1))}`);
 await ctx.reply(fmt`Oi ${mention(ctx.message.sender)}, veja ${link('https://ex.com', 'o site')}`);
@@ -21,7 +21,7 @@ await ctx.send.edit(key, bold('atualizado'));
 | `link(url, rótulo?)` | `rótulo (url)` | `[rótulo](url)` | link |
 | `mention(contato)` | `@número` | `<@id>` | `text_mention` |
 
-A coluna do WhatsApp é o `@zapforge/transport-baileys`. As outras mostram o que os transports
+A coluna do WhatsApp é o `@usebridger/transport-baileys`. As outras mostram o que os transports
 desses canais devem gerar.
 
 ## Regras

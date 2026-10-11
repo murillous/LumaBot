@@ -1,4 +1,4 @@
-import { createTestBot, PROFILE_NAMES, PROFILES } from '@zapforge/testing';
+import { createTestBot, PROFILE_NAMES, PROFILES } from '@usebridger/testing';
 import { describe, expect, it } from 'vitest';
 import { __export__ } from './index.ts';
 

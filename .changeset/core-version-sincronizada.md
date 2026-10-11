@@ -1,5 +1,5 @@
 ---
-'@zapforge/core': patch
+'@usebridger/core': patch
 ---
 
 `CORE_VERSION` deixa de ser mantida à mão: `pnpm version-packages` roda o `changeset version` e

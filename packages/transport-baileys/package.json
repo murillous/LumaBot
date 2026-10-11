@@ -1,22 +1,22 @@
 {
-  "name": "@zapforge/transport-baileys",
+  "name": "@usebridger/transport-baileys",
   "version": "0.0.0",
-  "description": "Transport do ZapForge para o WhatsApp via Baileys.",
+  "description": "Transport do Bridger para o WhatsApp via Baileys.",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/murillous/LumaBot.git",
+    "url": "git+https://github.com/murillous/usebridger.git",
     "directory": "packages/transport-baileys"
   },
-  "homepage": "https://github.com/murillous/LumaBot/tree/develop/packages/transport-baileys/docs#readme",
-  "bugs": "https://github.com/murillous/LumaBot/issues",
+  "homepage": "https://github.com/murillous/usebridger/tree/develop/packages/transport-baileys/docs#readme",
+  "bugs": "https://github.com/murillous/usebridger/issues",
   "type": "module",
   "imports": {
     "#*": "./src/*"
   },
   "exports": {
     ".": {
-      "@zapforge/source": "./src/index.ts",
+      "@usebridger/source": "./src/index.ts",
       "types": "./dist/index.d.mts",
       "default": "./dist/index.mjs"
     }
@@ -28,11 +28,11 @@
     "build": "tsdown"
   },
   "dependencies": {
-    "@zapforge/core": "workspace:^",
+    "@usebridger/core": "workspace:^",
     "baileys": "7.0.0-rc14"
   },
   "devDependencies": {
-    "@zapforge/testing": "workspace:^"
+    "@usebridger/testing": "workspace:^"
   },
   "publishConfig": {
     "access": "public"

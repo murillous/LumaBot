@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { defineStorageContract } from '@zapforge/core/storage-contract';
+import { defineStorageContract } from '@usebridger/core/storage-contract';
 import pg from 'pg';
 import { describe, it } from 'vitest';
 import { TEST_POSTGRES_URL } from './config/test-env.ts';

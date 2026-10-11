@@ -13,7 +13,7 @@ import type {
   PluginStorage,
   Target,
   WithId,
-} from '@zapforge/core';
+} from '@usebridger/core';
 import {
   type AuthKeyData,
   type AuthStateStore,
@@ -23,7 +23,7 @@ import {
   normalizeWhere,
   StorageClosedError,
   type StoragePort,
-} from '@zapforge/core/adapter';
+} from '@usebridger/core/adapter';
 import type { Pool } from 'pg';
 import { quoteSchema, transaction } from './schema.ts';
 import { bind, fieldValueSql, orderBySql, type SqlParams, whereSql } from './sql.ts';

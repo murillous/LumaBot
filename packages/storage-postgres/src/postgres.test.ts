@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { StoragePort } from '@zapforge/core/adapter';
+import type { StoragePort } from '@usebridger/core/adapter';
 import pg from 'pg';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { TEST_POSTGRES_URL } from './config/test-env.ts';

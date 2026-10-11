@@ -1,5 +1,5 @@
 ---
-'@zapforge/core': minor
+'@usebridger/core': minor
 ---
 
 Adiciona `InboundQueue`, a fila de entrada por chat: serializa o mesmo chat e paraleliza chats

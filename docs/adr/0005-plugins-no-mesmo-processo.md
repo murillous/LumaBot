@@ -1,6 +1,6 @@
 # ADR 0005 — Plugins no mesmo processo, isolados por try/catch + timeout
 
-**Status:** Aceito (2026-10-06) · Decisão **D05** do [plano](../../ZAPFORGE_PLAN.md#4-decisões)
+**Status:** Aceito (2026-10-06) · Decisão **D05** do [plano](../../BRIDGER_PLAN.md#4-decisões)
 
 ## Contexto
 

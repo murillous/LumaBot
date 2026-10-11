@@ -8,7 +8,7 @@ o job fica no storage. O detalhe está em [Scheduler no core](../../packages/cor
 O plugin registra o handler do job no `setup` e agenda com `at`, de onde quiser:
 
 ```ts
-import { command, definePlugin } from '@zapforge/core';
+import { command, definePlugin } from '@usebridger/core';
 
 type Lembrete = { chatId: string; texto: string };
 

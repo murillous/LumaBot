@@ -7,7 +7,7 @@ detalhe de cada regra está em [Storage no core](../../packages/core/docs/storag
 ## KV
 
 ```ts
-import { definePlugin } from '@zapforge/core';
+import { definePlugin } from '@usebridger/core';
 
 export const contador = definePlugin({
   name: 'contador',

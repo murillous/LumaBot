@@ -1,5 +1,5 @@
 ---
-'@zapforge/transport-baileys': patch
+'@usebridger/transport-baileys': patch
 ---
 
 O Baileys não declara `send.album`: no WhatsApp, a fila envia o álbum item a item. O `toContent`

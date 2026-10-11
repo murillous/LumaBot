@@ -8,17 +8,17 @@ export const TEMPLATE_DIR: string = join(import.meta.dirname, '..', 'template');
 // prefixo de rota, então o scaffold recusa antes de gerar um plugin que não carrega.
 const PLUGIN_NAME = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/;
 const PACKAGE_NAME = /^(@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/;
-const PREFIX = 'zapforge-plugin-';
+const PREFIX = 'bridger-plugin-';
 
 /** Os nomes que o template recebe, todos tirados do nome do pacote. */
 export interface PluginNames {
-  /** Nome do pacote npm (`@acme/zapforge-plugin-ola`). */
+  /** Nome do pacote npm (`@acme/bridger-plugin-ola`). */
   readonly packageName: string;
-  /** `name` do manifesto: o pacote sem escopo e sem o prefixo `zapforge-plugin-` (`ola`). */
+  /** `name` do manifesto: o pacote sem escopo e sem o prefixo `bridger-plugin-` (`ola`). */
   readonly pluginName: string;
   /** Nome do export em camelCase (`ola`, `boasVindas`). */
   readonly exportName: string;
-  /** Pasta criada: o pacote sem escopo (`zapforge-plugin-ola`). */
+  /** Pasta criada: o pacote sem escopo (`bridger-plugin-ola`). */
   readonly directory: string;
 }
 
@@ -36,7 +36,7 @@ export function pluginNames(packageName: string): PluginNames {
   if (!PACKAGE_NAME.test(packageName)) {
     throw new PluginNameError(
       `"${packageName}" não é um nome de pacote npm válido: use minúsculas, dígitos e hífens, ` +
-        'com escopo opcional (@acme/zapforge-plugin-ola).',
+        'com escopo opcional (@acme/bridger-plugin-ola).',
     );
   }
   const directory = packageName.slice(packageName.indexOf('/') + 1);

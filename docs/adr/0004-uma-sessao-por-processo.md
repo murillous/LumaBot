@@ -1,6 +1,6 @@
 # ADR 0004 — Uma sessão por processo, zero estado global
 
-**Status:** Aceito (2026-10-06) · Decisão **D04** do [plano](../../ZAPFORGE_PLAN.md#4-decisões)
+**Status:** Aceito (2026-10-06) · Decisão **D04** do [plano](../../BRIDGER_PLAN.md#4-decisões)
 
 ## Contexto
 

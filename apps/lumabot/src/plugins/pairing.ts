@@ -1,4 +1,4 @@
-import { definePlugin, type PluginDefinition } from '@zapforge/core';
+import { definePlugin, type PluginDefinition } from '@usebridger/core';
 import qrcode from 'qrcode-terminal';
 
 /** Destino do QR e do código; o app passa o stdout, os testes capturam. */

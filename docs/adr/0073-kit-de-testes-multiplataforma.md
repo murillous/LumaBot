@@ -7,7 +7,7 @@ e **D22** ([ADR 0022](0022-kit-de-autor.md)) · Segue **D70**
 
 ## Contexto
 
-O `@zapforge/testing` nasceu para o WhatsApp (#285). O `FakeTransport` declara todas as
+O `@usebridger/testing` nasceu para o WhatsApp (#285). O `FakeTransport` declara todas as
 capabilities, então os testes nunca rodam num transport sem grupos, sem citação ou sem figurinha.
 Um plugin passa no teste e é recusado no boot no Telegram, no Discord ou no web. O remetente e o
 contato da sessão padrão têm telefone.
@@ -62,12 +62,12 @@ Alternativas consideradas:
 
 ## Consequências
 
-- Mudança aditiva no `@zapforge/testing`: `PROFILES`, `PROFILE_NAMES`, `TransportProfile`,
+- Mudança aditiva no `@usebridger/testing`: `PROFILES`, `PROFILE_NAMES`, `TransportProfile`,
   `ProfileName`, a opção `profile` e o campo `FakeTransport.profile`. Nenhum teste existente muda.
 - Os IDs gerados pelo `receive()` (`in-1`, `in-2`...) recomeçam em cada `TestBot`. Antes, dois bots
   no mesmo arquivo dividiam a sequência.
 - Os perfis de Telegram, Discord e web são previsão. Quando um transport nascer e declarar algo
   diferente, o perfil muda numa minor do kit, e o teste do plugin pode passar a falhar. Esse é o
   sinal que se quer.
-- O `transport-baileys` passa a ter o `@zapforge/testing` como devDependency, só para o teste de
+- O `transport-baileys` passa a ter o `@usebridger/testing` como devDependency, só para o teste de
   sincronia.

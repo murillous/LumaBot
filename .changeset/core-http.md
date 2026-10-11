@@ -1,5 +1,5 @@
 ---
-'@zapforge/core': minor
+'@usebridger/core': minor
 ---
 
 HTTP do core (ADR 0076): `createHttp({ port })` passado em `BotConfig.http`, o mesmo servidor

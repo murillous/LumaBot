@@ -1,8 +1,8 @@
-// Entry `@zapforge/storage-postgres`: o adapter oficial para vários processos dividindo o banco
+// Entry `@usebridger/storage-postgres`: o adapter oficial para vários processos dividindo o banco
 // (D14). O app passa o port em `createBot({ storage })`; o porquê do driver e do schema está no
 // ADR 0078.
 
-import type { StoragePort } from '@zapforge/core/adapter';
+import type { StoragePort } from '@usebridger/core/adapter';
 import pg from 'pg';
 import { migrate, quoteSchema } from './schema.ts';
 import { createPostgresStorage } from './storage.ts';
@@ -12,7 +12,7 @@ export interface PostgresOptions {
   readonly connectionString: string;
   /**
    * Schema do Postgres onde o adapter cria as tabelas (criado se não existir). Padrão:
-   * `'zapforge'`. Bots que dividem o banco e os dados usam o mesmo; para separar, outro nome.
+   * `'bridger'`. Bots que dividem o banco e os dados usam o mesmo; para separar, outro nome.
    */
   readonly schema?: string;
 }
@@ -22,7 +22,7 @@ export interface PostgresOptions {
  * se o schema foi gravado por uma versão mais nova do adapter; nesses casos fecha as conexões.
  */
 export async function postgres(options: PostgresOptions): Promise<StoragePort> {
-  const schema = options.schema ?? 'zapforge';
+  const schema = options.schema ?? 'bridger';
   quoteSchema(schema);
   const pool = new pg.Pool({ connectionString: options.connectionString });
   // Conexão ociosa que cai (banco reiniciado, rede) emite no pool; sem ouvinte, o Node derruba

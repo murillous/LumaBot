@@ -6,7 +6,7 @@ para a licença dos transports novos
 
 ## Contexto
 
-O plano nasceu para o WhatsApp. O D03 entrega só o `@zapforge/transport-baileys` na v1 e deixa os
+O plano nasceu para o WhatsApp. O D03 entrega só o `@usebridger/transport-baileys` na v1 e deixa os
 outros transports para depois, todos de WhatsApp (Cloud API, Twilio e Zenvia) e comerciais, no
 repo privado do D29. O próprio ADR 0003 registra o risco de a interface ficar com o formato do
 Baileys.
@@ -46,7 +46,7 @@ Alternativas consideradas:
 - **Um transport por `Bot`**, como no ADR 0004. Quem atende mais de uma plataforma sobe um `Bot`
   por transport, no mesmo processo e com o mesmo storage. O escopo dos dados entre esses bots fica
   para o ADR do tema E (#279).
-- **Contrato neutro validado antes do 1.0.** Um `@zapforge/transport-web` mínimo entra no M3,
+- **Contrato neutro validado antes do 1.0.** Um `@usebridger/transport-web` mínimo entra no M3,
   junto com o HTTP do core (#120), e valida o contrato (#287). O release 1.0 (#155) só sai depois
   que um plugin portátil roda sem mudança no Baileys e no web.
 - **O web é o segundo transport** porque o dono controla as duas pontas (widget e servidor). Ele
@@ -76,4 +76,4 @@ Alternativas consideradas:
   aceito porque são eles que provam o contrato.
 - As docs do core perdem o enquadramento de WhatsApp (#286). O exemplo de cada conceito usa o
   vocabulário neutro do contrato, e o que é de uma plataforma vai para a doc do transport.
-- O nome "ZapForge" e o público inicial ficam numa decisão à parte (#290).
+- O nome "Bridger" e o público inicial ficam numa decisão à parte (#290).

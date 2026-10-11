@@ -14,7 +14,7 @@ interface Contador {
   incrementa(): Promise<number>;
 }
 
-declare module '@zapforge/core' {
+declare module '@usebridger/core' {
   interface Services {
     contador: Contador;
   }

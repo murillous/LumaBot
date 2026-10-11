@@ -109,7 +109,7 @@ lança `ContextExpiredError`. Um handler atrasado não abre uma conversa que nin
 
 ## Testando
 
-Com o kit (`@zapforge/testing`), a conversa é uma sequência de mensagens:
+Com o kit (`@usebridger/testing`), a conversa é uma sequência de mensagens:
 
 ```ts
 const bot = await createTestBot({ plugins: [notas] });

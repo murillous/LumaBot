@@ -1,6 +1,6 @@
 # ADR 0012 — Pipeline de 3 estágios
 
-**Status:** Aceito (2026-10-06) · Decisão **D12** do [plano](../../ZAPFORGE_PLAN.md#4-decisões) · Papéis custom no estágio de middlewares: substituído pelo [ADR 0035](0035-papeis-nomeados-por-plugin.md)
+**Status:** Aceito (2026-10-06) · Decisão **D12** do [plano](../../BRIDGER_PLAN.md#4-decisões) · Papéis custom no estágio de middlewares: substituído pelo [ADR 0035](0035-papeis-nomeados-por-plugin.md)
 
 ## Contexto
 
@@ -12,7 +12,7 @@ Alternativas consideradas: listeners em série com "primeiro que retornar true".
 
 ## Decisão
 
-Cada mensagem passa por três estágios ([plano §5.3](../../ZAPFORGE_PLAN.md#53-fluxo-de-uma-mensagem)):
+Cada mensagem passa por três estágios ([plano §5.3](../../BRIDGER_PLAN.md#53-fluxo-de-uma-mensagem)):
 
 1. **Middlewares** em onion (estilo Koa), por prioridade: ignore-self, rate limit,
    allow/blocklist, sanitização, papéis custom.

@@ -1,5 +1,5 @@
 ---
-'@zapforge/testing': minor
+'@usebridger/testing': minor
 ---
 
 Perfis de plataforma no kit (ADR 0073): `new FakeTransport({ profile })` e

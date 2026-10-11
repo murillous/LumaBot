@@ -1,16 +1,16 @@
-# @zapforge/storage-postgres — documentação
+# @usebridger/storage-postgres — documentação
 
-Adapter de storage do ZapForge para vários processos (ou máquinas) dividindo o mesmo banco. Ele
+Adapter de storage do Bridger para vários processos (ou máquinas) dividindo o mesmo banco. Ele
 implementa o `StoragePort` do core ([Storage](../../core/docs/storage.md)) e passa na mesma suíte
-de contrato do [`@zapforge/storage-sqlite`](../../storage-sqlite/docs/README.md). O porquê do
+de contrato do [`@usebridger/storage-sqlite`](../../storage-sqlite/docs/README.md). O porquê do
 driver e do schema está no [ADR 0078](../../../docs/adr/0078-postgres-via-pg.md).
 
 ## Uso
 
 ```ts
-import { createBot } from '@zapforge/core';
-import { postgres } from '@zapforge/storage-postgres';
-import { baileys } from '@zapforge/transport-baileys';
+import { createBot } from '@usebridger/core';
+import { postgres } from '@usebridger/storage-postgres';
+import { baileys } from '@usebridger/transport-baileys';
 
 const bot = createBot({
   transport: baileys(),
@@ -27,7 +27,7 @@ O bot fecha o storage no `stop()`, o que encerra as conexões.
 | Opção | Efeito |
 | --- | --- |
 | `connectionString` | URL do banco (`postgres://usuario:senha@host:5432/banco`), com os parâmetros que o [`pg`](https://node-postgres.com/features/connecting) aceita (`?sslmode=require`, por exemplo) |
-| `schema` | Schema do Postgres onde ficam as tabelas. Padrão: `zapforge`. Criado se não existir; aceita `[a-z_][a-z0-9_]*`, até 63 caracteres |
+| `schema` | Schema do Postgres onde ficam as tabelas. Padrão: `bridger`. Criado se não existir; aceita `[a-z_][a-z0-9_]*`, até 63 caracteres |
 
 `postgres()` é assíncrona: conecta, cria o schema e aplica as migrations. Ela rejeita se o banco
 não responde, se o usuário não pode criar o schema ou se o schema foi gravado por uma versão mais
@@ -81,11 +81,11 @@ edite uma migration que já foi publicada.
 
 ## Testes
 
-Os testes do banco precisam de um Postgres, indicado em `ZAPFORGE_TEST_POSTGRES_URL`:
+Os testes do banco precisam de um Postgres, indicado em `BRIDGER_TEST_POSTGRES_URL`:
 
 ```sh
-docker run -d --name zapforge-pg -e POSTGRES_PASSWORD=postgres -p 55432:5432 postgres:17-alpine
-ZAPFORGE_TEST_POSTGRES_URL=postgres://postgres:postgres@localhost:55432/postgres pnpm test
+docker run -d --name bridger-pg -e POSTGRES_PASSWORD=postgres -p 55432:5432 postgres:17-alpine
+BRIDGER_TEST_POSTGRES_URL=postgres://postgres:postgres@localhost:55432/postgres pnpm test
 ```
 
 Sem a variável, esses testes são pulados. No CI eles são obrigatórios: o job de testes sobe um

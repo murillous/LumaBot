@@ -2,7 +2,7 @@
 // o contrato com o front; o cliente de referência (`./client.ts`) os usa, e o servidor valida o
 // que chega antes de confiar.
 
-import type { FormattedText } from '@zapforge/core';
+import type { FormattedText } from '@usebridger/core';
 
 /** Fechamento: o primeiro frame não é um `auth` válido (ou chegou outro frame antes do `ready`). */
 export const CLOSE_INVALID_AUTH = 4400;

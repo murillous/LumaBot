@@ -6,17 +6,17 @@ está em [Services no core](../../packages/core/docs/services.md).
 
 ## Prover
 
-O provedor declara o tipo do service na interface `Services` do `@zapforge/core` e o publica no
+O provedor declara o tipo do service na interface `Services` do `@usebridger/core` e o publica no
 `setup`:
 
 ```ts
-import { definePlugin } from '@zapforge/core';
+import { definePlugin } from '@usebridger/core';
 
 export interface TraducaoService {
   traduzir(texto: string, idioma: string): Promise<string>;
 }
 
-declare module '@zapforge/core' {
+declare module '@usebridger/core' {
   interface Services {
     traducao: TraducaoService;
   }
@@ -34,7 +34,7 @@ export const traducao = definePlugin({
 });
 ```
 
-O `declare module` mira `'@zapforge/core'`, o mesmo nome que o plugin importa. Com ele, `provide`
+O `declare module` mira `'@usebridger/core'`, o mesmo nome que o plugin importa. Com ele, `provide`
 só aceita o nome declarado e a implementação com o tipo certo.
 
 ## Consumir
@@ -43,8 +43,8 @@ Quem consome declara `dependsOn` no provedor. O boot carrega o provedor antes, e
 funciona no `setup`:
 
 ```ts
-import { command, definePlugin } from '@zapforge/core';
-import type {} from 'zapforge-plugin-traducao'; // traz o `declare module` para o tipo do `get`
+import { command, definePlugin } from '@usebridger/core';
+import type {} from 'bridger-plugin-traducao'; // traz o `declare module` para o tipo do `get`
 
 export const ingles = definePlugin({
   name: 'ingles',

@@ -10,7 +10,7 @@ import { ServiceConflictError } from '#services/registry.ts';
 import { createBot } from './bot.ts';
 import { deferred, RecordingTransport, recordingLogger } from './harness.test-support.ts';
 
-declare module '@zapforge/core' {
+declare module '@usebridger/core' {
   interface Roles {
     'test.boot-papel': true;
   }

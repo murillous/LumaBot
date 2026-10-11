@@ -11,7 +11,7 @@ import { textMessage } from '#transport/fake-transport.test-support.ts';
 import { type Bot, type BotConfig, createBot } from './bot.ts';
 import { RecordingTransport, recordingLogger, sentTexts } from './harness.test-support.ts';
 
-declare module '@zapforge/core' {
+declare module '@usebridger/core' {
   interface Services {
     'test.contador': { incr(): Promise<number> };
   }

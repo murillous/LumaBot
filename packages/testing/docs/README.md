@@ -1,4 +1,4 @@
-# @zapforge/testing — documentação
+# @usebridger/testing — documentação
 
 Kit para testar plugins sem rede. Ele sobe um `Bot` de verdade (plugins, filas, middlewares,
 roteador) sobre o `FakeTransport`, que guarda o que o bot envia. O porquê das escolhas está no
@@ -7,7 +7,7 @@ roteador) sobre o `FakeTransport`, que guarda o que o bot envia. O porquê das e
 ## Instalação
 
 ```sh
-pnpm add -D @zapforge/testing vitest
+pnpm add -D @usebridger/testing vitest
 ```
 
 O kit funciona só com o Vitest (`vitest` é peer dependency). Importar o pacote registra os
@@ -16,7 +16,7 @@ matchers. Não é preciso configurar nada no `vitest.config`.
 ## Primeiro teste
 
 ```ts
-import { createTestBot, fixtures } from '@zapforge/testing';
+import { createTestBot, fixtures } from '@usebridger/testing';
 import { afterEach, expect, it } from 'vitest';
 import { sticker } from './index.ts';
 
@@ -47,7 +47,7 @@ iniciado. Os padrões mudam para o caso de teste:
 | `transport` | `new FakeTransport()`, com todas as capabilities | |
 | `profile` | nenhum | Atalho para `transport: new FakeTransport({ profile })` ([perfis](#perfis-de-plataforma)). Não combina com `transport` |
 | `logger` | `silent` | Saída limpa. Com `logLevel`, o bot cria o logger dele |
-| `env` | `{}` | Nenhum `ZAPFORGE_*` da máquina entra na config dos plugins |
+| `env` | `{}` | Nenhum `BRIDGER_*` da máquina entra na config dos plugins |
 | `outbound` | `globalIntervalMs` e `chatIntervalMs` em 0 | Os envios saem na hora |
 | `reconnection` | `false` | |
 | `storage` | em memória (padrão do core) | |
@@ -175,7 +175,7 @@ transport real. Owner por telefone não casa com o remetente sem telefone; use `
 ### O mesmo teste em todos os perfis
 
 ```ts
-import { createTestBot, PROFILE_NAMES } from '@zapforge/testing';
+import { createTestBot, PROFILE_NAMES } from '@usebridger/testing';
 
 describe.each(PROFILE_NAMES)('no %s', (profile) => {
   it('responde ao !ping', async () => {
@@ -220,7 +220,7 @@ Um plugin que decodifica a mídia (sharp, ffmpeg) falha com bytes quaisquer, com
 `receive()`:
 
 ```ts
-import { createTestBot, fixtures } from '@zapforge/testing';
+import { createTestBot, fixtures } from '@usebridger/testing';
 
 await bot.receive({ text: '!s', image: fixtures.image() });
 await bot.receive({ text: '!s', quoted: { video: fixtures.video() } });
@@ -328,14 +328,14 @@ transport real. Um plugin que exige essa capability (`requires`) é ignorado no 
 O `self` é `null` até o `connect()` e depois vale o `self` passado nas opções, o do perfil ou
 `DEFAULT_SELF`.
 
-## Fora do Vitest: `@zapforge/testing/bot`
+## Fora do Vitest: `@usebridger/testing/bot`
 
 O entry principal importa o `vitest` para registrar os matchers. Para subir o bot de teste fora de
-um teste, como num benchmark ou num script, importe de `@zapforge/testing/bot`. Ele exporta o
+um teste, como num benchmark ou num script, importe de `@usebridger/testing/bot`. Ele exporta o
 mesmo (`createTestBot`, `FakeTransport`, `fixtures`...), sem os matchers e sem carregar o Vitest.
 
 ```ts
-import { createTestBot } from '@zapforge/testing/bot';
+import { createTestBot } from '@usebridger/testing/bot';
 ```
 
 ## Limites

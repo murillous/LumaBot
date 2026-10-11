@@ -9,7 +9,7 @@ guia cobre o caso comum. O detalhe de cada regra está em
 Comando fixo vai direto no manifesto, em `commands`. O nome vem da chave:
 
 ```ts
-import { definePlugin } from '@zapforge/core';
+import { definePlugin } from '@usebridger/core';
 
 export const sorteio = definePlugin({
   name: 'sorteio',
@@ -160,7 +160,7 @@ setup(ctx) {
 ```
 
 Os passos se registram no `setup`, por isso este comando usa a forma longa
-(`ctx.commands.add(command({...}))`, com `command` importado de `@zapforge/core`). Encadear passos,
+(`ctx.commands.add(command({...}))`, com `command` importado de `@usebridger/core`). Encadear passos,
 validade e cancelamento estão em [Conversas](../../packages/core/docs/conversations.md).
 
 ## Botões
@@ -190,7 +190,7 @@ recusa e reload são iguais. Mais em
 ## Testar
 
 ```ts
-import { createTestBot } from '@zapforge/testing';
+import { createTestBot } from '@usebridger/testing';
 import { expect, it } from 'vitest';
 import { sorteio } from './index.ts';
 

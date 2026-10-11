@@ -1,5 +1,5 @@
 ---
-'@zapforge/core': minor
+'@usebridger/core': minor
 ---
 
 Ações e botões: o clique dispara um comando, com fallback em texto numerado (ADR 0062).
@@ -16,4 +16,4 @@ Ações e botões: o clique dispara um comando, com fallback em texto numerado (
   remetente responder roda a ação.
 - `CommandRouter.dispatch` ganha o segundo parâmetro opcional `invocation`.
 - Novos exports: os tipos `CommandAction`, `MessageAction`, `StepAction`, `ReplyTextOptions` e
-  `OutgoingAction`, e `Interaction` em `@zapforge/core/adapter`.
+  `OutgoingAction`, e `Interaction` em `@usebridger/core/adapter`.

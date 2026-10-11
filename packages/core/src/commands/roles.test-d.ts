@@ -1,9 +1,9 @@
-// Papéis por declaration merging contra `@zapforge/core`, como um plugin faz (ADR 0035).
-import type { CommandRole, PluginContext } from '@zapforge/core';
+// Papéis por declaration merging contra `@usebridger/core`, como um plugin faz (ADR 0035).
+import type { CommandRole, PluginContext } from '@usebridger/core';
 import { describe, expectTypeOf, it } from 'vitest';
 import { command } from '#commands/command.ts';
 
-declare module '@zapforge/core' {
+declare module '@usebridger/core' {
   interface Roles {
     'tipo.curador': true;
   }

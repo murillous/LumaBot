@@ -10,26 +10,26 @@ afterEach(() => {
 });
 
 function tempDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'create-zapforge-plugin-'));
+  const dir = mkdtempSync(join(tmpdir(), 'create-bridger-plugin-'));
   dirs.push(dir);
   return dir;
 }
 
 describe('pluginNames', () => {
-  it('tira o prefixo zapforge-plugin- do nome do plugin', () => {
-    expect(pluginNames('zapforge-plugin-ola')).toEqual({
-      packageName: 'zapforge-plugin-ola',
+  it('tira o prefixo bridger-plugin- do nome do plugin', () => {
+    expect(pluginNames('bridger-plugin-ola')).toEqual({
+      packageName: 'bridger-plugin-ola',
       pluginName: 'ola',
       exportName: 'ola',
-      directory: 'zapforge-plugin-ola',
+      directory: 'bridger-plugin-ola',
     });
   });
 
   it('com escopo, a pasta e o plugin saem sem ele', () => {
-    expect(pluginNames('@acme/zapforge-plugin-boas-vindas')).toMatchObject({
+    expect(pluginNames('@acme/bridger-plugin-boas-vindas')).toMatchObject({
       pluginName: 'boas-vindas',
       exportName: 'boasVindas',
-      directory: 'zapforge-plugin-boas-vindas',
+      directory: 'bridger-plugin-boas-vindas',
     });
   });
 
@@ -44,7 +44,7 @@ describe('pluginNames', () => {
     expect(() => pluginNames(name)).toThrow(PluginNameError);
   });
 
-  it.each(['zapforge-plugin-2fa', 'meu_plugin', 'zapforge-plugin-', 'a--b'])(
+  it.each(['bridger-plugin-2fa', 'meu_plugin', 'bridger-plugin-', 'a--b'])(
     'recusa %j, que não serve de nome de plugin',
     (name) => {
       expect(() => pluginNames(name)).toThrow(/não serve de nome de plugin/);
@@ -54,9 +54,9 @@ describe('pluginNames', () => {
 
 describe('generate', () => {
   it('copia o template com os nomes no lugar dos marcadores', () => {
-    const target = join(tempDir(), 'zapforge-plugin-boas-vindas');
+    const target = join(tempDir(), 'bridger-plugin-boas-vindas');
 
-    generate(target, pluginNames('@acme/zapforge-plugin-boas-vindas'));
+    generate(target, pluginNames('@acme/bridger-plugin-boas-vindas'));
 
     const index = readFileSync(join(target, 'src', 'index.ts'), 'utf8');
     expect(index).toContain('export const boasVindas: PluginDefinition');
@@ -65,16 +65,16 @@ describe('generate', () => {
       "import { boasVindas } from './index.ts'",
     );
     const manifest = JSON.parse(readFileSync(join(target, 'package.json'), 'utf8'));
-    expect(manifest.name).toBe('@acme/zapforge-plugin-boas-vindas');
+    expect(manifest.name).toBe('@acme/bridger-plugin-boas-vindas');
     expect(readFileSync(join(target, 'README.md'), 'utf8')).toContain(
-      "import { boasVindas } from '@acme/zapforge-plugin-boas-vindas'",
+      "import { boasVindas } from '@acme/bridger-plugin-boas-vindas'",
     );
   });
 
   it('não deixa marcador para trás', () => {
     const target = join(tempDir(), 'p');
 
-    generate(target, pluginNames('zapforge-plugin-ola'));
+    generate(target, pluginNames('bridger-plugin-ola'));
 
     for (const entry of readdirSync(target, { recursive: true, withFileTypes: true })) {
       if (!entry.isFile()) continue;
@@ -86,7 +86,7 @@ describe('generate', () => {
   it('o _gitignore vira .gitignore', () => {
     const target = join(tempDir(), 'p');
 
-    generate(target, pluginNames('zapforge-plugin-ola'));
+    generate(target, pluginNames('bridger-plugin-ola'));
 
     expect(readdirSync(target)).toContain('.gitignore');
     expect(readdirSync(target)).not.toContain('_gitignore');
@@ -96,7 +96,7 @@ describe('generate', () => {
     const target = join(tempDir(), 'p');
     mkdirSync(target);
 
-    generate(target, pluginNames('zapforge-plugin-ola'));
+    generate(target, pluginNames('bridger-plugin-ola'));
 
     expect(readdirSync(target)).toContain('package.json');
   });
@@ -105,7 +105,7 @@ describe('generate', () => {
     const target = tempDir();
     writeFileSync(join(target, 'package.json'), '{}');
 
-    expect(() => generate(target, pluginNames('zapforge-plugin-ola'))).toThrow(TargetNotEmptyError);
+    expect(() => generate(target, pluginNames('bridger-plugin-ola'))).toThrow(TargetNotEmptyError);
     expect(readFileSync(join(target, 'package.json'), 'utf8')).toBe('{}');
   });
 });

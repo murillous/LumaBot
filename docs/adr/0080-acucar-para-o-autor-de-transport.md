@@ -36,7 +36,7 @@ Alternativas consideradas:
 
 ## Decisão
 
-- **`defineTransport(build)`** em `@zapforge/core/adapter`. O `build(deps, kit)` devolve uma
+- **`defineTransport(build)`** em `@usebridger/core/adapter`. O `build(deps, kit)` devolve uma
   `TransportSpec`: o contrato sem `on` e `self`, com `capabilities` em lista e os métodos de
   capability (`react`, `edit`, `delete`, `sendTyping`, `getGroupMetadata`,
   `updateGroupParticipants`) opcionais, como `raw`, `isChatAdmin`, `native`, `limits` e `pacing`.
@@ -62,7 +62,7 @@ Alternativas consideradas:
 - Um transport mínimo cabe em `name`, `capabilities`, `connect`, `disconnect` e `send`.
 - A capability com erro de digitação e o método faltando passam a derrubar o `createBot`, com a
   lista do que está errado. Antes, apareciam só quando um plugin usava o recurso.
-- `defineTransport`, `TransportSpec` e `TransportKit` saem em `@zapforge/core/adapter`.
+- `defineTransport`, `TransportSpec` e `TransportKit` saem em `@usebridger/core/adapter`.
 - A checagem roda uma vez, no `createBot`. O caminho quente não muda para os adapters em classe;
   no do `defineTransport`, cada chamada passa por um invólucro com a checagem de capability.
 - Fica de fora: um helper para o `raw` (o `WeakMap` do ADR 0066) e a idempotência automática do

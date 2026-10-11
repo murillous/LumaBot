@@ -7,7 +7,7 @@ import { configDefaults, defineConfig } from 'vitest/config';
 const projects = globSync(['{packages,plugins,apps}/*/package.json', 'bench/package.json']).map(
   (manifest) => {
     const { name } = JSON.parse(readFileSync(manifest, 'utf8')) as { name: string };
-    // `template/` é o projeto que o create-zapforge-plugin copia: o teste dele roda no projeto
+    // `template/` é o projeto que o create-bridger-plugin copia: o teste dele roda no projeto
     // gerado (e2e do pacote), não aqui, onde os marcadores `__export__` não resolvem.
     return {
       test: { name, root: dirname(manifest), exclude: [...configDefaults.exclude, 'template/**'] },
@@ -16,10 +16,10 @@ const projects = globSync(['{packages,plugins,apps}/*/package.json', 'bench/pack
 );
 
 export default defineConfig({
-  // Resolve @zapforge/* direto no src/ (condição de exports), sem build antes dos testes.
+  // Resolve @usebridger/* direto no src/ (condição de exports), sem build antes dos testes.
   // (resolve vale para ambientes de browser/jsdom; ssr para o ambiente node, o padrão).
-  resolve: { conditions: ['@zapforge/source'] },
-  ssr: { resolve: { conditions: ['@zapforge/source'] } },
+  resolve: { conditions: ['@usebridger/source'] },
+  ssr: { resolve: { conditions: ['@usebridger/source'] } },
   test: {
     passWithNoTests: true,
     // Sem pacotes ainda, não há o que rodar (e o include padrão pegaria os testes de legacy/).

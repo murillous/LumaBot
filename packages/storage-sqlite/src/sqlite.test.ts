@@ -10,7 +10,7 @@ let dir: string;
 let file: string;
 
 beforeEach(() => {
-  dir = mkdtempSync(join(tmpdir(), 'zapforge-sqlite-'));
+  dir = mkdtempSync(join(tmpdir(), 'bridger-sqlite-'));
   file = join(dir, 'bot.sqlite');
 });
 

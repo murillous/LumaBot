@@ -1,5 +1,5 @@
 ---
-'@zapforge/transport-baileys': minor
+'@usebridger/transport-baileys': minor
 ---
 
 Emite `poll.vote` (ADR 0071). O transport guarda em memória as enquetes que envia e recebe (até

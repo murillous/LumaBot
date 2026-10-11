@@ -6,8 +6,8 @@
 // contrato manda (campo ausente vale `null`). Assim a igualdade do `jsonb` já compara tipo e
 // valor (`1`, `"1"` e `true` são diferentes) e nunca dá NULL, e o `ne` é o `NOT` exato do `eq`.
 
-import type { Scalar } from '@zapforge/core';
-import type { NormalizedCondition, NormalizedSort } from '@zapforge/core/adapter';
+import type { Scalar } from '@usebridger/core';
+import type { NormalizedCondition, NormalizedSort } from '@usebridger/core/adapter';
 
 /** Parâmetros da consulta, na ordem dos `$n`; cada fragmento acrescenta os seus. */
 export type SqlParams = unknown[];

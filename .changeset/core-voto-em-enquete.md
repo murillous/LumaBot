@@ -1,5 +1,5 @@
 ---
-'@zapforge/core': minor
+'@usebridger/core': minor
 ---
 
 Evento `poll.vote` (ADR 0071): o voto numa enquete chega ao plugin com

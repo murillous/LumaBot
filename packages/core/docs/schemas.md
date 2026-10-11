@@ -60,8 +60,8 @@ marca um campo como segredo. O valor final sai de quatro camadas, campo a campo:
 const pluginConfig = {
   sticker: { quality: 90, messages: { needMedia: 'Mande uma imagem' } },
 };
-// Env: ZAPFORGE_<PLUGIN>__<CAMPO>[__<SUBCAMPO>…]
-// ZAPFORGE_STICKER__QUALITY=90
+// Env: BRIDGER_<PLUGIN>__<CAMPO>[__<SUBCAMPO>…]
+// BRIDGER_STICKER__QUALITY=90
 ```
 
 | Quando | O que acontece com config inválida |
@@ -74,7 +74,7 @@ const pluginConfig = {
 
 **JSON Schema para o dashboard.** `bot.config.jsonSchema(nome)` devolve o schema de **entrada**
 (campo com default é opcional), gerado pelo `toJSONSchema` do Zod. Campo `secret()` sai com
-`secret: true`, `writeOnly: true` e `x-zapforge-override: false`, e o `default` dele trocado por
+`secret: true`, `writeOnly: true` e `x-bridger-override: false`, e o `default` dele trocado por
 `'********'`. Transform, que não tem JSON Schema, vira `{}`. Plugin sem `config` devolve
 `undefined`.
 

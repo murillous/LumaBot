@@ -1,5 +1,5 @@
 ---
-'@zapforge/core': minor
+'@usebridger/core': minor
 ---
 
 Pipeline integrado no `Bot` (M1-16): `createBot()` passa a aceitar `storage`, `plugins`,

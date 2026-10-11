@@ -1,5 +1,5 @@
 ---
-'@zapforge/core': minor
+'@usebridger/core': minor
 ---
 
 `bot.stats()` expõe as métricas das filas de entrada e de saída (#204). Ele devolve `{ inbound,

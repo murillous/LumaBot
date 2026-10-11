@@ -21,7 +21,7 @@ jobs:
   release:
     name: Release
     # Fork ou branch errada no workflow_dispatch não publicam.
-    if: github.repository == 'murillous/LumaBot' && github.ref == 'refs/heads/develop'
+    if: github.repository == 'murillous/usebridger' && github.ref == 'refs/heads/develop'
     runs-on: ubuntu-latest
     # O mesmo Postgres do ci.yml: o gate roda a suíte inteira.
     services:
@@ -37,7 +37,7 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     env:
-      ZAPFORGE_TEST_POSTGRES_URL: postgres://postgres:postgres@localhost:5432/postgres
+      BRIDGER_TEST_POSTGRES_URL: postgres://postgres:postgres@localhost:5432/postgres
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
@@ -75,7 +75,7 @@ jobs:
           publish-script: pnpm release
           commit-message: 'chore(release): versão dos pacotes'
           pr-title: 'chore(release): versão dos pacotes'
-          # Tags `@zapforge/<pacote>@<versão>` sim; o changelog fica no CHANGELOG.md de cada pacote.
+          # Tags `@usebridger/<pacote>@<versão>` sim; o changelog fica no CHANGELOG.md de cada pacote.
           create-github-releases: false
         env:
           # O pnpm só lê config de env com o prefixo dele; NPM_CONFIG_PROVENANCE seria ignorado.

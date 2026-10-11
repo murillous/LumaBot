@@ -1,5 +1,5 @@
 ---
-'@zapforge/core': minor
+'@usebridger/core': minor
 ---
 
 Pipeline de middlewares em onion com prioridade (`MiddlewarePipeline`) e os middlewares

@@ -1,4 +1,4 @@
-# ZapForge — Plano do Kernel
+# Bridger — Plano do Kernel
 
 > Documento de planejamento consolidado a partir da sessão de levantamento de requisitos
 > de 2026-10-06. Fonte única de verdade para criar o GitHub Project (milestones, issues e
@@ -25,7 +25,7 @@
 
 ## 1. Visão
 
-**ZapForge** é um *kernel* para bots de mensageria (WhatsApp, Discord, Telegram e sistemas web
+**Bridger** é um *kernel* para bots de mensageria (WhatsApp, Discord, Telegram e sistemas web
 próprios, D55) que contém apenas
 o indispensável — conexão, modelo de mensagem, roteamento, filas, armazenamento, configuração
 e ciclo de vida de plugins. **Todo o resto é plugin.**
@@ -47,7 +47,7 @@ diferentes *runners* (Fabric, Forge, NeoForge ↔ Baileys, web, Telegram, Discor
 roda em todo transporte, e o plugin declara o que precisa.
 
 O **LumaBot** deixa de ser o produto e passa a ser o **app de referência**: a Luma (IA com
-persona) vira um plugin do ZapForge.
+persona) vira um plugin do Bridger.
 
 ---
 
@@ -75,9 +75,9 @@ valida que a API de plugins é suficiente.
 
 ## 3. Diagnóstico do LumaBot atual
 
-Débitos que **impedem** um kernel de verdade e que o ZapForge deve corrigir por design:
+Débitos que **impedem** um kernel de verdade e que o Bridger deve corrigir por design:
 
-| # | Débito | Evidência | Correção no ZapForge |
+| # | Débito | Evidência | Correção no Bridger |
 |---|---|---|---|
 | 1 | `MessagingPort` vaza o Baileys | `bot.socket`, `bot.raw`, `bot.innerMessage` usados em `GroupService`, `LumaHandler`, `ToolDispatcher`, `SpontaneousHandler` | Modelo de mensagem normalizado + `media.download()` + capabilities; escape hatch explícito `ctx.unsafe.native` |
 | 2 | Comandos centralizados | `CommandRouter` é um `if` gigante sobre `COMMANDS`; criar comando = editar 3 arquivos do core; `includes()` gera falsos positivos | Comandos declarados pelo plugin; match por token inicial exato; conflito = erro no boot |
@@ -86,7 +86,7 @@ Débitos que **impedem** um kernel de verdade e que o ZapForge deve corrigir por
 | 5 | DI pela metade | `Container`/`StoragePort` só usados em testes | `StoragePort` é o caminho real; services injetados via contexto |
 | 6 | Dispatch sequencial sem isolamento | `onMessage` de todos os plugins com `await` em série; exceção ou trava afeta os demais | Listeners em paralelo, cada um com try/catch + timeout + log com nome do plugin |
 | 7 | `MessageRouter` com múltiplas responsabilidades | Rate limit, sanitização, tracking de usuário e roteamento juntos; `rateLimiter` é um `Map` nunca limpo (vazamento) | Cada responsabilidade vira middleware; estruturas com expiração; teste de memória no benchmark |
-| 8 | Higiene | 155 imports relativos; `export default` em `index.js`; `catch {}` vazio em `ConnectionManager.closeSafely`; `process.env` fora de `env.js` | Regras do Biome + aliases `@zapforge/*` + CI |
+| 8 | Higiene | 155 imports relativos; `export default` em `index.js`; `catch {}` vazio em `ConnectionManager.closeSafely`; `process.env` fora de `env.js` | Regras do Biome + aliases `@usebridger/*` + CI |
 | 9 | Sem contrato de eventos | Só `messages.upsert` chega aos plugins | Barramento tipado: mensagem, reação, edição, deleção, grupo (entrada/saída/update), conexão, QR |
 | 10 | Sem fila de saída | Só há rate limit de entrada; rajadas de envio arriscam ban | Fila de saída com taxa global/por chat, prioridade e retry |
 | 11 | Auth em arquivos | `useMultiFileAuthState` (não recomendado pelo Baileys em produção) | Auth state no `StoragePort` (SQLite/Postgres) |
@@ -119,23 +119,23 @@ decisão anterior.
 | D15 | **API de storage: KV com namespace + coleções** com `find`/filtros/ordenação/limite e índices declarados; sem SQL cru na API pública | Só KV; SQL com migrations por plugin | Cobre ranking e lembretes sem amarrar plugin ao engine |
 | D16 | **Manifesto do plugin**: `name`, `version`, `engine` (semver do core, obrigatório), `requires` (capabilities), `transports` (opcional), `dependsOn` (semver) | Fixar sempre o transporte | Todos os transportes falam a mesma API — capability é mais precisa que runner |
 | D17 | **Config por plugin com Zod 4**, campos `secret`; precedência env > arquivo > overrides do dashboard (storage) > default; mudança de config faz `teardown` → `setup` do plugin sem reiniciar o processo | Valibot; TypeBox; config manual | Zod exporta JSON Schema para o dashboard gerar formulários |
-| D18 | **Service registry entre plugins** (`provides` / `ctx.services.get`) tipado por declaration merging | Interface de IA no core | Mantém D06; extrair `@zapforge/ai-contract` só se surgirem plugins de IA concorrentes |
+| D18 | **Service registry entre plugins** (`provides` / `ctx.services.get`) tipado por declaration merging | Interface de IA no core | Mantém D06; extrair `@usebridger/ai-contract` só se surgirem plugins de IA concorrentes |
 | D19 | **Fila de saída anti-ban no core**: taxa global e por chat, prioridade (comando > broadcast), retry com backoff; humanização (presença "digitando") opcional por transporte | Responsabilidade do plugin | Essencial para uso comercial; `ctx.reply()` passa pela fila de forma transparente |
 | D20 | **Servidor HTTP único no core** (Hono sobre `node:http`), sobe só se alguém registrar rota; `/health`; rotas com namespace `/plugins/<name>/...` | Servidor por plugin; nenhum HTTP | Webhooks de Cloud API/Twilio/Zenvia + dashboard numa porta só |
 | D21 | **Dashboard vira plugin** (`plugin-dashboard`), lendo eventos do barramento e schemas de config; fim do protocolo stdout | Supervisor separado | Protocolo de stdout é frágil; plugin pesado valida a API. Dashboard central multi-número = projeto comercial futuro |
-| D22 | **Kit de autor na v1**: `@zapforge/testing` (FakeTransport, `createTestBot`), `create-zapforge-plugin`, docs "primeiro plugin em 5 min" + referência via TypeDoc | Só docs | Sem kit de testes o ecossistema fica frágil; o próprio core usa o kit |
+| D22 | **Kit de autor na v1**: `@usebridger/testing` (FakeTransport, `createTestBot`), `create-bridger-plugin`, docs "primeiro plugin em 5 min" + referência via TypeDoc | Só docs | Sem kit de testes o ecossistema fica frágil; o próprio core usa o kit |
 | D23 | **Migração incremental**: LumaBot atual em `legacy/` em produção, testes intactos; plugins portados por complexidade; virada na paridade | Big-bang | Produção não para; paridade é critério de aceite objetivo |
 | D24 | **Papéis no core**: `owner` / `group-admin` / `everyone` verificados pelo roteador; allow/blocklist de chats como middleware oficial; papéis custom via middleware de plugin (substituído por D35) | Sem papéis | Hoje qualquer um pode alterar personas/config |
 | D25 | **Sem i18n formal na v1**; mensagens ao usuário isoladas num objeto `messages` sobrescrevível pela config do plugin | `ctx.t()` na v1 | Público inicial BR; i18n entra depois sem quebrar |
 | D26 | **Tooling**: Node 24 LTS+, pnpm, TS executado direto no Node em dev e `tsdown` para publicar (JS + `.d.ts`), Vitest, Biome | Node 18/20/22; tsup (em manutenção); ESLint + Prettier | LTS mais longo; pnpm estrito evita dependência fantasma em plugins; Biome = uma ferramenta, rápida |
 | D27 | **Releases com Changesets**; `0.x` livre; após 1.0, remoção só após ciclo `@deprecated` de ≥ 1 minor; APIs novas podem nascer `@experimental` | Versionamento manual | Comunidade depende de `engine: '^1.0.0'` |
 | D28 | **Licença Apache-2.0** no core e plugins públicos; `legacy/` continua MIT | MIT; AGPL dual | Concessão explícita de patentes, adequada a uso comercial |
-| D29 | **Open core**: plugins/transports comerciais em **repo privado** na org `thera-org` do GitHub, publicados como pacotes privados na org npm da Thera e consumindo os pacotes **públicos** `@zapforge/*` (transports Discord, Telegram e web públicos: D55) | Pastas privadas no monorepo | Repo privado é o teste definitivo da API pública |
+| D29 | **Open core**: plugins/transports comerciais em **repo privado** na org `thera-org` do GitHub, publicados como pacotes privados na org npm da Thera e consumindo os pacotes **públicos** `@usebridger/*` (transports Discord, Telegram e web públicos: D55) | Pastas privadas no monorepo | Repo privado é o teste definitivo da API pública |
 | D30 | **Metas de performance mensuráveis** com benchmark no CI (seção 7) | "Rápido" sem métrica | Sem régua não há aceite nem detecção de regressão |
-| D31 | **Nome: ZapForge** (`@zapforge/*`) | zapcore (conflita com `go.uber.org/zap/zapcore`) | Org `zapforge` criada no npm em 2026-10-06; kernel e plugins públicos no GitHub sob a conta pessoal `murillous`; plugins privados ficam na `thera-org` (ver D29) |
-| D32 | **Camadas da config de plugin** (detalha D17): env `ZAPFORGE_<PLUGIN>__<CAMPO>`; "arquivo" = `pluginConfig` do app; `messages` como chave reservada; `secret()` como metadado do Zod, só em campo de `z.object`; config inválida ignora só o plugin; segredo nunca entra por override | Env sem prefixo; `pluginMessages` separado; segredo por lista de caminhos; config inválida derruba o boot | Contrato estável para quem configura; erro isolado no plugin; storage em texto puro não guarda segredo |
+| D31 | **Nome do kernel** (substituída pelo D83) | zapcore (conflita com `go.uber.org/zap/zapcore`) | Nome ligado ao WhatsApp; kernel e plugins públicos no GitHub sob a conta pessoal `murillous`; plugins privados ficam na `thera-org` (ver D29) |
+| D32 | **Camadas da config de plugin** (detalha D17): env `BRIDGER_<PLUGIN>__<CAMPO>`; "arquivo" = `pluginConfig` do app; `messages` como chave reservada; `secret()` como metadado do Zod, só em campo de `z.object`; config inválida ignora só o plugin; segredo nunca entra por override | Env sem prefixo; `pluginMessages` separado; segredo por lista de caminhos; config inválida derruba o boot | Contrato estável para quem configura; erro isolado no plugin; storage em texto puro não guarda segredo |
 | D33 | **Cancelamento cooperativo** (detalha D05): `signal: AbortSignal` em comando, listener, job e `PluginContext`, abortado pelos timers de prazo existentes; contexto expirado recusa efeitos com `ContextExpiredError`; `reason` tipado (`ExecutionTimeoutError`) | Worker threads; `AsyncLocalStorage` por execução; só documentar | O JS não mata promise: o plugin precisa saber do prazo, e o kernel não pode aceitar efeito atrasado |
-| D34 | **ZapForge é uma biblioteca, sem runner**: o app importa `@zapforge/core` e compõe com `createBot`; sem CLI de execução nem `defineConfig`; API pública por público (`@zapforge/core` para plugin e app, `@zapforge/core/adapter` para transports/storages), internos fora do `index.ts` | Runner/CLI com `defineConfig`; um único ponto de entrada com tudo exportado | Quem usa o ZapForge escreve plugins e não precisa conhecer o kernel; tudo que é exportado fica preso ao ciclo de depreciação após a 1.0 |
+| D34 | **Bridger é uma biblioteca, sem runner**: o app importa `@usebridger/core` e compõe com `createBot`; sem CLI de execução nem `defineConfig`; API pública por público (`@usebridger/core` para plugin e app, `@usebridger/core/adapter` para transports/storages), internos fora do `index.ts` | Runner/CLI com `defineConfig`; um único ponto de entrada com tudo exportado | Quem usa o Bridger escreve plugins e não precisa conhecer o kernel; tudo que é exportado fica preso ao ciclo de depreciação após a 1.0 |
 | D35 | **Papéis custom nomeados por plugin** (substitui parte de D12/D24): `ctx.roles.define(nome, check)`, comando usa `role: nome`, tipado por declaration merging (`Roles`); o roteador avalia com prazo e recusa em erro (fail-closed); `owner` passa em todos | `ctx.middleware` de plugin; middleware + papéis; nada na v1 | Middleware roda antes do roteador e não sabe o comando; papel custom precisa caber num plugin |
 | D36 | **Escopo de sessão** (detalha D04/D14): `createBot({ session })`, padrão `'default'`; namespaces de plugin, jobs, overrides de config e auth state no escopo da sessão, aplicado pelo kernel sem mudar o `StoragePort`; a mesma sessão não roda duas vezes (recusa no processo, `DisconnectReason` `'replaced'` entre processos) | Um banco por número como regra, sem escopo no core; sessão como parâmetro do port | Dois bots no mesmo banco disparavam os mesmos jobs e dividiam dados; um banco compartilhado por vários números passa a ser seguro |
 | D37 | **Transport por fábrica** (detalha D03): `transport` aceita `Transport` ou `(deps) => Transport`, com `deps` = `session`, `auth`, `log`; fábrica síncrona e sem I/O; `clean-session` limpa o `auth` sozinho | `attach(deps)` opcional no `Transport`; ligação manual pelo app | O app não liga transport e storage à mão nem repete a sessão; o adapter loga com segredos censurados |
@@ -153,10 +153,10 @@ decisão anterior.
 | D49 | **Evento `command`** (detalha D12/D40): só de observação, sai para todo comando que casou, depois de ele terminar, com `{ plugin, name, invokedAs, status: 'ran' \| 'rejected' \| 'failed', message }`; sem `reply`; o `Bot` espera os listeners (seguram o chat, contam no `settled()`); toda mensagem admitida cai em `message` ou em `command` | Evento antes do roteador (`message.received`); middleware por plugin; manter e documentar | Atividade do spontaneous e métricas do dashboard contam comandos como no legacy; consumo do D12 não muda |
 | D50 | **Código de pareamento por evento** (detalha D03/D13): evento do transport `connection.pairing-code` `{ code }`; o `Bot` o trata como o QR (conta para o `maxQrCount`, valor só em `debug`, vai ao barramento); quem pareia por código não emite `connection.qr` | Callback na opção do adapter; campo de tipo no `connection.qr` | O dashboard (plugin) exibe o código como exibe o QR; código expirado segue a política do QR |
 | D51 | **SQLite pelo `node:sqlite`** (detalha D14/D15): o `storage-sqlite` usa o driver embutido no Node, sem addon nativo; schema fixo do adapter (KV, documentos com JSON em `doc`, auth state), índice declarado vira índice de expressão em `json_extract`; migrations só de acréscimo versionadas no `PRAGMA user_version`, aplicadas no boot; WAL com `synchronous = NORMAL` | `better-sqlite3` (addon nativo); tabela por coleção | `pnpm install` sem compilar nada; trocar o Node não quebra o storage; plugin continua sem SQL (D15) |
-| D52 | **Kit de testes sobre o Vitest** (detalha D22/D44): `vitest` como peer dependency e matchers registrados no import do `@zapforge/testing`; `receive()`/`emit()` resolvem depois do `bot.settled()`; `createTestBot` com log `silent`, `env: {}`, fila de saída sem intervalo e sem reconexão; `FakeTransport` com todas as capabilities por padrão | Kit agnóstico sem matchers; matchers num entry `/vitest` separado | O exemplo da §6.9 roda como está; Jest/`node:test` ficam de fora até haver demanda |
-| D53 | **O core se testa sem o kit** (detalha D22/D52): o `@zapforge/core` mantém os apoios internos de teste (`TestTransport`, `RecordingTransport`) e não depende do `@zapforge/testing`; o kit é testado contra o core real; os dois fakes seguem o mesmo contrato do `Transport` e os mesmos `assertCanSend`/`assertCapability` | Entry `@zapforge/core/testing` reexportado pelo kit; testes de ponta a ponta do `Bot` num pacote fora do core; ciclo core ↔ testing só nos testes | Sem ciclo no `tsc -b` nem mudança na API pública; ~100 linhas duplicadas entre os dois fakes |
-| D54 | **Baseline do benchmark no mesmo job** (detalha D30): o job `Benchmark` faz o build do primeiro pai do commit testado num worktree, mede a base e compara (`pnpm bench --baseline`); falha com piora > 10% no sentido da meta ou fora da meta; `memory-growth` só contra a meta (`checksRegression`); cenário sem baseline passa sem comparação; o bench sobe o bot pelo entry `@zapforge/testing/bot`, sem o Vitest | Baseline versionado no repositório; baseline do último push em `develop` como artefato; meta de memória ociosa em 90 MB | Runners diferentes variam mais que 10%; nenhum arquivo de baseline para envelhecer; perto de zero, 10% do heap é ruído; os ~6 MB do Vitest não são do kernel e levavam o RSS ocioso a 80 MB no runner |
-| D55 | **Plataformas-alvo e transport fora do WhatsApp antes do 1.0** (substitui parte de D03, detalha D29): alvo WhatsApp, Discord, Telegram e sistemas web próprios, sem nada de plataforma no core; um transport por `Bot` (D04), vários `Bot`s por processo; `@zapforge/transport-web` mínimo no M3 valida o contrato e o 1.0 espera um plugin portátil rodar no Baileys e no web; Telegram e Discord depois do v1.0, com mudança aditiva; transports Discord, Telegram e web públicos (Apache-2.0); comerciais de WhatsApp e integrações com sistemas do dono no privado; pontos com formato de WhatsApp resolvidos em ADRs por tema (B a F) | Manter D03 e corrigir depois do 1.0; Cloud API como segundo transport; Telegram ou Discord antes do 1.0; vários transports num `Bot` | Depois do 1.0, cada correção custa um ciclo de `@deprecated` (D27); outro WhatsApp não testa o que muda; no web o dono controla as duas pontas e roda no CI sem conta externa |
+| D52 | **Kit de testes sobre o Vitest** (detalha D22/D44): `vitest` como peer dependency e matchers registrados no import do `@usebridger/testing`; `receive()`/`emit()` resolvem depois do `bot.settled()`; `createTestBot` com log `silent`, `env: {}`, fila de saída sem intervalo e sem reconexão; `FakeTransport` com todas as capabilities por padrão | Kit agnóstico sem matchers; matchers num entry `/vitest` separado | O exemplo da §6.9 roda como está; Jest/`node:test` ficam de fora até haver demanda |
+| D53 | **O core se testa sem o kit** (detalha D22/D52): o `@usebridger/core` mantém os apoios internos de teste (`TestTransport`, `RecordingTransport`) e não depende do `@usebridger/testing`; o kit é testado contra o core real; os dois fakes seguem o mesmo contrato do `Transport` e os mesmos `assertCanSend`/`assertCapability` | Entry `@usebridger/core/testing` reexportado pelo kit; testes de ponta a ponta do `Bot` num pacote fora do core; ciclo core ↔ testing só nos testes | Sem ciclo no `tsc -b` nem mudança na API pública; ~100 linhas duplicadas entre os dois fakes |
+| D54 | **Baseline do benchmark no mesmo job** (detalha D30): o job `Benchmark` faz o build do primeiro pai do commit testado num worktree, mede a base e compara (`pnpm bench --baseline`); falha com piora > 10% no sentido da meta ou fora da meta; `memory-growth` só contra a meta (`checksRegression`); cenário sem baseline passa sem comparação; o bench sobe o bot pelo entry `@usebridger/testing/bot`, sem o Vitest | Baseline versionado no repositório; baseline do último push em `develop` como artefato; meta de memória ociosa em 90 MB | Runners diferentes variam mais que 10%; nenhum arquivo de baseline para envelhecer; perto de zero, 10% do heap é ruído; os ~6 MB do Vitest não são do kernel e levavam o RSS ocioso a 80 MB no runner |
+| D55 | **Plataformas-alvo e transport fora do WhatsApp antes do 1.0** (substitui parte de D03, detalha D29): alvo WhatsApp, Discord, Telegram e sistemas web próprios, sem nada de plataforma no core; um transport por `Bot` (D04), vários `Bot`s por processo; `@usebridger/transport-web` mínimo no M3 valida o contrato e o 1.0 espera um plugin portátil rodar no Baileys e no web; Telegram e Discord depois do v1.0, com mudança aditiva; transports Discord, Telegram e web públicos (Apache-2.0); comerciais de WhatsApp e integrações com sistemas do dono no privado; pontos com formato de WhatsApp resolvidos em ADRs por tema (B a F) | Manter D03 e corrigir depois do 1.0; Cloud API como segundo transport; Telegram ou Discord antes do 1.0; vários transports num `Bot` | Depois do 1.0, cada correção custa um ciclo de `@deprecated` (D27); outro WhatsApp não testa o que muda; no web o dono controla as duas pontas e roda no CI sem conta externa |
 | D56 | **Owners por telefone ou por ID do contato** (detalha D24/D46): cada entrada de `owners` é telefone (string, normalizado como antes) ou `{ id }`, comparado com `sender.id`; telefone e ID nunca se cruzam | Texto livre (dígitos valem como telefone e ID); normalização do ID pelo transport | Discord, Telegram e web não têm telefone; a forma explícita não é ambígua e mantém a config atual válida |
 | D57 | **`Contact` multiplataforma** (detalha D09/D38): campos opcionais `username`, `isBot` e `claims` (`Readonly<Record<string, JsonValue>>`, verificados pelo transport, só no contato que fez a ação); `phone` segue obrigatório; middleware `ignoreBots` ligado por padrão, também nos eventos `reaction` e `message.deleted` | Claims no contexto (`ctx.auth`); claims genéricos por transport; `kind` no lugar de `isBot`; `phone` opcional | No `Contact`, o claim acompanha quem age em qualquer evento; aditivo; evita loop entre bots no Discord e no Telegram |
 | D58 | **`Chat` multiplataforma** (detalha D09/D24/D38): campos opcionais `kind` (`'dm' \| 'group' \| 'channel' \| 'thread'`), `parentId` (o espaço: servidor do Discord, supergrupo do Telegram) e `title`; `chat.id` opaco, composto pelo transport no tópico do Telegram; `isGroup` segue obrigatório; `chatFilter` casa `id` ou `parentId`, `block` vence | `threadId` separado no `Chat` e na `MessageKey`; ID composto com formato do core; `parentId` como pai imediato | O envio cai no tópico certo sem campo extra; admin e filtro leem o servidor direto; aditivo |
@@ -174,16 +174,17 @@ decisão anterior.
 | D70 | **Capabilities multiplataforma** (detalha D10/D16): `presence` vira `typing`, com `sendTyping(chatId, 'text' \| 'voice')` e `ctx.send.typing`, sem status online nem `paused`; a sessão tem uma reação por mensagem (`react` substitui, `null` remove a da sessão), e emoji recusado rejeita com `retryable: false`; enquete com `multiple?: boolean` no lugar de `selectableCount`, voto em issue própria; a lista é só a do core, sem namespace de fornecedor; limites em `Transport.limits`; apagar mensagem de outros sem capability nova; §6.10 vira matriz por transport | Manter `presence` estreitando o tipo; `typing` ao lado de `presence`; `unreact(key, emoji)`; manter `selectableCount`; evento de voto já; namespace `x-<transport>.*` | `presence` misturava status global com "digitando"; Telegram e Discord não contam opções nem param o indicador; o `transports` do manifesto já cobre o plugin específico |
 | D71 | **Voto em enquete** (completa D70, segue D38): evento `poll.vote` com `{ chat, messageId, sender, options, fromMe }`, `options` = índices da escolha inteira (`[]` = retirado); `chatFilter`/`ignoreSelf`/`ignoreBots` como na reação; o Baileys guarda em memória (até 1000, limpo no `disconnect()`) as enquetes vistas e decifra o voto tentando os pares telefone/LID | Opções por texto; diferença `added`/`removed`; enquetes no storage; capability `polls.votes` | Telegram e Discord só mandam o ID da opção; WhatsApp e Telegram mandam a escolha inteira; o Baileys 7 não decifra mais o voto |
 | D72 | **Isolamento automático por tenant** (detalha D36/D15): `Chat.tenantId?` verificado pelo transport, que compõe o tenant no `chat.id` e nos IDs de contato; um `AsyncLocalStorage` por bot roda cada mensagem e evento no escopo do tenant, e o mesmo `ctx.storage` grava em `<plugin>@<tenant>` (handler, closure do `setup`, service de outro plugin, timer); sem tenant, escopo da sessão (compartilhado); `ctx.storage.forTenant(id)` de qualquer lugar; job guarda o tenant de origem | Campo `storage` só no handler; tenant como sessão lógica; plugin filtra; `tenantId` na `Message` ou no `Contact`; recusar storage sem tenant; `forTenant` só fora de handler | Um plugin que esquece de filtrar vazaria dados de uma escola para outra; o handler usa o `ctx.storage` do `setup` por closure |
-| D73 | **Kit de testes multiplataforma** (detalha D52/D22): `PROFILES` no `@zapforge/testing` (`whatsapp`, `telegram`, `discord`, `web`) com capabilities, `limits` e contatos `self`/`sender` da plataforma, tirados da §6.10; `whatsapp` = o que o Baileys declara, conferido por teste no transport; `new FakeTransport({ profile })` e `createTestBot({ profile })`; sem perfil, nada muda; contador de IDs por `TestBot`; matriz por `describe.each(PROFILE_NAMES)` | Perfil em cada transport; perfil sem teste de sincronia; perfil só com capabilities; padrão = `whatsapp` ou remetente sem telefone; helper `forEachProfile` | Um plugin passava no kit com todas as capabilities e era recusado no boot no Telegram, no Discord ou no web |
+| D73 | **Kit de testes multiplataforma** (detalha D52/D22): `PROFILES` no `@usebridger/testing` (`whatsapp`, `telegram`, `discord`, `web`) com capabilities, `limits` e contatos `self`/`sender` da plataforma, tirados da §6.10; `whatsapp` = o que o Baileys declara, conferido por teste no transport; `new FakeTransport({ profile })` e `createTestBot({ profile })`; sem perfil, nada muda; contador de IDs por `TestBot`; matriz por `describe.each(PROFILE_NAMES)` | Perfil em cada transport; perfil sem teste de sincronia; perfil só com capabilities; padrão = `whatsapp` ou remetente sem telefone; helper `forEachProfile` | Um plugin passava no kit com todas as capabilities e era recusado no boot no Telegram, no Discord ou no web |
 | D74 | **Trava de sessão entre processos** (detalha D36/D14): `acquireLease?`/`releaseLease?` no `StoragePort`, atômicas e com a validade medida pelo adapter; opcionais só para storage de um processo (a suíte de contrato cobra, salvo `processLocal`); o bot trava `session:<sessão>` no `start()` por 30 s e renova a cada 10 s; ocupada, espera até uma validade e falha com `BotConfigError`; perdida, para o bot; o `stop()` libera; por nome de sessão, sem olhar o transport | CAS genérico no KV; trava obrigatória também na memória; falhar o `start()` na hora; seguir com a trava perdida; transport no namespace; só documentar | O Discord aceita o mesmo token em vários gateways e o web não derruba a conexão antiga: dois processos responderiam em dobro |
 | D75 | **Vários bots num storage e escopo compartilhado** (detalha D04, substitui o "fora da v1" do D36): um transport por `Bot`, vários bots por processo com a mesma instância de storage; `ctx.storage.shared` em `$shared:<plugin>`, comum às sessões e só do plugin, seguindo o tenant (`@<tenant>`, `forTenant`); `ctx.transportName` para compor chaves de ID; sem transação nova; HTTP (#120) com um servidor por processo, detalhado no ADR dele | Escopo nomeado entre plugins; opção no `createBot`; `shared` sem tenant; kernel prefixar chaves; hub de processo; multi-transport num bot | Plugin não dividia dados entre plataformas; IDs só são únicos dentro do transport |
 | D76 | **HTTP do core** (detalha D20/D37/D75): `createHttp({ port })` passado em `BotConfig.http`, a mesma instância para todos os bots; porta só abre com rota, depois do `setup` e antes do `connect()`, e fecha com o último bot; `/plugins/<nome>` e `/transports/<name>` na sessão `default`, sob `/sessions/<sessão>` nas outras; `ctx.http` e `TransportDeps.http` com `route(method, path, (Request, { params }) => Response)` e `ws(path, accept)` da Web API, sem tipo do Hono; erro de rota de plugin em `plugin.error` (`phase: 'http'`); `/health` 200/503 pelo estado das sessões; sem auth, prazo ou tenant no kernel | Opções por bot; servidor padrão implícito; sessão em todo caminho; prefixo só com dois bots; `Context` do Hono; `/health` mínimo | Webhooks de transport e dashboard numa porta só, com vários bots; contrato neutro antes do 1.0 |
-| D77 | **`@zapforge/transport-web`** (detalha D55, sobre o D76): WebSocket em `/transports/web/chat` com o JWT no primeiro frame (`auth`, 10 s), validado uma vez pelo `jose` (`HS256` com segredo ou `RS256`/`ES256` por JWKS; `exp` e `sub` obrigatórios), fechado com 4401 no `exp`; `Contact` do `sub` com os claims; tenant de `tenantClaim` composto no ID; `chat.id` por conversa escolhida pelo cliente (`<contato>/<conversa>`); buffer em memória para a conversa sem conexão (100 frames, 1 h); mídia por `POST /media` com o token e `GET /media/:id` com ID aleatório de 1 h; `origins` opcional; capabilities texto, imagem, vídeo, áudio, documento, download, `actions`, `quoted`, `typing`, edição e remoção; cliente de referência em `/client` | `Chat.id` por usuário ou por aba; token na query string; renovação no meio da conexão; mídia em base64 no frame ou só texto; JWT com `node:crypto`; modo visitante | O sistema do dono abre uma conversa por tela; token fora de log; frame do chat não fica preso atrás de upload; perfil `web` do kit confirmado |
-| D78 | **Postgres pelo `pg`** (detalha D14/D15): `await postgres({ connectionString, schema })`, tabelas num schema próprio (`zapforge` por padrão), documento em `jsonb` e KV/auth em texto, mesmo desenho do SQLite; migrations do adapter numa transação sob advisory lock; trava pelo relógio do servidor; suíte de contrato contra Postgres em container no CI | `postgres` (porsager); tabelas no `public`; tudo em `jsonb` | Driver mais difundido, em JS puro; schema próprio convive com outros sistemas no banco; `jsonb` só onde se consulta ([ADR 0078](docs/adr/0078-postgres-via-pg.md)) |
+| D77 | **`@usebridger/transport-web`** (detalha D55, sobre o D76): WebSocket em `/transports/web/chat` com o JWT no primeiro frame (`auth`, 10 s), validado uma vez pelo `jose` (`HS256` com segredo ou `RS256`/`ES256` por JWKS; `exp` e `sub` obrigatórios), fechado com 4401 no `exp`; `Contact` do `sub` com os claims; tenant de `tenantClaim` composto no ID; `chat.id` por conversa escolhida pelo cliente (`<contato>/<conversa>`); buffer em memória para a conversa sem conexão (100 frames, 1 h); mídia por `POST /media` com o token e `GET /media/:id` com ID aleatório de 1 h; `origins` opcional; capabilities texto, imagem, vídeo, áudio, documento, download, `actions`, `quoted`, `typing`, edição e remoção; cliente de referência em `/client` | `Chat.id` por usuário ou por aba; token na query string; renovação no meio da conexão; mídia em base64 no frame ou só texto; JWT com `node:crypto`; modo visitante | O sistema do dono abre uma conversa por tela; token fora de log; frame do chat não fica preso atrás de upload; perfil `web` do kit confirmado |
+| D78 | **Postgres pelo `pg`** (detalha D14/D15): `await postgres({ connectionString, schema })`, tabelas num schema próprio (`bridger` por padrão), documento em `jsonb` e KV/auth em texto, mesmo desenho do SQLite; migrations do adapter numa transação sob advisory lock; trava pelo relógio do servidor; suíte de contrato contra Postgres em container no CI | `postgres` (porsager); tabelas no `public`; tudo em `jsonb` | Driver mais difundido, em JS puro; schema próprio convive com outros sistemas no banco; `jsonb` só onde se consulta ([ADR 0078](docs/adr/0078-postgres-via-pg.md)) |
 | D79 | **Açúcar no manifesto do plugin** (detalha D16/D22): `commands: { nome: { run } }` e `on: { evento: listener }` no manifesto, com o contexto do plugin no 2º argumento, registrados pelo host com `ctx.commands.add`/`ctx.events.on` antes do `setup` (que vira opcional); `run` que devolve texto (string ou `fmt`) responde; `commands` implica `send.text`; manifesto validado para quem escreve em JS | Retorno do `run` fechado em `MessageText`; açúcar só no `definePlugin`; comando declarativo sem o contexto do plugin; `send.text` obrigatório no transport | Um caminho só de execução; a forma curta serve também a comando com storage e config; `c.reply(...)` devolvido segue valendo ([ADR 0079](docs/adr/0079-acucar-no-manifesto-do-plugin.md)) |
 | D80 | **Açúcar para o autor de transport** (detalha D03/D10/D37): `defineTransport((deps, { emit, setSelf }) => ({ name, capabilities: [...], connect, disconnect, send, ...métodos das capabilities }))` monta o `Transport` com emissor, `on`, `self`, checagem de capability e `UnsupportedError` no que falta; o `createBot` recusa capability desconhecida ou sem o método dela; o tipo `Transport` não muda | Métodos opcionais no `Transport`; classe base `BaseTransport`; só a checagem no `createBot` | Transport mínimo em cinco campos, também em JS; o erro sai no boot, não quando um plugin usa o recurso; adapters em classe seguem iguais ([ADR 0080](docs/adr/0080-acucar-para-o-autor-de-transport.md)) |
-| D81 | **`create-zapforge-plugin`** (detalha D22, sobre D73/D79): binário sem dependências e sem perguntas, com o nome do pacote como único argumento (pasta, `name` do manifesto e export saem dele); template em `template/` com o plugin portátil na forma curta, teste em `describe.each(PROFILE_NAMES)`, `isolatedDeclarations`, `tsdown` e changesets; core como peer e dev dependency em `<1.0.0`; aceite por e2e no CI sobre os tarballs de `pnpm pack` | Perguntas interativas; template em strings ou baixado na hora; versão do core lida no build; só teste unitário do gerador | Plugin novo em um comando, já portátil e testado nas quatro plataformas; o e2e prova o que o autor roda sobre os pacotes como sairiam no npm ([ADR 0081](docs/adr/0081-create-zapforge-plugin.md)) |
-| D82 | **Release a partir de `develop`** (detalha D27, sobre D29/D31): `release.yml` com `changesets/action@v2`; changesets pendentes abrem o PR de versão pelo `pnpm version-packages`, o merge dele publica com `pnpm release` e cria as tags; lint, typecheck, testes, build e `pnpm check:packages` no mesmo job, sem cancelar execução em andamento; npm por Trusted Publishing com provenance, primeiro publish de cada pacote com `NPM_TOKEN` granular e temporário; PR de versão aberto pelo token de um GitHub App | Publicar da `main`; `NPM_TOKEN` permanente; PR de versão com `GITHUB_TOKEN` ou PAT | A `main` é do legacy; sem token de longa duração em regime; o PR de versão roda o `ci.yml` e não sai em nome do dono ([ADR 0082](docs/adr/0082-release-a-partir-de-develop.md)) |
+| D81 | **`create-bridger-plugin`** (detalha D22, sobre D73/D79): binário sem dependências e sem perguntas, com o nome do pacote como único argumento (pasta, `name` do manifesto e export saem dele); template em `template/` com o plugin portátil na forma curta, teste em `describe.each(PROFILE_NAMES)`, `isolatedDeclarations`, `tsdown` e changesets; core como peer e dev dependency em `<1.0.0`; aceite por e2e no CI sobre os tarballs de `pnpm pack` | Perguntas interativas; template em strings ou baixado na hora; versão do core lida no build; só teste unitário do gerador | Plugin novo em um comando, já portátil e testado nas quatro plataformas; o e2e prova o que o autor roda sobre os pacotes como sairiam no npm ([ADR 0081](docs/adr/0081-create-bridger-plugin.md)) |
+| D82 | **Release a partir de `develop`** (detalha D27, sobre D29/D83): `release.yml` com `changesets/action@v2`; changesets pendentes abrem o PR de versão pelo `pnpm version-packages`, o merge dele publica com `pnpm release` e cria as tags; lint, typecheck, testes, build e `pnpm check:packages` no mesmo job, sem cancelar execução em andamento; npm por Trusted Publishing com provenance, primeiro publish de cada pacote com `NPM_TOKEN` granular e temporário; PR de versão aberto pelo token de um GitHub App | Publicar da `main`; `NPM_TOKEN` permanente; PR de versão com `GITHUB_TOKEN` ou PAT | A `main` é do legacy; sem token de longa duração em regime; o PR de versão roda o `ci.yml` e não sai em nome do dono ([ADR 0082](docs/adr/0082-release-a-partir-de-develop.md)) |
+| D83 | **Nome: Bridger** (substitui o D31): pacotes no escopo `@usebridger/*`, scaffold `create-bridger-plugin` sem escopo, prefixo de plugin `bridger-plugin-`, variáveis `BRIDGER_*`, anotação `x-bridger-override` e schema Postgres `bridger` | Escopo `@bridger` (org com outro dono); `@bridger-js`, `@bridgerhq`, `@getbridger`, `@bridgerjs` | Kernel multiplataforma com público global; troca antes do primeiro publish não quebra ninguém ([ADR 0083](docs/adr/0083-nome-bridger.md)) |
 
 ---
 
@@ -192,17 +193,17 @@ decisão anterior.
 ### 5.1 Layout do monorepo
 
 ```
-zapforge/
+bridger/
 ├── packages/
-│   ├── core/                 # @zapforge/core — o kernel
-│   ├── transport-baileys/    # @zapforge/transport-baileys
-│   ├── transport-web/        # @zapforge/transport-web (M3, D55)
-│   ├── transport-telegram/   # @zapforge/transport-telegram (pós-v1)
-│   ├── transport-discord/    # @zapforge/transport-discord (pós-v1)
-│   ├── storage-sqlite/       # @zapforge/storage-sqlite (padrão)
-│   ├── storage-postgres/     # @zapforge/storage-postgres
-│   ├── testing/              # @zapforge/testing — FakeTransport, createTestBot, matchers
-│   └── create-plugin/        # create-zapforge-plugin — scaffold
+│   ├── core/                 # @usebridger/core — o kernel
+│   ├── transport-baileys/    # @usebridger/transport-baileys
+│   ├── transport-web/        # @usebridger/transport-web (M3, D55)
+│   ├── transport-telegram/   # @usebridger/transport-telegram (pós-v1)
+│   ├── transport-discord/    # @usebridger/transport-discord (pós-v1)
+│   ├── storage-sqlite/       # @usebridger/storage-sqlite (padrão)
+│   ├── storage-postgres/     # @usebridger/storage-postgres
+│   ├── testing/              # @usebridger/testing — FakeTransport, createTestBot, matchers
+│   └── create-plugin/        # create-bridger-plugin — scaffold
 ├── plugins/                  # plugins oficiais (públicos)
 │   ├── help/  everyone/  user-names/  media/  download/
 │   ├── reminders/  rank/  ai/  dashboard/
@@ -218,7 +219,7 @@ zapforge/
 
 ### 5.2 O que é core × plugin
 
-**Core (`@zapforge/core`)**
+**Core (`@usebridger/core`)**
 
 | Componente | Responsabilidade |
 |---|---|
@@ -280,16 +281,16 @@ Transport (Baileys, web...) ── evento bruto
 
 ### 6.1 Composição do bot
 
-O ZapForge é uma biblioteca (D34): o app importa o core, compõe o bot e cuida do processo. Não
+O Bridger é uma biblioteca (D34): o app importa o core, compõe o bot e cuida do processo. Não
 há runner nem arquivo de config descoberto por convenção.
 
 ```ts
 // apps/lumabot/src/main.ts
-import { createBot } from '@zapforge/core';
-import { baileys } from '@zapforge/transport-baileys';
-import { sqlite } from '@zapforge/storage-sqlite';
-import { sticker } from '@zapforge/plugin-media';
-import { ai } from '@zapforge/plugin-ai';
+import { createBot } from '@usebridger/core';
+import { baileys } from '@usebridger/transport-baileys';
+import { sqlite } from '@usebridger/storage-sqlite';
+import { sticker } from '@usebridger/plugin-media';
+import { ai } from '@usebridger/plugin-ai';
 
 const bot = createBot({
   session: 'principal',                           // padrão 'default' (D36)
@@ -300,7 +301,7 @@ const bot = createBot({
   plugins: [sticker(), ai({ provider: 'gemini' })],
   pluginDirs: ['./plugins'],
   disabledPlugins: [],
-  pluginConfig: { sticker: { quality: 90 } },     // env ZAPFORGE_STICKER__QUALITY vence (D32)
+  pluginConfig: { sticker: { quality: 90 } },     // env BRIDGER_STICKER__QUALITY vence (D32)
 });
 
 await bot.start();
@@ -310,13 +311,13 @@ process.once('SIGTERM', () => void bot.stop());
 ### 6.2 Definição de plugin (manifesto)
 
 ```ts
-import { definePlugin, command } from '@zapforge/core';
+import { definePlugin, command } from '@usebridger/core';
 import { z } from 'zod';
 
 export const sticker = definePlugin({
   name: 'sticker',
   version: '1.2.0',
-  engine: '^1.0.0',                              // semver do @zapforge/core
+  engine: '^1.0.0',                              // semver do @usebridger/core
   requires: ['media.download', 'send.sticker'],  // capabilities do transporte
   transports: undefined,                         // opcional: fixa runner(s)
   dependsOn: { 'user-names': '^1.0.0' },         // opcional
@@ -414,7 +415,7 @@ await reminders.find({ where: { fireAt: { lte: Date.now() } }, orderBy: 'fireAt'
 definePlugin({ name: 'ai', setup(ctx) { ctx.services.provide('ai', aiService); } });
 
 // declaration merging para tipagem
-declare module '@zapforge/core' {
+declare module '@usebridger/core' {
   interface Services { ai: AiService }
 }
 
@@ -442,7 +443,7 @@ command({ name: 'mute', role: 'moderador', run });
 ### 6.9 Testes de plugin
 
 ```ts
-import { createTestBot } from '@zapforge/testing';
+import { createTestBot } from '@usebridger/testing';
 
 const bot = await createTestBot({ plugins: [sticker()] });
 await bot.receive({ text: '!s', image: fixtureBuffer });
@@ -510,7 +511,7 @@ Medidas no CI com `FakeTransport` (sem I/O de rede). PR falha se regredir mais d
   `@experimental` para APIs novas.
 - **Documentação** (por pacote): COMO em `docs/`, PORQUE em `docs/adr/`, PROGRESSO em
   `CHANGELOG.md`.
-- **Convenções**: ESM, named exports apenas, imports absolutos (`@zapforge/*`), comentários em
+- **Convenções**: ESM, named exports apenas, imports absolutos (`@usebridger/*`), comentários em
   PT-BR explicando o porquê, nunca engolir erros, nenhum `process.env` fora da camada de config.
   Codificadas no Biome e verificadas no CI.
 
@@ -532,10 +533,10 @@ critérios de aceite. Toda issue herda os critérios gerais:
 **Objetivo**: monorepo funcional, tooling, decisões registradas, legacy isolado e verde.
 
 - **#M0-1 Criar monorepo**
-  - Criar org `zapforge` no npm (feito em 2026-10-06); repositório fica na conta pessoal do GitHub
+  - Criar org no npm (escopo `@usebridger` desde o D83); repositório fica na conta pessoal do GitHub
   - Inicializar pnpm workspaces (`packages/*`, `plugins/*`, `apps/*`)
   - `tsconfig.base.json` (strict, ESM, `NodeNext`) + project references
-  - Aliases `@zapforge/*`
+  - Aliases `@usebridger/*`
   - `engines: { node: ">=24" }` + `.nvmrc`
   - *Aceite*: `pnpm install && pnpm -r build` funciona num pacote vazio de exemplo
 - **#M0-2 Tooling de qualidade**
@@ -565,7 +566,7 @@ critérios de aceite. Toda issue herda os critérios gerais:
 
 ---
 
-### M1 — Core (`@zapforge/core`)
+### M1 — Core (`@usebridger/core`)
 
 **Objetivo**: kernel completo testável sem transporte real.
 
@@ -621,7 +622,7 @@ critérios de aceite. Toda issue herda os critérios gerais:
   - Reload de plugin ao mudar config (`teardown` → `setup`)
   - Objeto `messages` sobrescrevível
   - `owners` da config do bot: telefones só com dígitos, comparados com `Contact.phone` (M1-16)
-  - Convenções do D32: env `ZAPFORGE_<PLUGIN>__<CAMPO>` (colisão de nomes = erro do autor),
+  - Convenções do D32: env `BRIDGER_<PLUGIN>__<CAMPO>` (colisão de nomes = erro do autor),
     `pluginConfig` como arquivo, `PluginConfigError` com campo e fonte, `secret()` só em campo de
     `z.object`, segredo recusado no override
 - **#M1-14 Logger**
@@ -641,13 +642,13 @@ critérios de aceite. Toda issue herda os critérios gerais:
   - *Aceite*: mensagem de um `Transport` de teste percorre os estágios até o comando ou os
     listeners (teste de ponta a ponta sem transporte real)
 - **#M1-17 API pública por público** (D34)
-  - `@zapforge/core` com a API de plugin e de composição do app; `@zapforge/core/adapter` para
+  - `@usebridger/core` com a API de plugin e de composição do app; `@usebridger/core/adapter` para
     transports e storages; internos fora do `index.ts`
   - *Aceite*: teste que fixa a lista de exports de cada ponto de entrada
 - **#M1-18 Métricas das filas no `Bot`**
   - `bot.stats()` com as métricas da fila de entrada e da fila de saída (M1-4, M1-12)
   - `bot.settled()` espera a fila de entrada, os listeners e a fila de saída esvaziarem juntos
-    (D44), base do `receive()` do `@zapforge/testing` (M2-3)
+    (D44), base do `receive()` do `@usebridger/testing` (M2-3)
 - **#M1-19 Papéis custom nomeados** (D35)
   - `ctx.roles.define(nome, check)`, `role: nome` no comando, `Roles` por declaration merging
   - Avaliação no roteador com prazo e fail-closed; conflito de nome = erro no boot
@@ -665,7 +666,7 @@ critérios de aceite. Toda issue herda os critérios gerais:
 
 ### M2 — Primeiro transporte, storage e kit de testes
 
-- **#M2-1 `@zapforge/transport-baileys`**
+- **#M2-1 `@usebridger/transport-baileys`**
   - Conexão, QR e pairing code, reconexão
   - Normalização (unwrap ephemeral/viewOnce/documentWithCaption) → modelo do core, incluindo
     `Contact.phone` resolvido também para remetentes com LID (M1-16)
@@ -674,10 +675,10 @@ critérios de aceite. Toda issue herda os critérios gerais:
   - Auth state via `StoragePort` (substitui `useMultiFileAuthState`), recebido pela fábrica (D37)
   - Desconexão por conexão substituída mapeada para `'replaced'` (D36)
   - Mapeamento de eventos Baileys → barramento (contatos, grupos, reações, edições)
-- **#M2-2 `@zapforge/storage-sqlite`**
+- **#M2-2 `@usebridger/storage-sqlite`**
   - Implementação KV + coleções + auth state; WAL; migrations internas do adapter
   - Passa na suíte de contrato do M1-10
-- **#M2-3 `@zapforge/testing`**
+- **#M2-3 `@usebridger/testing`**
   - `FakeTransport`, `createTestBot`, `bot.receive()`, `bot.sent`, matchers
     (`toContainSticker`, `toHaveReplied`...)
   - Fixtures de mídia
@@ -692,30 +693,30 @@ critérios de aceite. Toda issue herda os critérios gerais:
 
 ### M3 — Postgres, HTTP e experiência do autor
 
-- **#M3-1 `@zapforge/storage-postgres`**
+- **#M3-1 `@usebridger/storage-postgres`**
   - Mesma suíte de contrato; testes com Postgres em container no CI
 - **#M3-2 HTTP do core**
   - Hono sob demanda; `/health`; rotas `/plugins/<name>/...` e `/transports/<name>/...`, sob
     `/sessions/<sessão>` fora da `default`; WebSocket (D76)
-- **#M3-3 `create-zapforge-plugin`**
-  - Template TS com manifesto, teste com `@zapforge/testing`, README, changeset
+- **#M3-3 `create-bridger-plugin`**
+  - Template TS com manifesto, teste com `@usebridger/testing`, README, changeset
 - **#M3-4 Documentação de autor**
   - Guia "seu primeiro plugin em 5 minutos"
   - Guias: comandos, eventos/mídia, storage, config, services, scheduler, capabilities,
     escape hatch, testes
   - Referência gerada por TypeDoc
   - Docs do core (COMO): visão geral, módulos, entrypoints, schemas
-- **#M3-5 `@zapforge/transport-web`** (#287, D55, D77)
+- **#M3-5 `@usebridger/transport-web`** (#287, D55, D77)
   - Chatbot web com JWT do sistema de origem, claims, tenant e ações; rotas no HTTP do M3-2
   - Conversa escolhida pelo cliente, buffer para cliente fora, mídia por HTTP e cliente de
-    referência (`@zapforge/transport-web/client`)
+    referência (`@usebridger/transport-web/client`)
   - *Aceite*: um plugin portátil roda sem mudança no Baileys e no web
 
 ---
 
 ### M4 — Port dos plugins (ordem de complexidade)
 
-Cada plugin: código novo em `plugins/<nome>`, testes com `@zapforge/testing`, docs,
+Cada plugin: código novo em `plugins/<nome>`, testes com `@usebridger/testing`, docs,
 changeset, item marcado na checklist de paridade (seção 10).
 
 - **#M4-1 `plugin-help`** — `!help`/`!menu` gerado dos comandos registrados
@@ -766,7 +767,7 @@ changeset, item marcado na checklist de paridade (seção 10).
 
 ### Pós-v1 (repo privado / backlog)
 
-- `@zapforge/transport-telegram` (#288) e `@zapforge/transport-discord` (#289), públicos (D55)
+- `@usebridger/transport-telegram` (#288) e `@usebridger/transport-discord` (#289), públicos (D55)
 - Transport Cloud API (WhatsApp oficial, privado): templates, janela de 24h
 - Transports Twilio e Zenvia (privados)
 - Dashboard central multi-número (lendo do Postgres)

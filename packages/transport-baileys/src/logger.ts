@@ -2,7 +2,7 @@
 // (`log.info(msg, fields)`). Este adapter traduz um para o outro, para as linhas do Baileys
 // passarem pelo logger do bot, com a censura de segredos dele (ADR 0032).
 
-import type { LogFields, Logger } from '@zapforge/core';
+import type { LogFields, Logger } from '@usebridger/core';
 import type { SocketConfig } from 'baileys';
 
 /** Logger que o Baileys aceita; o pacote não exporta o `ILogger` pela entrada principal. */

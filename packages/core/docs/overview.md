@@ -1,6 +1,6 @@
 # Visão geral do core
 
-Como as peças do `@zapforge/core` se ligam. Cada seção aponta para o guia do módulo, onde está o
+Como as peças do `@usebridger/core` se ligam. Cada seção aponta para o guia do módulo, onde está o
 detalhe; o porquê está nos [ADRs](../../../docs/adr/README.md).
 
 ## O que o core é
@@ -13,9 +13,9 @@ Três públicos, três pontos de entrada ([README](README.md#pontos-de-entrada))
 
 | Quem | Escreve | Importa de |
 | --- | --- | --- |
-| Autor de app | a composição: `createBot`, `createHttp`, middlewares, logger | `@zapforge/core` |
-| Autor de plugin | `definePlugin`, comandos, listeners, jobs | `@zapforge/core` |
-| Autor de transport ou storage | o adapter de uma plataforma ou de um banco | `@zapforge/core/adapter` e `@zapforge/core/storage-contract` |
+| Autor de app | a composição: `createBot`, `createHttp`, middlewares, logger | `@usebridger/core` |
+| Autor de plugin | `definePlugin`, comandos, listeners, jobs | `@usebridger/core` |
+| Autor de transport ou storage | o adapter de uma plataforma ou de um banco | `@usebridger/core/adapter` e `@usebridger/core/storage-contract` |
 
 ## As peças
 
@@ -99,30 +99,30 @@ só dentro do core: o plugin o alcança pelo contexto, nunca por import.
 
 | Pasta | O que faz | Entrada | Guia |
 | --- | --- | --- | --- |
-| `bot/` | `createBot`: compõe as peças, boot, shutdown, reconexão, sessão e trava entre processos; fábrica dos contextos de mensagem e de plugin | `@zapforge/core` | [Bot](bot.md) |
+| `bot/` | `createBot`: compõe as peças, boot, shutdown, reconexão, sessão e trava entre processos; fábrica dos contextos de mensagem e de plugin | `@usebridger/core` | [Bot](bot.md) |
 | `transport/` | Contrato `Transport`, `defineTransport`, capabilities, `TypedEmitter`, política de reconexão | ambas | [Transport](transport.md) |
 | `message/` | Modelo `Message`/`Contact`/`Chat`/`Media`; `createMessage` e `createMedia` para transports | tipos no core, construtores no adapter | [Modelo de mensagem](message.md) |
 | `queue/` | Fila de entrada por chat | interno (só `InboundQueueStats`) | [Fila de entrada](inbound-queue.md) |
-| `middleware/` | Pipeline e os middlewares oficiais (`ignoreSelf`, `ignoreBots`, `chatFilter`, `rateLimit`, `sanitize`) | `@zapforge/core` | [Middlewares](middleware.md) |
-| `commands/` | `command()`, roteador, prefixos, papéis, argumentos | `@zapforge/core` (roteador interno) | [Comandos](commands.md) |
-| `conversations/` | Resposta esperada (`expectReply`, passos) | `@zapforge/core` (tipos) | [Conversas](conversations.md) |
-| `actions/` | Botões que rodam comando ou passo; menu numerado sem botões | `@zapforge/core` (tipos) | [Ações e botões](actions.md) |
-| `events/` | Barramento: eventos, filtros, prioridade, `claim()`, isolamento | `@zapforge/core` (tipos) | [Eventos](events.md) |
-| `outbound/` | Fila de saída, `ctx.reply`, envio, álbum, divisão de texto | `@zapforge/core` (tipos e erros) | [Fila de saída](outbound-queue.md) |
-| `text/` | Texto formatado neutro (`fmt`, `bold`, `mention`...) e divisão do texto longo | `@zapforge/core` | [Texto formatado](text.md) |
-| `plugin/` | `definePlugin`, validação do manifesto, ordem, host, tabela de boot, forma curta | `@zapforge/core` | [Plugins](plugins.md) |
-| `config/` | Config de plugin (Zod, env, arquivo, overrides, segredos) e `owners` | `@zapforge/core` | [Config](config.md) |
+| `middleware/` | Pipeline e os middlewares oficiais (`ignoreSelf`, `ignoreBots`, `chatFilter`, `rateLimit`, `sanitize`) | `@usebridger/core` | [Middlewares](middleware.md) |
+| `commands/` | `command()`, roteador, prefixos, papéis, argumentos | `@usebridger/core` (roteador interno) | [Comandos](commands.md) |
+| `conversations/` | Resposta esperada (`expectReply`, passos) | `@usebridger/core` (tipos) | [Conversas](conversations.md) |
+| `actions/` | Botões que rodam comando ou passo; menu numerado sem botões | `@usebridger/core` (tipos) | [Ações e botões](actions.md) |
+| `events/` | Barramento: eventos, filtros, prioridade, `claim()`, isolamento | `@usebridger/core` (tipos) | [Eventos](events.md) |
+| `outbound/` | Fila de saída, `ctx.reply`, envio, álbum, divisão de texto | `@usebridger/core` (tipos e erros) | [Fila de saída](outbound-queue.md) |
+| `text/` | Texto formatado neutro (`fmt`, `bold`, `mention`...) e divisão do texto longo | `@usebridger/core` | [Texto formatado](text.md) |
+| `plugin/` | `definePlugin`, validação do manifesto, ordem, host, tabela de boot, forma curta | `@usebridger/core` | [Plugins](plugins.md) |
+| `config/` | Config de plugin (Zod, env, arquivo, overrides, segredos) e `owners` | `@usebridger/core` | [Config](config.md) |
 | `storage/` | `StoragePort`, namespaces de sessão, plugin e tenant, adapter em memória, normalização de consultas, suíte de contrato | as três | [Storage](storage.md) |
 | `tenant/` | Escopo de tenant do bot, que o storage do plugin lê | interno | [Storage → Tenants](storage.md#tenants) |
-| `scheduler/` | Jobs persistidos com `at`/`on`/`cancel` | `@zapforge/core` (tipos) | [Scheduler](scheduler.md) |
-| `services/` | Registry de services entre plugins | `@zapforge/core` (tipos e erros) | [Services](services.md) |
-| `groups/` | `ctx.groups`: metadados e participantes de grupo | `@zapforge/core` (tipos) | [Plugins → Agir no canal](plugins.md#agir-no-canal-ações-e-leituras) |
-| `http/` | `createHttp`, rotas e WebSocket de plugin e de transport, `/health` | `@zapforge/core` | [HTTP e WebSocket](http.md) |
-| `logger/` | `createLogger` (pino), contexto, redação de segredos | `@zapforge/core` | [Logger](logger.md) |
-| `unsafe/` | `ctx.unsafe`: objeto nativo do transport e bruto da mensagem | `@zapforge/core` (tipos) | [Escape hatch](unsafe.md) |
-| `deadline.ts` | Prazos e cancelamento cooperativo (`signal`, `ContextExpiredError`) | `@zapforge/core` (erros) | [Bot → Prazos](bot.md#prazos-e-cancelamento-ctxsignal) |
-| `context.ts` | Contexto de mensagem comum a middlewares, roteador e listeners | `@zapforge/core` (tipos) | [Bot → Fluxo](bot.md#fluxo-de-uma-mensagem) |
-| `version.ts` | `CORE_VERSION`, contra o qual o `engine` dos plugins é conferido | `@zapforge/core` | [Plugins → Versão do core](plugins.md#versão-do-core) |
+| `scheduler/` | Jobs persistidos com `at`/`on`/`cancel` | `@usebridger/core` (tipos) | [Scheduler](scheduler.md) |
+| `services/` | Registry de services entre plugins | `@usebridger/core` (tipos e erros) | [Services](services.md) |
+| `groups/` | `ctx.groups`: metadados e participantes de grupo | `@usebridger/core` (tipos) | [Plugins → Agir no canal](plugins.md#agir-no-canal-ações-e-leituras) |
+| `http/` | `createHttp`, rotas e WebSocket de plugin e de transport, `/health` | `@usebridger/core` | [HTTP e WebSocket](http.md) |
+| `logger/` | `createLogger` (pino), contexto, redação de segredos | `@usebridger/core` | [Logger](logger.md) |
+| `unsafe/` | `ctx.unsafe`: objeto nativo do transport e bruto da mensagem | `@usebridger/core` (tipos) | [Escape hatch](unsafe.md) |
+| `deadline.ts` | Prazos e cancelamento cooperativo (`signal`, `ContextExpiredError`) | `@usebridger/core` (erros) | [Bot → Prazos](bot.md#prazos-e-cancelamento-ctxsignal) |
+| `context.ts` | Contexto de mensagem comum a middlewares, roteador e listeners | `@usebridger/core` (tipos) | [Bot → Fluxo](bot.md#fluxo-de-uma-mensagem) |
+| `version.ts` | `CORE_VERSION`, contra o qual o `engine` dos plugins é conferido | `@usebridger/core` | [Plugins → Versão do core](plugins.md#versão-do-core) |
 
 A lista exata do que cada entrada exporta é fixada em `src/entries.test.ts`.
 

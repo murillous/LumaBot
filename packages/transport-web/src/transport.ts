@@ -19,8 +19,8 @@ import type {
   OutgoingContent,
   SendOptions,
   TypingKind,
-} from '@zapforge/core';
-import { UnsupportedError } from '@zapforge/core';
+} from '@usebridger/core';
+import { UnsupportedError } from '@usebridger/core';
 import {
   assertCanSend,
   createMessage,
@@ -31,7 +31,7 @@ import {
   type TransportEventName,
   type TransportEvents,
   TypedEmitter,
-} from '@zapforge/core/adapter';
+} from '@usebridger/core/adapter';
 import { bearerToken, InvalidTokenError, type TokenVerifier, type WebAuth } from './jwt.ts';
 import { MediaStore, type StoredMedia } from './media-store.ts';
 import { Outbox } from './outbox.ts';

@@ -1,6 +1,6 @@
 name: Legacy CI
 
-# Garante que o LumaBot em legacy/ segue verde durante a migração para o ZapForge.
+# Garante que o LumaBot em legacy/ segue verde durante a migração para o Bridger.
 # A suíte roda exatamente como está (sem alteração) — é a rede de segurança até a paridade.
 on:
   push:

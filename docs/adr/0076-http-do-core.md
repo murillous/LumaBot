@@ -50,7 +50,7 @@ Alternativas consideradas:
 
 ## Decisão
 
-- **`createHttp({ port, hostname? })`** em `@zapforge/core` devolve o servidor do processo, que o
+- **`createHttp({ port, hostname? })`** em `@usebridger/core` devolve o servidor do processo, que o
   app passa em **`BotConfig.http`**, a mesma instância para todos os bots, como o storage. Sem
   `http`, `ctx.http.route`/`ws` lançam `BotConfigError` (o plugin cai no `setup`) e o transport
   recebe `deps.http` ausente.

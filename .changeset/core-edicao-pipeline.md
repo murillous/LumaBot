@@ -1,5 +1,5 @@
 ---
-'@zapforge/core': patch
+'@usebridger/core': patch
 ---
 
 Corrige `message.edited` furando as barreiras da mensagem nova (M1-16). Antes, a edição ia do

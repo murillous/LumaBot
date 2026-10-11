@@ -2,8 +2,8 @@
 // só o que importa (`{ text: '!s', image }`) e o resto sai com padrões coerentes.
 
 import { randomUUID } from 'node:crypto';
-import type { Chat, Contact, Message } from '@zapforge/core';
-import { createMessage, type MediaSource, type MessageInit } from '@zapforge/core/adapter';
+import type { Chat, Contact, Message } from '@usebridger/core';
+import { createMessage, type MediaSource, type MessageInit } from '@usebridger/core/adapter';
 import { DEFAULT_SENDER } from './profiles.ts';
 
 // O padrão mora em `profiles.ts`, junto dos perfis; aqui fica o caminho de import de antes.

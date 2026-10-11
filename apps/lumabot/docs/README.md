@@ -1,6 +1,6 @@
 # apps/lumabot — documentação
 
-O LumaBot sobre o kernel ZapForge. O app só compõe o bot: transport
+O LumaBot sobre o kernel Bridger. O app só compõe o bot: transport
 ([Baileys](../../../packages/transport-baileys/docs/README.md)), storage
 ([SQLite](../../../packages/storage-sqlite/docs/README.md)) e a lista de plugins, e cuida do
 processo (sinais, código de saída). O kernel é uma biblioteca sem runner
@@ -15,11 +15,11 @@ Na raiz, depois do `pnpm install`:
 
 ```sh
 pnpm build
-pnpm --filter @zapforge/lumabot start   # roda dist/main.mjs
+pnpm --filter @usebridger/lumabot start   # roda dist/main.mjs
 ```
 
-Para desenvolver sem build, `pnpm --filter @zapforge/lumabot dev` executa o `.ts` direto (type
-stripping do Node, com a condição `@zapforge/source`).
+Para desenvolver sem build, `pnpm --filter @usebridger/lumabot dev` executa o `.ts` direto (type
+stripping do Node, com a condição `@usebridger/source`).
 
 No primeiro uso o terminal mostra o QR: no celular, *Aparelhos conectados → Conectar aparelho*.
 Depois do pareamento o servidor pede um restart e o bot reconecta sozinho. Mande `!ping` de outro
@@ -39,7 +39,7 @@ Por variáveis de ambiente, lidas em `src/config.ts`. Variável vazia vale como 
 | `LUMABOT_PAIRING_PHONE` | — | Número com DDI, só dígitos (`5511999999999`). Com ele, o bot pede um código de pareamento em vez do QR: digite-o em *Aparelhos conectados → Conectar com número de telefone* |
 | `LUMABOT_LOG_LEVEL` | `info` | `trace`, `debug`, `info`, `warn`, `error`, `fatal` ou `silent` |
 
-A config dos plugins segue o padrão do core (`ZAPFORGE_<PLUGIN>__<CAMPO>`,
+A config dos plugins segue o padrão do core (`BRIDGER_<PLUGIN>__<CAMPO>`,
 [Config](../../../packages/core/docs/config.md)).
 
 Valor inválido derruba o boot com a variável na mensagem. O log sai em JSON, uma linha por evento;
@@ -55,4 +55,4 @@ Ficam em `src/plugins/` e entram na lista do `createBot` em `src/main.ts`.
 | `ping` | `!ping` responde `pong`: prova o caminho transport → kernel → fila de saída → transport |
 
 Os testes sobem cada plugin num bot de verdade sobre o transport falso do
-[`@zapforge/testing`](../../../packages/testing/docs/README.md).
+[`@usebridger/testing`](../../../packages/testing/docs/README.md).

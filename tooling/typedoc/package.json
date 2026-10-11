@@ -1,5 +1,5 @@
 {
-  "name": "@zapforge/typedoc",
+  "name": "@usebridger/typedoc",
   "private": true,
   "type": "module",
   "scripts": {

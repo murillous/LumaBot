@@ -3,8 +3,8 @@
 // controle, que ele já converte em `messages.reaction` e `messages.update`; grupos chegam em
 // `groups.upsert`, `groups.update` e `group-participants.update`.
 
-import type { Chat, Contact, Message } from '@zapforge/core';
-import type { TransportEvents } from '@zapforge/core/adapter';
+import type { Chat, Contact, Message } from '@usebridger/core';
+import type { TransportEvents } from '@usebridger/core/adapter';
 import {
   type BaileysEventMap,
   type GroupMetadata as BaileysGroupMetadata,
