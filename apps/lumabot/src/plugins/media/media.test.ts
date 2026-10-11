@@ -68,6 +68,27 @@ describe('!sticker', () => {
     });
   });
 
+  it('reduz a figurinha de vídeo nítido até caber em 800 KB', async () => {
+    // Com granulado, a primeira tentativa (qualidade 75, 20 s) passa de 1 MB, como um vídeo baixado.
+    const { stdout: video } = await promisify(execFile)(
+      'ffmpeg',
+      [
+        ...['-loglevel', 'error', '-f', 'lavfi'],
+        ...['-i', 'testsrc2=size=512x512:rate=30,noise=alls=10:allf=t', '-t', '10'],
+        ...['-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-movflags', 'frag_keyframe+empty_moov'],
+        ...['-f', 'mp4', 'pipe:1'],
+      ],
+      { encoding: 'buffer', maxBuffer: 50 * 1024 * 1024 },
+    );
+    bot = await createTestBot({ plugins: [media()] });
+
+    await bot.receive({ text: '!s', video: { data: video, mimetype: 'video/mp4' } });
+
+    const sticker = sentBytes('sticker');
+    expect(sticker.length).toBeLessThanOrEqual(800 * 1024);
+    expect((await sharp(sticker).metadata()).pages).toBeGreaterThan(1);
+  }, 60_000);
+
   it('marca o andamento com reações', async () => {
     bot = await createTestBot({ plugins: [media()] });
 
