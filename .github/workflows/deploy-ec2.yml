@@ -3,8 +3,8 @@ name: Deploy LumaBot to EC2
 on:
   push:
     branches: [monteiro/cloud]
-    # O bot de produção vive em legacy/ (Bridger M0-4.3): mudanças no kernel
-    # (packages/, plugins/, apps/) não disparam deploy.
+    # O bot de produção vive em legacy/: mudanças no app sobre o Bridger
+    # (apps/) não disparam deploy.
     paths:
       - 'legacy/**'
       - '.github/workflows/deploy-ec2.yml'

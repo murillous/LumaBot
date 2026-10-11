@@ -19,18 +19,18 @@
     "rules": {
       "preset": "recommended",
       "style": {
-        // Convenções do Bridger (BRIDGER_PLAN.md §8): só named exports...
+        // Convenções do repositório (CLAUDE.md): só named exports...
         "noDefaultExport": "error",
         // ...nenhum process.env fora da camada de config (ver overrides)...
         "noProcessEnv": "error",
-        // ...e imports entre pacotes pelo nome @usebridger/*, nunca subindo diretórios.
+        // ...e imports nunca subindo diretórios.
         "noRestrictedImports": {
           "level": "error",
           "options": {
             "patterns": [
               {
                 "group": ["../**", ".."],
-                "message": "Import relativo ascendente: importe pelo pacote (@usebridger/*) ou reorganize o módulo."
+                "message": "Import relativo ascendente: use o alias # do pacote ou reorganize o módulo."
               }
             ]
           }
@@ -46,7 +46,7 @@
       }
     }
   },
-  "plugins": ["./tooling/biome/no-swallowed-catch.grit"],
+  "plugins": ["./biome/no-swallowed-catch.grit"],
   "assist": {
     "enabled": true,
     "actions": { "source": { "organizeImports": "on" } }

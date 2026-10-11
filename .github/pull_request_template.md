@@ -11,4 +11,3 @@ Closes #
 - [ ] Testes para o comportamento novo; nenhum teste existente apagado ou reescrito
 - [ ] Docs (COMO) atualizadas
 - [ ] ADR, se houve decisão arquitetural
-- [ ] Changeset, se mudou um pacote publicável

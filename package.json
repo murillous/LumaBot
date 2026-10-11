@@ -1,5 +1,5 @@
 {
-  "name": "bridger",
+  "name": "lumabot-workspace",
   "private": true,
   "license": "Apache-2.0",
   "type": "module",
@@ -9,22 +9,14 @@
   },
   "scripts": {
     "build": "pnpm -r build",
-    "docs": "pnpm --filter @usebridger/typedoc build",
-    "bench": "pnpm build && pnpm --filter @usebridger/bench bench",
     "typecheck": "tsc -b",
     "lint": "biome check",
     "lint:fix": "biome check --write",
-    "check:packages": "node tooling/check-packages.ts",
-    "test": "vitest run",
-    "changeset": "changeset",
-    "version-packages": "changeset version && node packages/core/scripts/sync-version.ts",
-    "release": "pnpm build && changeset publish"
+    "test": "vitest run"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.15",
-    "@changesets/cli": "^3.0.3",
     "@types/node": "^24.19.1",
-    "publint": "^0.3.25",
     "tsdown": "^0.23.0",
     "typescript": "^7.0.2",
     "vitest": "^5.0.3"

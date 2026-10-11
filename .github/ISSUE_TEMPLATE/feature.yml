@@ -1,11 +1,11 @@
 name: Feature
-description: Proponha uma funcionalidade ou mudança de API.
+description: Proponha uma funcionalidade para a Luma.
 labels: [type:feature]
 body:
   - type: markdown
     attributes:
       value: |
-        O escopo do core é fechado ([ADR 0013](https://github.com/murillous/usebridger/blob/develop/docs/adr/0013-escopo-do-core.md)) — veja se a ideia cabe num plugin antes.
+        Se a ideia pede mudança no kernel ou num plugin oficial (`@usebridger/*`), abra a issue no [usebridger](https://github.com/murillous/usebridger/issues).
   - type: textarea
     id: problem
     attributes:
@@ -17,11 +17,11 @@ body:
     id: proposal
     attributes:
       label: Proposta
-      description: Como a API ficaria para quem usa. Um esboço de código ajuda.
+      description: Como a Luma se comportaria: comandos, mensagens, exemplos de conversa.
     validations:
       required: true
   - type: textarea
     id: alternatives
     attributes:
       label: Alternativas consideradas
-      description: Inclua por que um plugin (ou `ctx.unsafe.native`) não resolve.
+      description: Outras formas de resolver e por que não servem.
