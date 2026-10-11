@@ -6,7 +6,9 @@ Figurinha, imagem, GIF e PDF. Código em `src/plugins/media/`: `media.ts` (coman
 
 ## Comandos
 
-Cada comando usa a mídia da própria mensagem ou, na falta, a da mensagem citada.
+Cada comando usa a mídia da própria mensagem ou, na falta, a da mensagem citada. O tipo é
+conferido no `accepts` do comando (o `!mergepdf` aceita só documento `application/pdf`); mídia de
+outro tipo recebe o texto de uso.
 
 | Comando | Entrada | Saída |
 | --- | --- | --- |
@@ -18,15 +20,16 @@ Cada comando usa a mídia da própria mensagem ou, na falta, a da mensagem citad
 | `!mergepdf done [nome]` | — | Junta a lista na ordem e envia; padrão `pdf-juntado.pdf`. Também `pronto`, `finalizar` |
 | `!mergepdf clear` | — | Esvazia a lista. Também `limpar`, `cancelar` |
 
-Enquanto converte, o bot reage ⏳ na mensagem e depois ✅ ou ❌, se o transport tiver
-`reactions`. Erro de conversão vai para o log (`falha ao processar mídia`) e o chat recebe
+Enquanto converte, o bot reage ⏳ na mensagem e depois ✅ ou ❌; num transport sem
+`reactions`, a reação é ignorada. Erro de conversão vai para o log (`falha ao processar mídia`) e o chat recebe
 `conversionError`.
 
 ## Capabilities
 
-O plugin exige só `media.download`. Cada comando confere no `ctx.capabilities` a capability do
-que envia (`send.sticker`, `send.image`, `send.video`, `send.document`) e, sem ela, responde
-`unsupported`. Assim um transport sem figurinha, como o Discord, mantém imagem e PDF.
+O plugin exige só `media.download`. Cada comando declara no `requires` a capability do que envia
+(`send.sticker`, `send.image`, `send.video`, `send.document`) e, sem ela, não é registrado: some
+do roteador e da lista de comandos. Assim um transport sem figurinha, como o Discord, mantém
+imagem e PDF.
 
 ## FFmpeg
 
@@ -58,6 +61,10 @@ figurinha que não baixa.
 
 A lista do `!mergepdf` fica em memória: um restart a esvazia.
 
+O `!sticker` e o `!gif` rodam fora da fila do chat (`background`): as outras mensagens do chat
+não esperam a conversão. O `!mergepdf` fica na fila, para o `done` não passar à frente do último
+PDF adicionado.
+
 ## Textos
 
 Todos os textos ao usuário ficam em `messages` e a config do bot os sobrescreve
@@ -65,6 +72,10 @@ Todos os textos ao usuário ficam em `messages` e a config do bot os sobrescreve
 [Config](https://github.com/murillous/usebridger/blob/develop/packages/core/docs/config.md)).
 Isso inclui `stickerPack` e `stickerAuthor`, o nome e o autor do pacote que o WhatsApp mostra
 nos detalhes da figurinha (gravados no EXIF do WebP).
+
+Os textos usam placeholders: `{prefix}` vira o prefixo do chat (`ℹ️ Responda a um sticker com
+{prefix}image`) e o `mergeAdded` recebe `{count}`, o tamanho da lista. A sobrescrita só pode usar
+os placeholders do texto padrão.
 
 ## Diferenças do legacy
 

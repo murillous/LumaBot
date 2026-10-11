@@ -13,12 +13,17 @@ O link vem depois do comando ou, na falta, da mensagem citada.
 | `!download <link>` / `!d` | Vídeo MP4 recodificado; post de foto (Instagram, X) sai como imagem |
 | `!audio <link>` / `!a` | MP3 com capa e tags, com o título como nome do arquivo |
 
-Enquanto baixa, o bot reage ⏳ e depois ✅ ou ❌, se o transport tiver `reactions`. A falha vai
+Enquanto baixa, o bot reage ⏳ e depois ✅ ou ❌; num transport sem `reactions`, a reação é
+ignorada. A falha vai
 para o log (`falha no download`, com o stderr do yt-dlp) e o chat recebe `downloadError` ou
 `audioError`; arquivo acima de 100 MB recebe `tooLarge`.
 
-Cada comando confere a capability do que envia (`send.video`, `send.image`, `send.audio`) e, sem
-ela, responde `unsupported` sem baixar nada.
+Cada comando declara no `requires` a capability do que envia (`!download`: `send.video` e
+`send.image`, porque só depois de baixar se sabe se é vídeo ou foto; `!audio`: `send.audio`). Sem
+ela, o comando não é registrado.
+
+Os dois rodam fora da fila do chat (`background`): num grupo, as outras mensagens não esperam o
+download terminar.
 
 ## Binários
 
@@ -40,7 +45,8 @@ no mesmo CRF (o vídeo de teste caiu de 27 MB para 17 MB). Sem `libx264`, o FFmp
 
 | O quê | Limite |
 | --- | --- |
-| Prazo dos comandos | 240 s (download e recodificação seguram o chat) |
+| Prazo dos comandos | 240 s (download e recodificação) |
+| Execuções simultâneas | 2 de cada comando, no bot inteiro (`concurrency`); o excedente espera a vez dentro do prazo |
 | Tamanho do arquivo | 100 MB (`--max-filesize`: o yt-dlp nem baixa o que passa disso) |
 | Playlist | Só o item do link (`--no-playlist`) |
 
@@ -57,7 +63,7 @@ Cada download roda num diretório temporário próprio (`os.tmpdir()`), apagado 
 | `LUMABOT_YTDLP_COOKIES` | Arquivo de cookies (formato Netscape) de um navegador logado, repassado com `--cookies`. Instagram e X pedem login para boa parte do conteúdo |
 
 Os textos ficam em `messages` e a config do bot os sobrescreve (`tooLarge` →
-`BRIDGER_DOWNLOAD__MESSAGES__TOO_LARGE`).
+`BRIDGER_DOWNLOAD__MESSAGES__TOO_LARGE`). `{prefix}` nos textos de uso vira o prefixo do chat.
 
 ## Diferenças do legacy
 

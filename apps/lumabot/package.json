@@ -14,9 +14,9 @@
     "dev": "node src/main.ts"
   },
   "dependencies": {
-    "@usebridger/core": "^0.2.0",
-    "@usebridger/storage-sqlite": "^0.2.0",
-    "@usebridger/transport-baileys": "^0.2.0",
+    "@usebridger/core": "^0.3.0",
+    "@usebridger/storage-sqlite": "^0.2.2",
+    "@usebridger/transport-baileys": "^0.3.0",
     "node-webpmux": "^3.2.1",
     "pdf-lib": "^1.17.1",
     "qrcode-terminal": "^0.12.0",
@@ -24,6 +24,6 @@
   },
   "devDependencies": {
     "@types/qrcode-terminal": "^0.12.2",
-    "@usebridger/testing": "^0.2.0"
+    "@usebridger/testing": "^0.3.0"
   }
 }
