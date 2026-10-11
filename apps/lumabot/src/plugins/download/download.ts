@@ -15,6 +15,7 @@ const MESSAGES = {
   audioUsage: 'ℹ️ Cole o link junto com o comando.\nEx: `{prefix}audio https://youtu.be/...`',
   videoSent: '🎬 Pronto!',
   imageSent: '🖼️ Pronto!',
+  imageUnsupported: 'ℹ️ Esse link é de um post de foto, e este chat não aceita imagem.',
   tooLarge: '❌ Arquivo muito grande para enviar (máx. 100 MB).',
   downloadError:
     '❌ Não consegui baixar esse vídeo. O conteúdo pode ser privado ou a URL inválida.',
@@ -55,12 +56,13 @@ export function download(options: DownloadOptions = {}): PluginDefinition {
       download: {
         aliases: ['d'],
         description: 'Baixa vídeo ou foto de um link (X, Instagram, TikTok...)',
-        // O link pode ser de vídeo ou de post de foto: só se sabe depois de baixar.
-        requires: ['send.video', 'send.image'],
+        // Exige só o vídeo, o caso comum: o post de foto só se revela depois de baixar, e exigir
+        // também `send.image` tiraria o comando do transport que envia vídeo mas não imagem.
+        requires: ['send.video'],
         timeoutMs: TIMEOUT_MS,
         background: true,
         concurrency: CONCURRENCY,
-        run: async (ctx) => {
+        run: async (ctx, plugin) => {
           const url = findUrl(ctx);
           if (!url) return ctx.t('downloadUsage');
           return inTempDir(async (dir) => {
@@ -68,6 +70,10 @@ export function download(options: DownloadOptions = {}): PluginDefinition {
             try {
               const file = await downloadVideo(url, dir, { ...options, signal: ctx.signal });
               if (IMAGE_EXTENSIONS.has(extname(file).toLowerCase())) {
+                if (!plugin.capabilities.has('send.image')) {
+                  await ctx.react('❌');
+                  return ctx.t('imageUnsupported');
+                }
                 await ctx.reply.image(await readFile(file), { caption: ctx.t('imageSent') });
               } else {
                 const mp4 = await compactVideo(file, dir, ctx.signal);
