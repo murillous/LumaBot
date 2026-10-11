@@ -2,7 +2,7 @@
 
 Kernel de bot de mensageria extensível por plugins — em construção.
 Plano, decisões e marcos: [`ZAPFORGE_PLAN.md`](ZAPFORGE_PLAN.md).
-O porquê de cada decisão (D01–D31) está nos ADRs em [`docs/adr/`](docs/adr/README.md).
+O porquê de cada decisão (`DNN` no plano, `ADR 00NN`) está nos ADRs em [`docs/adr/`](docs/adr/README.md).
 Para escrever um plugin, comece pelos [guias do autor](docs/guias/README.md).
 
 O LumaBot atual (em produção até a paridade) vive em [`legacy/`](legacy/README.md); a versão
@@ -27,7 +27,7 @@ Requer Node 24+ (`engines` na raiz; `.nvmrc` para `nvm use`/`fnm use`).
 | `pnpm typecheck` | `tsc -b` em todos os pacotes (project references) |
 | `pnpm test` | Vitest em todos os pacotes |
 | `pnpm build` | `tsdown` em cada pacote (ESM + `.d.ts` em `dist/`) e a referência da API |
-| `pnpm docs` | Só a referência da API: TypeDoc sobre as entradas públicas, em `docs/referencia/` ([`tooling/typedoc/`](tooling/typedoc/docs/README.md)) |
+| `pnpm run docs` | Só a referência da API: TypeDoc sobre as entradas públicas, em `docs/referencia/` ([`tooling/typedoc/`](tooling/typedoc/docs/README.md)). O `run` é obrigatório: no pnpm 12, `pnpm docs` é um comando nativo que abre a página de um pacote do registry |
 | `pnpm bench` | Build e benchmark das metas de performance ([`bench/`](bench/docs/README.md)) |
 | `pnpm changeset` | Registra a mudança de um pacote publicável |
 | `pnpm version-packages` | Consome os changesets (versões e changelogs) e sincroniza o `CORE_VERSION` |
@@ -117,8 +117,9 @@ Todo push e PR para `main`/`develop` roda dois workflows:
   (os mesmos comandos da tabela acima), com o store do pnpm em cache. O job `Scaffold` gera um
   plugin com o `create-zapforge-plugin` e confere que ele instala, testa e builda
   ([e2e](packages/create-plugin/docs/README.md#e2e)). O job `Testes` sobe um
-  Postgres em container para o `@zapforge/storage-postgres`. O job `Benchmark` é um
-  placeholder até o M2.
+  Postgres em container para o `@zapforge/storage-postgres`. O job `Benchmark` mede as metas
+  de performance e falha com piora > 10% sobre o baseline do commit-base, medido no mesmo
+  runner ([ADR 0054](docs/adr/0054-baseline-do-benchmark.md)).
 - [`legacy-ci.yml`](.github/workflows/legacy-ci.yml) — suíte do `legacy/`, sem alteração.
 
 O setup comum (Node do `.nvmrc`, pnpm do `packageManager`, `pnpm install --frozen-lockfile`)
