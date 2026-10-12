@@ -114,6 +114,25 @@ it('num transport sem vídeo, o comando fica de fora e nada é baixado', async (
   expect(downloadVideo).not.toHaveBeenCalled();
 });
 
+it('num transport com vídeo e sem imagem, o vídeo vai e o post de foto recebe aviso', async () => {
+  bot = await createTestBot({
+    plugins: [download()],
+    transport: new FakeTransport({
+      capabilities: ['send.text', 'send.video', 'reactions', 'quoted'],
+    }),
+  });
+
+  ytDlpWrites(downloadVideo, fixtures.video().data, 'webm');
+  await bot.receive({ text: `!d ${URL}` });
+  expect(bot.sentMedia('video')).toHaveLength(1);
+
+  ytDlpWrites(downloadVideo, fixtures.image().data, 'jpg');
+  await bot.receive({ text: `!d ${URL}` });
+  expect(bot.sent).toHaveReplied(/^ℹ️ Esse link é de um post de foto/);
+  expect(bot.sentMedia('image')).toHaveLength(0);
+  expect(bot.transport.reactions.map((r) => r.emoji)).toEqual(['⏳', '✅', '⏳', '❌']);
+});
+
 it('o download não segura as outras mensagens do chat', async () => {
   const { promise: released, resolve: release } = Promise.withResolvers<void>();
   vi.mocked(downloadVideo).mockImplementation(async () => {

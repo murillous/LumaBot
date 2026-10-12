@@ -18,9 +18,11 @@ ignorada. A falha vai
 para o log (`falha no download`, com o stderr do yt-dlp) e o chat recebe `downloadError` ou
 `audioError`; arquivo acima de 100 MB recebe `tooLarge`.
 
-Cada comando declara no `requires` a capability do que envia (`!download`: `send.video` e
-`send.image`, porque só depois de baixar se sabe se é vídeo ou foto; `!audio`: `send.audio`). Sem
-ela, o comando não é registrado.
+Cada comando declara no `requires` a capability do que envia (`!download`: `send.video`;
+`!audio`: `send.audio`). Sem ela, o comando não é registrado. O `!download` não exige
+`send.image`: só depois de baixar se sabe se o link é vídeo ou foto, e exigir as duas tiraria o
+comando do transport que envia vídeo mas não imagem. Nele, o post de foto recebe
+`imageUnsupported` e ❌.
 
 Os dois rodam fora da fila do chat (`background`): num grupo, as outras mensagens não esperam o
 download terminar.
