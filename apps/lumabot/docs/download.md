@@ -12,6 +12,7 @@ O link vem depois do comando ou, na falta, da mensagem citada.
 | --- | --- |
 | `!download <link>` / `!d` | Vídeo MP4 recodificado; post de foto (Instagram, X) sai como imagem |
 | `!audio <link>` / `!a` | MP3 com capa e tags, com o título como nome do arquivo |
+| `!downloadsticker <link> [texto]` / `!ds` | O vídeo ou a foto do link como figurinha, feita pelo plugin [`sticker`](sticker.md) |
 
 Enquanto baixa, o bot reage ⏳ e depois ✅ ou ❌; num transport sem `reactions`, a reação é
 ignorada. A falha vai
@@ -19,13 +20,25 @@ para o log (`falha no download`, com o stderr do yt-dlp) e o chat recebe `downlo
 `audioError`; arquivo acima de 100 MB recebe `tooLarge`.
 
 Cada comando declara no `requires` a capability do que envia (`!download`: `send.video`;
-`!audio`: `send.audio`). Sem ela, o comando não é registrado. O `!download` não exige
+`!audio`: `send.audio`; `!downloadsticker`: `send.sticker`). Sem ela, o comando não é registrado. O `!download` não exige
 `send.image`: só depois de baixar se sabe se o link é vídeo ou foto, e exigir as duas tiraria o
 comando do transport que envia vídeo mas não imagem. Nele, o post de foto recebe
 `imageUnsupported` e ❌.
 
 Os dois rodam fora da fila do chat (`background`): num grupo, as outras mensagens não esperam o
 download terminar.
+
+## Figurinha
+
+O `!downloadsticker` baixa como o `!download` e entrega os bytes ao serviço `sticker`
+([sticker.md](sticker.md#serviço-sticker)): vídeo vira figurinha animada (os primeiros 20 s,
+até 800 KB) e foto vira figurinha estática. O texto depois do link vira legenda na foto se o
+`sticker-text` estiver carregado. O pacote no EXIF é o do `sticker`.
+
+O `sticker` é opcional para o `download` (sem `dependsOn`): sem ele, o plugin carrega igual e
+só o `!downloadsticker` responde `stickerUnavailable`, sem baixar nada. O comando consulta o
+serviço a cada uso, então pega o novo depois de um reload do `sticker`. Falha do yt-dlp
+responde `downloadError` (ou `tooLarge`); falha na conversão, depois de baixar, `stickerError`.
 
 ## Binários
 
@@ -72,3 +85,4 @@ Os textos ficam em `messages` e a config do bot os sobrescreve (`tooLarge` →
 - O yt-dlp vem do sistema, sem o download automático do binário.
 - Sem o extrator genérico (ver acima).
 - As métricas (`videos_downloaded`, `images_downloaded`, `audios_downloaded`) não foram portadas.
+- O `!downloadsticker` é novo, não existe no legacy.

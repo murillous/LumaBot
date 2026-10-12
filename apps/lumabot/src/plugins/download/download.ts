@@ -20,6 +20,10 @@ const MESSAGES = {
   downloadError:
     '❌ Não consegui baixar esse vídeo. O conteúdo pode ser privado ou a URL inválida.',
   audioError: '❌ Não consegui baixar o áudio. O conteúdo pode ser privado ou a URL inválida.',
+  stickerUsage:
+    'ℹ️ Cole o link junto com o comando; o texto depois do link vira legenda.\nEx: `{prefix}ds https://x.com/...`',
+  stickerUnavailable: 'ℹ️ Figurinha indisponível: o plugin `sticker` não está carregado.',
+  stickerError: '❌ Baixei, mas não consegui fazer a figurinha.',
 };
 
 /**
@@ -37,7 +41,10 @@ export interface DownloadOptions {
   readonly cookies?: string;
 }
 
-/** `!download` (vídeo ou foto de rede social) e `!audio` (MP3 de um link), pelo yt-dlp. */
+/**
+ * `!download` (vídeo ou foto de rede social), `!audio` (MP3 de um link) e `!downloadsticker`
+ * (o vídeo ou a foto como figurinha), pelo yt-dlp.
+ */
 export function download(options: DownloadOptions = {}): PluginDefinition {
   return definePlugin({
     name: 'download',
@@ -85,6 +92,45 @@ export function download(options: DownloadOptions = {}): PluginDefinition {
             } catch (err) {
               ctx.log.error('falha no download', { err, url });
               await ctx.react('❌');
+              return ctx.t(err instanceof TooLargeError ? 'tooLarge' : 'downloadError');
+            }
+            await ctx.react('✅');
+            return undefined;
+          });
+        },
+      },
+
+      downloadsticker: {
+        aliases: ['ds'],
+        description: 'Baixa vídeo ou foto de um link e manda como figurinha',
+        requires: ['send.sticker'],
+        timeoutMs: TIMEOUT_MS,
+        background: true,
+        concurrency: CONCURRENCY,
+        run: async (ctx, plugin) => {
+          const url = findUrl(ctx);
+          if (!url) return ctx.t('stickerUsage');
+          // O `sticker` é opcional: sem ele o `download` carrega igual e só este comando recusa.
+          // Consultado a cada uso, pega o serviço novo depois de um reload do `sticker`.
+          if (!plugin.services.has('sticker')) return ctx.t('stickerUnavailable');
+          const stickers = plugin.services.get('sticker');
+          const text = ctx.rawArgs.replace(url, '').replace(/\s+/g, ' ').trim();
+          return inTempDir(async (dir) => {
+            await ctx.react('⏳');
+            let downloaded = false;
+            try {
+              const file = await downloadVideo(url, dir, { ...options, signal: ctx.signal });
+              downloaded = true;
+              const sticker = await stickers.create(await readFile(file), {
+                animated: !IMAGE_EXTENSIONS.has(extname(file).toLowerCase()),
+                text,
+                signal: ctx.signal,
+              });
+              await ctx.reply.sticker(sticker);
+            } catch (err) {
+              ctx.log.error('falha no download de figurinha', { err, url });
+              await ctx.react('❌');
+              if (downloaded) return ctx.t('stickerError');
               return ctx.t(err instanceof TooLargeError ? 'tooLarge' : 'downloadError');
             }
             await ctx.react('✅');

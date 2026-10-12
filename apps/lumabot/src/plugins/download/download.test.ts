@@ -1,8 +1,11 @@
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { createTestBot, FakeTransport, fixtures, type TestBot } from '@usebridger/testing';
-import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import sharp from 'sharp';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { checkBinary } from '#plugins/binary.ts';
+import { sticker } from '#plugins/sticker/sticker.ts';
+import { stickerText } from '#plugins/sticker-text/sticker-text.ts';
 import { download } from './download.ts';
 import { downloadAudio, downloadVideo, TooLargeError } from './yt-dlp.ts';
 
@@ -178,4 +181,76 @@ it('sem o yt-dlp no PATH, o bot sobe sem o plugin', async () => {
 
   expect(bot.sent).toHaveLength(0);
   expect(downloadVideo).not.toHaveBeenCalled();
+});
+
+describe('!downloadsticker', () => {
+  /** Bytes da primeira figurinha enviada; falha se não houve nenhuma. */
+  function sentSticker(): Buffer {
+    const bytes = bot.sentMedia('sticker')[0]?.bytes;
+    if (!bytes) throw new Error('nenhuma figurinha enviada');
+    return bytes;
+  }
+
+  it('manda o vídeo do link como figurinha animada', async () => {
+    ytDlpWrites(downloadVideo, fixtures.video().data, 'webm');
+    bot = await createTestBot({ plugins: [sticker, download()] });
+
+    await bot.receive({ text: `!ds ${URL}` });
+
+    expect(await sharp(sentSticker()).metadata()).toMatchObject({
+      format: 'webp',
+      width: 512,
+      height: 512,
+    });
+    expect(bot.transport.reactions.map((r) => r.emoji)).toEqual(['⏳', '✅']);
+  }, 60_000);
+
+  it('foto do post vira figurinha estática, com a legenda do sticker-text', async () => {
+    ytDlpWrites(downloadVideo, fixtures.image().data, 'jpg');
+    bot = await createTestBot({ plugins: [sticker, stickerText, download()] });
+
+    await bot.receive({ text: `!downloadsticker ${URL}` });
+    await bot.receive({ text: `!ds ${URL} bom dia` });
+
+    const [plain, captioned] = bot.sentMedia('sticker').map((s) => s.bytes);
+    expect(plain).toBeInstanceOf(Buffer);
+    expect(captioned).toBeInstanceOf(Buffer);
+    expect(captioned?.equals(plain ?? Buffer.alloc(0))).toBe(false);
+  });
+
+  it('sem o plugin sticker, avisa e não baixa', async () => {
+    bot = await createTestBot({ plugins: [download()] });
+
+    await bot.receive({ text: `!ds ${URL}` });
+
+    expect(bot.sent).toHaveReplied(/^ℹ️ Figurinha indisponível/);
+    expect(downloadVideo).not.toHaveBeenCalled();
+  });
+
+  it('sem link, explica o uso', async () => {
+    bot = await createTestBot({ plugins: [sticker, download()] });
+
+    await bot.receive({ text: '!ds' });
+
+    expect(bot.sent).toHaveReplied(/^ℹ️ Cole o link junto com o comando; o texto/);
+  });
+
+  it('falha do yt-dlp responde o erro do download', async () => {
+    vi.mocked(downloadVideo).mockRejectedValue(new Error('yt-dlp falhou: Private video'));
+    bot = await createTestBot({ plugins: [sticker, download()] });
+
+    await bot.receive({ text: `!ds ${URL}` });
+
+    expect(bot.sent).toHaveReplied(/^❌ Não consegui baixar esse vídeo/);
+  });
+
+  it('falha na figurinha responde que baixou mas não converteu', async () => {
+    ytDlpWrites(downloadVideo, Buffer.from('não é imagem'), 'jpg');
+    bot = await createTestBot({ plugins: [sticker, download()] });
+
+    await bot.receive({ text: `!ds ${URL}` });
+
+    expect(bot.sent).toHaveReplied('❌ Baixei, mas não consegui fazer a figurinha.');
+    expect(bot.transport.reactions.map((r) => r.emoji)).toEqual(['⏳', '❌']);
+  });
 });
