@@ -19,8 +19,8 @@ pnpm build
 pnpm --filter lumabot start   # roda dist/main.mjs
 ```
 
-Os plugins `media` e `download` rodam o `ffmpeg` do sistema, e o `download`, também o `yt-dlp`:
-instale os dois e deixe-os no `PATH` (ver [media.md](media.md#ffmpeg) e
+Os plugins `sticker`, `sticker-convert` e `download` rodam o `ffmpeg` do sistema, e o `download`,
+também o `yt-dlp`: instale os dois e deixe-os no `PATH` (ver [sticker.md](sticker.md#ffmpeg) e
 [download.md](download.md#binários)).
 
 Para desenvolver sem build, `pnpm --filter lumabot dev` executa o `.ts` direto (type stripping
@@ -49,7 +49,7 @@ A config dos plugins segue o padrão do core (`BRIDGER_<PLUGIN>__<CAMPO>`,
 [Config](https://github.com/murillous/usebridger/blob/develop/packages/core/docs/config.md)).
 
 Valor inválido derruba o boot com a variável na mensagem. No terminal, o log sai legível
-(`14:03:22 INFO  [media] mensagem chave=valor`, com cor); com o stdout redirecionado (serviço,
+(`14:03:22 INFO  [sticker] mensagem chave=valor`, com cor); com o stdout redirecionado (serviço,
 arquivo, agregador), em JSON, uma linha por evento. O Baileys só escreve a partir de `warn`. O QR
 e o código de pareamento saem fora do log, direto no stdout.
 
@@ -61,8 +61,15 @@ Ficam em `src/plugins/` e entram na lista do `createBot` em `src/main.ts`.
 | --- | --- |
 | `pairing` | Desenha no terminal o QR (`connection.qr`) ou mostra o código (`connection.pairing-code`). O log do bot só avisa que chegou um QR, sem o valor |
 | `ping` | `!ping` responde `pong`: prova o caminho transport → kernel → fila de saída → transport |
-| [`media`](media.md) | Figurinha, imagem, GIF e PDF: `!sticker`, `!image`, `!gif`, `!pdf`, `!mergepdf` |
-| [`download`](download.md) | Vídeo, foto e áudio de links pelo yt-dlp: `!download`, `!audio` |
+| [`sticker`](sticker.md) | Figurinha de imagem, vídeo ou link: `!sticker`. Oferece o serviço `sticker` |
+| [`sticker-text`](sticker.md) | Texto do `!sticker` como legenda; estende o serviço `sticker` |
+| [`sticker-convert`](sticker-convert.md) | Figurinha de volta a imagem ou vídeo: `!image`, `!gif` |
+| [`pdf`](pdf.md) | Imagem → PDF e junção de PDFs: `!pdf`, `!mergepdf` |
+| [`download`](download.md) | Vídeo, foto, áudio e figurinha de links pelo yt-dlp: `!download`, `!audio`, `!downloadsticker` |
+
+Um plugin pode estender outro ou usá-lo pelos serviços do kernel (`ctx.services`), sem importar
+o código dele ([ADR 0001](../../../docs/adr/0001-plugins-compostos-por-servico.md)); o exemplo é
+o `sticker`, em [sticker.md](sticker.md#serviço-sticker).
 
 Os testes sobem cada plugin num bot de verdade sobre o transport falso do
 [`@usebridger/testing`](https://github.com/murillous/usebridger/blob/develop/packages/testing/docs/README.md).

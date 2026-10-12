@@ -12,11 +12,11 @@ e agora vive aqui.
 
 | | Funcionalidade legacy | Plugin |
 |---|---|---|
-| [x] | `!sticker` / `!s` (imagem/vídeo/link → figurinha) | [media](apps/lumabot/docs/media.md) |
-| [x] | `!image` / `!i` (figurinha → imagem) | [media](apps/lumabot/docs/media.md) |
-| [x] | `!gif` / `!g` (figurinha animada → vídeo) | [media](apps/lumabot/docs/media.md) |
-| [x] | `!pdf` (imagem → PDF, com nome opcional) | [media](apps/lumabot/docs/media.md) |
-| [x] | `!mergepdf` / `!joinpdf` (acumula PDFs; `done <nome>`; `clear`) | [media](apps/lumabot/docs/media.md) |
+| [x] | `!sticker` / `!s` (imagem/vídeo/link → figurinha) | [sticker](apps/lumabot/docs/sticker.md) |
+| [x] | `!image` / `!i` (figurinha → imagem) | [sticker-convert](apps/lumabot/docs/sticker-convert.md) |
+| [x] | `!gif` / `!g` (figurinha animada → vídeo) | [sticker-convert](apps/lumabot/docs/sticker-convert.md) |
+| [x] | `!pdf` (imagem → PDF, com nome opcional) | [pdf](apps/lumabot/docs/pdf.md) |
+| [x] | `!mergepdf` / `!joinpdf` (acumula PDFs; `done <nome>`; `clear`) | [pdf](apps/lumabot/docs/pdf.md) |
 | [x] | `!download` / `!d` (vídeo Twitter/X, Instagram) | [download](apps/lumabot/docs/download.md) |
 | [x] | Envio de fotos baixadas e recodificação compacta do vídeo (PR #28) | [download](apps/lumabot/docs/download.md) |
 | [x] | `!audio` / `!a` (MP3 de link de site conhecido pelo yt-dlp) | [download](apps/lumabot/docs/download.md) |
