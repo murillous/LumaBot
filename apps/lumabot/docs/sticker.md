@@ -16,9 +16,9 @@ Port do `!sticker` do `MediaPlugin` do legacy.
 | `!sticker [texto]` / `!s` | Imagem, vídeo, GIF, figurinha ou link | Figurinha 512×512 |
 
 A mídia vem da própria mensagem ou, na falta, da citada; mídia de visualização única é recusada.
-Com o `sticker-text` carregado, o texto depois do comando (sem o link) vira legenda embaixo da
-figurinha estática: até 3 linhas, 90 caracteres. Sem ele, o texto é ignorado. Figurinha animada
-nunca leva legenda.
+Com o `sticker-text` carregado, o texto depois do comando (sem o link) vira legenda na
+figurinha estática, até 90 caracteres, com emoji colorido (ver [Legenda](#legenda-sticker-text)).
+Sem ele, o texto é ignorado. Figurinha animada nunca leva legenda.
 
 Enquanto converte, o bot reage ⏳ na mensagem e depois ✅ ou ❌; num transport sem `reactions`, a
 reação é ignorada. Erro de conversão vai para o log (`falha ao processar mídia`) e o chat recebe
@@ -51,6 +51,32 @@ Dois jeitos de compor:
 Num reload do `sticker` (mudança de config, por exemplo), o serviço é provido de novo, sem
 etapas, e o kernel recarrega em cascata quem tem `dependsOn: { sticker }`, que registra a etapa
 outra vez.
+
+## Legenda (`sticker-text`)
+
+O texto sai pelo Pango (entrada `text` do Sharp), quebrado por palavra e centralizado, com
+contorno. A legenda ocupa no máximo um terço da figurinha: texto que passa disso encolhe até
+caber.
+
+| Config | Padrão | O quê |
+| --- | --- | --- |
+| `font` | `Sans Bold` | Família e estilo no formato do Pango (`Impact`, `DejaVu Sans Bold`). Fonte que o sistema não tem cai na fonte padrão do fontconfig |
+| `fontSize` | `58` | Tamanho em px, de 16 a 128 |
+| `color` | `#ffffff` | Cor do texto, `#rrggbb` |
+| `strokeColor` | `#000000` | Cor do contorno |
+| `strokeWidth` | `5` | Espessura do contorno em px, de 0 (sem contorno) a 16 |
+| `position` | `bottom` | `bottom` ou `top` |
+
+Vem da config do bot como qualquer config de plugin: variável (`BRIDGER_STICKER_TEXT__FONT_SIZE=48`,
+`BRIDGER_STICKER_TEXT__POSITION=top`), arquivo ou override no dashboard. Valor inválido (cor fora
+de `#rrggbb`, tamanho fora da faixa) deixa o plugin de fora no boot, com o campo no relatório; numa
+mudança em funcionamento, a mudança é recusada e a legenda segue com o estilo anterior. Mudança
+válida recarrega o `sticker-text`, que registra a etapa com o estilo novo.
+
+**Emoji colorido** depende de uma fonte de emoji colorida no sistema: instale
+`fonts-noto-color-emoji` (Debian/Ubuntu). Sem ela, o emoji sai na cor do texto, e o `setup` avisa
+no log (`fonte de emoji colorido não encontrada`). O SVG, usado antes, não serve: o librsvg pinta
+o emoji com a cor do texto mesmo com a fonte instalada.
 
 ## Capabilities
 
@@ -92,10 +118,12 @@ Os textos ao usuário ficam em `messages` e a config do bot os sobrescreve
 [Config](https://github.com/murillous/usebridger/blob/develop/packages/core/docs/config.md)).
 Isso inclui `stickerPack` e `stickerAuthor`, o nome e o autor do pacote que o WhatsApp mostra
 nos detalhes da figurinha (gravados no EXIF do WebP), também nas figurinhas do `!downloadsticker`.
-`{prefix}` nos textos de uso vira o prefixo do chat. O `sticker-text` não tem textos.
+`{prefix}` nos textos de uso vira o prefixo do chat. O `sticker-text` não tem textos, só o
+estilo (ver [Legenda](#legenda-sticker-text)).
 
 ## Diferenças do legacy
 
 - Figurinha de vídeo e de GIF têm o mesmo limite de 20 s (o legacy dava 15 s ao GIF).
-- A legenda é um plugin à parte, que pode ser desligado.
+- A legenda é um plugin à parte, que pode ser desligado, com estilo configurável e emoji
+  colorido.
 - As métricas (`stickers_created`...) não foram portadas.

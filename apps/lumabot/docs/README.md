@@ -21,7 +21,9 @@ pnpm --filter lumabot start   # roda dist/main.mjs
 
 Os plugins `sticker`, `sticker-convert` e `download` rodam o `ffmpeg` do sistema, e o `download`,
 também o `yt-dlp`: instale os dois e deixe-os no `PATH` (ver [sticker.md](sticker.md#ffmpeg) e
-[download.md](download.md#binários)).
+[download.md](download.md#binários)). Para o emoji colorido na legenda das figurinhas, instale
+também uma fonte de emoji colorida (`fonts-noto-color-emoji`, ver
+[sticker.md](sticker.md#legenda-sticker-text)).
 
 Para desenvolver sem build, `pnpm --filter lumabot dev` executa o `.ts` direto (type stripping
 do Node).
