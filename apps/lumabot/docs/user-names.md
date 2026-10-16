@@ -10,7 +10,7 @@ storage do próprio plugin (KV: `nick:<id>` e `seen:<id>`).
 | `!nick Nome` (alias `!apelido`) | Define o apelido de quem enviou |
 | `!nick @pessoa Nome` | Define o apelido da pessoa mencionada (o trecho da menção sai do texto) |
 
-Sem nome, ou `@algo` sem menção resolvida, responde o uso. Como no legacy, qualquer pessoa pode
+Sem nome, vazio após a limpeza, ou `@algo` sem menção resolvida (`!nick Fulano @alguem`), responde o uso e não grava; acima de 32 caracteres, `nickTooLong`. A resposta de `!nick @pessoa` não menciona a pessoa no chat (o legacy mencionava). Como no legacy, qualquer pessoa pode
 dar apelido a qualquer outra (sem papel). O `!nick @pessoa` precisa da capability `mentions` do
 transport; o plugin não a exige, então `!nick Nome` funciona sem ela.
 
@@ -20,18 +20,22 @@ transport; o plugin não a exige, então `!nick Nome` funciona sem ela.
 evento `command`), `group.participants` e `contact.updated`. Guarda o último nome e telefone
 não vazios; só grava se mudou.
 
-Lacuna do Bridger: não há API pública para resolver LID para telefone nem para listar os
-participantes de um grupo sob demanda; só se aprende o que passa pelos eventos acima.
+Não enriquece por `groups.metadata` (o legacy também não). A resposta a um passo de conversa
+(`expectReply`) não passa por `message` nem por `command`, então também não enriquece.
+
+Nomes (apelido e pushName) passam por limpeza: NFC, sem caracteres de controle/formatação
+(bidi, largura zero), espaços colapsados. Apelido acima de 32 caracteres é recusado; o pushName
+é só cortado em 32.
 
 ## `messages`
 
-`nickUsage`, `nickSet`, `nickSetOther` (`{nick}`, `{who}`, `{prefix}`).
+`nickUsage`, `nickTooLong`, `nickSet`, `nickSetOther` (`{nick}`, `{who}`, `{prefix}`).
 
 ## Serviço `userNames` (contrato estável, ADR 0002)
 
 ```ts
-displayName(id): Promise<string>  // fontes em ordem; senão telefone observado; senão id antes do '@' ('usuário' para LID)
-setNick(id, nick): Promise<void>
+displayName(id): Promise<string>  // fontes em ordem; senão '@' + 6 últimos dígitos do telefone observado ou do id (como o legacy)
+setNick(id, nick): Promise<void>  // limpa; lança NickEmptyError (vazio) ou NickTooLongError (> 32)
 nick(id): Promise<string | null>
 remember(contact: { id; name; phone }): Promise<void>
 ```

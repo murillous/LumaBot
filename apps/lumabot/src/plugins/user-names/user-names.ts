@@ -1,5 +1,5 @@
 import { type Contact, definePlugin, type PluginDefinition } from '@usebridger/core';
-import { nickFromArgs } from './nick-args.ts';
+import { cleanName, NICK_MAX, nickFromArgs } from './nick-args.ts';
 
 /** Fonte de nome: devolve o nome que conhece para o `id`, ou `null` para passar à próxima. */
 export type NameSource = (id: string) => Promise<string | null>;
@@ -14,16 +14,34 @@ export type KnownContact = Pick<Contact, 'id' | 'name' | 'phone'>;
 export interface UserNamesService {
   /**
    * Primeira fonte de `userNames.sources` que devolve nome (padrão: apelido, depois nome
-   * observado). Sem nenhuma, cai no telefone observado, senão na parte do `id` antes do `@`; um
-   * LID (`...@lid`) não é número de telefone e não aparece: vira "usuário".
+   * observado). Sem nenhuma, o fallback do legacy: `@` + os 6 últimos dígitos do telefone
+   * observado (ou do `id`); nunca o número inteiro.
    */
   displayName(id: string): Promise<string>;
-  /** Define o apelido (prioridade máxima). `nick` é gravado como veio, sem validar. */
+  /**
+   * Define o apelido (prioridade máxima). Limpa o texto (`cleanName`) e recusa: vazio depois da
+   * limpeza com `NickEmptyError`, acima de 32 caracteres com `NickTooLongError`.
+   */
   setNick(id: string, nick: string): Promise<void>;
   /** Apelido definido, ou `null`. */
   nick(id: string): Promise<string | null>;
-  /** Grava o melhor nome/telefone visto para o contato; campo vazio não apaga o que já existe. */
+  /**
+   * Grava o melhor nome/telefone visto. O nome passa pela mesma limpeza do apelido e é cortado
+   * em 32 caracteres (não recusa); campo vazio não apaga o que já existe.
+   */
   remember(contact: KnownContact): Promise<void>;
+}
+
+export class NickTooLongError extends Error {
+  constructor() {
+    super(`apelido acima de ${NICK_MAX} caracteres`);
+  }
+}
+
+export class NickEmptyError extends Error {
+  constructor() {
+    super('apelido vazio');
+  }
 }
 
 declare module '@usebridger/core' {
@@ -38,6 +56,7 @@ declare module '@usebridger/core' {
 
 const MESSAGES = {
   nickUsage: 'ℹ️ Uso: *{prefix}nick SeuNome* ou *{prefix}nick @pessoa Nome*',
+  nickTooLong: '❌ Apelido grande demais (máximo 32 caracteres).',
   nickSet: '✅ Apelido definido: *{nick}*',
   nickSetOther: '✅ Apelido de {who} definido: *{nick}*',
 };
@@ -59,10 +78,18 @@ export const userNames: PluginDefinition = definePlugin({
 
     const service: UserNamesService = {
       nick,
-      setNick: (id, value) => kv.set(`nick:${id}`, value),
+      setNick: async (id, value) => {
+        const clean = cleanName(value);
+        if (!clean) throw new NickEmptyError();
+        if ([...clean].length > NICK_MAX) throw new NickTooLongError();
+        await kv.set(`nick:${id}`, clean);
+      },
+      // shortcut: get+set sem transação; duas mensagens simultâneas do mesmo contato podem
+      // perder uma atualização (a próxima mensagem corrige). Trocar se o storage ganhar CAS.
       remember: async ({ id, name, phone }) => {
         const prev = (await seen(id)) ?? {};
-        const next: Seen = { name: name?.trim() || prev.name, phone: phone || prev.phone };
+        const clean = [...cleanName(name ?? '')].slice(0, NICK_MAX).join('');
+        const next: Seen = { name: clean || prev.name, phone: phone || prev.phone };
         if (next.name === prev.name && next.phone === prev.phone) return;
         await kv.set(`seen:${id}`, next);
       },
@@ -76,9 +103,9 @@ export const userNames: PluginDefinition = definePlugin({
             ctx.log.warn('fonte de nome falhou', { err });
           }
         }
-        const phone = (await seen(id))?.phone;
-        if (phone) return phone;
-        return id.endsWith('@lid') ? 'usuário' : id.split('@')[0] || id;
+        // Como o `fallbackFromJid` do legacy: só os 6 últimos dígitos, nunca o número inteiro.
+        const raw = (await seen(id))?.phone ?? id.split('@')[0]?.split(':')[0] ?? id;
+        return `@${(raw.replace(/\D/g, '') || raw).slice(-6)}`;
       },
     };
     ctx.services.provide('userNames', service);
@@ -116,16 +143,24 @@ export const userNames: PluginDefinition = definePlugin({
           c.message.mentions.map((m) => m.tag),
         );
         // `@x` sem menção resolvida (transport sem `mentions`) não vira apelido de si mesmo.
-        if (!nickname || (!target && c.rawArgs.startsWith('@'))) return c.t('nickUsage');
+        if (!nickname || (!target && /(?:^|\s)@\S/.test(c.rawArgs))) return c.t('nickUsage');
+        const save = async (id: string): Promise<string | null> => {
+          try {
+            await service.setNick(id, nickname);
+            return null;
+          } catch (err) {
+            if (err instanceof NickTooLongError) return c.t('nickTooLong');
+            if (err instanceof NickEmptyError) return c.t('nickUsage');
+            throw err;
+          }
+        };
         if (!target) {
-          await service.setNick(c.message.sender.id, nickname);
-          return c.t('nickSet', { nick: nickname });
+          return (await save(c.message.sender.id)) ?? c.t('nickSet', { nick: nickname });
         }
         // O evento `command` só chega depois; sem isto, a resposta não traria o nome da pessoa.
         await remember(target);
         const who = await service.displayName(target.id);
-        await service.setNick(target.id, nickname);
-        return c.t('nickSetOther', { who, nick: nickname });
+        return (await save(target.id)) ?? c.t('nickSetOther', { who, nick: nickname });
       },
     });
   },
