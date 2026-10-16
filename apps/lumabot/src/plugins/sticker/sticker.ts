@@ -20,15 +20,10 @@ export interface CreateStickerOptions extends StickerInput {
 }
 
 /**
- * Serviço `sticker`: outros plugins estendem a figurinha (`decorate`) ou a usam pronta
- * (`create`) sem que o `sticker` os conheça.
+ * Serviço `sticker`: outros plugins o usam pronto (`create`). Quem quer estender a figurinha
+ * contribui ao ponto `sticker.steps`, sem que o `sticker` o conheça.
  */
 export interface StickerService {
-  /**
-   * Acrescenta uma etapa à figurinha estática, na ordem de registro. A etapa sai quando o
-   * `signal` aborta: passe o `ctx.signal` do plugin, que aborta no teardown e no reload.
-   */
-  decorate(step: StickerStep, signal: AbortSignal): void;
   /** Imagem ou vídeo → figurinha pronta (WebP com o pacote no EXIF), já com as etapas. */
   create(media: Buffer, options: CreateStickerOptions): Promise<Buffer>;
 }
@@ -36,6 +31,10 @@ export interface StickerService {
 declare module '@usebridger/core' {
   interface Services {
     sticker: StickerService;
+  }
+  interface ExtensionPoints {
+    /** Etapa sobre a figurinha estática, na ordem de carga de quem contribui. */
+    'sticker.steps': StickerStep;
   }
 }
 
@@ -63,7 +62,7 @@ const FFMPEG_CONCURRENCY = 2;
  */
 export const sticker: PluginDefinition = definePlugin({
   name: 'sticker',
-  version: '0.0.0',
+  version: '1.0.0',
   engine: '<1.0.0',
   requires: ['media.download', 'send.sticker'],
   messages: MESSAGES,
@@ -72,18 +71,13 @@ export const sticker: PluginDefinition = definePlugin({
       name: ctx.plugin.messages.stickerPack,
       author: ctx.plugin.messages.stickerAuthor,
     };
-    // Criadas a cada setup: num reload do `sticker`, os dependentes recarregam e registram de novo.
-    const steps = new Set<StickerStep>();
+    // Visão viva: `list()` a cada uso pega as etapas de quem contribuiu ou saiu depois.
+    const steps = ctx.services.extensionPoint('sticker.steps');
     ctx.services.provide('sticker', {
-      decorate: (step, signal) => {
-        if (signal.aborted) return;
-        steps.add(step);
-        signal.addEventListener('abort', () => steps.delete(step), { once: true });
-      },
       create: async (media, { animated, text, signal }) => {
         if (animated) return videoToSticker(media, pack, signal);
         let image = await toStickerImage(media);
-        for (const step of steps) image = await step(image, { text });
+        for (const step of steps.list()) image = await step(image, { text });
         return encodeSticker(image, pack);
       },
     });

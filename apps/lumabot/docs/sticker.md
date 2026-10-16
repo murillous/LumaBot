@@ -31,26 +31,27 @@ Outros plugins usam a figurinha pelo `ctx.services.get('sticker')`, sem importar
 
 | Método | O que faz |
 | --- | --- |
-| `decorate(step, signal)` | Acrescenta uma etapa à figurinha estática: recebe o PNG 512×512 e o `{ text }` do comando, devolve outro PNG 512×512. Etapas rodam na ordem de registro, depois do redimensionamento e antes do WebP |
 | `create(media, { animated, text, signal })` | Bytes → figurinha pronta (WebP com o pacote no EXIF). Estática passa pelas etapas; `animated` (vídeo, GIF) vai pelo FFmpeg, sem etapas |
 
 Dois jeitos de compor:
 
-- **Estender** (`sticker-text`): declare `dependsOn: { sticker: '^0.0.0' }` e registre a etapa
-  no `setup` com o `ctx.signal` do plugin. O sinal aborta no teardown e no reload, e o serviço
-  tira a etapa sozinho: não há o que desfazer à mão.
+- **Estender** (`sticker-text`): contribua ao ponto de extensão `sticker.steps`
+  ([ADR 0096 do Bridger](https://github.com/murillous/usebridger) e `services.md`), com
+  `dependsOn: { sticker: '^1.0.0' }`. A etapa recebe o PNG 512×512 e o `{ text }` do comando e
+  devolve outro PNG 512×512; roda na ordem de carga dos contribuidores, depois do redimensionamento
+  e antes do WebP. O registry tira a contribuição no teardown, reload e disable de quem a fez: não
+  há o que desfazer à mão.
 
   ```ts
-  setup: (ctx) => ctx.services.get('sticker').decorate(addCaption, ctx.signal),
+  setup: (ctx) => ctx.services.contribute('sticker.steps', addCaption),
   ```
 
 - **Usar** (`!downloadsticker` do [`download`](download.md)): sem `dependsOn`, confira
   `ctx.services.has('sticker')` a cada uso e responda em texto se faltar. O plugin carrega sem o
   `sticker`, e o `get` na hora do comando pega o serviço novo depois de um reload.
 
-Num reload do `sticker` (mudança de config, por exemplo), o serviço é provido de novo, sem
-etapas, e o kernel recarrega em cascata quem tem `dependsOn: { sticker }`, que registra a etapa
-outra vez.
+O `sticker` lê as etapas com `list()` a cada figurinha. Num reload dele, quem tem
+`dependsOn: { sticker }` recarrega em cascata e contribui de novo, sem duplicar.
 
 ## Legenda (`sticker-text`)
 
