@@ -17,6 +17,12 @@ IA (`LumaPlugin`, `incrementInteraction`); não há outra fonte. **Hoje nada cha
 plugin `ai` (M5) vai chamar. Até lá o `!rank` responde "Ninguém interagiu comigo ainda", e por
 isso a linha do `PARIDADE.md` segue desmarcada.
 
+As coleções ficam no storage da sessão: com um segundo transport, o global se divide por bot.
+Migração: `ctx.storage.shared` com id composto por `ctx.transportName`.
+
+O ranking sai por `ctx.send.send` (sem citar a mensagem), como o `sendText` do legacy; o retorno
+do `run` citaria.
+
 ## `messages`
 
 `empty`, `titleGroup`, `titleGlobal`, `ranking` (`{title}`, `{lines}`).
@@ -28,8 +34,9 @@ record(chatId, senderId): Promise<void>
 top(scope: { chatId } | 'global', limit): Promise<{ id: string; count: number }[]>
 ```
 
-`record` lê e grava sem transação: duas chamadas simultâneas da mesma pessoa podem perder uma
-contagem. Empate no `top` segue quem chegou primeiro.
+`record` é serializado no processo (cadeia de promessas), então chamadas simultâneas não
+duplicam linha nem perdem contagem. Entre processos (dois bots sobre o mesmo banco) ainda há
+corrida: a `Collection` do Bridger não tem incremento atômico nem upsert. Empate no `top` segue quem chegou primeiro.
 
 Nomes vêm de `userNames.displayName` quando o serviço existe (`services.has`, sem `dependsOn`);
 sem ele, `@` + 6 últimos dígitos do id.

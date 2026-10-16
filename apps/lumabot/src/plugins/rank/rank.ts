@@ -49,17 +49,25 @@ export const rank: PluginDefinition = definePlugin({
     // Total separado: o `!rank global` lê N linhas em vez de somar todos os chats.
     const totals = ctx.storage.collection<TotalCount>('totals', { indexes: ['userId', 'count'] });
 
-    const service: RankService = {
-      // shortcut: ler+gravar sem transação; duas interações simultâneas da mesma pessoa podem
-      // perder uma contagem. Trocar se o storage ganhar incremento atômico.
-      record: async (chatId, senderId) => {
-        const [chatRow] = await perChat.find({ where: { chatId, userId: senderId }, limit: 1 });
-        if (chatRow) await perChat.update(chatRow.id, { count: chatRow.count + 1 });
-        else await perChat.insert({ chatId, userId: senderId, count: 1 });
+    let chain: Promise<void> = Promise.resolve();
 
-        const [totalRow] = await totals.find({ where: { userId: senderId }, limit: 1 });
-        if (totalRow) await totals.update(totalRow.id, { count: totalRow.count + 1 });
-        else await totals.insert({ userId: senderId, count: 1 });
+    const service: RankService = {
+      // Serializa no processo: sem isto, dois `record` simultâneos veem "sem linha" e inserem duas.
+      // shortcut: entre processos (dois bots no mesmo banco) ainda há corrida, porque a
+      // `Collection` não tem incremento atômico nem upsert; trocar quando ganhar.
+      record: (chatId, senderId) => {
+        const run = chain.then(async () => {
+          const [chatRow] = await perChat.find({ where: { chatId, userId: senderId }, limit: 1 });
+          if (chatRow) await perChat.update(chatRow.id, { count: chatRow.count + 1 });
+          else await perChat.insert({ chatId, userId: senderId, count: 1 });
+
+          const [totalRow] = await totals.find({ where: { userId: senderId }, limit: 1 });
+          if (totalRow) await totals.update(totalRow.id, { count: totalRow.count + 1 });
+          else await totals.insert({ userId: senderId, count: 1 });
+        });
+        // O erro volta para quem chamou; a cadeia segue viva para as próximas.
+        chain = run.catch(() => undefined);
+        return run;
       },
       top: async (scope, limit) => {
         const orderBy = { field: 'count', direction: 'desc' } as const;
@@ -93,10 +101,15 @@ export const rank: PluginDefinition = definePlugin({
             async (r, i) => `${MEDALS[i] ?? `${i + 1}.`} ${await nameOf(r.id)} — ${r.count}`,
           ),
         );
-        return c.t('ranking', {
-          title: c.t(global ? 'titleGlobal' : 'titleGroup'),
-          lines: lines.join('\n'),
-        });
+        // Como o `sendText` do legacy: o retorno do `run` citaria a mensagem, o envio direto não.
+        await ctx.send.send(
+          chat.id,
+          c.t('ranking', {
+            title: c.t(global ? 'titleGlobal' : 'titleGroup'),
+            lines: lines.join('\n'),
+          }),
+        );
+        return undefined;
       },
     });
   },

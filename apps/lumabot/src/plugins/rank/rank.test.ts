@@ -52,7 +52,7 @@ it('!rank no grupo lista o ranking do grupo, com medalhas e fallback de nome', a
 
   await bot.receive({ text: '!rank', chat: group });
 
-  expect(bot.sent).toHaveReplied(
+  expect(bot.sent).toContainText(
     '🏆 *Ranking do Grupo* — quem mais fala comigo\n\n🥇 @990002 — 2\n🥈 @990001 — 1',
   );
 });
@@ -66,7 +66,8 @@ it('!rank global e conversa privada usam o total', async () => {
   await bot.receive({ text: '!rank' });
 
   expect(bot.sent).toHaveLength(2);
-  expect(bot.sent).toHaveReplied('🏆 *Ranking Global* — quem mais fala comigo\n\n🥇 @990001 — 2');
+  expect(bot.sent[0]?.quoted).toBeFalsy(); // como o sendText do legacy: sem citar
+  expect(bot.sent).toContainText('🏆 *Ranking Global* — quem mais fala comigo\n\n🥇 @990001 — 2');
 });
 
 it('sem dados, responde que ninguém interagiu', async () => {
@@ -84,5 +85,19 @@ it('com user-names, usa o nome de exibição (apelido)', async () => {
 
   await bot.receive({ text: '!rank', chat: group });
 
-  expect(bot.sent).toHaveReplied('🏆 *Ranking do Grupo* — quem mais fala comigo\n\n🥇 Zé — 1');
+  expect(bot.sent).toContainText('🏆 *Ranking do Grupo* — quem mais fala comigo\n\n🥇 Zé — 1');
+});
+
+it('record simultâneo não duplica linha nem perde contagem', async () => {
+  await start();
+
+  await Promise.all([
+    service.record('g1', 'a'),
+    service.record('g2', 'a'),
+    service.record('g1', 'a'),
+  ]);
+
+  expect(await service.top('global', 10)).toEqual([{ id: 'a', count: 3 }]);
+  expect(await service.top({ chatId: 'g1' }, 10)).toEqual([{ id: 'a', count: 2 }]);
+  expect(await service.top({ chatId: 'g2' }, 10)).toEqual([{ id: 'a', count: 1 }]);
 });
