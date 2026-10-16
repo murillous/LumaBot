@@ -12,6 +12,7 @@ import { ping } from '#plugins/ping.ts';
 import { sticker } from '#plugins/sticker/sticker.ts';
 import { stickerConvert } from '#plugins/sticker-convert/sticker-convert.ts';
 import { stickerText } from '#plugins/sticker-text/sticker-text.ts';
+import { userNames } from '#plugins/user-names/user-names.ts';
 
 const config = loadConfig();
 // O app cria o logger para registrar também a falha de boot; o mesmo SecretSet vai para o bot,
@@ -38,6 +39,7 @@ const bot = createBot({
     stickerConvert,
     pdf(),
     download({ cookies: config.ytdlpCookies }),
+    userNames,
   ],
 });
 

@@ -23,8 +23,8 @@ e agora vive aqui.
 | [ ] | `@everyone` / `@todos` | everyone |
 | [ ] | `!help` / `!menu` | help |
 | [ ] | `!meunumero` | utils |
-| [ ] | `!nick Nome`, `!nick @pessoa Nome`, `!apelido` | user-names |
-| [ ] | Enriquecimento de usuários (pushName, contatos, LID) | user-names |
+| [x] | `!nick Nome`, `!nick @pessoa Nome`, `!apelido` | [user-names](apps/lumabot/docs/user-names.md) |
+| [x] | Enriquecimento de usuários (pushName, contatos, LID) | [user-names](apps/lumabot/docs/user-names.md) |
 | [ ] | `!lembrete` / `!lembrar`, `!lembretes`, `!cancelarlembrete <n>` + disparo agendado com menção | reminders |
 | [ ] | `!rank`, `!rank global` | rank |
 | [ ] | `!resumo [n]` | resumo |
