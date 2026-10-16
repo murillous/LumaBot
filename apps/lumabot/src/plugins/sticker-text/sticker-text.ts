@@ -25,13 +25,13 @@ export const stickerText: PluginDefinition = definePlugin({
   name: 'sticker-text',
   version: '0.0.0',
   engine: '<1.0.0',
-  dependsOn: { sticker: '^0.0.0' },
+  dependsOn: { sticker: '^1.0.0' },
   config,
   setup: async (ctx) => {
-    // O `ctx.signal` aborta no teardown e no reload, e o serviço tira a etapa sozinho.
-    ctx.services
-      .get('sticker')
-      .decorate((image, { text }) => addCaption(image, text, ctx.config), ctx.signal);
+    // O registry tira a contribuição no teardown e no reload.
+    ctx.services.contribute('sticker.steps', (image, { text }) =>
+      addCaption(image, text, ctx.config),
+    );
 
     // A legenda funciona sem a fonte de emoji colorida; o aviso explica o emoji sem cor.
     if (!(await rendersColorEmoji())) {

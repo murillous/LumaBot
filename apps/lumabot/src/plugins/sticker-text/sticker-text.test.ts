@@ -1,3 +1,4 @@
+import { PluginBootError } from '@usebridger/core';
 import { createTestBot, fixtures, type TestBot } from '@usebridger/testing';
 import sharp from 'sharp';
 import { afterEach, expect, it } from 'vitest';
@@ -81,9 +82,11 @@ it('desligado na config, o sticker segue sem legenda', async () => {
 });
 
 it('sem o sticker, não carrega', async () => {
-  bot = await createTestBot({ plugins: [stickerText] });
+  // Desde o Bridger 0.6 plugin ignorado derruba o boot, com o motivo em `failures`.
+  const boot = await createTestBot({ plugins: [stickerText] }).catch((err: unknown) => err);
 
-  expect(bot.bot.plugins()).toContainEqual(
+  expect(boot).toBeInstanceOf(PluginBootError);
+  expect((boot as PluginBootError).failures).toContainEqual(
     expect.objectContaining({
       name: 'sticker-text',
       status: 'skipped',
@@ -150,12 +153,13 @@ it('o tamanho da fonte vem da config', async () => {
 });
 
 it('cor inválida na config deixa o plugin de fora', async () => {
-  bot = await createTestBot({
+  const boot = await createTestBot({
     plugins: [sticker, stickerText],
     pluginConfig: { 'sticker-text': { color: 'vermelho' } },
-  });
+  }).catch((err: unknown) => err);
 
-  expect(bot.bot.plugins()).toContainEqual(
+  expect(boot).toBeInstanceOf(PluginBootError);
+  expect((boot as PluginBootError).failures).toContainEqual(
     expect.objectContaining({ name: 'sticker-text', status: 'skipped' }),
   );
 });

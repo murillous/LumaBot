@@ -1,6 +1,6 @@
 # ADR 0001 — Plugins compostos por serviço
 
-**Status:** Aceito (2026-10-12)
+**Status:** Aceito (2026-10-12); itens 2, 3 e 5 substituídos pelo ADR 0002
 
 ## Contexto
 

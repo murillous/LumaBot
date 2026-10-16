@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { definePlugin, type PluginDefinition } from '@usebridger/core';
+import { definePlugin, PluginBootError, type PluginDefinition } from '@usebridger/core';
 import { createTestBot, fixtures, type SentMediaType, type TestBot } from '@usebridger/testing';
 import sharp from 'sharp';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -122,7 +122,15 @@ describe('!sticker', () => {
   });
 
   it('num transport sem figurinha, o comando fica de fora e o !image segue', async () => {
-    bot = await createTestBot({ plugins: [stickerPlugin, stickerConvert], profile: 'web' });
+    // Desde o Bridger 0.6 o `requires` do manifesto derruba o boot; sobe-se sem o plugin de propósito.
+    await expect(
+      createTestBot({ plugins: [stickerPlugin, stickerConvert], profile: 'web' }),
+    ).rejects.toBeInstanceOf(PluginBootError);
+    bot = await createTestBot({
+      plugins: [stickerPlugin, stickerConvert],
+      profile: 'web',
+      disabledPlugins: ['sticker'],
+    });
 
     await bot.receive({ text: '!s', image: fixtures.image() });
     expect(bot.sent).toHaveLength(0);
@@ -147,8 +155,8 @@ describe('serviço sticker', () => {
       name: 'decorator',
       version: '0.0.0',
       engine: '<1.0.0',
-      dependsOn: { sticker: '^0.0.0' },
-      setup: (ctx) => ctx.services.get('sticker').decorate(step, ctx.signal),
+      dependsOn: { sticker: '^1.0.0' },
+      setup: (ctx) => ctx.services.contribute('sticker.steps', step),
     });
   }
 
