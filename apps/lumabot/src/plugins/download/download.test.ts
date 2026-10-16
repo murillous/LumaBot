@@ -1,6 +1,5 @@
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { PluginBootError } from '@usebridger/core';
 import { createTestBot, FakeTransport, fixtures, type TestBot } from '@usebridger/testing';
 import sharp from 'sharp';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -172,13 +171,15 @@ it('!audio sem link explica o uso', async () => {
   expect(bot.sent).toHaveReplied(/^ℹ️ Cole o link junto com o comando/);
 });
 
-it('sem o yt-dlp no PATH, o plugin não carrega', async () => {
+it('sem o yt-dlp no PATH, o bot sobe e o comando responde indisponível', async () => {
   vi.mocked(checkBinary).mockImplementation(async (command) => {
     if (command === 'yt-dlp') throw new Error('`yt-dlp` não roda');
   });
+  bot = await createTestBot({ plugins: [download()] });
 
-  // Desde o Bridger 0.6 plugin que falha no setup derruba o boot.
-  await expect(createTestBot({ plugins: [download()] })).rejects.toBeInstanceOf(PluginBootError);
+  await bot.receive({ text: `!d ${URL}` });
+
+  expect(bot.sent).toHaveReplied(/^ℹ️ Download indisponível/);
   expect(downloadVideo).not.toHaveBeenCalled();
 });
 

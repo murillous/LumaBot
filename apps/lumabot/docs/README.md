@@ -47,6 +47,8 @@ Por variáveis de ambiente, lidas em `src/config.ts`. Variável vazia vale como 
 | `LUMABOT_YTDLP_COOKIES` | — | Arquivo de cookies (formato Netscape) que o plugin `download` repassa ao yt-dlp ([download.md](download.md#config)) |
 | `LUMABOT_LOG_LEVEL` | `info` | `trace`, `debug`, `info`, `warn`, `error`, `fatal` ou `silent` |
 
+Config inválida de plugin (ex.: `BRIDGER_STICKER_TEXT__COLOR=vermelho`) impede o boot.
+
 A config dos plugins segue o padrão do core (`BRIDGER_<PLUGIN>__<CAMPO>`,
 [Config](https://github.com/murillous/usebridger/blob/develop/packages/core/docs/config.md)).
 

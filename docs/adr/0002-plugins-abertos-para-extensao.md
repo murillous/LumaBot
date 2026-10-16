@@ -42,7 +42,7 @@ fez e a tira no teardown, no reload e no disable de quem contribuiu.
    `rank` com nomes, se o `user-names` estiver ligado) não declara `dependsOn` e consulta o
    serviço a cada uso, como o `!downloadsticker` no ADR 0001.
 
-Este ADR substitui o item 5 do ADR 0001: o ponto de extensão entra quando a variação está
+Este ADR substitui os itens 2 (o `decorate`), 3 e 5 do ADR 0001: o ponto de extensão entra quando a variação está
 prevista no roadmap, não só quando o primeiro consumidor já existe.
 
 ## Consequências
@@ -54,4 +54,6 @@ prevista no roadmap, não só quando o primeiro consumidor já existe.
   precisar de acesso ao código desses plugins nem de caminho especial neles.
 - Um ponto sem contribuidor externo ainda custa um tipo e uma chamada a `list()`. É o preço de
   não reabrir o dono quando o consumidor chegar.
+- Na 0.6 plugin ignorado derruba o boot: o que tem dependência externa opcional (binário) degrada
+  no `setup`, com aviso e comando recusando; falha de config ou de capability derruba o boot.
 - Ponto de extensão é contrato público entre plugins: o nome e o tipo vão para a doc do plugin.

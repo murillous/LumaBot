@@ -70,7 +70,7 @@ caber.
 
 Vem da config do bot como qualquer config de plugin: variável (`BRIDGER_STICKER_TEXT__FONT_SIZE=48`,
 `BRIDGER_STICKER_TEXT__POSITION=top`), arquivo ou override no dashboard. Valor inválido (cor fora
-de `#rrggbb`, tamanho fora da faixa) deixa o plugin de fora no boot, com o campo no relatório; numa
+de `#rrggbb`, tamanho fora da faixa) impede o boot (`PluginBootError`, com o campo na mensagem); numa
 mudança em funcionamento, a mudança é recusada e a legenda segue com o estilo anterior. Mudança
 válida recarrega o `sticker-text`, que registra a etapa com o estilo novo.
 
@@ -81,8 +81,9 @@ o emoji com a cor do texto mesmo com a fonte instalada.
 
 ## Capabilities
 
-O `sticker` exige `media.download` e `send.sticker`. Sem eles não carrega, e o `sticker-text`
-fica de fora com `dependency-skipped`; o `!downloadsticker` responde `stickerUnavailable`.
+O `sticker` exige `media.download` e `send.sticker`. Sem eles o boot cai com `PluginBootError`
+(o `sticker-text` junto, por `dependency-skipped`), a menos que o `sticker` e o `sticker-text`
+estejam em `disabledPlugins`; então o `!downloadsticker` responde `stickerUnavailable`.
 
 ## FFmpeg
 

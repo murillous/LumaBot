@@ -22,6 +22,7 @@ const MESSAGES = {
   audioError: '❌ Não consegui baixar o áudio. O conteúdo pode ser privado ou a URL inválida.',
   stickerUsage:
     'ℹ️ Cole o link junto com o comando; o texto depois do link vira legenda.\nEx: `{prefix}ds https://x.com/...`',
+  unavailable: 'ℹ️ Download indisponível: faltam o `yt-dlp` ou o `ffmpeg` no servidor.',
   stickerUnavailable: 'ℹ️ Figurinha indisponível: o plugin `sticker` não está carregado.',
   stickerError: '❌ Baixei, mas não consegui fazer a figurinha.',
 };
@@ -46,18 +47,26 @@ export interface DownloadOptions {
  * (o vídeo ou a foto como figurinha), pelo yt-dlp.
  */
 export function download(options: DownloadOptions = {}): PluginDefinition {
+  // Refeito a cada setup (inclusive no reload), por instância do plugin.
+  let binariesMissing = false;
   return definePlugin({
     name: 'download',
     version: '0.0.0',
     engine: '<1.0.0',
     messages: MESSAGES,
-    // Sem os dois, nenhum comando funciona: o setup falha e o bot sobe sem o plugin, com o
-    // motivo no relatório de boot.
-    setup: async () => {
-      await Promise.all([
-        checkBinary('yt-dlp', ['--version']),
-        checkBinary('ffmpeg', ['-version']),
-      ]);
+    // Sem os dois, nenhum comando funciona. Na 0.6 setup que lança derruba o bot inteiro, então
+    // o plugin carrega, avisa no boot e cada comando responde `unavailable`.
+    setup: async (ctx) => {
+      try {
+        await Promise.all([
+          checkBinary('yt-dlp', ['--version']),
+          checkBinary('ffmpeg', ['-version']),
+        ]);
+        binariesMissing = false;
+      } catch (err) {
+        binariesMissing = true;
+        ctx.log.warn('yt-dlp ou ffmpeg indisponível: os comandos de download vão recusar', { err });
+      }
     },
     commands: {
       download: {
@@ -70,6 +79,7 @@ export function download(options: DownloadOptions = {}): PluginDefinition {
         background: true,
         concurrency: CONCURRENCY,
         run: async (ctx, plugin) => {
+          if (binariesMissing) return ctx.t('unavailable');
           const url = findUrl(ctx);
           if (!url) return ctx.t('downloadUsage');
           return inTempDir(async (dir) => {
@@ -108,6 +118,7 @@ export function download(options: DownloadOptions = {}): PluginDefinition {
         background: true,
         concurrency: CONCURRENCY,
         run: async (ctx, plugin) => {
+          if (binariesMissing) return ctx.t('unavailable');
           const url = findUrl(ctx);
           if (!url) return ctx.t('stickerUsage');
           // O `sticker` é opcional: sem ele o `download` carrega igual e só este comando recusa.
@@ -147,6 +158,7 @@ export function download(options: DownloadOptions = {}): PluginDefinition {
         background: true,
         concurrency: CONCURRENCY,
         run: async (ctx) => {
+          if (binariesMissing) return ctx.t('unavailable');
           const url = findUrl(ctx);
           if (!url) return ctx.t('audioUsage');
           return inTempDir(async (dir) => {
