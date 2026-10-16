@@ -6,6 +6,7 @@ import { sqlite } from '@usebridger/storage-sqlite';
 import { baileys } from '@usebridger/transport-baileys';
 import { loadConfig } from '#config.ts';
 import { download } from '#plugins/download/download.ts';
+import { help } from '#plugins/help/help.ts';
 import { pairing } from '#plugins/pairing.ts';
 import { pdf } from '#plugins/pdf/pdf.ts';
 import { ping } from '#plugins/ping.ts';
@@ -13,6 +14,7 @@ import { sticker } from '#plugins/sticker/sticker.ts';
 import { stickerConvert } from '#plugins/sticker-convert/sticker-convert.ts';
 import { stickerText } from '#plugins/sticker-text/sticker-text.ts';
 import { userNames } from '#plugins/user-names/user-names.ts';
+import { utils } from '#plugins/utils/utils.ts';
 
 const config = loadConfig();
 // O app cria o logger para registrar também a falha de boot; o mesmo SecretSet vai para o bot,
@@ -34,12 +36,14 @@ const bot = createBot({
   plugins: [
     pairing((text) => process.stdout.write(text)),
     ping,
+    help,
     sticker,
     stickerText,
     stickerConvert,
     pdf(),
     download({ cookies: config.ytdlpCookies }),
     userNames,
+    utils,
   ],
 });
 
