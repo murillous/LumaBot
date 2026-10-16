@@ -25,7 +25,7 @@ e agora vive aqui.
 | [x] | `!meunumero` / `!meuid` | [utils](apps/lumabot/docs/utils.md) |
 | [x] | `!nick Nome`, `!nick @pessoa Nome`, `!apelido` | [user-names](apps/lumabot/docs/user-names.md) |
 | [x] | Enriquecimento de usuários (pushName, contatos, LID) | [user-names](apps/lumabot/docs/user-names.md) |
-| [ ] | `!lembrete` / `!lembrar`, `!lembretes`, `!cancelarlembrete <n>` + disparo agendado com menção | reminders |
+| [x] | `!lembrete` / `!lembrar`, `!lembretes`, `!cancelarlembrete <n>` + disparo agendado com menção | reminders ([doc](apps/lumabot/docs/reminders.md)) |
 | [ ] | `!rank`, `!rank global` (sem dado até o `ai` chamar `record`) | [rank](apps/lumabot/docs/rank.md) |
 | [ ] | `!resumo [n]` | resumo |
 | [ ] | IA em PV, quando citada ou por trigger ("Luma, ...") | ai |
