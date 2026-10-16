@@ -24,7 +24,7 @@ describe('!meunumero', () => {
     await bot.receive({ text: '!meunumero' });
 
     expect(bot.sent).toHaveReplied(
-      `📱 Seu número: ${DEFAULT_SENDER.phone}\n💬 ID deste chat: chat@fake`,
+      `📱 *Informações de ID*\n\n👤 *Seu Número:* ${DEFAULT_SENDER.phone}\n💬 *ID deste Chat:* chat@fake`,
     );
   });
 
@@ -41,7 +41,9 @@ describe('!meunumero', () => {
 
     await bot.receive({ text: '!meunumero', sender: { id: 'u-42', phone: null } });
 
-    expect(bot.sent).toHaveReplied('📱 Seu número: u-42\n💬 ID deste chat: chat@fake');
+    expect(bot.sent).toHaveReplied(
+      '📱 *Informações de ID*\n\n👤 *Seu Número:* u-42\n💬 *ID deste Chat:* chat@fake',
+    );
   });
 
   it('plugin que só contribui acrescenta linha, sem tocar no utils', async () => {
@@ -50,7 +52,7 @@ describe('!meunumero', () => {
     await bot.receive({ text: '!meunumero' });
 
     expect(bot.sent).toHaveReplied(
-      `📱 Seu número: ${DEFAULT_SENDER.phone}\n💬 ID deste chat: chat@fake\n🏷️ Apelido: Ana`,
+      `📱 *Informações de ID*\n\n👤 *Seu Número:* ${DEFAULT_SENDER.phone}\n💬 *ID deste Chat:* chat@fake\n🏷️ Apelido: Ana`,
     );
   });
 
@@ -60,7 +62,7 @@ describe('!meunumero', () => {
     await bot.receive({ text: '!meunumero' });
 
     expect(bot.sent).toHaveReplied(
-      `📱 Seu número: ${DEFAULT_SENDER.phone}\n💬 ID deste chat: chat@fake`,
+      `📱 *Informações de ID*\n\n👤 *Seu Número:* ${DEFAULT_SENDER.phone}\n💬 *ID deste Chat:* chat@fake`,
     );
   });
 
@@ -77,7 +79,7 @@ describe('!meunumero', () => {
     await bot.receive({ text: '!meunumero' });
 
     expect(bot.sent).toHaveReplied(
-      `📱 Seu número: ${DEFAULT_SENDER.phone}\n💬 ID deste chat: chat@fake`,
+      `📱 *Informações de ID*\n\n👤 *Seu Número:* ${DEFAULT_SENDER.phone}\n💬 *ID deste Chat:* chat@fake`,
     );
   });
 });
@@ -99,7 +101,7 @@ describe('!prefixo', () => {
     bot = await createTestBot({ transport, plugins: [utils] });
   }
 
-  it('troca o prefixo do chat e o comando passa a responder só com o novo', async () => {
+  it('troca o prefixo do chat; o antigo deixa de responder', async () => {
     await adminBot();
 
     await bot.receive({ text: '!prefixo ?', chat: group });
@@ -107,6 +109,17 @@ describe('!prefixo', () => {
 
     await bot.receive({ text: '?meunumero', chat: group });
     expect(bot.sent).toHaveLength(2);
+
+    await bot.receive({ text: '!meunumero', chat: group });
+    expect(bot.sent).toHaveLength(2);
+  });
+
+  it('mostra o prefixo que o kernel gravou (minúsculo)', async () => {
+    await adminBot();
+
+    await bot.receive({ text: '!prefixo AB', chat: group });
+
+    expect(bot.sent).toHaveReplied('✅ Prefixo deste chat agora é "ab".');
   });
 
   it('sem argumento volta ao padrão', async () => {
@@ -118,15 +131,22 @@ describe('!prefixo', () => {
     expect(bot.sent).toHaveReplied('✅ Prefixo deste chat voltou ao padrão ("!").');
   });
 
-  it('prefixo começado por espaço vira mensagem amigável', async () => {
+  it.each([
+    ['vazio entre aspas', '!prefixo ""'],
+    ['várias palavras', '!prefixo a b'],
+    ['longo demais', '!prefixo abcdef'],
+    ['começado por espaço', '!prefixo " x"'],
+  ])('recusa prefixo inválido (%s) e mantém o atual', async (_nome, text) => {
     await adminBot();
 
-    await bot.receive({ text: '!prefixo " x"', chat: group });
+    await bot.receive({ text, chat: group });
 
-    expect(bot.sent).toHaveReplied('❌ Prefixo inválido: não pode começar com espaço.');
+    expect(bot.sent).toHaveReplied('❌ Use !prefixo <símbolo>: de 1 a 5 caracteres, sem espaço.');
+    await bot.receive({ text: '!meunumero', chat: group });
+    expect(bot.sent).toHaveLength(2);
   });
 
-  it('quem não é admin do grupo não troca', async () => {
+  it('quem não é admin do grupo não troca e recebe o aviso', async () => {
     const transport = new FakeTransport();
     transport.setGroup({
       id: group.id,
@@ -140,7 +160,17 @@ describe('!prefixo', () => {
     bot = await createTestBot({ transport, plugins: [utils] });
 
     await bot.receive({ text: '!prefixo ?', chat: group });
+    expect(bot.sent).toHaveReplied('❌ Só admin pode trocar o prefixo, e dentro do grupo.');
 
-    expect(bot.sent).not.toHaveReplied('✅ Prefixo deste chat agora é "?".');
+    await bot.receive({ text: '!meunumero', chat: group });
+    expect(bot.sent).toHaveLength(2);
+  });
+
+  it('em DM recebe o aviso', async () => {
+    bot = await createTestBot({ plugins: [utils] });
+
+    await bot.receive({ text: '!prefixo ?' });
+
+    expect(bot.sent).toHaveReplied('❌ Só admin pode trocar o prefixo, e dentro do grupo.');
   });
 });

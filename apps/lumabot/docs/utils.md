@@ -7,16 +7,16 @@ ponto de extensão `utils.info` ([ADR 0002](../../../docs/adr/0002-plugins-abert
 
 | Comando | O que faz |
 | --- | --- |
-| `!meunumero` (alias `!meuid`) | Responde com uma linha por contribuição de `utils.info`. As padrão: seu número (`sender.phone`, ou o `sender.id` onde não há telefone) e o ID do chat |
+| `!meunumero` (alias `!meuid`) | Responde com o cabeçalho (`header`) e uma linha por contribuição de `utils.info`. As padrão: seu número (`sender.phone`, ou o `sender.id` onde não há telefone) e o ID do chat |
 | `!prefixo X` | Só admin de grupo. Troca o prefixo do chat por `X` (vale para o bot inteiro, fica no storage) |
 | `!prefixo` | Só admin de grupo. Volta ao prefixo padrão |
 
-Prefixo que começa com espaço é recusado com mensagem amigável.
+Prefixo válido: um único argumento de 1 a 5 caracteres, sem espaço (`!prefixo ""`, várias palavras ou texto longo são recusados e o prefixo atual fica). O kernel grava em minúsculo, e a resposta mostra o que ficou valendo. Quem não é admin, ou usa em DM, recebe `prefixDenied`.
 
 ## Config
 
-Sem opções. Os textos são `messages` (`senderLine`, `chatLine`, `prefixSet`, `prefixReset`,
-`prefixInvalid`); `{value}` leva o número/ID, o ID do chat ou o prefixo.
+Sem opções. Os textos são `messages` (`header`, `senderLine`, `chatLine`, `prefixSet`, `prefixReset`,
+`prefixInvalid`, `prefixDenied`); `{value}` leva o número/ID, o ID do chat ou o prefixo.
 
 ## Ponto de extensão `utils.info`
 

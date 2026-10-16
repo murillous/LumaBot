@@ -21,13 +21,20 @@ declare module '@usebridger/core' {
 
 /** Textos ao usuário; a config do bot sobrescreve cada um (`messages`). */
 const MESSAGES = {
-  senderLine: '📱 Seu número: {value}',
-  chatLine: '💬 ID deste chat: {value}',
+  header: '📱 *Informações de ID*',
+  senderLine: '👤 *Seu Número:* {value}',
+  chatLine: '💬 *ID deste Chat:* {value}',
   prefixSet: '✅ Prefixo deste chat agora é "{value}".',
   prefixReset: '✅ Prefixo deste chat voltou ao padrão ("{value}").',
-  prefixInvalid: '❌ Prefixo inválido: não pode começar com espaço.',
+  prefixInvalid: '❌ Use {prefix}prefixo <símbolo>: de 1 a 5 caracteres, sem espaço.',
+  prefixDenied: '❌ Só admin pode trocar o prefixo, e dentro do grupo.',
 };
 
+/** Prefixo aceito: uma palavra de 1 a 5 caracteres, para nunca deixar o chat sem prefixo. */
+const VALID_PREFIX = /^\S{1,5}$/u;
+
+// As contribuições não recebem o `t` do comando (o input do ponto é só chat e remetente), então
+// preenchem o `{value}` à mão sobre o texto cru de `messages`.
 const fill = (text: string, value: string) => text.replace('{value}', value);
 
 /**
@@ -66,7 +73,7 @@ export const utils: PluginDefinition = definePlugin({
               c.log.error('linha de utils.info falhou', { err });
             }
           }
-          return lines.join('\n');
+          return `${c.t('header')}\n\n${lines.join('\n')}`;
         },
       }),
     );
@@ -76,20 +83,23 @@ export const utils: PluginDefinition = definePlugin({
         name: 'prefixo',
         description: 'Troca o prefixo de comandos do chat (sem argumento, volta ao padrão)',
         role: 'group-admin',
+        onReject: (c) => c.t('prefixDenied'),
         run: async (c) => {
-          const [novo] = c.args;
           const chat = c.message.chat;
+          if (c.args.length === 0) {
+            await ctx.prefixes.reset(chat.id);
+            return c.t('prefixReset', { value: ctx.prefixes.get(chat) });
+          }
+          const [novo] = c.args;
+          if (c.args.length > 1 || !VALID_PREFIX.test(novo ?? '')) return c.t('prefixInvalid');
           try {
-            if (novo === undefined) {
-              await ctx.prefixes.reset(chat.id);
-              return fill(messages.prefixReset, ctx.prefixes.get(chat));
-            }
-            await ctx.prefixes.set(chat.id, novo);
-            return fill(messages.prefixSet, novo);
+            await ctx.prefixes.set(chat.id, novo as string);
           } catch (err) {
-            if (err instanceof TypeError) return messages.prefixInvalid;
+            if (err instanceof TypeError) return c.t('prefixInvalid');
             throw err;
           }
+          // O kernel pode normalizar (minúsculo): mostra o que ficou valendo, não o digitado.
+          return c.t('prefixSet', { value: ctx.prefixes.get(chat) });
         },
       }),
     );
