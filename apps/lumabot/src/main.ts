@@ -10,6 +10,7 @@ import { help } from '#plugins/help/help.ts';
 import { pairing } from '#plugins/pairing.ts';
 import { pdf } from '#plugins/pdf/pdf.ts';
 import { ping } from '#plugins/ping.ts';
+import { rank } from '#plugins/rank/rank.ts';
 import { sticker } from '#plugins/sticker/sticker.ts';
 import { stickerConvert } from '#plugins/sticker-convert/sticker-convert.ts';
 import { stickerText } from '#plugins/sticker-text/sticker-text.ts';
@@ -43,6 +44,7 @@ const bot = createBot({
     pdf(),
     download({ cookies: config.ytdlpCookies }),
     userNames,
+    rank,
     utils,
   ],
 });
