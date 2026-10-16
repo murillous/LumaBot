@@ -171,16 +171,16 @@ it('!audio sem link explica o uso', async () => {
   expect(bot.sent).toHaveReplied(/^ℹ️ Cole o link junto com o comando/);
 });
 
-it('sem o yt-dlp no PATH, o bot sobe sem o plugin', async () => {
+it('sem o yt-dlp no PATH, o boot aborta citando o plugin', async () => {
   vi.mocked(checkBinary).mockImplementation(async (command) => {
     if (command === 'yt-dlp') throw new Error('`yt-dlp` não roda');
   });
-  bot = await createTestBot({ plugins: [download()] });
 
-  await bot.receive({ text: `!d ${URL}` });
-
-  expect(bot.sent).toHaveLength(0);
-  expect(downloadVideo).not.toHaveBeenCalled();
+  await expect(createTestBot({ plugins: [download()] })).rejects.toMatchObject({
+    name: 'PluginBootError',
+    plugin: 'download',
+    reason: { kind: 'setup-failed' },
+  });
 });
 
 describe('!downloadsticker', () => {
@@ -218,13 +218,28 @@ describe('!downloadsticker', () => {
     expect(captioned?.equals(plain ?? Buffer.alloc(0))).toBe(false);
   });
 
-  it('sem o plugin sticker, avisa e não baixa', async () => {
+  it('sem o plugin sticker, o comando fica de fora e o !download segue', async () => {
+    ytDlpWrites(downloadVideo, fixtures.video().data, 'webm');
     bot = await createTestBot({ plugins: [download()] });
 
     await bot.receive({ text: `!ds ${URL}` });
-
-    expect(bot.sent).toHaveReplied(/^ℹ️ Figurinha indisponível/);
+    expect(bot.sent).toHaveLength(0);
     expect(downloadVideo).not.toHaveBeenCalled();
+
+    await bot.receive({ text: `!d ${URL}` });
+    expect(bot.sent).toContainVideo();
+  });
+
+  it('o comando volta quando o sticker sobe depois', async () => {
+    ytDlpWrites(downloadVideo, fixtures.video().data, 'webm');
+    bot = await createTestBot({ plugins: [sticker, download()], disabledPlugins: ['sticker'] });
+
+    await bot.receive({ text: `!ds ${URL}` });
+    expect(bot.sent).toHaveLength(0);
+
+    await bot.bot.plugins.enable('sticker');
+    await bot.receive({ text: `!ds ${URL}` });
+    expect(bot.sent).toContainSticker();
   });
 
   it('sem link, explica o uso', async () => {

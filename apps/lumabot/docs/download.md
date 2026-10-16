@@ -35,15 +35,17 @@ O `!downloadsticker` baixa como o `!download` e entrega os bytes ao serviço `st
 até 800 KB) e foto vira figurinha estática. O texto depois do link vira legenda na foto se o
 `sticker-text` estiver carregado. O pacote no EXIF é o do `sticker`.
 
-O `sticker` é opcional para o `download` (sem `dependsOn`): sem ele, o plugin carrega igual e
-só o `!downloadsticker` responde `stickerUnavailable`, sem baixar nada. O comando consulta o
-serviço a cada uso, então pega o novo depois de um reload do `sticker`. Falha do yt-dlp
+O `sticker` é opcional para o `download` (`optionalDependsOn`): sem ele, o plugin carrega igual
+e só o `!downloadsticker` fica fora do roteador (log `warn` e tabela de boot), sem responder.
+Quando o `sticker` sobe, recarrega ou é desligado, o `download` recarrega junto e o comando
+acompanha. Falha do yt-dlp
 responde `downloadError` (ou `tooLarge`); falha na conversão, depois de baixar, `stickerError`.
 
 ## Binários
 
 `yt-dlp` e `ffmpeg` precisam estar no `PATH`. O `setup` roda os dois com `--version`/`-version`:
-se um faltar, o bot sobe sem o plugin, e o motivo sai no relatório de boot. O yt-dlp usa o
+se um faltar, o boot aborta com `PluginBootError` e o motivo. Para subir sem o `download`,
+liste-o em `disabledPlugins`. O yt-dlp usa o
 FFmpeg para juntar vídeo e áudio e para extrair o MP3. Mantenha o yt-dlp atualizado
 (`pip install -U yt-dlp` ou o gerenciador de pacotes): os sites mudam e versões velhas param de
 baixar. O legacy baixava o binário sozinho na primeira execução; o app não baixa executável em

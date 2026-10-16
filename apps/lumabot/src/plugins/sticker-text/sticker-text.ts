@@ -1,5 +1,5 @@
 import { definePlugin, type PluginDefinition } from '@usebridger/core';
-import { z } from 'zod';
+import { z } from '@usebridger/core/zod';
 import { addCaption, rendersColorEmoji } from './caption.ts';
 
 const color = z.string().regex(/^#[0-9a-f]{6}$/i, 'cor em #rrggbb');
@@ -25,13 +25,13 @@ export const stickerText: PluginDefinition = definePlugin({
   name: 'sticker-text',
   version: '0.0.0',
   engine: '<1.0.0',
-  dependsOn: { sticker: '^0.0.0' },
+  dependsOn: { sticker: '0.x' },
   config,
   setup: async (ctx) => {
-    // O `ctx.signal` aborta no teardown e no reload, e o serviço tira a etapa sozinho.
-    ctx.services
-      .get('sticker')
-      .decorate((image, { text }) => addCaption(image, text, ctx.config), ctx.signal);
+    // O kernel tira a etapa no teardown e no reload deste plugin.
+    ctx.services.contribute('sticker.steps', (image, { text }) =>
+      addCaption(image, text, ctx.config),
+    );
 
     // A legenda funciona sem a fonte de emoji colorida; o aviso explica o emoji sem cor.
     if (!(await rendersColorEmoji())) {

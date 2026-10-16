@@ -1,6 +1,6 @@
 # ADR 0001 — Plugins compostos por serviço
 
-**Status:** Aceito (2026-10-12)
+**Status:** Aceito (2026-10-12) · Revisado (2026-10-16): itens 2 a 4, ver [Revisão](#revisão-2026-10-16)
 
 ## Contexto
 
@@ -47,3 +47,18 @@ dependentes. O app só não o usava.
   legacy, então não há override a migrar.
 - O serviço é contrato entre plugins do app: mudar `StickerService` de forma incompatível exige
   subir a versão do `sticker` e a faixa no `dependsOn` de quem estende.
+
+## Revisão (2026-10-16)
+
+O Bridger 0.4 trouxe para o kernel o que este ADR fazia à mão no app, e o 0.6 passou a abortar o
+boot quando um plugin não carrega (ADR 0102 do Bridger):
+
+- **Itens 2 e 3.** A extensão sai do `StickerService` e vai para o ponto de extensão
+  `sticker.steps` (`ctx.services.contribute`/`extensionPoint`, ADR 0096 do Bridger). O serviço
+  fica só com `create`, e o kernel tira a etapa de quem recarrega ou é desligado, sem `ctx.signal`.
+- **Item 4.** O `download` declara `optionalDependsOn: { sticker }` e o `!downloadsticker`,
+  `services: ['sticker']` (ADR 0099 do Bridger). Sem o `sticker`, o comando fica fora do
+  roteador em vez de responder `stickerUnavailable`; o reload em cascata o traz de volta.
+- **Capabilities.** O `send.sticker` passa do plugin para o `!sticker`: exigido no plugin, um
+  transport sem figurinha abortaria o boot do bot inteiro.
+- As faixas `^0.0.0` viram `0.x`: pela regra do `^`, `^0.0.0` aceita só a versão exata.

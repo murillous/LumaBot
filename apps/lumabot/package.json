@@ -14,17 +14,16 @@
     "dev": "node src/main.ts"
   },
   "dependencies": {
-    "@usebridger/core": "^0.3.0",
-    "@usebridger/storage-sqlite": "^0.2.2",
-    "@usebridger/transport-baileys": "^0.3.0",
+    "@usebridger/core": "^0.6.1",
+    "@usebridger/storage-sqlite": "^0.2.6",
+    "@usebridger/transport-baileys": "^0.4.2",
     "node-webpmux": "^3.2.1",
     "pdf-lib": "^1.17.1",
     "qrcode-terminal": "^0.12.0",
-    "sharp": "^0.35.5",
-    "zod": "^4.6.5"
+    "sharp": "^0.35.5"
   },
   "devDependencies": {
     "@types/qrcode-terminal": "^0.12.2",
-    "@usebridger/testing": "^0.3.0"
+    "@usebridger/testing": "^0.6.1"
   }
 }

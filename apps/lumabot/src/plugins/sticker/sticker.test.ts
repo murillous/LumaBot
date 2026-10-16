@@ -147,8 +147,8 @@ describe('serviço sticker', () => {
       name: 'decorator',
       version: '0.0.0',
       engine: '<1.0.0',
-      dependsOn: { sticker: '^0.0.0' },
-      setup: (ctx) => ctx.services.get('sticker').decorate(step, ctx.signal),
+      dependsOn: { sticker: '0.x' },
+      setup: (ctx) => ctx.services.contribute('sticker.steps', step),
     });
   }
 

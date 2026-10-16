@@ -26,27 +26,29 @@ reação é ignorada. Erro de conversão vai para o log (`falha ao processar mí
 
 ## Serviço `sticker`
 
-Outros plugins usam a figurinha pelo `ctx.services.get('sticker')`, sem importar o código do
-`sticker`. O tipo vem por declaration merging de `src/plugins/sticker/sticker.ts`.
+Outros plugins usam a figurinha pelo `ctx.services.get('sticker')` e a estendem pelo ponto de
+extensão `sticker.steps`, sem importar o código do `sticker`. Os tipos vêm por declaration
+merging (`Services` e `ExtensionPoints`) de `src/plugins/sticker/sticker.ts`.
 
-| Método | O que faz |
+| Peça | O que faz |
 | --- | --- |
-| `decorate(step, signal)` | Acrescenta uma etapa à figurinha estática: recebe o PNG 512×512 e o `{ text }` do comando, devolve outro PNG 512×512. Etapas rodam na ordem de registro, depois do redimensionamento e antes do WebP |
 | `create(media, { animated, text, signal })` | Bytes → figurinha pronta (WebP com o pacote no EXIF). Estática passa pelas etapas; `animated` (vídeo, GIF) vai pelo FFmpeg, sem etapas |
+| ponto `sticker.steps` | Etapa da figurinha estática: recebe o PNG 512×512 e o `{ text }` do comando, devolve outro PNG 512×512. Rodam na ordem de carga de quem contribuiu, depois do redimensionamento e antes do WebP |
 
 Dois jeitos de compor:
 
-- **Estender** (`sticker-text`): declare `dependsOn: { sticker: '^0.0.0' }` e registre a etapa
-  no `setup` com o `ctx.signal` do plugin. O sinal aborta no teardown e no reload, e o serviço
-  tira a etapa sozinho: não há o que desfazer à mão.
+- **Estender** (`sticker-text`): declare `dependsOn: { sticker: '0.x' }` e contribua a etapa no
+  `setup`. O kernel a atribui ao plugin e a tira no teardown, reload e disable dele: não há o
+  que desfazer à mão.
 
   ```ts
-  setup: (ctx) => ctx.services.get('sticker').decorate(addCaption, ctx.signal),
+  setup: (ctx) => ctx.services.contribute('sticker.steps', addCaption),
   ```
 
-- **Usar** (`!downloadsticker` do [`download`](download.md)): sem `dependsOn`, confira
-  `ctx.services.has('sticker')` a cada uso e responda em texto se faltar. O plugin carrega sem o
-  `sticker`, e o `get` na hora do comando pega o serviço novo depois de um reload.
+- **Usar** (`!downloadsticker` do [`download`](download.md)): declare
+  `optionalDependsOn: { sticker: '0.x' }` no plugin e `services: ['sticker']` no comando. Sem o
+  `sticker`, o plugin carrega e só o comando fica de fora (log `warn` e tabela de boot); quando o
+  `sticker` sobe, recarrega ou cai, o reload em cascata leva o comando junto.
 
 Num reload do `sticker` (mudança de config, por exemplo), o serviço é provido de novo, sem
 etapas, e o kernel recarrega em cascata quem tem `dependsOn: { sticker }`, que registra a etapa
@@ -80,8 +82,11 @@ o emoji com a cor do texto mesmo com a fonte instalada.
 
 ## Capabilities
 
-O `sticker` exige `media.download` e `send.sticker`. Sem eles não carrega, e o `sticker-text`
-fica de fora com `dependency-skipped`; o `!downloadsticker` responde `stickerUnavailable`.
+O `sticker` exige `media.download`, e o `!sticker`, `send.sticker`. Num transport sem figurinha,
+o plugin carrega e só o comando fica de fora (log `warn` e tabela de boot): o serviço segue de pé
+para o `sticker-text` e o `!downloadsticker`, que tem o próprio `requires`. Sem `media.download`,
+o boot aborta com `PluginBootError`; para subir sem o `sticker`, liste-o em `disabledPlugins`
+junto com o `sticker-text`.
 
 ## FFmpeg
 

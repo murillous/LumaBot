@@ -80,16 +80,12 @@ it('desligado na config, o sticker segue sem legenda', async () => {
   expect(withText?.equals(plain ?? Buffer.alloc(0))).toBe(true);
 });
 
-it('sem o sticker, não carrega', async () => {
-  bot = await createTestBot({ plugins: [stickerText] });
-
-  expect(bot.bot.plugins()).toContainEqual(
-    expect.objectContaining({
-      name: 'sticker-text',
-      status: 'skipped',
-      reason: { kind: 'dependency-missing', dependency: 'sticker' },
-    }),
-  );
+it('sem o sticker, o boot aborta', async () => {
+  await expect(createTestBot({ plugins: [stickerText] })).rejects.toMatchObject({
+    name: 'PluginBootError',
+    plugin: 'sticker-text',
+    reason: { kind: 'dependency-missing', dependency: 'sticker' },
+  });
 });
 
 it('o emoji da legenda sai colorido', async () => {
@@ -149,13 +145,11 @@ it('o tamanho da fonte vem da config', async () => {
   expect(await bandStdev(small, 512 - 16 - 60, 60 - 40)).toBeLessThan(3);
 });
 
-it('cor inválida na config deixa o plugin de fora', async () => {
-  bot = await createTestBot({
-    plugins: [sticker, stickerText],
-    pluginConfig: { 'sticker-text': { color: 'vermelho' } },
-  });
-
-  expect(bot.bot.plugins()).toContainEqual(
-    expect.objectContaining({ name: 'sticker-text', status: 'skipped' }),
-  );
+it('cor inválida na config aborta o boot', async () => {
+  await expect(
+    createTestBot({
+      plugins: [sticker, stickerText],
+      pluginConfig: { 'sticker-text': { color: 'vermelho' } },
+    }),
+  ).rejects.toMatchObject({ name: 'PluginBootError', plugin: 'sticker-text' });
 });

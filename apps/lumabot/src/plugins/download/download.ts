@@ -1,8 +1,9 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { extname, join } from 'node:path';
+import { readFile } from 'node:fs/promises';
+import { extname } from 'node:path';
 import { type CommandContext, definePlugin, type PluginDefinition } from '@usebridger/core';
 import { checkBinary } from '#plugins/binary.ts';
+import { withTempDir } from '#plugins/ffmpeg.ts';
+import { attempt, urlIn } from '#plugins/media-command.ts';
 import { compactVideo, downloadAudio, downloadVideo, TooLargeError } from './yt-dlp.ts';
 
 /**
@@ -22,7 +23,6 @@ const MESSAGES = {
   audioError: '❌ Não consegui baixar o áudio. O conteúdo pode ser privado ou a URL inválida.',
   stickerUsage:
     'ℹ️ Cole o link junto com o comando; o texto depois do link vira legenda.\nEx: `{prefix}ds https://x.com/...`',
-  stickerUnavailable: 'ℹ️ Figurinha indisponível: o plugin `sticker` não está carregado.',
   stickerError: '❌ Baixei, mas não consegui fazer a figurinha.',
 };
 
@@ -50,9 +50,12 @@ export function download(options: DownloadOptions = {}): PluginDefinition {
     name: 'download',
     version: '0.0.0',
     engine: '<1.0.0',
+    // O `sticker` é opcional: sem ele, só o `!downloadsticker` fica de fora. Declarado, ele
+    // carrega antes e o reload dele recarrega este plugin, e o comando acompanha.
+    optionalDependsOn: { sticker: '0.x' },
     messages: MESSAGES,
-    // Sem os dois, nenhum comando funciona: o setup falha e o bot sobe sem o plugin, com o
-    // motivo no relatório de boot.
+    // Sem os dois, nenhum comando funciona: o setup falha e o boot aborta com o motivo. Para
+    // subir sem o plugin, liste-o em `disabledPlugins`.
     setup: async () => {
       await Promise.all([
         checkBinary('yt-dlp', ['--version']),
@@ -72,31 +75,31 @@ export function download(options: DownloadOptions = {}): PluginDefinition {
         run: async (ctx, plugin) => {
           const url = findUrl(ctx);
           if (!url) return ctx.t('downloadUsage');
-          return inTempDir(async (dir) => {
-            await ctx.react('⏳');
-            try {
-              const file = await downloadVideo(url, dir, { ...options, signal: ctx.signal });
-              if (IMAGE_EXTENSIONS.has(extname(file).toLowerCase())) {
-                if (!plugin.capabilities.has('send.image')) {
-                  await ctx.react('❌');
-                  return ctx.t('imageUnsupported');
+          return withTempDir((dir) =>
+            attempt(
+              ctx,
+              async () => {
+                const file = await downloadVideo(url, dir, { ...options, signal: ctx.signal });
+                if (isImage(file)) {
+                  if (!plugin.capabilities.has('send.image')) throw new ImageUnsupportedError();
+                  await ctx.reply.image(await readFile(file), { caption: ctx.t('imageSent') });
+                  return;
                 }
-                await ctx.reply.image(await readFile(file), { caption: ctx.t('imageSent') });
-              } else {
                 const mp4 = await compactVideo(file, dir, ctx.signal);
                 await ctx.reply.video(await readFile(mp4), {
                   caption: ctx.t('videoSent'),
                   mimetype: 'video/mp4',
                 });
-              }
-            } catch (err) {
-              ctx.log.error('falha no download', { err, url });
-              await ctx.react('❌');
-              return ctx.t(err instanceof TooLargeError ? 'tooLarge' : 'downloadError');
-            }
-            await ctx.react('✅');
-            return undefined;
-          });
+              },
+              {
+                errorKey: (err) =>
+                  err instanceof ImageUnsupportedError
+                    ? 'imageUnsupported'
+                    : tooLargeOr('downloadError')(err),
+                fields: { url },
+              },
+            ),
+          );
         },
       },
 
@@ -104,38 +107,35 @@ export function download(options: DownloadOptions = {}): PluginDefinition {
         aliases: ['ds'],
         description: 'Baixa vídeo ou foto de um link e manda como figurinha',
         requires: ['send.sticker'],
+        services: ['sticker'],
         timeoutMs: TIMEOUT_MS,
         background: true,
         concurrency: CONCURRENCY,
         run: async (ctx, plugin) => {
           const url = findUrl(ctx);
           if (!url) return ctx.t('stickerUsage');
-          // O `sticker` é opcional: sem ele o `download` carrega igual e só este comando recusa.
-          // Consultado a cada uso, pega o serviço novo depois de um reload do `sticker`.
-          if (!plugin.services.has('sticker')) return ctx.t('stickerUnavailable');
           const stickers = plugin.services.get('sticker');
           const text = ctx.rawArgs.replace(url, '').replace(/\s+/g, ' ').trim();
-          return inTempDir(async (dir) => {
-            await ctx.react('⏳');
-            let downloaded = false;
-            try {
-              const file = await downloadVideo(url, dir, { ...options, signal: ctx.signal });
-              downloaded = true;
-              const sticker = await stickers.create(await readFile(file), {
-                animated: !IMAGE_EXTENSIONS.has(extname(file).toLowerCase()),
-                text,
-                signal: ctx.signal,
-              });
-              await ctx.reply.sticker(sticker);
-            } catch (err) {
-              ctx.log.error('falha no download de figurinha', { err, url });
-              await ctx.react('❌');
-              if (downloaded) return ctx.t('stickerError');
-              return ctx.t(err instanceof TooLargeError ? 'tooLarge' : 'downloadError');
-            }
-            await ctx.react('✅');
-            return undefined;
-          });
+          let downloaded = false;
+          return withTempDir((dir) =>
+            attempt(
+              ctx,
+              async () => {
+                const file = await downloadVideo(url, dir, { ...options, signal: ctx.signal });
+                downloaded = true;
+                const sticker = await stickers.create(await readFile(file), {
+                  animated: !isImage(file),
+                  text,
+                  signal: ctx.signal,
+                });
+                await ctx.reply.sticker(sticker);
+              },
+              {
+                errorKey: (err) => (downloaded ? 'stickerError' : tooLargeOr('downloadError')(err)),
+                fields: { url },
+              },
+            ),
+          );
         },
       },
 
@@ -149,40 +149,33 @@ export function download(options: DownloadOptions = {}): PluginDefinition {
         run: async (ctx) => {
           const url = findUrl(ctx);
           if (!url) return ctx.t('audioUsage');
-          return inTempDir(async (dir) => {
-            await ctx.react('⏳');
-            try {
-              const mp3 = await downloadAudio(url, dir, { ...options, signal: ctx.signal });
-              await ctx.reply.audio(await readFile(mp3), { mimetype: 'audio/mpeg' });
-            } catch (err) {
-              ctx.log.error('falha no download de áudio', { err, url });
-              await ctx.react('❌');
-              return ctx.t(err instanceof TooLargeError ? 'tooLarge' : 'audioError');
-            }
-            await ctx.react('✅');
-            return undefined;
-          });
+          return withTempDir((dir) =>
+            attempt(
+              ctx,
+              async () => {
+                const mp3 = await downloadAudio(url, dir, { ...options, signal: ctx.signal });
+                await ctx.reply.audio(await readFile(mp3), { mimetype: 'audio/mpeg' });
+              },
+              { errorKey: tooLargeOr('audioError'), fields: { url } },
+            ),
+          );
         },
       },
     },
   });
 }
 
-/** Link do comando ou, na falta, da mensagem citada, sem a pontuação colada no fim. */
+/** Link do comando ou, na falta, da mensagem citada. */
 function findUrl(ctx: CommandContext): string | null {
-  for (const text of [ctx.rawArgs, ctx.message.quoted?.text]) {
-    const url = text && /https?:\/\/\S+/i.exec(text)?.[0];
-    if (url) return url.replace(/[.,!?'"]+$/, '');
-  }
-  return null;
+  return urlIn(ctx.rawArgs) ?? urlIn(ctx.message.quoted?.text);
 }
 
-/** Cada download no próprio diretório temporário, apagado no fim com ou sem erro. */
-async function inTempDir<T>(work: (dir: string) => Promise<T>): Promise<T> {
-  const dir = await mkdtemp(join(tmpdir(), 'lumabot-download-'));
-  try {
-    return await work(dir);
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
+function isImage(file: string): boolean {
+  return IMAGE_EXTENSIONS.has(extname(file).toLowerCase());
 }
+
+const tooLargeOr = (fallback: string) => (err: unknown) =>
+  err instanceof TooLargeError ? 'tooLarge' : fallback;
+
+/** Post de foto num transport sem `send.image`: só se descobre depois de baixar. */
+class ImageUnsupportedError extends Error {}

@@ -1,6 +1,6 @@
 import { definePlugin, type PluginDefinition } from '@usebridger/core';
 import { checkBinary } from '#plugins/binary.ts';
-import { attempt, mediaOf, usage } from '#plugins/media-command.ts';
+import { attempt, usage } from '#plugins/media-command.ts';
 import { isAnimated, stickerToMp4, stickerToPng } from './convert.ts';
 
 /**
@@ -47,7 +47,7 @@ export const stickerConvert: PluginDefinition = definePlugin({
       timeoutMs: TIMEOUT_MS,
       run: (ctx) =>
         attempt(ctx, async () => {
-          const png = await stickerToPng(await mediaOf(ctx).download());
+          const png = await stickerToPng(await ctx.media.download());
           await ctx.reply.image(png, { caption: ctx.t('imageDone'), mimetype: 'image/png' });
         }),
     },
@@ -64,7 +64,7 @@ export const stickerConvert: PluginDefinition = definePlugin({
       run: async (ctx) => {
         let reply: string | undefined;
         const failed = await attempt(ctx, async () => {
-          const sticker = await mediaOf(ctx).download();
+          const sticker = await ctx.media.download();
           if (!(await isAnimated(sticker))) {
             reply = ctx.t('gifStatic');
             return;

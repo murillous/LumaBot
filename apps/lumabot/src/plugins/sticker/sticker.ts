@@ -1,6 +1,6 @@
 import { definePlugin, type PluginDefinition } from '@usebridger/core';
 import { checkBinary } from '#plugins/binary.ts';
-import { attempt, usage } from '#plugins/media-command.ts';
+import { attempt, urlIn, usage } from '#plugins/media-command.ts';
 import { encodeSticker, type StickerPack, toStickerImage, videoToSticker } from './convert.ts';
 import { fetchUrl, UrlFetchError } from './fetch-url.ts';
 
@@ -20,15 +20,10 @@ export interface CreateStickerOptions extends StickerInput {
 }
 
 /**
- * Serviço `sticker`: outros plugins estendem a figurinha (`decorate`) ou a usam pronta
- * (`create`) sem que o `sticker` os conheça.
+ * Serviço `sticker`: outros plugins usam a figurinha pronta (`create`) sem que o `sticker` os
+ * conheça. Para estendê-la, contribuem uma etapa no ponto `sticker.steps`.
  */
 export interface StickerService {
-  /**
-   * Acrescenta uma etapa à figurinha estática, na ordem de registro. A etapa sai quando o
-   * `signal` aborta: passe o `ctx.signal` do plugin, que aborta no teardown e no reload.
-   */
-  decorate(step: StickerStep, signal: AbortSignal): void;
   /** Imagem ou vídeo → figurinha pronta (WebP com o pacote no EXIF), já com as etapas. */
   create(media: Buffer, options: CreateStickerOptions): Promise<Buffer>;
 }
@@ -36,6 +31,9 @@ export interface StickerService {
 declare module '@usebridger/core' {
   interface Services {
     sticker: StickerService;
+  }
+  interface ExtensionPoints {
+    'sticker.steps': StickerStep;
   }
 }
 
@@ -59,31 +57,27 @@ const FFMPEG_CONCURRENCY = 2;
 
 /**
  * Figurinha (`!sticker`) e o serviço `sticker`, por onde outros plugins a estendem ou a usam.
- * Sem `send.sticker` o plugin não carrega, e quem depende dele também não.
+ * Sem `send.sticker` só o `!sticker` fica de fora: o kernel aborta o boot por plugin que não
+ * carrega, e o serviço segue útil a quem tem o próprio `requires` (como o `!downloadsticker`).
  */
 export const sticker: PluginDefinition = definePlugin({
   name: 'sticker',
   version: '0.0.0',
   engine: '<1.0.0',
-  requires: ['media.download', 'send.sticker'],
+  requires: ['media.download'],
   messages: MESSAGES,
   setup: async (ctx) => {
     const pack: StickerPack = {
       name: ctx.plugin.messages.stickerPack,
       author: ctx.plugin.messages.stickerAuthor,
     };
-    // Criadas a cada setup: num reload do `sticker`, os dependentes recarregam e registram de novo.
-    const steps = new Set<StickerStep>();
+    // Visão viva: o kernel tira a etapa de quem recarrega ou é desligado.
+    const steps = ctx.services.extensionPoint('sticker.steps');
     ctx.services.provide('sticker', {
-      decorate: (step, signal) => {
-        if (signal.aborted) return;
-        steps.add(step);
-        signal.addEventListener('abort', () => steps.delete(step), { once: true });
-      },
       create: async (media, { animated, text, signal }) => {
         if (animated) return videoToSticker(media, pack, signal);
         let image = await toStickerImage(media);
-        for (const step of steps) image = await step(image, { text });
+        for (const step of steps.list()) image = await step(image, { text });
         return encodeSticker(image, pack);
       },
     });
@@ -100,6 +94,7 @@ export const sticker: PluginDefinition = definePlugin({
     sticker: {
       aliases: ['s'],
       description: 'Imagem, vídeo ou link → figurinha',
+      requires: ['send.sticker'],
       // `text` por último: o link do `!s https://...` vem em mensagem sem mídia.
       accepts: [
         'image',
@@ -116,7 +111,7 @@ export const sticker: PluginDefinition = definePlugin({
       concurrency: FFMPEG_CONCURRENCY,
       run: async (ctx, plugin) => {
         const stickers = plugin.services.get('sticker');
-        const url = /https?:\/\/\S+/i.exec(ctx.rawArgs)?.[0] ?? null;
+        const url = urlIn(ctx.rawArgs);
         const text = (url ? ctx.rawArgs.replace(url, '') : ctx.rawArgs).replace(/\s+/g, ' ').trim();
         const linkError = (err: unknown) =>
           err instanceof UrlFetchError ? 'urlError' : 'conversionError';
@@ -134,7 +129,7 @@ export const sticker: PluginDefinition = definePlugin({
                 }),
               );
             },
-            linkError,
+            { errorKey: linkError, fields: { url } },
           );
         }
 

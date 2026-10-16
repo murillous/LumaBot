@@ -21,7 +21,8 @@ pnpm --filter lumabot start   # roda dist/main.mjs
 
 Os plugins `sticker`, `sticker-convert` e `download` rodam o `ffmpeg` do sistema, e o `download`,
 também o `yt-dlp`: instale os dois e deixe-os no `PATH` (ver [sticker.md](sticker.md#ffmpeg) e
-[download.md](download.md#binários)). Para o emoji colorido na legenda das figurinhas, instale
+[download.md](download.md#binários)). Sem o `yt-dlp` ou o `ffmpeg`, o boot aborta pelo
+`download`; o `sticker` e o `sticker-convert` só avisam no log. Para o emoji colorido na legenda das figurinhas, instale
 também uma fonte de emoji colorida (`fonts-noto-color-emoji`, ver
 [sticker.md](sticker.md#legenda-sticker-text)).
 

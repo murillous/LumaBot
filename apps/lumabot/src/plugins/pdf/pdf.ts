@@ -1,5 +1,5 @@
 import { definePlugin, type PluginDefinition } from '@usebridger/core';
-import { attempt, mediaOf, usage } from '#plugins/media-command.ts';
+import { attempt, usage } from '#plugins/media-command.ts';
 import { imageToPdf, mergePdfs } from './convert.ts';
 
 /**
@@ -50,7 +50,7 @@ export function pdf(): PluginDefinition {
         timeoutMs: TIMEOUT_MS,
         run: (ctx) =>
           attempt(ctx, async () => {
-            const pdf = await imageToPdf(await mediaOf(ctx).download());
+            const pdf = await imageToPdf(await ctx.media.download());
             await ctx.reply.document(pdf, {
               fileName: pdfFileName(ctx.rawArgs, 'imagem.pdf'),
               mimetype: PDF_MIMETYPE,
