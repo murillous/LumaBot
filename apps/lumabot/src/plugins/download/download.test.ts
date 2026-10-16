@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { createTestBot, FakeTransport, fixtures, type TestBot } from '@usebridger/testing';
 import sharp from 'sharp';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { aiToolsProbe, toolResult } from '#plugins/ai-tools-probe.ts';
 import { checkBinary } from '#plugins/binary.ts';
 import { sticker } from '#plugins/sticker/sticker.ts';
 import { stickerText } from '#plugins/sticker-text/sticker-text.ts';
@@ -252,5 +253,64 @@ describe('!downloadsticker', () => {
 
     expect(bot.sent).toHaveReplied('❌ Baixei, mas não consegui fazer a figurinha.');
     expect(bot.transport.reactions.map((r) => r.emoji)).toEqual(['⏳', '❌']);
+  });
+});
+
+describe('tools', () => {
+  it('download_media envia a foto do post', async () => {
+    ytDlpWrites(downloadVideo, fixtures.image().data, 'jpg');
+    bot = await createTestBot({ plugins: [download(), aiToolsProbe] });
+
+    await bot.receive({ text: `!tool download_media {"url":"${URL}"}` });
+
+    expect(bot.sent).toContainImage();
+    expect(toolResult(bot)).toEqual({ ok: true });
+  });
+
+  it('download_audio envia o MP3', async () => {
+    ytDlpWrites(downloadAudio, Buffer.from('mp3'), 'mp3');
+    bot = await createTestBot({ plugins: [download(), aiToolsProbe] });
+
+    await bot.receive({ text: `!tool download_audio {"url":"${URL}"}` });
+
+    expect(bot.sentMedia('audio')).toHaveLength(1);
+    expect(toolResult(bot)).toEqual({ ok: true });
+  });
+
+  it('arquivo grande vira too-large para o modelo', async () => {
+    vi.mocked(downloadVideo).mockRejectedValue(new TooLargeError(URL));
+    bot = await createTestBot({ plugins: [download(), aiToolsProbe] });
+
+    await bot.receive({ text: `!tool download_media {"url":"${URL}"}` });
+
+    expect(toolResult(bot)).toEqual({ ok: false, error: 'too-large' });
+  });
+
+  it('sem os binários, recusa sem chamar o yt-dlp', async () => {
+    vi.mocked(checkBinary).mockRejectedValue(new Error('`yt-dlp` não roda'));
+    bot = await createTestBot({ plugins: [download(), aiToolsProbe] });
+
+    await bot.receive({ text: `!tool download_audio {"url":"${URL}"}` });
+
+    expect(downloadAudio).not.toHaveBeenCalled();
+    expect(toolResult(bot)).toEqual({ ok: false, error: 'unavailable' });
+  });
+
+  it('download_sticker usa o serviço sticker, com a legenda', async () => {
+    ytDlpWrites(downloadVideo, fixtures.image().data, 'jpg');
+    bot = await createTestBot({ plugins: [sticker, download(), aiToolsProbe] });
+
+    await bot.receive({ text: `!tool download_sticker {"url":"${URL}","caption":"oi"}` });
+
+    expect(bot.sent).toContainSticker();
+    expect(toolResult(bot)).toEqual({ ok: true });
+  });
+
+  it('download_sticker sem o plugin sticker recusa', async () => {
+    bot = await createTestBot({ plugins: [download(), aiToolsProbe] });
+
+    await bot.receive({ text: `!tool download_sticker {"url":"${URL}"}` });
+
+    expect(toolResult(bot)).toEqual({ ok: false, error: 'sticker-unavailable' });
   });
 });

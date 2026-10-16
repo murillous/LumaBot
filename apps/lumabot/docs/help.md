@@ -13,6 +13,15 @@ Só entram comandos com `description` e papel `everyone`, ou `group-admin` quand
 remetente ao serviço, então `owner` e papéis custom ficam sempre de fora, mesmo para quem os pode
 rodar.
 
+## Tools da IA
+
+Contribuídas ao ponto `ai.tools` ([ai-tools.md](ai-tools.md)). O resultado vai para o modelo;
+o que o usuário recebe sai como resposta no chat.
+
+| Tool | Argumentos | O que faz | Recusas (`error`) |
+| --- | --- | --- | --- |
+| `list_commands` | — | Devolve o menu do chat (`menu`), o mesmo do `!help`, sem enviá-lo | — |
+
 ## Textos
 
 `messages.title` (`BRIDGER_HELP__MESSAGES__TITLE`), o cabeçalho do menu. O título de cada grupo é

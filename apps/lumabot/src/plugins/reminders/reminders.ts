@@ -1,5 +1,6 @@
 import { bold, definePlugin, fmt, mention, type PluginDefinition } from '@usebridger/core';
 import { z } from 'zod';
+import { aiTool, fail, ok } from '#plugins/ai-tools.ts';
 import { formatWhen, remaining, stats } from './format.ts';
 import { brParser, type WhenParser } from './parse.ts';
 import { isValidTimeZone } from './zone.ts';
@@ -181,7 +182,7 @@ export const reminders: PluginDefinition = definePlugin({
 
     ctx.services.contribute('reminders.parsers', brParser(ctx.config.timeZone));
 
-    ctx.services.provide('reminders', {
+    const service: RemindersService = {
       create: async (input) => {
         if (!input.chatId || !input.creatorId) throw new ReminderError('invalid-chat');
         const now = Date.now();
@@ -225,7 +226,62 @@ export const reminders: PluginDefinition = definePlugin({
         await ctx.scheduler.cancel(doc.jobId);
         return true;
       },
-    });
+    };
+    ctx.services.provide('reminders', service);
+
+    const zone = ctx.config.timeZone;
+    // O que o modelo lê de um lembrete: o `id` para cancelar e a hora no fuso do bot.
+    const view = (r: Reminder) => ({ id: r.id, when: formatWhen(r.fireAt, zone), text: r.text });
+    ctx.services.contribute(
+      'ai.tools',
+      aiTool({
+        name: 'create_reminder',
+        description: `Agenda um lembrete neste chat. Quem a mensagem do usuário menciona é marcado no disparo; sem menção, quem pediu. Fuso do bot: ${zone}.`,
+        args: z.object({
+          when: z.iso
+            .datetime({ offset: true })
+            .describe(
+              'Data e hora do disparo em ISO 8601 com fuso, ex.: 2026-10-20T15:00:00-03:00',
+            ),
+          text: z.string().describe(`Mensagem do lembrete, até ${MAX_TEXT_LENGTH} caracteres`),
+        }),
+        run: async ({ when, text }, t) => {
+          const { chat, sender, mentions } = t.message;
+          try {
+            const reminder = await service.create({
+              chatId: chat.id,
+              creatorId: sender.id,
+              mentionIds: mentions.map((m) => m.id),
+              text,
+              fireAt: Date.parse(when),
+            });
+            return ok(view(reminder));
+          } catch (err) {
+            if (err instanceof ReminderError) return fail(err.code);
+            throw err;
+          }
+        },
+      }),
+    );
+    ctx.services.contribute(
+      'ai.tools',
+      aiTool({
+        name: 'list_reminders',
+        description: 'Lista os lembretes pendentes deste chat, do mais próximo ao mais distante.',
+        args: z.object({}),
+        run: async (_, t) => ok({ reminders: (await service.list(t.message.chat.id)).map(view) }),
+      }),
+    );
+    ctx.services.contribute(
+      'ai.tools',
+      aiTool({
+        name: 'cancel_reminder',
+        description: 'Cancela um lembrete deste chat pelo `id` que o `list_reminders` devolve.',
+        args: z.object({ id: z.string() }),
+        run: async ({ id }, t) =>
+          (await service.cancel(t.message.chat.id, id)) ? ok() : fail('not-found'),
+      }),
+    );
   },
   commands: {
     lembrete: {

@@ -1,6 +1,7 @@
 import { definePlugin, type PluginDefinition } from '@usebridger/core';
 import { createTestBot, type TestBot } from '@usebridger/testing';
 import { afterEach, expect, it } from 'vitest';
+import { aiToolsProbe, toolResult } from '#plugins/ai-tools-probe.ts';
 import { userNames } from '#plugins/user-names/user-names.ts';
 import { type RankService, rank } from './rank.ts';
 
@@ -100,4 +101,25 @@ it('record simultâneo não duplica linha nem perde contagem', async () => {
   expect(await service.top('global', 10)).toEqual([{ id: 'a', count: 3 }]);
   expect(await service.top({ chatId: 'g1' }, 10)).toEqual([{ id: 'a', count: 2 }]);
   expect(await service.top({ chatId: 'g2' }, 10)).toEqual([{ id: 'a', count: 1 }]);
+});
+
+it('tool ranking devolve nomes e contagens do grupo, ou o geral', async () => {
+  await start(userNames, aiToolsProbe);
+  await service.record('g1@fake', 'a@fake');
+  await service.record('g2@fake', 'b@fake');
+  await service.record('g2@fake', 'b@fake');
+  await bot.receive({ text: '!nick Ana', sender: { id: 'a@fake' } });
+
+  await bot.receive({ text: '!tool ranking', chat: group });
+  expect(toolResult(bot)).toEqual({
+    ok: true,
+    scope: 'chat',
+    ranking: [{ name: 'Ana', count: 1 }],
+  });
+
+  await bot.receive({ text: '!tool ranking {"scope":"global"}', chat: group });
+  expect(toolResult(bot)).toMatchObject({
+    scope: 'global',
+    ranking: [{ count: 2 }, { name: 'Ana' }],
+  });
 });

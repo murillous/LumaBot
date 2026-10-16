@@ -7,6 +7,7 @@ import {
   type TestBot,
 } from '@usebridger/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { aiToolsProbe, toolResult } from '#plugins/ai-tools-probe.ts';
 import { ReminderError, type RemindersService, reminders } from './reminders.ts';
 
 let bot: TestBot;
@@ -272,5 +273,43 @@ describe('ponto de extensão reminders.parsers', () => {
     bot = await createTestBot({ plugins: [reminders, quebrado] });
     await bot.receive({ text: '!lembrete 16/10 10:00 | y' });
     expect(bot.sent).toContainText(/Lembrete criado/);
+  });
+});
+
+describe('tools', () => {
+  it('create_reminder agenda com a data ISO e a lista/cancela pelo id', async () => {
+    bot = await createTestBot({ plugins: [reminders, aiToolsProbe] });
+
+    await bot.receive({
+      text: '!tool create_reminder {"when":"2026-10-16T13:00:00-03:00","text":"reunião"}',
+    });
+    const created = toolResult(bot) as { id: string };
+    expect(created).toEqual({
+      ok: true,
+      id: expect.any(String),
+      when: '16/10 13:00',
+      text: 'reunião',
+    });
+
+    await bot.receive({ text: '!tool list_reminders' });
+    expect(toolResult(bot)).toEqual({
+      ok: true,
+      reminders: [{ id: created.id, when: '16/10 13:00', text: 'reunião' }],
+    });
+
+    await bot.receive({ text: `!tool cancel_reminder {"id":"${created.id}"}` });
+    expect(toolResult(bot)).toEqual({ ok: true });
+    await bot.receive({ text: `!tool cancel_reminder {"id":"${created.id}"}` });
+    expect(toolResult(bot)).toEqual({ ok: false, error: 'not-found' });
+  });
+
+  it('create_reminder devolve o código da recusa', async () => {
+    bot = await createTestBot({ plugins: [reminders, aiToolsProbe] });
+
+    await bot.receive({
+      text: '!tool create_reminder {"when":"2026-10-16T08:00:00-03:00","text":"ontem"}',
+    });
+
+    expect(toolResult(bot)).toEqual({ ok: false, error: 'past' });
   });
 });

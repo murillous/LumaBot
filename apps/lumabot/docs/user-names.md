@@ -14,6 +14,16 @@ Sem nome, vazio após a limpeza, ou `@algo` sem menção resolvida (`!nick Fulan
 dar apelido a qualquer outra (sem papel). O `!nick @pessoa` precisa da capability `mentions` do
 transport; o plugin não a exige, então `!nick Nome` funciona sem ela.
 
+## Tools da IA
+
+Contribuídas ao ponto `ai.tools` ([ai-tools.md](ai-tools.md)). O resultado vai para o modelo;
+o que o usuário recebe sai como resposta no chat.
+
+| Tool | Argumentos | O que faz | Recusas (`error`) |
+| --- | --- | --- | --- |
+| `set_nickname` | `nickname`, `target` | Define o apelido de quem pediu (`sender`, padrão) ou da primeira menção (`mentioned`) | `no-mention`, `empty`, `too-long` |
+| `get_name` | `target` | Devolve o nome de exibição (`name`) | `no-mention` |
+
 ## Enriquecimento
 
 `remember` roda sozinho em: remetente e mencionados de toda mensagem (inclusive comandos, via

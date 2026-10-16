@@ -1,4 +1,6 @@
 import { type Contact, definePlugin, type PluginDefinition } from '@usebridger/core';
+import { z } from 'zod';
+import { type AiToolContext, aiTool, fail, ok } from '#plugins/ai-tools.ts';
 import { cleanName, NICK_MAX, nickFromArgs } from './nick-args.ts';
 
 /** Fonte de nome: devolve o nome que conhece para o `id`, ou `null` para passar à próxima. */
@@ -127,6 +129,52 @@ export const userNames: PluginDefinition = definePlugin({
     ctx.events.on('group.participants', async (e) => {
       for (const c of e.payload.participants) await remember(c);
     });
+    // Quem a tool afeta: o remetente ou a primeira pessoa mencionada, como no `!nick @pessoa`.
+    const target = z
+      .enum(['sender', 'mentioned'])
+      .default('sender')
+      .describe('`sender`: quem pediu; `mentioned`: a primeira pessoa mencionada na mensagem');
+    const contactOf = async (who: 'sender' | 'mentioned', t: AiToolContext) => {
+      if (who === 'sender') return t.message.sender;
+      const mentioned = t.message.mentions[0];
+      if (mentioned) await remember(mentioned);
+      return mentioned ?? null;
+    };
+    ctx.services.contribute(
+      'ai.tools',
+      aiTool({
+        name: 'set_nickname',
+        description: 'Define o apelido pelo qual a Luma chama alguém.',
+        args: z.object({ nickname: z.string().describe('Apelido, até 32 caracteres'), target }),
+        run: async ({ nickname, target: who }, t) => {
+          const contact = await contactOf(who, t);
+          if (!contact) return fail('no-mention');
+          try {
+            await service.setNick(contact.id, nickname);
+          } catch (err) {
+            if (err instanceof NickTooLongError) return fail('too-long');
+            if (err instanceof NickEmptyError) return fail('empty');
+            throw err;
+          }
+          return ok({ nickname: (await service.nick(contact.id)) ?? nickname });
+        },
+      }),
+    );
+    ctx.services.contribute(
+      'ai.tools',
+      aiTool({
+        name: 'get_name',
+        description:
+          'Nome pelo qual a Luma chama alguém (apelido, nome do perfil ou fim do número).',
+        args: z.object({ target }),
+        run: async ({ target: who }, t) => {
+          const contact = await contactOf(who, t);
+          if (!contact) return fail('no-mention');
+          return ok({ name: await service.displayName(contact.id) });
+        },
+      }),
+    );
+
     ctx.events.on('contact.updated', (e) =>
       remember({ id: e.payload.id, name: e.payload.name ?? null, phone: e.payload.phone ?? null }),
     );

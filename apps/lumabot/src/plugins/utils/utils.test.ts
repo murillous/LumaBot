@@ -1,6 +1,7 @@
 import { definePlugin } from '@usebridger/core';
 import { createTestBot, DEFAULT_SENDER, FakeTransport, type TestBot } from '@usebridger/testing';
 import { afterEach, describe, expect, it } from 'vitest';
+import { aiToolsProbe, toolResult } from '#plugins/ai-tools-probe.ts';
 import { utils } from './utils.ts';
 
 let bot: TestBot;
@@ -172,5 +173,20 @@ describe('!prefixo', () => {
     await bot.receive({ text: '!prefixo ?' });
 
     expect(bot.sent).toHaveReplied('❌ Só admin pode trocar o prefixo, e dentro do grupo.');
+  });
+});
+
+it('tool chat_info devolve as linhas do !meunumero, com as contribuídas', async () => {
+  bot = await createTestBot({ plugins: [utils, liner(() => '🏷️ Apelido: Ana'), aiToolsProbe] });
+
+  await bot.receive({ text: '!tool chat_info' });
+
+  expect(toolResult(bot)).toEqual({
+    ok: true,
+    lines: [
+      `👤 *Seu Número:* ${DEFAULT_SENDER.phone}`,
+      '💬 *ID deste Chat:* chat@fake',
+      '🏷️ Apelido: Ana',
+    ],
   });
 });

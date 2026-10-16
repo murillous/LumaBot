@@ -16,6 +16,16 @@ A figurinha vem da própria mensagem ou da citada; outra mídia recebe o texto d
 Enquanto converte, o bot reage ⏳ e depois ✅ ou ❌. Erro de conversão vai para o log
 (`falha ao processar mídia`) e o chat recebe `conversionError`.
 
+## Tools da IA
+
+Contribuídas ao ponto `ai.tools` ([ai-tools.md](ai-tools.md)). O resultado vai para o modelo;
+o que o usuário recebe sai como resposta no chat.
+
+| Tool | Argumentos | O que faz | Recusas (`error`) |
+| --- | --- | --- | --- |
+| `sticker_to_image` | — | Figurinha da mensagem ou da citada → PNG. Exige `send.image` | `no-sticker` |
+| `sticker_to_video` | — | Figurinha animada → MP4. Exige `send.video` | `no-sticker`, `not-animated` |
+
 ## Capabilities
 
 O plugin exige só `media.download`. Cada comando declara no `requires` a capability do que envia

@@ -2,8 +2,16 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { extname, join } from 'node:path';
 import { type CommandContext, definePlugin, type PluginDefinition } from '@usebridger/core';
+import { z } from 'zod';
+import { type AiToolResult, aiTool, fail, ok } from '#plugins/ai-tools.ts';
 import { checkBinary } from '#plugins/binary.ts';
-import { compactVideo, downloadAudio, downloadVideo, TooLargeError } from './yt-dlp.ts';
+import {
+  compactVideo,
+  downloadAudio,
+  downloadVideo,
+  TooLargeError,
+  type YtDlpOptions,
+} from './yt-dlp.ts';
 
 /**
  * Textos ao usuário; a config do bot sobrescreve cada um (`messages`). `{prefix}` é o prefixo do
@@ -67,6 +75,87 @@ export function download(options: DownloadOptions = {}): PluginDefinition {
         binariesMissing = true;
         ctx.log.warn('yt-dlp ou ffmpeg indisponível: os comandos de download vão recusar', { err });
       }
+
+      const url = z.url().describe('Link do post ou do vídeo');
+      // Recusas esperadas de qualquer download; o resto vai para o `invokeTool`, que registra.
+      const guarded = async (work: () => Promise<AiToolResult>) => {
+        if (binariesMissing) return fail('unavailable');
+        try {
+          return await work();
+        } catch (err) {
+          if (err instanceof TooLargeError) return fail('too-large');
+          throw err;
+        }
+      };
+      ctx.services.contribute(
+        'ai.tools',
+        aiTool({
+          name: 'download_media',
+          description:
+            'Baixa o vídeo ou a foto de um link (X, Instagram, TikTok, YouTube...) e envia no chat.',
+          args: z.object({ url }),
+          requires: ['send.video'],
+          run: ({ url }, t) =>
+            guarded(() =>
+              inTempDir(async (dir) => {
+                const post = await fetchPost(url, dir, { ...options, signal: t.signal });
+                if (post.kind === 'image') {
+                  if (!ctx.capabilities.has('send.image')) return fail('image-unsupported');
+                  await t.reply.image(post.bytes, { caption: ctx.plugin.messages.imageSent });
+                } else {
+                  await t.reply.video(post.bytes, {
+                    caption: ctx.plugin.messages.videoSent,
+                    mimetype: 'video/mp4',
+                  });
+                }
+                return ok();
+              }),
+            ),
+        }),
+      );
+      ctx.services.contribute(
+        'ai.tools',
+        aiTool({
+          name: 'download_audio',
+          description: 'Baixa o áudio de um link em MP3 e envia no chat.',
+          args: z.object({ url }),
+          requires: ['send.audio'],
+          run: ({ url }, t) =>
+            guarded(() =>
+              inTempDir(async (dir) => {
+                const mp3 = await downloadAudio(url, dir, { ...options, signal: t.signal });
+                await t.reply.audio(await readFile(mp3), { mimetype: 'audio/mpeg' });
+                return ok();
+              }),
+            ),
+        }),
+      );
+      ctx.services.contribute(
+        'ai.tools',
+        aiTool({
+          name: 'download_sticker',
+          description:
+            'Baixa o vídeo ou a foto de um link e envia como figurinha. `caption` é escrita na figurinha estática.',
+          args: z.object({ url, caption: z.string().optional().describe('Texto na figurinha') }),
+          requires: ['send.sticker'],
+          run: ({ url, caption = '' }, t) =>
+            guarded(async () => {
+              // Opcional como no `!downloadsticker`: consultado a cada uso.
+              if (!ctx.services.has('sticker')) return fail('sticker-unavailable');
+              const stickers = ctx.services.get('sticker');
+              return inTempDir(async (dir) => {
+                const file = await downloadVideo(url, dir, { ...options, signal: t.signal });
+                const sticker = await stickers.create(await readFile(file), {
+                  animated: !IMAGE_EXTENSIONS.has(extname(file).toLowerCase()),
+                  text: caption.replace(/\s+/g, ' ').trim(),
+                  signal: t.signal,
+                });
+                await t.reply.sticker(sticker);
+                return ok();
+              });
+            }),
+        }),
+      );
     },
     commands: {
       download: {
@@ -85,16 +174,15 @@ export function download(options: DownloadOptions = {}): PluginDefinition {
           return inTempDir(async (dir) => {
             await ctx.react('⏳');
             try {
-              const file = await downloadVideo(url, dir, { ...options, signal: ctx.signal });
-              if (IMAGE_EXTENSIONS.has(extname(file).toLowerCase())) {
+              const post = await fetchPost(url, dir, { ...options, signal: ctx.signal });
+              if (post.kind === 'image') {
                 if (!plugin.capabilities.has('send.image')) {
                   await ctx.react('❌');
                   return ctx.t('imageUnsupported');
                 }
-                await ctx.reply.image(await readFile(file), { caption: ctx.t('imageSent') });
+                await ctx.reply.image(post.bytes, { caption: ctx.t('imageSent') });
               } else {
-                const mp4 = await compactVideo(file, dir, ctx.signal);
-                await ctx.reply.video(await readFile(mp4), {
+                await ctx.reply.video(post.bytes, {
                   caption: ctx.t('videoSent'),
                   mimetype: 'video/mp4',
                 });
@@ -178,6 +266,19 @@ export function download(options: DownloadOptions = {}): PluginDefinition {
       },
     },
   });
+}
+
+/** Foto do post como veio, ou o vídeo recodificado para o WhatsApp. */
+async function fetchPost(
+  url: string,
+  dir: string,
+  options: YtDlpOptions,
+): Promise<{ kind: 'image' | 'video'; bytes: Buffer }> {
+  const file = await downloadVideo(url, dir, options);
+  if (IMAGE_EXTENSIONS.has(extname(file).toLowerCase())) {
+    return { kind: 'image', bytes: await readFile(file) };
+  }
+  return { kind: 'video', bytes: await readFile(await compactVideo(file, dir, options.signal)) };
 }
 
 /** Link do comando ou, na falta, da mensagem citada, sem a pontuação colada no fim. */

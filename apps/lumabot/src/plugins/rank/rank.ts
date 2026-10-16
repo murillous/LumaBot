@@ -1,4 +1,6 @@
 import { definePlugin, type PluginDefinition } from '@usebridger/core';
+import { z } from 'zod';
+import { aiTool, ok } from '#plugins/ai-tools.ts';
 
 export type RankScope = { chatId: string } | 'global';
 export type RankEntry = { id: string; count: number };
@@ -86,6 +88,27 @@ export const rank: PluginDefinition = definePlugin({
       const raw = id.split('@')[0]?.split(':')[0] ?? id;
       return `@${(raw.replace(/\D/g, '') || raw).slice(-6)}`;
     };
+
+    ctx.services.contribute(
+      'ai.tools',
+      aiTool({
+        name: 'ranking',
+        description:
+          'Quem mais interage com a Luma, do maior para o menor: neste grupo ou no geral. Em conversa privada é sempre o geral.',
+        args: z.object({ scope: z.enum(['chat', 'global']).default('chat') }),
+        run: async ({ scope }, t) => {
+          const chat = t.message.chat;
+          const global = !chat.isGroup || scope === 'global';
+          const rows = await service.top(global ? 'global' : { chatId: chat.id }, TOP);
+          return ok({
+            scope: global ? 'global' : 'chat',
+            ranking: await Promise.all(
+              rows.map(async (r) => ({ name: await nameOf(r.id), count: r.count })),
+            ),
+          });
+        },
+      }),
+    );
 
     ctx.commands.add({
       name: 'rank',

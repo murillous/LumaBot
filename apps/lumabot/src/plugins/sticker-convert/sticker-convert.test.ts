@@ -1,6 +1,13 @@
-import { createTestBot, fixtures, type SentMediaType, type TestBot } from '@usebridger/testing';
+import {
+  createTestBot,
+  FakeTransport,
+  fixtures,
+  type SentMediaType,
+  type TestBot,
+} from '@usebridger/testing';
 import sharp from 'sharp';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { aiToolsProbe, toolResult } from '#plugins/ai-tools-probe.ts';
 import { checkBinary } from '#plugins/binary.ts';
 import { stickerConvert } from './sticker-convert.ts';
 
@@ -59,5 +66,46 @@ describe('!gif', () => {
     await bot.receive({ text: '!gif', quoted: { sticker: fixtures.sticker() } });
 
     expect(bot.sent).toHaveReplied('ℹ️ Este é um sticker estático. Use !image para converter');
+  });
+});
+
+describe('tools', () => {
+  it('sticker_to_image converte a figurinha respondida em PNG', async () => {
+    bot = await createTestBot({ plugins: [stickerConvert, aiToolsProbe] });
+
+    await bot.receive({ text: '!tool sticker_to_image', quoted: { sticker: fixtures.sticker() } });
+
+    expect((await sharp(sentBytes('image')).metadata()).format).toBe('png');
+    expect(toolResult(bot)).toEqual({ ok: true });
+  });
+
+  it('sem figurinha, recusa para o modelo', async () => {
+    bot = await createTestBot({ plugins: [stickerConvert, aiToolsProbe] });
+
+    await bot.receive({ text: '!tool sticker_to_image', image: fixtures.image() });
+
+    expect(toolResult(bot)).toEqual({ ok: false, error: 'no-sticker' });
+  });
+
+  it('sticker_to_video recusa figurinha estática', async () => {
+    bot = await createTestBot({ plugins: [stickerConvert, aiToolsProbe] });
+
+    await bot.receive({ text: '!tool sticker_to_video', quoted: { sticker: fixtures.sticker() } });
+
+    expect(toolResult(bot)).toEqual({ ok: false, error: 'not-animated' });
+  });
+
+  it('transport sem send.image não oferece sticker_to_image', async () => {
+    bot = await createTestBot({
+      plugins: [stickerConvert, aiToolsProbe],
+      transport: new FakeTransport({
+        capabilities: ['send.text', 'send.video', 'media.download', 'quoted'],
+      }),
+    });
+
+    await bot.receive({ text: '!tool sticker_to_image', quoted: { sticker: fixtures.sticker() } });
+
+    expect(bot.sentMedia('image')).toHaveLength(0);
+    expect(toolResult(bot)).toEqual({ ok: false, error: 'not-offered' });
   });
 });

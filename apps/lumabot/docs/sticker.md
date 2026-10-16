@@ -24,6 +24,15 @@ Enquanto converte, o bot reage ⏳ na mensagem e depois ✅ ou ❌; num transpor
 reação é ignorada. Erro de conversão vai para o log (`falha ao processar mídia`) e o chat recebe
 `conversionError`; link que não baixa recebe `urlError`.
 
+## Tools da IA
+
+Contribuídas ao ponto `ai.tools` ([ai-tools.md](ai-tools.md)). O resultado vai para o modelo;
+o que o usuário recebe sai como resposta no chat.
+
+| Tool | Argumentos | O que faz | Recusas (`error`) |
+| --- | --- | --- | --- |
+| `create_sticker` | `url?`, `caption?` | Figurinha do link ou da imagem/vídeo/figurinha da mensagem ou da citada; `caption` passa pelas etapas (`sticker-text`) | `no-media`, `view-once`, `url-failed` |
+
 ## Serviço `sticker`
 
 Outros plugins usam a figurinha pelo `ctx.services.get('sticker')`, sem importar o código do

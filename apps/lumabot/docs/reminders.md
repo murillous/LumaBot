@@ -20,6 +20,17 @@ no transport, o kernel cai para texto (o plugin exige só `send.text`).
 Formato desconhecido dá o texto de uso (`usage`: nenhum parser entendeu o argumento). Data
 inexistente (`31/02`) e mensagem vazia têm texto próprio (`errInvalidDate`, `errEmptyText`).
 
+## Tools da IA
+
+Contribuídas ao ponto `ai.tools` ([ai-tools.md](ai-tools.md)). O resultado vai para o modelo;
+o que o usuário recebe sai como resposta no chat.
+
+| Tool | Argumentos | O que faz | Recusas (`error`) |
+| --- | --- | --- | --- |
+| `create_reminder` | `when` (ISO 8601 com fuso), `text` | Cria o lembrete no chat; menciona quem a mensagem menciona, ou quem pediu. Devolve `id`, `when` (no fuso da config) e `text` | o `code` do `ReminderError` |
+| `list_reminders` | — | Pendentes do chat (`reminders`: `id`, `when`, `text`) | — |
+| `cancel_reminder` | `id` | Cancela pelo `id` da lista | `not-found` |
+
 ## Config
 
 | Chave | Padrão | Env |

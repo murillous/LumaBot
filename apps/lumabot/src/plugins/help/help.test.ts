@@ -1,6 +1,7 @@
 import { definePlugin } from '@usebridger/core';
 import { createTestBot, DEFAULT_CHAT, type TestBot } from '@usebridger/testing';
 import { afterEach, describe, expect, it } from 'vitest';
+import { aiToolsProbe, toolResult } from '#plugins/ai-tools-probe.ts';
 import { ping } from '#plugins/ping.ts';
 import { formatMenu } from './format.ts';
 import { help } from './help.ts';
@@ -162,4 +163,15 @@ describe('formatMenu', () => {
       }),
     ).toBe('T\n\n*a*\n/x: d\n/z: d\n\n*b*\n/y: d');
   });
+});
+
+it('tool list_commands devolve ao modelo o mesmo menu do !help, sem enviá-lo', async () => {
+  bot = await createTestBot({ plugins: [help, ping, aiToolsProbe] });
+
+  await bot.receive({ text: '!help' });
+  const menu = lastText();
+  await bot.receive({ text: '!tool list_commands' });
+
+  expect(toolResult(bot)).toEqual({ ok: true, menu });
+  expect(bot.sent).toHaveLength(2);
 });
