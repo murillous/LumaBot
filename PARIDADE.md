@@ -22,7 +22,7 @@ e agora vive aqui.
 | [x] | `!audio` / `!a` (MP3 de link de site conhecido pelo yt-dlp) | [download](apps/lumabot/docs/download.md) |
 | [ ] | `@everyone` / `@todos` | everyone |
 | [ ] | `!help` / `!menu` | help |
-| [ ] | `!meunumero` | utils |
+| [x] | `!meunumero` / `!meuid` | [utils](apps/lumabot/docs/utils.md) |
 | [ ] | `!nick Nome`, `!nick @pessoa Nome`, `!apelido` | user-names |
 | [ ] | Enriquecimento de usuários (pushName, contatos, LID) | user-names |
 | [ ] | `!lembrete` / `!lembrar`, `!lembretes`, `!cancelarlembrete <n>` + disparo agendado com menção | reminders |

@@ -70,6 +70,7 @@ Ficam em `src/plugins/` e entram na lista do `createBot` em `src/main.ts`.
 | [`sticker-convert`](sticker-convert.md) | Figurinha de volta a imagem ou vídeo: `!image`, `!gif` |
 | [`pdf`](pdf.md) | Imagem → PDF e junção de PDFs: `!pdf`, `!mergepdf` |
 | [`download`](download.md) | Vídeo, foto, áudio e figurinha de links pelo yt-dlp: `!download`, `!audio`, `!downloadsticker` |
+| [`utils`](utils.md) | `!meunumero`/`!meuid` (número e ID do chat) e `!prefixo` (prefixo por chat, só admin). Ponto de extensão `utils.info` |
 
 Um plugin pode estender outro ou usá-lo pelos serviços do kernel (`ctx.services`), sem importar
 o código dele ([ADR 0001](../../../docs/adr/0001-plugins-compostos-por-servico.md)); o exemplo é
