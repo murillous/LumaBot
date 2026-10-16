@@ -26,7 +26,7 @@ e agora vive aqui.
 | [x] | `!nick Nome`, `!nick @pessoa Nome`, `!apelido` | [user-names](apps/lumabot/docs/user-names.md) |
 | [x] | Enriquecimento de usuários (pushName, contatos, LID) | [user-names](apps/lumabot/docs/user-names.md) |
 | [ ] | `!lembrete` / `!lembrar`, `!lembretes`, `!cancelarlembrete <n>` + disparo agendado com menção | reminders |
-| [ ] | `!rank`, `!rank global` | rank |
+| [ ] | `!rank`, `!rank global` (sem dado até o `ai` chamar `record`) | [rank](apps/lumabot/docs/rank.md) |
 | [ ] | `!resumo [n]` | resumo |
 | [ ] | IA em PV, quando citada ou por trigger ("Luma, ...") | ai |
 | [ ] | Personas: `!persona` (menu pN), `!persona criar <descrição>`, `!persona deletar pN`, limite 10 por chat | ai |
