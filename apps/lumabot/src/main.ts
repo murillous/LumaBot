@@ -13,6 +13,7 @@ import { ping } from '#plugins/ping.ts';
 import { sticker } from '#plugins/sticker/sticker.ts';
 import { stickerConvert } from '#plugins/sticker-convert/sticker-convert.ts';
 import { stickerText } from '#plugins/sticker-text/sticker-text.ts';
+import { userNames } from '#plugins/user-names/user-names.ts';
 import { utils } from '#plugins/utils/utils.ts';
 
 const config = loadConfig();
@@ -41,6 +42,7 @@ const bot = createBot({
     stickerConvert,
     pdf(),
     download({ cookies: config.ytdlpCookies }),
+    userNames,
     utils,
   ],
 });
