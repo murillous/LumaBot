@@ -11,7 +11,7 @@ export interface ParsedReminder {
 /** Tenta entender o argumento do `!lembrete`; `null` = não é o meu formato. */
 export type WhenParser = (text: string, now: Date) => ParsedReminder | null;
 
-const BR_FORMAT = /^(\d{1,2})\/(\d{1,2})(?:\/(\d{4}))?\s+(\d{1,2}):(\d{2})\s*\|\s*([\s\S]+)$/;
+const BR_FORMAT = /^(\d{1,2})\/(\d{1,2})(?:\/(\d{4}))?\s+(\d{1,2}):(\d{2})\s*\|\s*([\s\S]*)$/;
 
 /** `DD/MM[/AAAA] HH:mm | mensagem` no horário do fuso. Sem ano, vale o ano corrente do fuso. */
 export function brParser(timeZone: string): WhenParser {
@@ -29,6 +29,7 @@ export function brParser(timeZone: string): WhenParser {
       },
       timeZone,
     );
-    return fireAt === null || !text ? null : { fireAt, text };
+    // Formato reconhecido mas inválido: o serviço recusa com o motivo certo (data/texto).
+    return { fireAt: fireAt ?? Number.NaN, text: text?.trim() ?? '' };
   };
 }

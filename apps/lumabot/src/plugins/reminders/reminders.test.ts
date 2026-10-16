@@ -57,14 +57,30 @@ describe('!lembrete', () => {
     expect(bot.sent).toContainText(/Lembrete criado/);
   });
 
-  it.each(['!lembrete', '!lembrete sem barra', '!lembrete 31/02 10:00 | x'])(
-    '%s -> uso',
-    async (input) => {
-      bot = await createTestBot({ plugins: [reminders] });
-      await bot.receive({ text: input });
-      expect(bot.sent).toContainText(/Use: !lembrete DD\/MM HH:mm \| mensagem/);
-    },
-  );
+  it('data inexistente e mensagem vazia têm texto próprio', async () => {
+    bot = await createTestBot({ plugins: [reminders] });
+    await bot.receive({ text: '!lembrete 31/02 10:00 | x' });
+    await bot.receive({ text: '!lembrete 20/10 10:00 |  ' });
+    expect(text(bot)).toEqual(['❌ Data/hora inválida.', '❌ Informe a mensagem do lembrete.']);
+  });
+
+  it('preserva emoji composto e troca tab por espaço', async () => {
+    bot = await createTestBot({ plugins: [reminders, grab] });
+    const r = await (await service()).create({
+      chatId: 'c@fake',
+      creatorId: 'u@fake',
+      mentionIds: [],
+      text: 'a\tb 👨‍👩‍👧',
+      fireAt: NOW.getTime() + HOUR,
+    });
+    expect(r.text).toBe('a b 👨‍👩‍👧');
+  });
+
+  it.each(['!lembrete', '!lembrete sem barra'])('%s -> uso', async (input) => {
+    bot = await createTestBot({ plugins: [reminders] });
+    await bot.receive({ text: input });
+    expect(bot.sent).toContainText(/Use: !lembrete DD\/MM HH:mm \| mensagem/);
+  });
 
   it('recusa data no passado', async () => {
     bot = await createTestBot({ plugins: [reminders] });
@@ -96,7 +112,7 @@ describe('disparo', () => {
     await vi.advanceTimersByTimeAsync(2000);
 
     expect(bot.sent).toHaveLength(1);
-    expect(bot.sent[0]?.mentions).toEqual([DEFAULT_SENDER.id]);
+    expect(text(bot)[0]).toContain(`@${DEFAULT_SENDER.id}`);
     expect(bot.sent[0]?.chatId).toBe(DEFAULT_CHAT.id);
     expect(bot.sent).toContainText(/⏰ Lembrete: reunião\n@/);
     expect(await (await service()).list(DEFAULT_CHAT.id)).toHaveLength(0);
@@ -109,7 +125,7 @@ describe('disparo', () => {
       mentions: [{ ...DEFAULT_SENDER, id: 'ana@fake', phone: '5511911111111', tag: '@ana' }],
     });
     await vi.advanceTimersByTimeAsync(HOUR + 1000);
-    expect(bot.sent.at(-1)?.mentions).toEqual(['ana@fake']);
+    expect(text(bot).at(-1)).toContain('@ana@fake');
   });
 
   it('sem a capability mentions, avisa sem marcar em vez de perder', async () => {
@@ -120,7 +136,7 @@ describe('disparo', () => {
     await bot.receive({ text: '!lembrete 16/10 10:00 | reunião' });
     await vi.advanceTimersByTimeAsync(HOUR + 1000);
     expect(bot.sent.at(-1)?.mentions).toEqual([]);
-    expect(bot.sent).toContainText('⏰ Lembrete: reunião');
+    expect(bot.sent).toContainText(/^⏰ Lembrete: reunião/);
   });
 
   it('sobrevive a restart', async () => {

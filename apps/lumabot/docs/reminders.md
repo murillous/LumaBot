@@ -14,11 +14,11 @@ Port do `ReminderPlugin` do legacy.
 | `!cancelarlembrete <n>` | Cancela pelo número da lista |
 
 O horário digitado é do fuso da config (`timeZone`). No horário, o bot envia `⏰ Lembrete: texto` e
-menciona quem foi marcado no comando, ou quem criou, se ninguém foi. Sem a capability `mentions`
-no transport, o aviso sai sem marcar (o plugin exige só `send.text`).
+menciona (nós `mention` do texto formatado) quem foi marcado no comando, ou quem criou, se ninguém foi. Sem a capability `mentions`
+no transport, o kernel cai para texto (o plugin exige só `send.text`).
 
-Data inexistente (`31/02`), formato desconhecido e mensagem vazia dão o mesmo texto de uso
-(`usage`); nenhum parser entendeu o argumento.
+Formato desconhecido dá o texto de uso (`usage`: nenhum parser entendeu o argumento). Data
+inexistente (`31/02`) e mensagem vazia têm texto próprio (`errInvalidDate`, `errEmptyText`).
 
 ## Config
 
@@ -86,7 +86,7 @@ Em `messages`, sobrescrevíveis pela config (`usage` → `BRIDGER_REMINDERS__MES
 ## Diferenças do legacy
 
 - Mensagem acima de 500 caracteres é recusada, não cortada (o legacy truncava em silêncio).
-- Os textos "Formato inválido", "Informe a mensagem" e "A data não existe" viraram um só (`usage`).
+- "A data não existe" virou "Data/hora inválida" (`errInvalidDate`); o resto dos textos é o do legacy.
 - Datas no passado e a mais de 1 ano seguem recusadas, como no legacy.
 - Sem o loop próprio de 30 s: o scheduler do kernel arma um timer para o próximo job.
 - Não há mais o `console.log` de depuração da lista.

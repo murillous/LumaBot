@@ -1,4 +1,4 @@
-import { bold, definePlugin, fmt, type PluginDefinition, UnsupportedError } from '@usebridger/core';
+import { bold, definePlugin, fmt, mention, type PluginDefinition } from '@usebridger/core';
 import { z } from 'zod';
 import { formatWhen, remaining, stats } from './format.ts';
 import { brParser, type WhenParser } from './parse.ts';
@@ -62,7 +62,7 @@ declare module '@usebridger/core' {
 }
 
 const MESSAGES = {
-  usage: 'Formato inválido ou data inexistente. Use: {prefix}lembrete DD/MM HH:mm | mensagem',
+  usage: 'Formato inválido. Use: {prefix}lembrete DD/MM HH:mm | mensagem',
   created: '✅ Lembrete criado!\n\n{when}\n{text}',
   fireTitle: '⏰ Lembrete:',
   errInvalidChat: '❌ Não consegui identificar o chat do lembrete.',
@@ -128,7 +128,13 @@ const toReminder = (doc: Doc & { id: string }): Reminder => ({
 
 /** Texto vindo do usuário (ou da IA): sem caractere de controle/invisível, salvo quebra de linha. */
 function cleanText(raw: string): string {
-  return raw.replace(/[\p{Cc}\p{Cf}]/gu, (c) => (c === '\n' ? c : '')).trim();
+  return (
+    raw
+      .replace(/\t/g, ' ')
+      // ZWJ fica: sem ele, emoji composto (👨‍👩‍👧) se desmonta.
+      .replace(/[\p{Cc}\p{Cf}]/gu, (c) => (c === '\n' || c === '\u200d' ? c : ''))
+      .trim()
+  );
 }
 
 /**
@@ -156,18 +162,20 @@ export const reminders: PluginDefinition = definePlugin({
       const doc = await docs.get(id);
       // Cancelado entre o disparo e a leitura: nada a enviar.
       if (!doc) return;
-      const title = ctx.plugin.messages.fireTitle;
-      const body = fmt`${bold(title)} ${doc.text}`;
-      const tags = doc.mentionIds.map((m) => `@${m.split('@')[0]}`).join(' ');
-      const tagged = fmt`${body}\n${tags}`;
+      const mentions = doc.mentionIds.map((mid) => mention({ id: mid, name: null, phone: null }));
+      const content = mentions.reduce(
+        (acc, m, i) => fmt`${acc}${i === 0 ? '\n' : ' '}${m}`,
+        fmt`${bold(ctx.plugin.messages.fireTitle)} ${doc.text}`,
+      );
       try {
-        await ctx.send.send(doc.chatId, tagged, { mentions: doc.mentionIds });
-      } catch (err) {
-        // Transport sem `mentions`: avisa sem marcar, melhor que perder o lembrete.
-        if (!(err instanceof UnsupportedError) || doc.mentionIds.length === 0) throw err;
-        await ctx.send.send(doc.chatId, body);
+        await ctx.send.send(doc.chatId, content);
       } finally {
-        await docs.delete(id);
+        // Não mascara o erro do envio se o delete também falhar.
+        try {
+          await docs.delete(id);
+        } catch (err) {
+          ctx.log.error('falha ao apagar lembrete disparado', { err, id });
+        }
       }
     });
 

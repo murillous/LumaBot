@@ -37,7 +37,15 @@ describe('brParser', () => {
     ['31/02 10:00 | x', 'dia que não existe'],
     ['20/13 10:00 | x', 'mês inexistente'],
     ['20/10 25:00 | x', 'hora inexistente'],
-    ['20/10 10:00 |   ', 'mensagem vazia'],
+  ])('%s -> fireAt NaN (%s)', (input) => {
+    expect(parse(input, NOW)?.fireAt).toBeNaN();
+  });
+
+  it('mensagem vazia casa o formato com texto vazio', () => {
+    expect(parse('20/10 10:00 |   ', NOW)?.text).toBe('');
+  });
+
+  it.each([
     ['20/10 10:00 x', 'sem a barra'],
     ['amanhã 9h | x', 'outro formato'],
     ['', 'vazio'],
