@@ -21,8 +21,8 @@ e agora vive aqui.
 | [x] | Envio de fotos baixadas e recodificação compacta do vídeo (PR #28) | [download](apps/lumabot/docs/download.md) |
 | [x] | `!audio` / `!a` (MP3 de link de site conhecido pelo yt-dlp) | [download](apps/lumabot/docs/download.md) |
 | [ ] | `@everyone` / `@todos` | everyone |
-| [ ] | `!help` / `!menu` | help |
-| [ ] | `!meunumero` | utils |
+| [x] | `!help` / `!menu` | [help](apps/lumabot/docs/help.md) |
+| [x] | `!meunumero` / `!meuid` | [utils](apps/lumabot/docs/utils.md) |
 | [x] | `!nick Nome`, `!nick @pessoa Nome`, `!apelido` | [user-names](apps/lumabot/docs/user-names.md) |
 | [x] | Enriquecimento de usuários (pushName, contatos, LID) | [user-names](apps/lumabot/docs/user-names.md) |
 | [ ] | `!lembrete` / `!lembrar`, `!lembretes`, `!cancelarlembrete <n>` + disparo agendado com menção | reminders |
