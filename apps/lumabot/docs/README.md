@@ -69,6 +69,7 @@ Ficam em `src/plugins/` e entram na lista do `createBot` em `src/main.ts`.
 | [`sticker-text`](sticker.md) | Texto do `!sticker` como legenda; estende o serviço `sticker` |
 | [`sticker-convert`](sticker-convert.md) | Figurinha de volta a imagem ou vídeo: `!image`, `!gif` |
 | [`pdf`](pdf.md) | Imagem → PDF e junção de PDFs: `!pdf`, `!mergepdf` |
+| [`reminders`](reminders.md) | Lembretes agendados: `!lembrete`, `!lembretes`, `!cancelarlembrete`. Oferece o serviço `reminders` e o ponto `reminders.parsers` |
 | [`download`](download.md) | Vídeo, foto, áudio e figurinha de links pelo yt-dlp: `!download`, `!audio`, `!downloadsticker` |
 
 Um plugin pode estender outro ou usá-lo pelos serviços do kernel (`ctx.services`), sem importar
