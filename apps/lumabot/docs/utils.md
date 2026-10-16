@@ -13,6 +13,15 @@ ponto de extensão `utils.info` ([ADR 0002](../../../docs/adr/0002-plugins-abert
 
 Prefixo válido: um único argumento de 1 a 5 caracteres, sem espaço (`!prefixo ""`, várias palavras ou texto longo são recusados e o prefixo atual fica). O kernel grava em minúsculo, e a resposta mostra o que ficou valendo. Quem não é admin, ou usa em DM, recebe `prefixDenied`.
 
+## Tools da IA
+
+Contribuídas ao ponto `ai.tools` ([ai-tools.md](ai-tools.md)). O resultado vai para o modelo;
+o que o usuário recebe sai como resposta no chat.
+
+| Tool | Argumentos | O que faz | Recusas (`error`) |
+| --- | --- | --- | --- |
+| `chat_info` | — | Devolve as linhas do `!meunumero` (`lines`), com as de `utils.info` | — |
+
 ## Config
 
 Sem opções. Os textos são `messages` (`header`, `senderLine`, `chatLine`, `prefixSet`, `prefixReset`,

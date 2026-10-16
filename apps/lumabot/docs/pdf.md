@@ -18,6 +18,16 @@ A mídia vem da própria mensagem ou da citada. O `!mergepdf` aceita só documen
 Enquanto converte, o bot reage ⏳ e depois ✅ ou ❌; num transport sem `reactions`, a reação é
 ignorada. Erro vai para o log (`falha ao processar mídia`) e o chat recebe `conversionError`.
 
+## Tools da IA
+
+Contribuídas ao ponto `ai.tools` ([ai-tools.md](ai-tools.md)). O resultado vai para o modelo;
+o que o usuário recebe sai como resposta no chat.
+
+| Tool | Argumentos | O que faz | Recusas (`error`) |
+| --- | --- | --- | --- |
+| `image_to_pdf` | `fileName?` | Imagem da mensagem ou da citada → PDF | `no-image` |
+| `merge_pdfs` | `fileName?` | Junta os PDFs anexados à citada e à mensagem, nessa ordem, até 50 MB. Diferente do `!mergepdf`, não guarda fila entre mensagens | `need-two-pdfs`, `too-large` |
+
 ## Capabilities
 
 O plugin exige `media.download` e `send.document`. Não usa o FFmpeg.

@@ -7,6 +7,7 @@ import {
 } from '@usebridger/testing';
 import { PDFDocument } from 'pdf-lib';
 import { afterEach, describe, expect, it } from 'vitest';
+import { aiToolsProbe, toolResult } from '#plugins/ai-tools-probe.ts';
 import { pdf as pdfPlugin } from './pdf.ts';
 
 let bot: TestBot;
@@ -126,5 +127,48 @@ describe('!mergepdf', () => {
     });
 
     expect(bot.sent).toHaveReplied(/^ℹ️ Envie\/responda PDFs com !mergepdf/);
+  });
+});
+
+describe('tools', () => {
+  it('image_to_pdf converte a imagem com o nome pedido', async () => {
+    bot = await createTestBot({ plugins: [pdfPlugin(), aiToolsProbe] });
+
+    await bot.receive({
+      text: '!tool image_to_pdf {"fileName":"Nota Fiscal"}',
+      quoted: { image: fixtures.image() },
+    });
+
+    expect(bot.sent).toContainDocument({
+      fileName: 'nota-fiscal.pdf',
+      mimetype: 'application/pdf',
+    });
+    expect(toolResult(bot)).toEqual({ ok: true });
+  });
+
+  it('merge_pdfs junta os PDFs da citada e da mensagem, na ordem', async () => {
+    bot = await createTestBot({ plugins: [pdfPlugin(), aiToolsProbe] });
+
+    await bot.receive({
+      text: '!tool merge_pdfs',
+      document: fixtures.document(),
+      fileName: 'b.pdf',
+      quoted: { document: fixtures.document(), fileName: 'a.pdf' },
+    });
+
+    expect(await pdfPages(sentBytes('document'))).toBe(2);
+    expect(toolResult(bot)).toEqual({ ok: true });
+  });
+
+  it('merge_pdfs com um PDF só recusa para o modelo', async () => {
+    bot = await createTestBot({ plugins: [pdfPlugin(), aiToolsProbe] });
+
+    await bot.receive({
+      text: '!tool merge_pdfs',
+      document: fixtures.document(),
+      fileName: 'a.pdf',
+    });
+
+    expect(toolResult(bot)).toEqual({ ok: false, error: 'need-two-pdfs' });
   });
 });

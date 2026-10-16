@@ -76,6 +76,9 @@ Ficam em `src/plugins/` e entram na lista do `createBot` em `src/main.ts`.
 | [`rank`](rank.md) | Ranking de interações: `!rank`, serviço `rank` |
 | [`utils`](utils.md) | `!meunumero`/`!meuid` (número e ID do chat) e `!prefixo` (prefixo por chat, só admin). Ponto de extensão `utils.info` |
 
+Cada plugin (menos `pairing`, `ping` e `sticker-text`) também contribui tools que a IA pode
+chamar por function calling: ver [ai-tools.md](ai-tools.md).
+
 Um plugin pode estender outro ou usá-lo pelos serviços do kernel (`ctx.services`), sem importar
 o código dele ([ADR 0001](../../../docs/adr/0001-plugins-compostos-por-servico.md)); o exemplo é
 o `sticker`, em [sticker.md](sticker.md#serviço-sticker).

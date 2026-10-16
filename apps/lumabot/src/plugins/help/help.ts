@@ -1,4 +1,6 @@
 import { type Chat, definePlugin, type PluginDefinition } from '@usebridger/core';
+import { z } from 'zod';
+import { aiTool, ok } from '#plugins/ai-tools.ts';
 import { formatMenu } from './format.ts';
 
 /** Bloco extra do menu para o que não é comando; `null` omite a seção neste chat. */
@@ -40,7 +42,7 @@ export const help: PluginDefinition = definePlugin({
   setup: (ctx) => {
     // Visão viva: `list()` a cada uso pega as seções de quem contribuiu ou saiu depois.
     const sections = ctx.services.extensionPoint('help.sections');
-    ctx.services.provide('help', {
+    const service: HelpService = {
       render: (chat) => {
         const prefix = ctx.prefixes.get(chat);
         return formatMenu({
@@ -65,7 +67,19 @@ export const help: PluginDefinition = definePlugin({
           }),
         });
       },
-    });
+    };
+    ctx.services.provide('help', service);
+
+    ctx.services.contribute(
+      'ai.tools',
+      aiTool({
+        name: 'list_commands',
+        description:
+          'Lista os comandos da Luma neste chat, com o que cada um faz. Use para responder o que a Luma sabe fazer.',
+        args: z.object({}),
+        run: async (_, t) => ok({ menu: service.render(t.message.chat) }),
+      }),
+    );
   },
   commands: {
     help: {

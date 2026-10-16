@@ -1,4 +1,6 @@
 import { definePlugin, type PluginDefinition } from '@usebridger/core';
+import { z } from 'zod';
+import { aiTool, fail, mediaMessage, ok } from '#plugins/ai-tools.ts';
 import { checkBinary } from '#plugins/binary.ts';
 import { attempt, usage } from '#plugins/media-command.ts';
 import { encodeSticker, type StickerPack, toStickerImage, videoToSticker } from './convert.ts';
@@ -73,14 +75,50 @@ export const sticker: PluginDefinition = definePlugin({
     };
     // Visão viva: `list()` a cada uso pega as etapas de quem contribuiu ou saiu depois.
     const steps = ctx.services.extensionPoint('sticker.steps');
-    ctx.services.provide('sticker', {
+    const service: StickerService = {
       create: async (media, { animated, text, signal }) => {
         if (animated) return videoToSticker(media, pack, signal);
         let image = await toStickerImage(media);
         for (const step of steps.list()) image = await step(image, { text });
         return encodeSticker(image, pack);
       },
-    });
+    };
+    ctx.services.provide('sticker', service);
+
+    ctx.services.contribute(
+      'ai.tools',
+      aiTool({
+        name: 'create_sticker',
+        description:
+          'Cria uma figurinha e envia no chat. A fonte é o link `url`, se dado; senão, a imagem, vídeo, GIF ou figurinha da mensagem do usuário ou da mensagem que ele respondeu. `caption` é escrita na figurinha estática.',
+        args: z.object({
+          url: z.url().optional().describe('Link de uma imagem ou vídeo'),
+          caption: z.string().optional().describe('Texto escrito na figurinha'),
+        }),
+        run: async ({ url, caption = '' }, t) => {
+          const text = caption.replace(/\s+/g, ' ').trim();
+          let bytes: Buffer;
+          let animated: boolean;
+          if (url) {
+            try {
+              bytes = await fetchUrl(url, t.signal);
+            } catch (err) {
+              if (err instanceof UrlFetchError) return fail('url-failed');
+              throw err;
+            }
+            animated = isAnimatedBytes(bytes);
+          } else {
+            const source = mediaMessage(t.message, ['image', 'video', 'sticker']);
+            if (!source) return fail('no-media');
+            if (source.isViewOnce) return fail('view-once');
+            bytes = await source.media.download();
+            animated = isAnimatedMime(source.media.mimetype);
+          }
+          await t.reply.sticker(await service.create(bytes, { animated, text, signal: t.signal }));
+          return ok();
+        },
+      }),
+    );
 
     // Só a figurinha de vídeo usa o FFmpeg: sem ele, a de imagem segue funcionando, e o aviso no
     // boot explica o erro que a de vídeo vai dar.
@@ -137,16 +175,23 @@ export const sticker: PluginDefinition = definePlugin({
         if (ctx.accepted?.message.isViewOnce) return usage('stickerViewOnce')(ctx);
         return attempt(ctx, async () => {
           const bytes = await source.download();
-          // O GIF do WhatsApp chega como vídeo; o de outras plataformas, como `image/gif`.
-          const animated = source.mimetype.startsWith('video/') || source.mimetype === 'image/gif';
           await ctx.reply.sticker(
-            await stickers.create(bytes, { animated, text, signal: ctx.signal }),
+            await stickers.create(bytes, {
+              animated: isAnimatedMime(source.mimetype),
+              text,
+              signal: ctx.signal,
+            }),
           );
         });
       },
     },
   },
 });
+
+/** O GIF do WhatsApp chega como vídeo; o de outras plataformas, como `image/gif`. */
+function isAnimatedMime(mimetype: string): boolean {
+  return mimetype.startsWith('video/') || mimetype === 'image/gif';
+}
 
 /** GIF, MP4/MOV (caixa `ftyp`) ou WebM pelos bytes iniciais: o link nem sempre tem extensão. */
 function isAnimatedBytes(bytes: Buffer): boolean {

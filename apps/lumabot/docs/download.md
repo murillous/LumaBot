@@ -28,6 +28,17 @@ comando do transport que envia vídeo mas não imagem. Nele, o post de foto rece
 Os dois rodam fora da fila do chat (`background`): num grupo, as outras mensagens não esperam o
 download terminar.
 
+## Tools da IA
+
+Contribuídas ao ponto `ai.tools` ([ai-tools.md](ai-tools.md)). O resultado vai para o modelo;
+o que o usuário recebe sai como resposta no chat.
+
+| Tool | Argumentos | O que faz | Recusas (`error`) |
+| --- | --- | --- | --- |
+| `download_media` | `url` | Vídeo ou foto do post. Exige `send.video` | `unavailable`, `too-large`, `image-unsupported` |
+| `download_audio` | `url` | Áudio em MP3. Exige `send.audio` | `unavailable`, `too-large` |
+| `download_sticker` | `url`, `caption?` | Vídeo ou foto como figurinha, pelo serviço `sticker`. Exige `send.sticker` | `unavailable`, `too-large`, `sticker-unavailable` |
+
 ## Figurinha
 
 O `!downloadsticker` baixa como o `!download` e entrega os bytes ao serviço `sticker`

@@ -10,6 +10,15 @@ Ranking de quem mais interage com a Luma. Dados no storage do próprio plugin (c
 | `!rank` | Top 10 do grupo; em conversa privada, sempre o global (como o legacy) |
 | `!rank global` | Top 10 somando todos os chats |
 
+## Tools da IA
+
+Contribuídas ao ponto `ai.tools` ([ai-tools.md](ai-tools.md)). O resultado vai para o modelo;
+o que o usuário recebe sai como resposta no chat.
+
+| Tool | Argumentos | O que faz | Recusas (`error`) |
+| --- | --- | --- | --- |
+| `ranking` | `scope` (`chat`, padrão, ou `global`) | Top 10 com `name` e `count`; em conversa privada, sempre o geral | — |
+
 ## Quem conta
 
 Só o serviço `rank.record(chatId, senderId)` conta. No legacy, o único chamador era o fluxo da

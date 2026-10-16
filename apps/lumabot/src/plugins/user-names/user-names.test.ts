@@ -6,6 +6,7 @@ import {
 } from '@usebridger/core';
 import { createTestBot, type TestBot } from '@usebridger/testing';
 import { afterEach, expect, it, type MockInstance, vi } from 'vitest';
+import { aiToolsProbe, toolResult } from '#plugins/ai-tools-probe.ts';
 import {
   NickEmptyError,
   NickTooLongError,
@@ -208,4 +209,35 @@ it('fonte que lança é ignorada e logada', async () => {
 
   expect(await names().displayName('a@fake')).toBe('Ana');
   expect(await names().displayName('b@fake')).toBe('@b');
+});
+
+it('tool set_nickname define o apelido de quem pediu, e get_name o lê', async () => {
+  await start(aiToolsProbe);
+
+  await bot.receive({ text: '!tool set_nickname {"nickname":"Zé"}', sender: { id: 'a@fake' } });
+  await bot.receive({ text: '!tool get_name', sender: { id: 'a@fake' } });
+
+  expect(await names().nick('a@fake')).toBe('Zé');
+  expect(toolResult(bot)).toEqual({ ok: true, name: 'Zé' });
+});
+
+it('tool set_nickname com target mentioned usa a primeira menção', async () => {
+  await start(aiToolsProbe);
+
+  await bot.receive({
+    text: '!tool set_nickname {"nickname":"Bibi","target":"mentioned"}',
+    mentions: [{ id: 'b@fake', name: 'Bia', phone: '5511', tag: '@5511' }],
+  });
+
+  expect(await names().nick('b@fake')).toBe('Bibi');
+});
+
+it('tool set_nickname recusa sem menção e apelido longo, para o modelo', async () => {
+  await start(aiToolsProbe);
+
+  await bot.receive({ text: '!tool get_name {"target":"mentioned"}' });
+  expect(toolResult(bot)).toEqual({ ok: false, error: 'no-mention' });
+
+  await bot.receive({ text: `!tool set_nickname {"nickname":"${'x'.repeat(33)}"}` });
+  expect(toolResult(bot)).toEqual({ ok: false, error: 'too-long' });
 });

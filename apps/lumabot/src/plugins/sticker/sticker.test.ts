@@ -4,6 +4,7 @@ import { definePlugin, PluginBootError, type PluginDefinition } from '@usebridge
 import { createTestBot, fixtures, type SentMediaType, type TestBot } from '@usebridger/testing';
 import sharp from 'sharp';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { aiToolsProbe } from '#plugins/ai-tools-probe.ts';
 import { checkBinary } from '#plugins/binary.ts';
 import { stickerConvert } from '#plugins/sticker-convert/sticker-convert.ts';
 import { type StickerStep, sticker as stickerPlugin } from './sticker.ts';
@@ -216,4 +217,44 @@ it('sem o FFmpeg, imagem e PDF seguem funcionando', async () => {
   await bot.receive({ text: '!s', image: fixtures.image() });
 
   expect(bot.sent).toContainSticker();
+});
+
+describe('tool create_sticker', () => {
+  it('faz a figurinha da imagem da mensagem respondida, com legenda', async () => {
+    const step = vi.fn<StickerStep>(async (image) => image);
+    const captioner = definePlugin({
+      name: 'captioner',
+      version: '0.0.0',
+      engine: '<1.0.0',
+      dependsOn: { sticker: '^1.0.0' },
+      setup: (ctx) => ctx.services.contribute('sticker.steps', step),
+    });
+    bot = await createTestBot({ plugins: [stickerPlugin, captioner, aiToolsProbe] });
+
+    await bot.receive({
+      text: '!tool create_sticker {"caption":"oi  gente"}',
+      quoted: { image: fixtures.image() },
+    });
+
+    expect(bot.sent).toContainSticker();
+    expect(step).toHaveBeenCalledWith(expect.any(Buffer), { text: 'oi gente' });
+    expect(bot.sent).toContainText('{"ok":true}');
+  });
+
+  it('sem mídia nem link, recusa para o modelo sem enviar figurinha', async () => {
+    bot = await createTestBot({ plugins: [stickerPlugin, aiToolsProbe] });
+
+    await bot.receive({ text: '!tool create_sticker {}' });
+
+    expect(bot.sentMedia('sticker')).toHaveLength(0);
+    expect(bot.sent).toContainText('{"ok":false,"error":"no-media"}');
+  });
+
+  it('link que não baixa vira url-failed', async () => {
+    bot = await createTestBot({ plugins: [stickerPlugin, aiToolsProbe] });
+
+    await bot.receive({ text: '!tool create_sticker {"url":"http://127.0.0.1:8080/admin"}' });
+
+    expect(bot.sent).toContainText('{"ok":false,"error":"url-failed"}');
+  });
 });

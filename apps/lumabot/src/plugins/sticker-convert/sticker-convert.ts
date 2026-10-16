@@ -1,4 +1,6 @@
 import { definePlugin, type PluginDefinition } from '@usebridger/core';
+import { z } from 'zod';
+import { type AiToolContext, aiTool, fail, mediaMessage, ok } from '#plugins/ai-tools.ts';
 import { checkBinary } from '#plugins/binary.ts';
 import { attempt, mediaOf, usage } from '#plugins/media-command.ts';
 import { isAnimated, stickerToMp4, stickerToPng } from './convert.ts';
@@ -31,6 +33,46 @@ export const stickerConvert: PluginDefinition = definePlugin({
   messages: MESSAGES,
   // Só o `!gif` usa o FFmpeg: sem ele, o `!image` segue funcionando.
   setup: async (ctx) => {
+    const { messages } = ctx.plugin;
+    // A figurinha que a pessoa mandou ou respondeu; `null` vira `no-sticker` para o modelo.
+    const stickerOf = (t: AiToolContext) => mediaMessage(t.message, ['sticker'])?.media ?? null;
+    ctx.services.contribute(
+      'ai.tools',
+      aiTool({
+        name: 'sticker_to_image',
+        description:
+          'Converte em imagem PNG a figurinha da mensagem do usuário ou da que ele respondeu, e envia no chat.',
+        args: z.object({}),
+        requires: ['send.image'],
+        run: async (_, t) => {
+          const media = stickerOf(t);
+          if (!media) return fail('no-sticker');
+          const png = await stickerToPng(await media.download());
+          await t.reply.image(png, { caption: messages.imageDone, mimetype: 'image/png' });
+          return ok();
+        },
+      }),
+    );
+    ctx.services.contribute(
+      'ai.tools',
+      aiTool({
+        name: 'sticker_to_video',
+        description:
+          'Converte em vídeo a figurinha animada da mensagem do usuário ou da que ele respondeu, e envia no chat.',
+        args: z.object({}),
+        requires: ['send.video'],
+        run: async (_, t) => {
+          const media = stickerOf(t);
+          if (!media) return fail('no-sticker');
+          const sticker = await media.download();
+          if (!(await isAnimated(sticker))) return fail('not-animated');
+          const mp4 = await stickerToMp4(sticker, t.signal);
+          await t.reply.video(mp4, { caption: messages.gifDone, mimetype: 'video/mp4' });
+          return ok();
+        },
+      }),
+    );
+
     try {
       await checkBinary('ffmpeg', ['-version']);
     } catch (err) {

@@ -5,6 +5,8 @@ import {
   definePlugin,
   type PluginDefinition,
 } from '@usebridger/core';
+import { z } from 'zod';
+import { aiTool, ok } from '#plugins/ai-tools.ts';
 
 /** Linha de `!meunumero`; `null` omite a linha. Contribuída ao ponto `utils.info`. */
 export type InfoLine = (input: {
@@ -57,22 +59,37 @@ export const utils: PluginDefinition = definePlugin({
     );
     ctx.services.contribute('utils.info', ({ chat }) => fill(messages.chatLine, chat.id));
 
+    const infoLines = async (chat: Chat, sender: Contact) => {
+      const lines: string[] = [];
+      for (const line of info.list()) {
+        try {
+          const text = await line({ chat, sender });
+          if (text !== null) lines.push(text);
+        } catch (err) {
+          // Uma contribuição com defeito não derruba o comando: some só a linha dela.
+          ctx.log.error('linha de utils.info falhou', { err });
+        }
+      }
+      return lines;
+    };
+
+    ctx.services.contribute(
+      'ai.tools',
+      aiTool({
+        name: 'chat_info',
+        description: 'Informações de ID de quem pergunta e deste chat (número, ID do chat).',
+        args: z.object({}),
+        run: async (_, t) => ok({ lines: await infoLines(t.message.chat, t.message.sender) }),
+      }),
+    );
+
     ctx.commands.add(
       command({
         name: 'meunumero',
         aliases: ['meuid'],
         description: 'Mostra seu número e o ID do chat',
         run: async (c) => {
-          const lines: string[] = [];
-          for (const line of info.list()) {
-            try {
-              const text = await line({ chat: c.message.chat, sender: c.message.sender });
-              if (text !== null) lines.push(text);
-            } catch (err) {
-              // Uma contribuição com defeito não derruba o comando: some só a linha dela.
-              c.log.error('linha de utils.info falhou', { err });
-            }
-          }
+          const lines = await infoLines(c.message.chat, c.message.sender);
           return `${c.t('header')}\n\n${lines.join('\n')}`;
         },
       }),

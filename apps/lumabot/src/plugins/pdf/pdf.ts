@@ -1,4 +1,6 @@
 import { definePlugin, type PluginDefinition } from '@usebridger/core';
+import { z } from 'zod';
+import { aiTool, fail, mediaMessage, ok } from '#plugins/ai-tools.ts';
 import { attempt, mediaOf, usage } from '#plugins/media-command.ts';
 import { imageToPdf, mergePdfs } from './convert.ts';
 
@@ -42,6 +44,56 @@ export function pdf(): PluginDefinition {
     engine: '<1.0.0',
     requires: ['media.download', 'send.document'],
     messages: MESSAGES,
+    setup: (ctx) => {
+      const fileName = z.string().optional().describe('Nome do arquivo, sem extensão');
+      ctx.services.contribute(
+        'ai.tools',
+        aiTool({
+          name: 'image_to_pdf',
+          description:
+            'Converte em PDF a imagem da mensagem do usuário ou da que ele respondeu, e envia no chat.',
+          args: z.object({ fileName }),
+          run: async ({ fileName = '' }, t) => {
+            const source = mediaMessage(t.message, ['image']);
+            if (!source) return fail('no-image');
+            await t.reply.document(await imageToPdf(await source.media.download()), {
+              fileName: pdfFileName(fileName, 'imagem.pdf'),
+              mimetype: PDF_MIMETYPE,
+            });
+            return ok();
+          },
+        }),
+      );
+      ctx.services.contribute(
+        'ai.tools',
+        aiTool({
+          name: 'merge_pdfs',
+          description:
+            'Junta num PDF só, na ordem, os PDFs anexados à mensagem do usuário e à que ele respondeu, e envia no chat. Precisa de pelo menos 2.',
+          args: z.object({ fileName }),
+          run: async ({ fileName = '' }, t) => {
+            const pdfs = [t.message.quoted, t.message]
+              .flatMap((m) => m?.attachments ?? [])
+              .filter((a) => a.mimetype === PDF_MIMETYPE);
+            if (pdfs.length < 2) return fail('need-two-pdfs');
+            // Com o tamanho informado, recusa antes de baixar; sem ele, depois.
+            if (pdfs.reduce((sum, a) => sum + (a.size ?? 0), 0) > MERGE_MAX_BYTES) {
+              return fail('too-large');
+            }
+            const files = await Promise.all(pdfs.map((a) => a.download()));
+            if (files.reduce((sum, f) => sum + f.length, 0) > MERGE_MAX_BYTES) {
+              return fail('too-large');
+            }
+            const merged = await mergePdfs(files);
+            await t.reply.document(merged, {
+              fileName: pdfFileName(fileName, 'pdf-juntado.pdf'),
+              mimetype: PDF_MIMETYPE,
+            });
+            return ok();
+          },
+        }),
+      );
+    },
     commands: {
       pdf: {
         description: 'Imagem → PDF (`!pdf nome do arquivo`)',
