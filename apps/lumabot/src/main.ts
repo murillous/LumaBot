@@ -6,6 +6,7 @@ import { sqlite } from '@usebridger/storage-sqlite';
 import { baileys } from '@usebridger/transport-baileys';
 import { loadConfig } from '#config.ts';
 import { download } from '#plugins/download/download.ts';
+import { help } from '#plugins/help/help.ts';
 import { pairing } from '#plugins/pairing.ts';
 import { pdf } from '#plugins/pdf/pdf.ts';
 import { ping } from '#plugins/ping.ts';
@@ -34,6 +35,7 @@ const bot = createBot({
   plugins: [
     pairing((text) => process.stdout.write(text)),
     ping,
+    help,
     sticker,
     stickerText,
     stickerConvert,

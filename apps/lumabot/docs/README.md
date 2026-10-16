@@ -65,6 +65,7 @@ Ficam em `src/plugins/` e entram na lista do `createBot` em `src/main.ts`.
 | --- | --- |
 | `pairing` | Desenha no terminal o QR (`connection.qr`) ou mostra o código (`connection.pairing-code`). O log do bot só avisa que chegou um QR, sem o valor |
 | `ping` | `!ping` responde `pong`: prova o caminho transport → kernel → fila de saída → transport |
+| [`help`](help.md) | Menu de comandos gerado do kernel: `!help`, `!menu`, `!ajuda`. Oferece o serviço `help` e o ponto `help.sections` |
 | [`sticker`](sticker.md) | Figurinha de imagem, vídeo ou link: `!sticker`. Oferece o serviço `sticker` |
 | [`sticker-text`](sticker.md) | Texto do `!sticker` como legenda; estende o serviço `sticker` |
 | [`sticker-convert`](sticker-convert.md) | Figurinha de volta a imagem ou vídeo: `!image`, `!gif` |
