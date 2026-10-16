@@ -50,11 +50,19 @@ export const help: PluginDefinition = definePlugin({
           commands: ctx.commands
             .list()
             .flatMap(({ role, description, ...c }) =>
-              description && (role === 'everyone' || role === 'group-admin')
+              description && (role === 'everyone' || (role === 'group-admin' && chat.isGroup))
                 ? [{ ...c, description }]
                 : [],
             ),
-          sections: sections.list().flatMap((section) => section({ chat, prefix }) ?? []),
+          sections: sections.list().flatMap((section) => {
+            // Seção de terceiros não derruba o menu: some e o erro vai para o log.
+            try {
+              return section({ chat, prefix }) ?? [];
+            } catch (err) {
+              ctx.log.warn('seção do menu falhou', { err });
+              return [];
+            }
+          }),
         });
       },
     });

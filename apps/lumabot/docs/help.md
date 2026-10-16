@@ -9,7 +9,7 @@ Menu de comandos gerado de `ctx.commands.list()`: comando novo aparece sozinho. 
 | --- | --- |
 | `!help` / `!menu` / `!ajuda` | Comandos agrupados pelo nome do plugin (`!nome, !alias: descrição`), com o prefixo do chat, e depois as seções do ponto `help.sections` |
 
-Só entram comandos com `description` e papel `everyone` ou `group-admin`. O kernel não entrega o
+Só entram comandos com `description` e papel `everyone`, ou `group-admin` quando o chat é um grupo. O kernel não entrega o
 remetente ao serviço, então `owner` e papéis custom ficam sempre de fora, mesmo para quem os pode
 rodar.
 
@@ -33,7 +33,7 @@ type HelpSection = (input: { chat; prefix: string }) =>
   { title: string; lines: readonly string[] } | null;
 ```
 
-Para o que não é comando. Seções vêm depois dos comandos, na ordem de carga; `null` omite a seção.
+Para o que não é comando. Seções vêm depois dos comandos, na ordem de carga; `null` omite a seção, e uma seção que lança é omitida com um `warn` no log, sem derrubar o menu.
 O plugin que estende declara `dependsOn: { help: '^1.0.0' }`:
 
 ```ts

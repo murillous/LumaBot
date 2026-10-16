@@ -1,5 +1,5 @@
 import { definePlugin } from '@usebridger/core';
-import { createTestBot, type TestBot } from '@usebridger/testing';
+import { createTestBot, DEFAULT_CHAT, type TestBot } from '@usebridger/testing';
 import { afterEach, describe, expect, it } from 'vitest';
 import { ping } from '#plugins/ping.ts';
 import { formatMenu } from './format.ts';
@@ -30,7 +30,7 @@ describe('!help', () => {
     expect(text).toContain('*help*\n!help, !menu, !ajuda: Lista os comandos');
   });
 
-  it('esconde comando sem descrição, de owner e de papel custom', async () => {
+  it('esconde comando sem descrição e de owner', async () => {
     const outros = definePlugin({
       name: 'outros',
       version: '1.0.0',
@@ -48,7 +48,7 @@ describe('!help', () => {
     const text = lastText();
     expect(text).not.toContain('!mudo');
     expect(text).not.toContain('!secreto');
-    expect(text).toContain('!admin: só admin');
+    expect(text).not.toContain('!admin');
   });
 
   it('plugin que só estende (dependsOn + contribute) acrescenta uma seção', async () => {
@@ -72,6 +72,76 @@ describe('!help', () => {
     const text = lastText();
     expect(text).toContain('*Fale com a Luma*\nMencione ela, sem !');
     expect(text.indexOf('!ping')).toBeLessThan(text.indexOf('Fale com a Luma'));
+  });
+});
+
+describe('!help: casos do kernel', () => {
+  it('usa o prefixo do chat', async () => {
+    const prefixo = definePlugin({
+      name: 'prefixo',
+      version: '1.0.0',
+      engine: '<1.0.0',
+      setup: (ctx) => ctx.prefixes.set(DEFAULT_CHAT.id, '/'),
+    });
+    bot = await createTestBot({ plugins: [help, prefixo] });
+
+    await bot.receive({ text: '/help' });
+
+    expect(lastText()).toContain('/help, /menu, /ajuda');
+  });
+
+  it('comando group-admin só aparece em grupo', async () => {
+    const admin = definePlugin({
+      name: 'admin',
+      version: '1.0.0',
+      engine: '<1.0.0',
+      commands: { ban: { description: 'bane', role: 'group-admin', run: () => 'x' } },
+    });
+    bot = await createTestBot({ plugins: [help, admin] });
+
+    await bot.receive({ text: '!help' });
+    expect(lastText()).not.toContain('!ban');
+
+    await bot.receive({ text: '!help', chat: { ...DEFAULT_CHAT, isGroup: true } });
+    expect(lastText()).toContain('!ban: bane');
+  });
+
+  it('comando registrado depois do boot aparece no menu seguinte', async () => {
+    let add: (() => void) | undefined;
+    const tardio = definePlugin({
+      name: 'tardio',
+      version: '1.0.0',
+      engine: '<1.0.0',
+      setup: (ctx) => {
+        add = () => ctx.commands.add({ name: 'novo', description: 'chegou', run: () => 'x' });
+      },
+    });
+    bot = await createTestBot({ plugins: [help, tardio] });
+    add?.();
+
+    await bot.receive({ text: '!help' });
+
+    expect(lastText()).toContain('!novo: chegou');
+  });
+
+  it('seção que lança é omitida e o resto do menu sai', async () => {
+    const quebrada = definePlugin({
+      name: 'quebrada',
+      version: '1.0.0',
+      engine: '<1.0.0',
+      dependsOn: { help: '^1.0.0' },
+      setup: (ctx) => {
+        ctx.services.contribute('help.sections', () => {
+          throw new Error('boom');
+        });
+        ctx.services.contribute('help.sections', () => ({ title: 'Ok', lines: ['vivo'] }));
+      },
+    });
+    bot = await createTestBot({ plugins: [help, quebrada] });
+
+    await bot.receive({ text: '!help' });
+
+    expect(lastText()).toContain('*Ok*\nvivo');
   });
 });
 
