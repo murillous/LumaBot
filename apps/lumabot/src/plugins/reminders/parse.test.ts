@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { formatWhen, remaining, stats } from './format.ts';
-import { brParser } from './parse.ts';
+import { formatRecurrence, formatWhen, remaining, stats } from './format.ts';
+import { brParser, recurringParser } from './parse.ts';
 import { isValidTimeZone, zonedToEpoch } from './zone.ts';
 
 const SP = 'America/Sao_Paulo';
 // 16/10/2026 09:00 em Brasília (UTC-3).
 const NOW = new Date('2026-10-16T12:00:00Z');
-const parse = brParser(SP);
+// O brParser só produz disparo único; o cast evita estreitar a união em cada asserção.
+const parse = brParser(SP) as (text: string, now: Date) => { fireAt: number; text: string } | null;
 
 describe('brParser', () => {
   it('lê data, hora e mensagem no horário de Brasília', () => {
@@ -77,6 +78,102 @@ describe('brParser', () => {
   });
 });
 
+describe('recurringParser', () => {
+  const rec = recurringParser();
+  const at = (input: string) => rec(input, NOW);
+
+  it.each([
+    ['todo dia 08:00 tomar remédio', '08:00'],
+    ['todo dia às 8h tomar remédio', '08:00'],
+    ['Todos os dias as 8h30 tomar remédio', '08:30'],
+    ['TODO   DIA   7:05 tomar remédio', '07:05'],
+  ])('%s -> diária %s', (input, time) => {
+    expect(at(input)).toEqual({ recurrence: { time }, text: 'tomar remédio' });
+  });
+
+  it.each([
+    ['toda segunda 19:00 reunião', '19:00', [1]],
+    ['toda segunda e quarta às 19h reunião', '19:00', [1, 3]],
+    ['toda segunda, quarta e sexta 19:00 reunião', '19:00', [1, 3, 5]],
+    ['todo sábado 10h reunião', '10:00', [6]],
+    ['todo domingo 10h reunião', '10:00', [0]],
+    ['toda terça-feira 9:30 reunião', '09:30', [2]],
+    ['toda terca e sabado 9:30 reunião', '09:30', [2, 6]],
+    ['toda sex, seg e sex 9:30 reunião', '09:30', [1, 5]],
+    ['toda dom e qui 9:30 reunião', '09:30', [0, 4]],
+  ])('%s -> semanal', (input, time, days) => {
+    expect(at(input)).toEqual({ recurrence: { time, days }, text: 'reunião' });
+  });
+
+  it.each([
+    ['a cada 1h30 beber água', 90 * 60_000],
+    ['a cada 2h beber água', 2 * 3_600_000],
+    ['a cada 45min beber água', 45 * 60_000],
+    ['a cada 45 minutos beber água', 45 * 60_000],
+    ['a cada 1 hora beber água', 3_600_000],
+    ['a cada 2 horas beber água', 2 * 3_600_000],
+  ])('%s -> intervalo', (input, everyMs) => {
+    expect(at(input)).toEqual({ recurrence: { everyMs }, text: 'beber água' });
+  });
+
+  it.each([
+    ['a cada 1h 30min beber água', 90 * 60_000],
+    ['a cada 1h30m beber água', 90 * 60_000],
+    ['a cada 1h30min beber água', 90 * 60_000],
+    ['a cada 1 hora e meia beber água', 90 * 60_000],
+  ])('%s -> intervalo composto', (input, everyMs) => {
+    expect(at(input)).toEqual({ recurrence: { everyMs }, text: 'beber água' });
+  });
+
+  it('minutos do intervalo vão de 0 a 59 e número solto depois do "h" é da mensagem', () => {
+    expect(at('a cada 1h75 x')).toBeNull();
+    expect(at('a cada 2h 30 vezes')).toEqual({
+      recurrence: { everyMs: 2 * 3_600_000 },
+      text: '30 vezes',
+    });
+  });
+
+  it('todo dia 8h30min -> 08:30', () => {
+    expect(at('todo dia 8h30min x')).toEqual({ recurrence: { time: '08:30' }, text: 'x' });
+  });
+
+  it.each([
+    ['todas as segundas 19h x', '19:00', [1]],
+    ['todas as segundas e quartas 19h x', '19:00', [1, 3]],
+    ['todos os sábados 10h x', '10:00', [6]],
+  ])('%s -> semanal no plural', (input, time, days) => {
+    expect(at(input)).toEqual({ recurrence: { time, days }, text: 'x' });
+  });
+
+  it('hora fora de faixa e intervalo zero são devolvidos para o serviço recusar', () => {
+    expect(at('todo dia 25:00 x')).toEqual({ recurrence: { time: '25:00' }, text: 'x' });
+    expect(at('todo dia 10:75 x')).toEqual({ recurrence: { time: '10:75' }, text: 'x' });
+    expect(at('a cada 0min x')).toEqual({ recurrence: { everyMs: 0 }, text: 'x' });
+  });
+
+  it('sem mensagem devolve texto vazio', () => {
+    expect(at('todo dia 8h')?.text).toBe('');
+    expect(at('a cada 2h')?.text).toBe('');
+  });
+
+  it.each([
+    ['20/10 15:00 x', 'formato do brParser'],
+    ['15:00 x', 'só horário'],
+    ['todo dia x', 'sem hora'],
+    ['toda segunda x', 'dia sem hora'],
+    ['todo dia 8:00x', 'mensagem colada'],
+    ['toda segundafeira 10h x', 'dia inventado'],
+    ['a cada x', 'intervalo sem número'],
+    ['', 'vazio'],
+  ])('%s -> null (%s)', (input) => {
+    expect(at(input)).toBeNull();
+  });
+
+  it('o brParser não é afetado: recorrência não é o formato dele', () => {
+    expect(parse('todo dia 8h x', NOW)).toBeNull();
+  });
+});
+
 describe('zona', () => {
   it('converte sem depender do TZ do processo', () => {
     const asia = zonedToEpoch({ year: 2026, month: 10, day: 16, hour: 9, minute: 0 }, 'Asia/Tokyo');
@@ -96,6 +193,23 @@ describe('zona', () => {
 });
 
 describe('format', () => {
+  it.each([
+    [{ time: '08:00' }, 'todo dia às 08:00'],
+    [{ time: '19:00', days: [1] }, 'toda segunda às 19:00'],
+    [{ time: '19:00', days: [3, 1] }, 'toda segunda e quarta às 19:00'],
+    [{ time: '19:00', days: [5, 1, 3] }, 'toda segunda, quarta e sexta às 19:00'],
+    [{ time: '10:00', days: [6] }, 'todo sábado às 10:00'],
+    [{ time: '10:00', days: [0] }, 'todo domingo às 10:00'],
+    [{ time: '10:00', days: [0, 1] }, 'toda segunda e domingo às 10:00'],
+    [{ time: '10:00', days: [6, 0] }, 'todo sábado e domingo às 10:00'],
+    [{ time: '10:00', days: [0, 1, 2, 3, 4, 5, 6] }, 'todo dia às 10:00'],
+    [{ everyMs: 90 * 60_000 }, 'a cada 1h30'],
+    [{ everyMs: 2 * 3_600_000 }, 'a cada 2h'],
+    [{ everyMs: 45 * 60_000 }, 'a cada 45min'],
+  ])('recorrência %j -> %s', (r, expected) => {
+    expect(formatRecurrence(r)).toBe(expected);
+  });
+
   it('mostra DD/MM HH:mm no fuso', () => {
     expect(formatWhen(Date.parse('2026-10-20T17:30:00Z'), SP)).toBe('20/10 14:30');
   });

@@ -1,4 +1,4 @@
-import { definePlugin } from '@usebridger/core';
+import { createMemoryStorage, definePlugin } from '@usebridger/core';
 import {
   createTestBot,
   DEFAULT_CHAT,
@@ -6,7 +6,7 @@ import {
   FakeTransport,
   type TestBot,
 } from '@usebridger/testing';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest';
 import { aiToolsProbe, toolResult } from '#plugins/ai-tools-probe.ts';
 import { ReminderError, type RemindersService, reminders } from './reminders.ts';
 
@@ -34,7 +34,7 @@ const grab = definePlugin({
   name: 'grab',
   version: '0.0.0',
   engine: '<1.0.0',
-  dependsOn: { reminders: '^1.0.0' },
+  dependsOn: { reminders: '^2.0.0' },
   setup: (ctx) => {
     captured = ctx.services.get('reminders');
   },
@@ -245,7 +245,7 @@ describe('ponto de extensão reminders.parsers', () => {
     name: 'em-um-min',
     version: '0.0.0',
     engine: '<1.0.0',
-    dependsOn: { reminders: '^1.0.0' },
+    dependsOn: { reminders: '^2.0.0' },
     setup: (ctx) => {
       ctx.services.contribute('reminders.parsers', (input, now) => {
         const m = /^em 1 min \| (.+)$/.exec(input);
@@ -258,7 +258,7 @@ describe('ponto de extensão reminders.parsers', () => {
     name: 'parser-quebrado',
     version: '0.0.0',
     engine: '<1.0.0',
-    dependsOn: { reminders: '^1.0.0' },
+    dependsOn: { reminders: '^2.0.0' },
     setup: (ctx) => {
       ctx.services.contribute('reminders.parsers', () => {
         throw new Error('bug do parser');
@@ -317,5 +317,342 @@ describe('tools', () => {
     });
 
     expect(toolResult(bot)).toEqual({ ok: false, error: 'past' });
+  });
+});
+
+describe('recorrência', () => {
+  it('todo dia 8h dispara às 08:00 em dois dias seguidos e continua na lista', async () => {
+    bot = await createTestBot({ plugins: [reminders, grab] });
+    await bot.receive({ text: '!lembrete todo dia 8h tomar remédio' });
+    expect(bot.sent).toContainText(
+      '✅ Lembrete criado!\n\n🔁 todo dia às 08:00\n📅 Próximo: 17/10 08:00\ntomar remédio',
+    );
+    bot.transport.clear();
+
+    // 16/10 09:00 -> 17/10 08:00 (23 h) e 18/10 08:00.
+    await vi.advanceTimersByTimeAsync(23 * HOUR + 1000);
+    expect(bot.sent).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(24 * HOUR);
+    expect(bot.sent).toHaveLength(2);
+    expect(bot.sent).toContainText(/⏰ Lembrete: tomar remédio/);
+    expect(await (await service()).list(DEFAULT_CHAT.id)).toHaveLength(1);
+  });
+
+  it('semanal com vários dias mostra a próxima ocorrência', async () => {
+    bot = await createTestBot({ plugins: [reminders] });
+    // 16/10/2026 é sexta: a próxima segunda é 19/10.
+    await bot.receive({ text: '!lembrete toda segunda e quarta 19:00 reunião' });
+    expect(bot.sent).toContainText(
+      '✅ Lembrete criado!\n\n🔁 toda segunda e quarta às 19:00\n📅 Próximo: 19/10 19:00\nreunião',
+    );
+  });
+
+  it('a cada 1h30 dispara duas vezes; abaixo do mínimo é recusado', async () => {
+    bot = await createTestBot({ plugins: [reminders] });
+    await bot.receive({ text: '!lembrete a cada 10min x' });
+    expect(bot.sent).toContainText('❌ O intervalo mínimo é de 15 minutos.');
+    await bot.receive({ text: '!lembrete a cada 1h30 água' });
+    bot.transport.clear();
+
+    await vi.advanceTimersByTimeAsync(3 * HOUR + 1000);
+    expect(bot.sent).toHaveLength(2);
+  });
+
+  it('!lembretes mostra a recorrência e a próxima ocorrência', async () => {
+    bot = await createTestBot({ plugins: [reminders] });
+    await bot.receive({ text: '!lembrete todo dia 8h remédio' });
+    await bot.receive({ text: '!lembretes' });
+    expect(text(bot).at(-1)).toContain(
+      '1. 17/10 08:00\n   remédio\n   🔁 todo dia às 08:00\n   ⏳',
+    );
+  });
+
+  it('!cancelarlembrete encerra a série inteira', async () => {
+    bot = await createTestBot({ plugins: [reminders] });
+    await bot.receive({ text: '!lembrete a cada 1h30 água' });
+    await vi.advanceTimersByTimeAsync(2 * HOUR);
+    await bot.receive({ text: '!cancelarlembrete 1' });
+    expect(bot.sent).toContainText('✅ Lembrete removido:\n\nágua');
+    bot.transport.clear();
+
+    await vi.advanceTimersByTimeAsync(24 * HOUR);
+    expect(bot.sent).toHaveLength(0);
+    await bot.receive({ text: '!lembretes' });
+    expect(bot.sent).toContainText(/Nenhum lembrete/);
+  });
+
+  it('recorrente inválido no serviço recusa com invalid-recurrence', async () => {
+    bot = await createTestBot({ plugins: [reminders, grab] });
+    const base = { chatId: 'c@fake', creatorId: 'u@fake', mentionIds: [], text: 'x' };
+    const svc = await service();
+    for (const input of [
+      { recurrence: { time: '25:00' } },
+      { recurrence: { time: '08:00', days: [7] } },
+      { recurrence: { time: '08:00', days: [] } },
+      {},
+      { fireAt: NOW.getTime() + HOUR, recurrence: { time: '08:00' } },
+    ]) {
+      const err = await svc.create({ ...base, ...input }).catch((e: unknown) => e);
+      expect((err as ReminderError).code).toBe('invalid-recurrence');
+    }
+    const short = await svc
+      .create({ ...base, recurrence: { everyMs: 60_000 } })
+      .catch((e: unknown) => e);
+    expect((short as ReminderError).code).toBe('interval-too-short');
+    expect(await svc.list('c@fake')).toHaveLength(0);
+  });
+
+  // Fuso do plugin com horário de verão: a série segue 08:00 locais, então a distância entre
+  // disparos é 23 h na entrada e 25 h na saída do horário de verão.
+  const ping = (fires: number[]) =>
+    definePlugin({
+      name: 'ping',
+      version: '0.0.0',
+      engine: '<1.0.0',
+      dependsOn: { reminders: '^2.0.0' },
+      setup: (ctx) => {
+        ctx.services.contribute('reminders.kinds', {
+          kind: 'ping',
+          deliver: async () => {
+            fires.push(Date.now());
+            // shortcut: o deliver faz I/O porque o scheduler 0.7.0 perde o wakeup da série quando o
+            // handler resolve só em microtasks (https://github.com/murillous/usebridger/issues/142);
+            // tirar quando a issue for corrigida.
+            await ctx.storage.collection('probe').insert({});
+          },
+        });
+        captured = ctx.services.get('reminders');
+      },
+    });
+
+  it.each([
+    ['entrada', '2026-03-07T12:00:00Z', 23],
+    ['saída', '2026-10-31T11:00:00Z', 25],
+  ])('horário de verão (%s) mantém 08:00 locais', async (_, start, hours) => {
+    vi.setSystemTime(new Date(start));
+    const fires: number[] = [];
+    bot = await createTestBot({
+      plugins: [reminders, ping(fires)],
+      pluginConfig: { reminders: { timeZone: 'America/New_York' } },
+    });
+    await (await service()).create({
+      chatId: 'c@fake',
+      creatorId: 'u@fake',
+      mentionIds: [],
+      text: 'x',
+      kind: 'ping',
+      recurrence: { time: '08:00' },
+    });
+    // Hora a hora: cada ocorrência reagenda a próxima só depois de o handler terminar.
+    for (let i = 0; i < 72; i++) await vi.advanceTimersByTimeAsync(HOUR);
+    expect(fires.length).toBeGreaterThanOrEqual(2);
+    expect(((fires[1] ?? 0) - (fires[0] ?? 0)) / HOUR).toBe(hours);
+  });
+});
+
+describe('série: casos de falha', () => {
+  const base = { chatId: 'c@fake', creatorId: 'u@fake', mentionIds: [], text: 'x' };
+
+  it('doc da 1.x, sem kind/data/recurrence, dispara como texto e sai', async () => {
+    const storage = createMemoryStorage();
+    bot = await createTestBot({ plugins: [reminders, grab], storage });
+    const svc = await service();
+    const r = await svc.create({ ...base, text: 'antigo', fireAt: NOW.getTime() + HOUR });
+    // Simula o doc gravado pela 1.x: esses campos não existiam.
+    await storage
+      .forNamespace('reminders')
+      .collection('reminders')
+      .update(r.id, { kind: undefined, data: undefined, recurrence: undefined });
+
+    await vi.advanceTimersByTimeAsync(HOUR + 1000);
+    expect(bot.sent).toContainText(/⏰ Lembrete: antigo/);
+    expect(await svc.list(base.chatId)).toHaveLength(0);
+  });
+
+  it('série cujo kind sumiu não entrega e continua listada', async () => {
+    const fires: number[] = [];
+    const ping = definePlugin({
+      name: 'ping',
+      version: '0.0.0',
+      engine: '<1.0.0',
+      dependsOn: { reminders: '^2.0.0' },
+      setup: (ctx) => {
+        ctx.services.contribute('reminders.kinds', {
+          kind: 'ping',
+          deliver: async () => {
+            fires.push(Date.now());
+          },
+        });
+        captured = ctx.services.get('reminders');
+      },
+    });
+    bot = await createTestBot({ plugins: [reminders, ping] });
+    await (await service()).create({
+      ...base,
+      kind: 'ping',
+      recurrence: { everyMs: 30 * 60_000 },
+    });
+    bot = await bot.restart({ plugins: [reminders, grab] });
+
+    await vi.advanceTimersByTimeAsync(2 * HOUR);
+    expect(fires).toHaveLength(0);
+    expect(bot.sent).toHaveLength(0);
+    expect(await (await service()).list(base.chatId)).toHaveLength(1);
+  });
+
+  it('deliver que lança não para a série', async () => {
+    let calls = 0;
+    const flaky = definePlugin({
+      name: 'flaky',
+      version: '0.0.0',
+      engine: '<1.0.0',
+      dependsOn: { reminders: '^2.0.0' },
+      setup: (ctx) => {
+        ctx.services.contribute('reminders.kinds', {
+          kind: 'flaky',
+          deliver: async () => {
+            calls++;
+            // I/O antes de lançar: ver o shortcut do #142 acima.
+            await ctx.storage.collection('probe').insert({});
+            if (calls === 1) throw new Error('falhou');
+          },
+        });
+        captured = ctx.services.get('reminders');
+      },
+    });
+    bot = await createTestBot({ plugins: [reminders, flaky] });
+    await (await service()).create({
+      ...base,
+      kind: 'flaky',
+      recurrence: { everyMs: 30 * 60_000 },
+    });
+    for (let i = 0; i < 6; i++) await vi.advanceTimersByTimeAsync(30 * 60_000);
+    expect(calls).toBeGreaterThanOrEqual(2);
+    expect(await (await service()).list(base.chatId)).toHaveLength(1);
+  });
+
+  it('série criada e falha depois (docs.update) é cancelada e o doc some', async () => {
+    const storage = createMemoryStorage();
+    const forNamespace = storage.forNamespace.bind(storage);
+    let reads: MockInstance | undefined;
+    storage.forNamespace = (ns) => {
+      const store = forNamespace(ns);
+      const collection = store.collection.bind(store);
+      store.collection = ((name, options) => {
+        const col = collection(name, options);
+        if (name === 'reminders') {
+          vi.spyOn(col, 'update').mockRejectedValue(new Error('disco'));
+          reads = vi.spyOn(col, 'get');
+        }
+        return col;
+      }) as typeof store.collection;
+      return store;
+    };
+    const ping = definePlugin({
+      name: 'ping',
+      version: '0.0.0',
+      engine: '<1.0.0',
+      dependsOn: { reminders: '^2.0.0' },
+      setup: (ctx) => {
+        ctx.services.contribute('reminders.kinds', {
+          kind: 'ping',
+          deliver: () => Promise.resolve(),
+        });
+        captured = ctx.services.get('reminders');
+      },
+    });
+    bot = await createTestBot({ plugins: [reminders, ping], storage });
+    const svc = await service();
+    const err = await svc
+      .create({ ...base, kind: 'ping', recurrence: { everyMs: 15 * 60_000 } })
+      .catch((e: unknown) => e);
+    expect((err as Error).message).toBe('disco');
+
+    // Série viva dispararia o handler, que lê o doc; cancelada, ninguém lê.
+    await vi.advanceTimersByTimeAsync(2 * HOUR);
+    expect(reads).not.toHaveBeenCalled();
+    expect(await svc.list(base.chatId)).toHaveLength(0);
+  });
+
+  it('everyMs fracionado em minutos é inválido e acima de 1 ano é too-far', async () => {
+    bot = await createTestBot({ plugins: [reminders, grab] });
+    const svc = await service();
+    const code = async (everyMs: number) =>
+      (
+        (await svc
+          .create({ ...base, recurrence: { everyMs } })
+          .catch((e: unknown) => e)) as ReminderError
+      ).code;
+    expect(await code(15 * 60_000 + 500)).toBe('invalid-recurrence');
+    expect(await code(366 * 24 * HOUR)).toBe('too-far');
+  });
+});
+
+describe('ponto de extensão reminders.kinds', () => {
+  it('kind de terceiro recebe o reminder com data e o kind text não envia', async () => {
+    const got: unknown[] = [];
+    const ping = definePlugin({
+      name: 'ping',
+      version: '0.0.0',
+      engine: '<1.0.0',
+      dependsOn: { reminders: '^2.0.0' },
+      setup: (ctx) => {
+        ctx.services.contribute('reminders.kinds', {
+          kind: 'ping',
+          deliver: async (r) => {
+            got.push(r);
+          },
+        });
+        captured = ctx.services.get('reminders');
+      },
+    });
+    bot = await createTestBot({ plugins: [reminders, ping] });
+    const svc = await service();
+    await svc.create({
+      chatId: 'c@fake',
+      creatorId: 'u@fake',
+      mentionIds: [],
+      text: 'figurinha',
+      kind: 'ping',
+      data: { x: 1 },
+      fireAt: NOW.getTime() + HOUR,
+    });
+    await vi.advanceTimersByTimeAsync(HOUR + 1000);
+    expect(got).toEqual([expect.objectContaining({ kind: 'ping', data: { x: 1 } })]);
+    expect(bot.sent).toHaveLength(0);
+    expect(await svc.list('c@fake')).toHaveLength(0);
+  });
+
+  it('kind desconhecido é recusado', async () => {
+    bot = await createTestBot({ plugins: [reminders, grab] });
+    const err = await (await service())
+      .create({
+        chatId: 'c@fake',
+        creatorId: 'u@fake',
+        mentionIds: [],
+        text: 'x',
+        kind: 'nada',
+        fireAt: NOW.getTime() + HOUR,
+      })
+      .catch((e: unknown) => e);
+    expect((err as ReminderError).code).toBe('unknown-kind');
+  });
+});
+
+describe('tools com repeat', () => {
+  it('create_reminder aceita repeat e list_reminders mostra a recorrência', async () => {
+    bot = await createTestBot({ plugins: [reminders, aiToolsProbe] });
+    await bot.receive({
+      text: '!tool create_reminder {"repeat":{"time":"08:00","days":[1,3]},"text":"reunião"}',
+    });
+    expect(toolResult(bot)).toMatchObject({
+      ok: true,
+      recurrence: 'toda segunda e quarta às 08:00',
+    });
+
+    await bot.receive({ text: '!tool create_reminder {"text":"sem quando"}' });
+    expect(toolResult(bot)).toEqual({ ok: false, error: 'invalid-recurrence' });
+    await bot.receive({ text: '!tool create_reminder {"repeat":{"everyMinutes":5},"text":"x"}' });
+    expect(toolResult(bot)).toEqual({ ok: false, error: 'interval-too-short' });
   });
 });
