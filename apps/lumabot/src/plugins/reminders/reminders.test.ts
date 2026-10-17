@@ -492,7 +492,7 @@ describe('série: casos de falha', () => {
     expect(fires).toHaveLength(5);
   });
 
-  it('série cujo kind sumiu dispara em toda ocorrência, só com get', async () => {
+  it('série cujo kind sumiu registra o warn a cada ocorrência', async () => {
     const warns: string[] = [];
     const logger = createLogger({ level: 'warn', destination: { write: (l) => warns.push(l) } });
     const quiet = definePlugin({
@@ -517,6 +517,29 @@ describe('série: casos de falha', () => {
     bot = await bot.restart({ plugins: [reminders, grab], logger });
     for (let i = 0; i < 4; i++) await vi.advanceTimersByTimeAsync(30 * 60_000);
     expect(warns.filter((l) => l.includes('kind de lembrete sem plugin'))).toHaveLength(4);
+  });
+
+  it('série órfã (doc apagado) é cancelada na próxima ocorrência', async () => {
+    const storage = createMemoryStorage();
+    bot = await createTestBot({ plugins: [reminders, grab], storage });
+    const svc = await service();
+    const r = await svc.create({ ...base, recurrence: { everyMs: 30 * 60_000 } });
+    await storage.forNamespace('reminders').collection('reminders').delete(r.id);
+
+    await vi.advanceTimersByTimeAsync(30 * 60_000 + 1000);
+    await vi.advanceTimersByTimeAsync(2 * HOUR);
+    expect(bot.sent).toHaveLength(0);
+    // O job vive no storage interno do scheduler: cancelada, a série não deixa linha.
+    expect(await storage.forNamespace('$scheduler').collection('jobs').find({})).toHaveLength(0);
+  });
+
+  it('série de texto continua disparando depois do restart', async () => {
+    bot = await createTestBot({ plugins: [reminders, grab] });
+    await (await service()).create({ ...base, recurrence: { everyMs: 30 * 60_000 } });
+    bot = await bot.restart({ plugins: [reminders, grab] });
+    await vi.advanceTimersByTimeAsync(30 * 60_000);
+    await vi.advanceTimersByTimeAsync(30 * 60_000);
+    expect(bot.sent).toHaveLength(2);
   });
 
   it('série cujo kind sumiu não entrega e continua listada', async () => {

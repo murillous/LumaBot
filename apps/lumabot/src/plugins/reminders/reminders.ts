@@ -186,7 +186,8 @@ const toReminder = (doc: Doc & { id: string }): Reminder => ({
 /** Devolve o código da recusa, ou `null` se a recorrência serve ao kernel e ao plugin. */
 function recurrenceError(r: Recurrence): ReminderErrorCode | null {
   if ('everyMs' in r) {
-    // O scheduler trabalha em minutos inteiros.
+    // Restrição do plugin, não do core (que aceita qualquer inteiro em ms >= 60000): o usuário e a
+    // lista só falam em minutos.
     if (!Number.isInteger(r.everyMs) || r.everyMs % 60_000 !== 0) return 'invalid-recurrence';
     if (r.everyMs < MIN_INTERVAL_MS) return 'interval-too-short';
     return r.everyMs > MAX_HORIZON_MS ? 'too-far' : null;
@@ -236,8 +237,19 @@ export const reminders: PluginDefinition = definePlugin({
         return;
       }
       const doc = await docs.get(id);
-      // Cancelado entre o disparo e a leitura: nada a enviar.
-      if (!doc) return;
+      if (!doc) {
+        // Série sem doc é órfã (queda entre o `every` e o `docs.update`, ou o doc foi apagado):
+        // sem cancelar, ela dispararia para sempre sem entregar nada.
+        if (job.seriesId) {
+          try {
+            await ctx.scheduler.cancel(job.seriesId);
+          } catch (err) {
+            ctx.log.warn('falha ao cancelar série órfã de lembrete', { err, id });
+          }
+        }
+        // Cancelado entre o disparo e a leitura: nada a enviar.
+        return;
+      }
       const reminder = toReminder(doc);
       try {
         const kind = kinds.list().find((k) => k.kind === reminder.kind);

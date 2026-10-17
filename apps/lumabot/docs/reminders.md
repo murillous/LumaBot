@@ -88,9 +88,9 @@ await reminders.cancel(chatId, r.id); // false se não existe ou é de outro cha
 O `create` valida e lança `ReminderError` com `code`: `invalid-chat`, `invalid-date`, `past`,
 `too-far` (mais de 1 ano), `empty-text` e `text-too-long` (mais de 500 caracteres) e, do tipo e da
 recorrência, `unknown-kind` (kind sem plugin em `reminders.kinds`), `invalid-recurrence` (`time` fora
-de `HH:mm`, `days` vazio ou fora de 0..6, `everyMs` não inteiro, ou nem `fireAt` nem `recurrence`, ou
-os dois) e `interval-too-short` (`everyMs` abaixo de 15 min). `invalid-date`, `past` e `too-far`
-valem só para o disparo único. O texto perde
+de `HH:mm`, `days` vazio ou fora de 0..6, `everyMs` que não é um número inteiro de minutos, ou nem `fireAt` nem `recurrence`, ou
+os dois) e `interval-too-short` (`everyMs` abaixo de 15 min). `invalid-date` e `past` valem só para o
+disparo único; `too-far` vale também para um intervalo acima de 1 ano. O texto perde
 caracteres de controle e invisíveis (exceto quebra de linha). Quem chama traduz o `code` em texto
 (o comando usa as `messages` `err*`).
 
