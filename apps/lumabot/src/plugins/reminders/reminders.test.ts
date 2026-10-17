@@ -1,4 +1,4 @@
-import { createMemoryStorage, definePlugin } from '@usebridger/core';
+import { createLogger, createMemoryStorage, definePlugin } from '@usebridger/core';
 import {
   createTestBot,
   DEFAULT_CHAT,
@@ -415,10 +415,6 @@ describe('recorrência', () => {
           kind: 'ping',
           deliver: async () => {
             fires.push(Date.now());
-            // shortcut: o deliver faz I/O porque o scheduler 0.7.0 perde o wakeup da série quando o
-            // handler resolve só em microtasks (https://github.com/murillous/usebridger/issues/142);
-            // tirar quando a issue for corrigida.
-            await ctx.storage.collection('probe').insert({});
           },
         });
         captured = ctx.services.get('reminders');
@@ -469,6 +465,60 @@ describe('série: casos de falha', () => {
     expect(await svc.list(base.chatId)).toHaveLength(0);
   });
 
+  it('série cujo deliver não faz I/O dispara em toda ocorrência', async () => {
+    const fires: number[] = [];
+    const quiet = definePlugin({
+      name: 'quiet',
+      version: '0.0.0',
+      engine: '<1.0.0',
+      dependsOn: { reminders: '^2.0.0' },
+      setup: (ctx) => {
+        ctx.services.contribute('reminders.kinds', {
+          kind: 'quiet',
+          deliver: async () => {
+            fires.push(Date.now());
+          },
+        });
+        captured = ctx.services.get('reminders');
+      },
+    });
+    bot = await createTestBot({ plugins: [reminders, quiet] });
+    await (await service()).create({
+      ...base,
+      kind: 'quiet',
+      recurrence: { everyMs: 30 * 60_000 },
+    });
+    for (let i = 0; i < 5; i++) await vi.advanceTimersByTimeAsync(30 * 60_000);
+    expect(fires).toHaveLength(5);
+  });
+
+  it('série cujo kind sumiu dispara em toda ocorrência, só com get', async () => {
+    const warns: string[] = [];
+    const logger = createLogger({ level: 'warn', destination: { write: (l) => warns.push(l) } });
+    const quiet = definePlugin({
+      name: 'quiet',
+      version: '0.0.0',
+      engine: '<1.0.0',
+      dependsOn: { reminders: '^2.0.0' },
+      setup: (ctx) => {
+        ctx.services.contribute('reminders.kinds', {
+          kind: 'quiet',
+          deliver: async () => undefined,
+        });
+        captured = ctx.services.get('reminders');
+      },
+    });
+    bot = await createTestBot({ plugins: [reminders, quiet] });
+    await (await service()).create({
+      ...base,
+      kind: 'quiet',
+      recurrence: { everyMs: 30 * 60_000 },
+    });
+    bot = await bot.restart({ plugins: [reminders, grab], logger });
+    for (let i = 0; i < 4; i++) await vi.advanceTimersByTimeAsync(30 * 60_000);
+    expect(warns.filter((l) => l.includes('kind de lembrete sem plugin'))).toHaveLength(4);
+  });
+
   it('série cujo kind sumiu não entrega e continua listada', async () => {
     const fires: number[] = [];
     const ping = definePlugin({
@@ -512,8 +562,6 @@ describe('série: casos de falha', () => {
           kind: 'flaky',
           deliver: async () => {
             calls++;
-            // I/O antes de lançar: ver o shortcut do #142 acima.
-            await ctx.storage.collection('probe').insert({});
             if (calls === 1) throw new Error('falhou');
           },
         });

@@ -65,10 +65,6 @@ até o cancelamento, e uma falha atinge só aquela ocorrência. Se o plugin dono
 desligado, o disparo é logado (`warn`) e não entrega: o único sai da lista, a série espera o
 plugin voltar.
 
-> Limite conhecido do kernel: o scheduler 0.7.0 perde o wakeup de uma série quando o handler
-> resolve só em microtasks (sem I/O); em produção a entrega sempre faz I/O, então só aparece em
-> teste. Acompanhamento: https://github.com/murillous/usebridger/issues/142
-
 ## Serviço `reminders`
 
 Quem não é comando (a IA do M5) usa o mesmo caminho do `!lembrete`:
