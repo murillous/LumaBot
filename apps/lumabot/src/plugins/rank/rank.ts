@@ -52,7 +52,8 @@ export const rank: PluginDefinition = definePlugin({
     const totals = ctx.storage.collection<TotalCount>('totals', { indexes: ['userId', 'count'] });
 
     const service: RankService = {
-      // `increment` com `insert` é atômico (entre chamadas e processos): sem linha, insere com 0 e o incremento soma o 1.
+      // `increment` com `insert` é atômico (entre chamadas e processos): sem linha, insere com 0
+      // e o incremento soma o 1.
       record: async (chatId, senderId) => {
         await perChat.increment({ chatId, userId: senderId }, 'count', 1, {
           insert: { chatId, userId: senderId, count: 0 },
