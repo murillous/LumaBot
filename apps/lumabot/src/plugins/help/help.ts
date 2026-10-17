@@ -30,6 +30,20 @@ const MESSAGES = {
   title: '📖 *Comandos da Luma*',
 };
 
+/** Blocos do menu, em ordem, e os plugins de cada um; plugin fora da lista cai em `OTHER`. */
+const GROUPS: readonly { readonly title: string; readonly plugins: readonly string[] }[] = [
+  { title: '🎨 Mídia', plugins: ['sticker', 'sticker-convert', 'pdf'] },
+  { title: '🏆 Social', plugins: ['rank', 'user-names', 'reminders'] },
+  { title: '🛠️ Utilitários', plugins: ['download', 'utils', 'help', 'ping'] },
+];
+const OTHER = '📦 Outros';
+
+/** Posição do bloco do plugin; fora da lista, depois de todos. */
+const groupIndex = (plugin: string): number => {
+  const i = GROUPS.findIndex((g) => g.plugins.includes(plugin));
+  return i === -1 ? GROUPS.length : i;
+};
+
 /**
  * `!help` e o serviço `help`. O menu sai de `ctx.commands.list()`, então comando novo aparece
  * sozinho; só entra quem tem `description`.
@@ -51,11 +65,14 @@ export const help: PluginDefinition = definePlugin({
           // O kernel não diz quem é o remetente aqui: owner e papel custom ficam sempre de fora.
           commands: ctx.commands
             .list()
-            .flatMap(({ role, description, ...c }) =>
+            .flatMap(({ role, description, plugin, ...c }) =>
               description && (role === 'everyone' || (role === 'group-admin' && chat.isGroup))
-                ? [{ ...c, description }]
+                ? [{ ...c, description, index: groupIndex(plugin) }]
                 : [],
-            ),
+            )
+            // `sort` é estável: dentro do bloco fica a ordem de registro.
+            .sort((a, b) => a.index - b.index)
+            .map(({ index, ...c }) => ({ ...c, group: GROUPS[index]?.title ?? OTHER })),
           sections: sections.list().flatMap((section) => {
             // Seção de terceiros não derruba o menu: some e o erro vai para o log.
             try {

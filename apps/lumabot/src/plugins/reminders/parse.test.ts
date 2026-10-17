@@ -10,43 +10,66 @@ const parse = brParser(SP);
 
 describe('brParser', () => {
   it('lê data, hora e mensagem no horário de Brasília', () => {
-    expect(parse('20/10 14:30 | ligar para a Ana', NOW)).toEqual({
+    expect(parse('20/10 14:30 ligar para a Ana', NOW)).toEqual({
       fireAt: Date.parse('2026-10-20T17:30:00Z'),
       text: 'ligar para a Ana',
     });
   });
 
   it('aceita o ano e dia/mês de um dígito', () => {
-    expect(parse('5/1/2027 8:05|oi', NOW)).toEqual({
+    expect(parse('5/1/2027 8:05 oi', NOW)).toEqual({
       fireAt: Date.parse('2027-01-05T11:05:00Z'),
       text: 'oi',
     });
   });
 
   it('mantém o "|" do texto', () => {
-    expect(parse('20/10 14:30 | a | b', NOW)?.text).toBe('a | b');
+    expect(parse('20/10 14:30 a | b', NOW)?.text).toBe('a | b');
   });
 
   it('usa o ano do fuso, não o do processo, na virada', () => {
     // 01/01/2027 01:00 UTC ainda é 31/12/2026 em Brasília.
     const newYear = new Date('2027-01-01T01:00:00Z');
-    expect(parse('31/12 23:00 | x', newYear)?.fireAt).toBe(Date.parse('2027-01-01T02:00:00Z'));
+    expect(parse('31/12 23:00 x', newYear)?.fireAt).toBe(Date.parse('2027-01-01T02:00:00Z'));
   });
 
   it.each([
-    ['31/02 10:00 | x', 'dia que não existe'],
-    ['20/13 10:00 | x', 'mês inexistente'],
-    ['20/10 25:00 | x', 'hora inexistente'],
+    ['31/02 10:00 x', 'dia que não existe'],
+    ['20/13 10:00 x', 'mês inexistente'],
+    ['20/10 25:00 x', 'hora inexistente'],
   ])('%s -> fireAt NaN (%s)', (input) => {
     expect(parse(input, NOW)?.fireAt).toBeNaN();
   });
 
   it('mensagem vazia casa o formato com texto vazio', () => {
-    expect(parse('20/10 10:00 |   ', NOW)?.text).toBe('');
+    expect(parse('20/10 10:00 ', NOW)?.text).toBe('');
+  });
+
+  it('sem a barra, a mensagem vem logo depois do horário', () => {
+    expect(parse('20/10 14:30 ligar para a Ana', NOW)).toEqual({
+      fireAt: Date.parse('2026-10-20T17:30:00Z'),
+      text: 'ligar para a Ana',
+    });
+  });
+
+  it('sem data, vale o dia de hoje no fuso', () => {
+    expect(parse('14:30 ligar para a Ana', NOW)).toEqual({
+      fireAt: Date.parse('2026-10-16T17:30:00Z'),
+      text: 'ligar para a Ana',
+    });
+    // 01:00 UTC de 17/10 ainda é 16/10 em Brasília.
+    expect(parse('23:00 x', new Date('2026-10-17T01:00:00Z'))?.fireAt).toBe(
+      Date.parse('2026-10-17T02:00:00Z'),
+    );
+  });
+
+  it('só o horário casa o formato com texto vazio', () => {
+    expect(parse('14:30', NOW)?.text).toBe('');
   });
 
   it.each([
-    ['20/10 10:00 x', 'sem a barra'],
+    ['14:30x', 'mensagem colada no horário'],
+    ['20/10 x', 'data sem horário'],
     ['amanhã 9h | x', 'outro formato'],
     ['', 'vazio'],
   ])('%s -> null (%s)', (input) => {

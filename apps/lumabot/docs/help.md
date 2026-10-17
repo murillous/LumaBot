@@ -7,11 +7,15 @@ Menu de comandos gerado de `ctx.commands.list()`: comando novo aparece sozinho. 
 
 | Comando | Saída |
 | --- | --- |
-| `!help` / `!menu` / `!ajuda` | Comandos agrupados pelo nome do plugin (`!nome, !alias: descrição`), com o prefixo do chat, e depois as seções do ponto `help.sections` |
+| `!help` / `!menu` / `!ajuda` | Comandos em blocos (`• *!nome* (!alias) - descrição`), com o prefixo do chat, e depois as seções do ponto `help.sections` |
 
 Só entram comandos com `description` e papel `everyone`, ou `group-admin` quando o chat é um grupo. O kernel não entrega o
 remetente ao serviço, então `owner` e papéis custom ficam sempre de fora, mesmo para quem os pode
 rodar.
+
+Os blocos e a ordem deles ficam em `GROUPS` (`help.ts`): 🎨 Mídia, 🏆 Social e 🛠️ Utilitários,
+cada um com os nomes dos plugins que agrupa. Plugin fora da lista cai em 📦 Outros, no fim. Dentro
+do bloco, a ordem é a de registro. Plugin novo com comando: inclua o nome dele em `GROUPS`.
 
 ## Tools da IA
 
@@ -24,8 +28,8 @@ o que o usuário recebe sai como resposta no chat.
 
 ## Textos
 
-`messages.title` (`BRIDGER_HELP__MESSAGES__TITLE`), o cabeçalho do menu. O título de cada grupo é
-o nome do plugin.
+`messages.title` (`BRIDGER_HELP__MESSAGES__TITLE`), o cabeçalho do menu. O título de cada bloco vem
+de `GROUPS`.
 
 ## Serviço `help`
 

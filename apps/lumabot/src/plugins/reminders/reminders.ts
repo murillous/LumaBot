@@ -63,7 +63,7 @@ declare module '@usebridger/core' {
 }
 
 const MESSAGES = {
-  usage: 'Formato inválido. Use: {prefix}lembrete DD/MM HH:mm | mensagem',
+  usage: 'Formato inválido. Use: {prefix}lembrete [DD/MM[/AAAA]] HH:mm mensagem',
   created: '✅ Lembrete criado!\n\n{when}\n{text}',
   fireTitle: '⏰ Lembrete:',
   errInvalidChat: '❌ Não consegui identificar o chat do lembrete.',
@@ -286,7 +286,7 @@ export const reminders: PluginDefinition = definePlugin({
   commands: {
     lembrete: {
       aliases: ['lembrar'],
-      description: 'Cria um lembrete (`!lembrete DD/MM HH:mm | mensagem`)',
+      description: 'Agenda um lembrete (`!lembrete [DD/MM[/AAAA]] HH:mm mensagem`)',
       run: async (c, plugin) => {
         const now = new Date();
         let parsed: ReturnType<WhenParser> = null;
