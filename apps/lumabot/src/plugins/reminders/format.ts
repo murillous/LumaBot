@@ -1,5 +1,6 @@
 // Formatação da lista de lembretes. Módulo puro: sem @usebridger.
 
+import type { Recurrence } from './parse.ts';
 import { partsAt } from './zone.ts';
 
 const pad = (n: number) => String(n).padStart(2, '0');
@@ -48,4 +49,26 @@ export function stats(fireAts: readonly number[], now: number, timeZone: string)
     if (fireAt >= now && fireAt <= weekLimit) week++;
   }
   return { total: fireAts.length, today: day, week, month };
+}
+
+// Índice = dia da semana (0 = domingo).
+const DAY_NAMES = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
+const DISPLAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
+
+/** Texto curto da recorrência para a lista: `toda segunda e quarta às 19:00`, `a cada 1h30`. */
+export function formatRecurrence(r: Recurrence): string {
+  if ('everyMs' in r) {
+    const total = Math.floor(r.everyMs / MINUTE);
+    const h = Math.floor(total / 60);
+    const m = total % 60;
+    if (h === 0) return `a cada ${m}min`;
+    return `a cada ${h}h${m === 0 ? '' : pad(m)}`;
+  }
+  const days = DISPLAY_ORDER.filter((d) => r.days?.includes(d));
+  if (days.length === 0 || days.length === 7) return `todo dia às ${r.time}`;
+  const names = days.map((d) => DAY_NAMES[d] ?? '');
+  const list = names.length === 1 ? names[0] : `${names.slice(0, -1).join(', ')} e ${names.at(-1)}`;
+  // Sábado e domingo são masculinos; o primeiro dia da lista dá o gênero.
+  const first = days[0];
+  return `${first === 0 || first === 6 ? 'todo' : 'toda'} ${list} às ${r.time}`;
 }
