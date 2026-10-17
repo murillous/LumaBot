@@ -27,8 +27,31 @@ describe('!help', () => {
 
     const text = lastText();
     expect(text).toContain('Comandos da Luma');
-    expect(text).toContain('*ping*\n!ping: Responde pong');
-    expect(text).toContain('*help*\n!help, !menu, !ajuda: Lista os comandos');
+    expect(text).toContain(
+      '*🛠️ Utilitários*\n• *!help* (!menu, !ajuda) - Lista os comandos\n• *!ping* - Responde pong',
+    );
+  });
+
+  it('blocos na ordem fixa, independente da carga; plugin desconhecido vai para Outros', async () => {
+    const plugin = (name: string, cmd: string) =>
+      definePlugin({
+        name,
+        version: '1.0.0',
+        engine: '<1.0.0',
+        commands: { [cmd]: { description: 'd', run: () => 'x' } },
+      });
+    bot = await createTestBot({
+      plugins: [plugin('novo', 'extra'), help, plugin('rank', 'rank'), plugin('sticker', 's')],
+    });
+
+    await bot.receive({ text: '!help' });
+
+    const text = lastText();
+    const order = ['*🎨 Mídia*', '*🏆 Social*', '*🛠️ Utilitários*', '*📦 Outros*'];
+    const positions = order.map((title) => text.indexOf(title));
+    expect(positions.every((p) => p > 0)).toBe(true);
+    expect(positions).toEqual([...positions].sort((a, b) => a - b));
+    expect(text).toContain('*📦 Outros*\n• *!extra* - d');
   });
 
   it('esconde comando sem descrição e de owner', async () => {
@@ -88,7 +111,7 @@ describe('!help: casos do kernel', () => {
 
     await bot.receive({ text: '/help' });
 
-    expect(lastText()).toContain('/help, /menu, /ajuda');
+    expect(lastText()).toContain('• */help* (/menu, /ajuda)');
   });
 
   it('comando group-admin só aparece em grupo', async () => {
@@ -104,7 +127,7 @@ describe('!help: casos do kernel', () => {
     expect(lastText()).not.toContain('!ban');
 
     await bot.receive({ text: '!help', chat: { ...DEFAULT_CHAT, isGroup: true } });
-    expect(lastText()).toContain('!ban: bane');
+    expect(lastText()).toContain('• *!ban* - bane');
   });
 
   it('comando registrado depois do boot aparece no menu seguinte', async () => {
@@ -122,7 +145,7 @@ describe('!help: casos do kernel', () => {
 
     await bot.receive({ text: '!help' });
 
-    expect(lastText()).toContain('!novo: chegou');
+    expect(lastText()).toContain('• *!novo* - chegou');
   });
 
   it('seção que lança é omitida e o resto do menu sai', async () => {
@@ -147,9 +170,9 @@ describe('!help: casos do kernel', () => {
 });
 
 describe('formatMenu', () => {
-  it('agrupa por plugin na ordem de registro', () => {
-    const cmd = (plugin: string, name: string) => ({
-      plugin,
+  it('agrupa por bloco na ordem de chegada', () => {
+    const cmd = (group: string, name: string) => ({
+      group,
       name,
       aliases: [],
       description: 'd',
@@ -161,7 +184,18 @@ describe('formatMenu', () => {
         commands: [cmd('a', 'x'), cmd('b', 'y'), cmd('a', 'z')],
         sections: [],
       }),
-    ).toBe('T\n\n*a*\n/x: d\n/z: d\n\n*b*\n/y: d');
+    ).toBe('T\n\n*a*\n• */x* - d\n• */z* - d\n\n*b*\n• */y* - d');
+  });
+
+  it('aliases entre parênteses, com o prefixo', () => {
+    expect(
+      formatMenu({
+        title: 'T',
+        prefix: '!',
+        commands: [{ group: 'g', name: 's', aliases: ['st', 'fig'], description: 'd' }],
+        sections: [],
+      }),
+    ).toBe('T\n\n*g*\n• *!s* (!st, !fig) - d');
   });
 });
 

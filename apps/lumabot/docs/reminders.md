@@ -1,7 +1,7 @@
 # Plugin `reminders`
 
 Lembretes agendados. Código em `src/plugins/reminders/`: `reminders.ts` (plugin, serviço e
-comandos), `parse.ts` (parser do formato `DD/MM HH:mm | mensagem`), `format.ts` (data, "faltam" e
+comandos), `parse.ts` (parser do formato `[DD/MM[/AAAA]] HH:mm mensagem`), `format.ts` (data, "faltam" e
 estatísticas) e `zone.ts` (fuso pelo `Intl`). Os três últimos são puros, sem `@usebridger/*`.
 Port do `ReminderPlugin` do legacy.
 
@@ -9,7 +9,7 @@ Port do `ReminderPlugin` do legacy.
 
 | Comando | O que faz |
 | --- | --- |
-| `!lembrete DD/MM[/AAAA] HH:mm \| mensagem` (alias `!lembrar`) | Cria o lembrete. Sem ano, vale o ano corrente |
+| `!lembrete [DD/MM[/AAAA]] HH:mm mensagem` (alias `!lembrar`) | Cria o lembrete. Sem data, vale hoje; sem ano, o ano corrente |
 | `!lembretes` | Lista os do chat por ordem de disparo, com "faltam X" e estatísticas |
 | `!cancelarlembrete <n>` | Cancela pelo número da lista |
 
@@ -19,6 +19,7 @@ no transport, o kernel cai para texto (o plugin exige só `send.text`).
 
 Formato desconhecido dá o texto de uso (`usage`: nenhum parser entendeu o argumento). Data
 inexistente (`31/02`) e mensagem vazia têm texto próprio (`errInvalidDate`, `errEmptyText`).
+Só o horário, já passado hoje, cai em `errPast`: não pula para amanhã.
 
 ## Tools da IA
 
@@ -71,7 +72,7 @@ caracteres de controle e invisíveis (exceto quebra de linha). Quem chama traduz
 
 Tipo: `WhenParser = (text: string, now: Date) => { fireAt: number; text: string } | null`. Recebe
 o argumento inteiro do `!lembrete`; `null` passa a vez. O comando tenta os parsers na ordem de
-carga e usa o primeiro que casar; o do formato `DD/MM HH:mm | msg` é contribuído pelo próprio
+carga e usa o primeiro que casar; o do formato `[DD/MM[/AAAA]] HH:mm msg` é contribuído pelo próprio
 plugin. Parser que lança é logado e ignorado.
 
 ```ts
@@ -96,6 +97,7 @@ Em `messages`, sobrescrevíveis pela config (`usage` → `BRIDGER_REMINDERS__MES
 
 ## Diferenças do legacy
 
+- Sem o `|` antes da mensagem, e a data virou opcional (no legacy, `DD/MM HH:mm | mensagem`).
 - Mensagem acima de 500 caracteres é recusada, não cortada (o legacy truncava em silêncio).
 - "A data não existe" virou "Data/hora inválida" (`errInvalidDate`); o resto dos textos é o do legacy.
 - Datas no passado e a mais de 1 ano seguem recusadas, como no legacy.

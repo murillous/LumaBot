@@ -48,20 +48,20 @@ async function service(): Promise<RemindersService> {
 describe('!lembrete', () => {
   it('cria e confirma com a data no horário de Brasília', async () => {
     bot = await createTestBot({ plugins: [reminders] });
-    await bot.receive({ text: '!lembrete 16/10 10:00 | reunião' });
+    await bot.receive({ text: '!lembrete 16/10 10:00 reunião' });
     expect(bot.sent).toContainText('✅ Lembrete criado!\n\n16/10 10:00\nreunião');
   });
 
   it('o alias !lembrar funciona', async () => {
     bot = await createTestBot({ plugins: [reminders] });
-    await bot.receive({ text: '!lembrar 16/10 10:00 | reunião' });
+    await bot.receive({ text: '!lembrar 16/10 10:00 reunião' });
     expect(bot.sent).toContainText(/Lembrete criado/);
   });
 
   it('data inexistente e mensagem vazia têm texto próprio', async () => {
     bot = await createTestBot({ plugins: [reminders] });
-    await bot.receive({ text: '!lembrete 31/02 10:00 | x' });
-    await bot.receive({ text: '!lembrete 20/10 10:00 |  ' });
+    await bot.receive({ text: '!lembrete 31/02 10:00 x' });
+    await bot.receive({ text: '!lembrete 20/10 10:00 ' });
     expect(text(bot)).toEqual(['❌ Data/hora inválida.', '❌ Informe a mensagem do lembrete.']);
   });
 
@@ -80,24 +80,30 @@ describe('!lembrete', () => {
   it.each(['!lembrete', '!lembrete sem barra'])('%s -> uso', async (input) => {
     bot = await createTestBot({ plugins: [reminders] });
     await bot.receive({ text: input });
-    expect(bot.sent).toContainText(/Use: !lembrete DD\/MM HH:mm \| mensagem/);
+    expect(bot.sent).toContainText(/Use: !lembrete \[DD\/MM\[\/AAAA\]\] HH:mm mensagem/);
+  });
+
+  it('só com o horário e sem barra, agenda para hoje', async () => {
+    bot = await createTestBot({ plugins: [reminders] });
+    await bot.receive({ text: '!lembrete 10:00 reunião' });
+    expect(bot.sent).toContainText('✅ Lembrete criado!\n\n16/10 10:00\nreunião');
   });
 
   it('recusa data no passado', async () => {
     bot = await createTestBot({ plugins: [reminders] });
-    await bot.receive({ text: '!lembrete 16/10 08:00 | x' });
+    await bot.receive({ text: '!lembrete 16/10 08:00 x' });
     expect(bot.sent).toContainText('❌ A data/hora precisa estar no futuro.');
   });
 
   it('recusa data a mais de um ano', async () => {
     bot = await createTestBot({ plugins: [reminders] });
-    await bot.receive({ text: '!lembrete 16/10/2028 08:00 | x' });
+    await bot.receive({ text: '!lembrete 16/10/2028 08:00 x' });
     expect(bot.sent).toContainText(/muito distante/);
   });
 
   it('recusa texto acima do limite', async () => {
     bot = await createTestBot({ plugins: [reminders] });
-    await bot.receive({ text: `!lembrete 17/10 08:00 | ${'a'.repeat(501)}` });
+    await bot.receive({ text: `!lembrete 17/10 08:00 ${'a'.repeat(501)}` });
     expect(bot.sent).toContainText('❌ A mensagem do lembrete passou de 500 caracteres.');
   });
 });
@@ -105,7 +111,7 @@ describe('!lembrete', () => {
 describe('disparo', () => {
   it('menciona quem criou, no horário, e some da lista', async () => {
     bot = await createTestBot({ plugins: [reminders, grab] });
-    await bot.receive({ text: '!lembrete 16/10 10:00 | reunião' });
+    await bot.receive({ text: '!lembrete 16/10 10:00 reunião' });
     bot.transport.clear();
 
     await vi.advanceTimersByTimeAsync(HOUR - 1000);
@@ -122,7 +128,7 @@ describe('disparo', () => {
   it('menciona os marcados no comando', async () => {
     bot = await createTestBot({ plugins: [reminders] });
     await bot.receive({
-      text: '!lembrete 16/10 10:00 | pagar',
+      text: '!lembrete 16/10 10:00 pagar',
       mentions: [{ ...DEFAULT_SENDER, id: 'ana@fake', phone: '5511911111111', tag: '@ana' }],
     });
     await vi.advanceTimersByTimeAsync(HOUR + 1000);
@@ -134,7 +140,7 @@ describe('disparo', () => {
       plugins: [reminders],
       transport: new FakeTransport({ capabilities: ['send.text', 'quoted'] }),
     });
-    await bot.receive({ text: '!lembrete 16/10 10:00 | reunião' });
+    await bot.receive({ text: '!lembrete 16/10 10:00 reunião' });
     await vi.advanceTimersByTimeAsync(HOUR + 1000);
     expect(bot.sent.at(-1)?.mentions).toEqual([]);
     expect(bot.sent).toContainText(/^⏰ Lembrete: reunião/);
@@ -142,7 +148,7 @@ describe('disparo', () => {
 
   it('sobrevive a restart', async () => {
     bot = await createTestBot({ plugins: [reminders] });
-    await bot.receive({ text: '!lembrete 16/10 10:00 | reunião' });
+    await bot.receive({ text: '!lembrete 16/10 10:00 reunião' });
     bot = await bot.restart();
     await vi.advanceTimersByTimeAsync(HOUR + 1000);
     expect(bot.sent).toContainText(/⏰ Lembrete: reunião/);
@@ -152,8 +158,8 @@ describe('disparo', () => {
 describe('!lembretes e !cancelarlembrete', () => {
   it('lista por ordem de disparo, com faltam e estatísticas', async () => {
     bot = await createTestBot({ plugins: [reminders] });
-    await bot.receive({ text: '!lembrete 16/10 12:00 | depois' });
-    await bot.receive({ text: '!lembrete 16/10 10:00 | antes' });
+    await bot.receive({ text: '!lembrete 16/10 12:00 depois' });
+    await bot.receive({ text: '!lembrete 16/10 10:00 antes' });
     await bot.receive({ text: '!lembretes' });
     const list = text(bot).at(-1) ?? '';
     expect(list).toContain('⏰ Lembretes agendados (2)');
@@ -171,14 +177,14 @@ describe('!lembretes e !cancelarlembrete', () => {
 
   it('a lista é por chat', async () => {
     bot = await createTestBot({ plugins: [reminders] });
-    await bot.receive({ text: '!lembrete 16/10 10:00 | meu' });
+    await bot.receive({ text: '!lembrete 16/10 10:00 meu' });
     await bot.receive({ text: '!lembretes', chat: 'outro@fake' });
     expect(bot.sent).toContainText(/Nenhum lembrete/);
   });
 
   it('cancela pelo número e o disparo não acontece', async () => {
     bot = await createTestBot({ plugins: [reminders] });
-    await bot.receive({ text: '!lembrete 16/10 10:00 | reunião' });
+    await bot.receive({ text: '!lembrete 16/10 10:00 reunião' });
     await bot.receive({ text: '!cancelarlembrete 1' });
     expect(bot.sent).toContainText('✅ Lembrete removido:\n\nreunião');
     bot.transport.clear();
@@ -265,13 +271,13 @@ describe('ponto de extensão reminders.parsers', () => {
     await bot.receive({ text: '!lembrete em 1 min | x' });
     expect(bot.sent).toContainText('✅ Lembrete criado!\n\n16/10 09:01\nx');
     // O formato padrão continua valendo.
-    await bot.receive({ text: '!lembrete 16/10 10:00 | y' });
+    await bot.receive({ text: '!lembrete 16/10 10:00 y' });
     expect(text(bot).at(-1)).toContain('16/10 10:00');
   });
 
   it('parser que lança é ignorado e o próximo é tentado', async () => {
     bot = await createTestBot({ plugins: [reminders, quebrado] });
-    await bot.receive({ text: '!lembrete 16/10 10:00 | y' });
+    await bot.receive({ text: '!lembrete 16/10 10:00 y' });
     expect(bot.sent).toContainText(/Lembrete criado/);
   });
 });
