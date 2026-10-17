@@ -103,6 +103,15 @@ it('record simultâneo não duplica linha nem perde contagem', async () => {
   expect(await service.top({ chatId: 'g2' }, 10)).toEqual([{ id: 'a', count: 1 }]);
 });
 
+it('muitos record simultâneos na mesma chave dão uma linha só com a contagem exata', async () => {
+  await start();
+
+  await Promise.all(Array.from({ length: 20 }, () => service.record('g1', 'a')));
+
+  expect(await service.top({ chatId: 'g1' }, 10)).toEqual([{ id: 'a', count: 20 }]);
+  expect(await service.top('global', 10)).toEqual([{ id: 'a', count: 20 }]);
+});
+
 it('tool ranking devolve nomes e contagens do grupo, ou o geral', async () => {
   await start(userNames, aiToolsProbe);
   await service.record('g1@fake', 'a@fake');

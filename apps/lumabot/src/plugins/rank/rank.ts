@@ -51,25 +51,15 @@ export const rank: PluginDefinition = definePlugin({
     // Total separado: o `!rank global` lê N linhas em vez de somar todos os chats.
     const totals = ctx.storage.collection<TotalCount>('totals', { indexes: ['userId', 'count'] });
 
-    let chain: Promise<void> = Promise.resolve();
-
     const service: RankService = {
-      // Serializa no processo: sem isto, dois `record` simultâneos veem "sem linha" e inserem duas.
-      // shortcut: entre processos (dois bots no mesmo banco) ainda há corrida, porque a
-      // `Collection` não tem incremento atômico nem upsert; trocar quando ganhar.
-      record: (chatId, senderId) => {
-        const run = chain.then(async () => {
-          const [chatRow] = await perChat.find({ where: { chatId, userId: senderId }, limit: 1 });
-          if (chatRow) await perChat.update(chatRow.id, { count: chatRow.count + 1 });
-          else await perChat.insert({ chatId, userId: senderId, count: 1 });
-
-          const [totalRow] = await totals.find({ where: { userId: senderId }, limit: 1 });
-          if (totalRow) await totals.update(totalRow.id, { count: totalRow.count + 1 });
-          else await totals.insert({ userId: senderId, count: 1 });
+      // `increment` com `insert` é atômico (entre chamadas e processos): sem linha, insere com 0 e o incremento soma o 1.
+      record: async (chatId, senderId) => {
+        await perChat.increment({ chatId, userId: senderId }, 'count', 1, {
+          insert: { chatId, userId: senderId, count: 0 },
         });
-        // O erro volta para quem chamou; a cadeia segue viva para as próximas.
-        chain = run.catch(() => undefined);
-        return run;
+        await totals.increment({ userId: senderId }, 'count', 1, {
+          insert: { userId: senderId, count: 0 },
+        });
       },
       top: async (scope, limit) => {
         const orderBy = { field: 'count', direction: 'desc' } as const;
