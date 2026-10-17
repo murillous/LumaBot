@@ -422,9 +422,9 @@ describe('recorrência', () => {
     });
 
   it.each([
-    ['entrada', '2026-03-07T12:00:00Z', 23],
-    ['saída', '2026-10-31T11:00:00Z', 25],
-  ])('horário de verão (%s) mantém 08:00 locais', async (_, start, hours) => {
+    ['entrada', '2026-03-07T12:00:00Z', 23, 4],
+    ['saída', '2026-10-31T11:00:00Z', 25, 3],
+  ])('horário de verão (%s) mantém 08:00 locais', async (_, start, hours, count) => {
     vi.setSystemTime(new Date(start));
     const fires: number[] = [];
     bot = await createTestBot({
@@ -441,7 +441,7 @@ describe('recorrência', () => {
     });
     // Hora a hora: cada ocorrência reagenda a próxima só depois de o handler terminar.
     for (let i = 0; i < 72; i++) await vi.advanceTimersByTimeAsync(HOUR);
-    expect(fires.length).toBeGreaterThanOrEqual(2);
+    expect(fires).toHaveLength(count);
     expect(((fires[1] ?? 0) - (fires[0] ?? 0)) / HOUR).toBe(hours);
   });
 });
@@ -542,6 +542,33 @@ describe('série: casos de falha', () => {
     expect(bot.sent).toHaveLength(2);
   });
 
+  it('kind duplicado: vale o primeiro e avisa uma vez', async () => {
+    const warns: string[] = [];
+    const logger = createLogger({ level: 'warn', destination: { write: (l) => warns.push(l) } });
+    const calls: string[] = [];
+    const dup = (name: string) =>
+      definePlugin({
+        name,
+        version: '0.0.0',
+        engine: '<1.0.0',
+        dependsOn: { reminders: '^2.0.0' },
+        setup: (ctx) => {
+          ctx.services.contribute('reminders.kinds', {
+            kind: 'dup',
+            deliver: async () => {
+              calls.push(name);
+            },
+          });
+          captured = ctx.services.get('reminders');
+        },
+      });
+    bot = await createTestBot({ plugins: [reminders, dup('um'), dup('dois')], logger });
+    await (await service()).create({ ...base, kind: 'dup', recurrence: { everyMs: 30 * 60_000 } });
+    for (let i = 0; i < 3; i++) await vi.advanceTimersByTimeAsync(30 * 60_000);
+    expect(calls).toEqual(['um', 'um', 'um']);
+    expect(warns.filter((l) => l.includes('mais de um plugin'))).toHaveLength(1);
+  });
+
   it('série cujo kind sumiu não entrega e continua listada', async () => {
     const fires: number[] = [];
     const ping = definePlugin({
@@ -598,7 +625,7 @@ describe('série: casos de falha', () => {
       recurrence: { everyMs: 30 * 60_000 },
     });
     for (let i = 0; i < 6; i++) await vi.advanceTimersByTimeAsync(30 * 60_000);
-    expect(calls).toBeGreaterThanOrEqual(2);
+    expect(calls).toBe(6);
     expect(await (await service()).list(base.chatId)).toHaveLength(1);
   });
 

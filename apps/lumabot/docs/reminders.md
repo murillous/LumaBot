@@ -130,7 +130,7 @@ O próprio plugin contribui o `'text'` (`⏰ Lembrete: texto` com menções). O 
 `Reminder` com o `data` guardado no `create`; `text` é o rótulo que `!lembretes` mostra. Lançar
 manda a falha ao `plugin.error`, e numa série as próximas ocorrências seguem.
 
-Se dois plugins contribuem o mesmo `kind`, vale o primeiro na ordem de carga.
+Se dois plugins contribuem o mesmo `kind`, vale o primeiro na ordem de carga, e o disparo registra um `warn` (uma vez por kind).
 
 Exemplo: a Luma manda uma figurinha todo dia às 09:00 (ilustrativo).
 

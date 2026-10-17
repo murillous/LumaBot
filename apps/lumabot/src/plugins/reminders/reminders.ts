@@ -227,6 +227,7 @@ export const reminders: PluginDefinition = definePlugin({
     const docs = ctx.storage.collection<Doc>('reminders', { indexes: ['chatId', 'fireAt'] });
     // Visão viva: `list()` a cada uso, para pegar kind de plugin que carrega depois.
     const kinds = ctx.services.extensionPoint('reminders.kinds');
+    const warnedDuplicates = new Set<string>();
 
     // Disparo "pelo menos uma vez": o documento único só sai depois da entrega. Se o processo cair
     // no meio, o job volta e o lembrete sai de novo, em vez de se perder. A série mantém o doc.
@@ -252,7 +253,15 @@ export const reminders: PluginDefinition = definePlugin({
       }
       const reminder = toReminder(doc);
       try {
-        const kind = kinds.list().find((k) => k.kind === reminder.kind);
+        const matches = kinds.list().filter((k) => k.kind === reminder.kind);
+        const kind = matches[0];
+        // Vale o primeiro por ordem de carga; o aviso (uma vez por kind) evita o conflito calado.
+        if (matches.length > 1 && !warnedDuplicates.has(reminder.kind)) {
+          warnedDuplicates.add(reminder.kind);
+          ctx.log.warn('kind de lembrete contribuído por mais de um plugin; vale o primeiro', {
+            kind: reminder.kind,
+          });
+        }
         if (!kind) {
           // Plugin dono do kind desligado: não entrega; a série espera ele voltar.
           ctx.log.warn('kind de lembrete sem plugin', { kind: reminder.kind, id });
