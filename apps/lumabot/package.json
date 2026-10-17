@@ -14,7 +14,7 @@
     "dev": "node src/main.ts"
   },
   "dependencies": {
-    "@usebridger/core": "^0.7.0",
+    "@usebridger/core": "^0.7.1",
     "@usebridger/storage-sqlite": "^0.3.0",
     "@usebridger/transport-baileys": "^0.4.3",
     "node-webpmux": "^3.2.1",

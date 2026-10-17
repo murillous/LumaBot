@@ -185,8 +185,8 @@ importers:
   apps/lumabot:
     dependencies:
       '@usebridger/core':
-        specifier: ^0.7.0
-        version: 0.7.0
+        specifier: ^0.7.1
+        version: 0.7.1
       '@usebridger/storage-sqlite':
         specifier: ^0.3.0
         version: 0.3.0
@@ -771,8 +771,8 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@usebridger/core@0.7.0':
-    resolution: {integrity: sha512-/KLVJ5PYJ0S2+tYzDqTP6dVwXthFZIT6wFZE15wKK8Ka21wpvgp+ucKY1m8DfGgvFdtdcteL2L+sGPwqSnkiAA==}
+  '@usebridger/core@0.7.1':
+    resolution: {integrity: sha512-LXtbVKipBsIZcWxWw+7CktYLtv2Ct3IsblufK5RpirUT5tyygPn6ifkRapNM+6+Rge4SkT8esA4XeqnXCXoQJQ==}
 
   '@usebridger/storage-sqlite@0.3.0':
     resolution: {integrity: sha512-ilY+UD4EhPJRHpk/ZTjd25j5nQy+59W2YU4HhctDc4E5kQVPtvkOmQF13JiCi9PHO0SE2hm83YzvklyZsKmxgw==}
@@ -1941,7 +1941,7 @@ snapshots:
   '@typescript/typescript-win32-x64@7.0.2':
     optional: true
 
-  '@usebridger/core@0.7.0':
+  '@usebridger/core@0.7.1':
     dependencies:
       '@hono/node-server': 2.1.4(hono@4.13.13)
       hono: 4.13.13
@@ -1954,14 +1954,14 @@ snapshots:
 
   '@usebridger/storage-sqlite@0.3.0':
     dependencies:
-      '@usebridger/core': 0.7.0
+      '@usebridger/core': 0.7.1
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
 
   '@usebridger/testing@0.6.2(vitest@5.0.3(@types/node@24.19.1)(vite@8.3.2(@types/node@24.19.1)(yaml@2.9.1)))':
     dependencies:
-      '@usebridger/core': 0.7.0
+      '@usebridger/core': 0.7.1
       vitest: 5.0.3(@types/node@24.19.1)(vite@8.3.2(@types/node@24.19.1)(yaml@2.9.1))
     transitivePeerDependencies:
       - bufferutil
@@ -1969,7 +1969,7 @@ snapshots:
 
   '@usebridger/transport-baileys@0.4.3(sharp@0.35.5(@types/node@24.19.1))':
     dependencies:
-      '@usebridger/core': 0.7.0
+      '@usebridger/core': 0.7.1
       baileys: 7.0.0-rc14(sharp@0.35.5(@types/node@24.19.1))
     transitivePeerDependencies:
       - audio-decode
