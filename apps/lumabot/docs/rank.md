@@ -43,9 +43,12 @@ record(chatId, senderId): Promise<void>
 top(scope: { chatId } | 'global', limit): Promise<{ id: string; count: number }[]>
 ```
 
-`record` é serializado no processo (cadeia de promessas), então chamadas simultâneas não
-duplicam linha nem perdem contagem. Entre processos (dois bots sobre o mesmo banco) ainda há
-corrida: a `Collection` do Bridger não tem incremento atômico nem upsert. Empate no `top` segue quem chegou primeiro.
+`record` usa o `increment` atômico da `Collection` (com `insert` quando não há linha), então
+chamadas simultâneas, mesmo entre processos, não duplicam linha nem perdem contagem. Empate no
+`top` segue quem chegou primeiro.
+
+Cada coleção é atômica, mas `perChat` e `totals` são dois incrementos separados: se o segundo
+falhar, o total fica abaixo da soma dos chats.
 
 Nomes vêm de `userNames.displayName` quando o serviço existe (`services.has`, sem `dependsOn`);
 sem ele, `@` + 6 últimos dígitos do id.

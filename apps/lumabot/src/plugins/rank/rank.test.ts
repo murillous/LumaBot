@@ -1,4 +1,8 @@
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { definePlugin, type PluginDefinition } from '@usebridger/core';
+import { sqlite } from '@usebridger/storage-sqlite';
 import { createTestBot, type TestBot } from '@usebridger/testing';
 import { afterEach, expect, it } from 'vitest';
 import { aiToolsProbe, toolResult } from '#plugins/ai-tools-probe.ts';
@@ -101,6 +105,61 @@ it('record simultâneo não duplica linha nem perde contagem', async () => {
   expect(await service.top('global', 10)).toEqual([{ id: 'a', count: 3 }]);
   expect(await service.top({ chatId: 'g1' }, 10)).toEqual([{ id: 'a', count: 2 }]);
   expect(await service.top({ chatId: 'g2' }, 10)).toEqual([{ id: 'a', count: 1 }]);
+});
+
+it('muitos record simultâneos na mesma chave dão uma linha só com a contagem exata', async () => {
+  await start();
+
+  await Promise.all(Array.from({ length: 20 }, () => service.record('g1', 'a')));
+
+  expect(await service.top({ chatId: 'g1' }, 10)).toEqual([{ id: 'a', count: 20 }]);
+  expect(await service.top('global', 10)).toEqual([{ id: 'a', count: 20 }]);
+});
+
+it('record de dois bots sobre o mesmo banco dá uma linha só com a contagem exata', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'rank-'));
+  const path = join(dir, 'luma.db');
+  // Dois storages sobre o mesmo arquivo simulam dois processos. A trava de sessão do core é
+  // desligada no segundo (ela barraria o bot): o teste mira só a corrida no contador.
+  const storages = [sqlite({ path }), sqlite({ path })];
+  const services: RankService[] = [];
+  const bots: TestBot[] = [];
+  try {
+    for (const [i, raw] of storages.entries()) {
+      const storage =
+        i === 0
+          ? raw
+          : new Proxy(raw, {
+              get: (t, k) =>
+                k === 'acquireLease'
+                  ? async () => true
+                  : k === 'releaseLease'
+                    ? async () => undefined
+                    : Reflect.get(t, k, t),
+            });
+      const capture = definePlugin({
+        name: 'probe',
+        version: '0.0.0',
+        engine: '<1.0.0',
+        dependsOn: { rank: '^1.0.0' },
+        setup: (ctx) => {
+          services.push(ctx.services.get('rank'));
+        },
+      });
+      bots.push(await createTestBot({ plugins: [rank, capture], storage }));
+    }
+
+    await Promise.all(Array.from({ length: 20 }, (_, i) => services[i % 2]?.record('g1', 'a')));
+
+    for (const s of services) {
+      expect(await s.top({ chatId: 'g1' }, 10)).toEqual([{ id: 'a', count: 20 }]);
+      expect(await s.top('global', 10)).toEqual([{ id: 'a', count: 20 }]);
+    }
+  } finally {
+    for (const b of bots) await b.stop();
+    for (const s of storages) await s.close();
+    await rm(dir, { recursive: true, force: true });
+  }
 });
 
 it('tool ranking devolve nomes e contagens do grupo, ou o geral', async () => {
