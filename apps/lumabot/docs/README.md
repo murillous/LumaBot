@@ -65,6 +65,7 @@ Ficam em `src/plugins/` e entram na lista do `createBot` em `src/main.ts`.
 | --- | --- |
 | `pairing` | Desenha no terminal o QR (`connection.qr`) ou mostra o código (`connection.pairing-code`). O log do bot só avisa que chegou um QR, sem o valor |
 | `ping` | `!ping` responde `pong`: prova o caminho transport → kernel → fila de saída → transport |
+| [`ai`](ai.md) | Cadeia de modelos (Gemini, OpenAI, Claude, DeepSeek) com fallback. Oferece o serviço `ai` e o ponto `ai.providers` |
 | [`help`](help.md) | Menu de comandos gerado do kernel: `!help`, `!menu`, `!ajuda`. Oferece o serviço `help` e o ponto `help.sections` |
 | [`sticker`](sticker.md) | Figurinha de imagem, vídeo ou link: `!sticker`. Oferece o serviço `sticker` |
 | [`sticker-text`](sticker.md) | Texto do `!sticker` como legenda; estende o serviço `sticker` |
@@ -76,7 +77,7 @@ Ficam em `src/plugins/` e entram na lista do `createBot` em `src/main.ts`.
 | [`rank`](rank.md) | Ranking de interações: `!rank`, serviço `rank` |
 | [`utils`](utils.md) | `!meunumero`/`!meuid` (número e ID do chat) e `!prefixo` (prefixo por chat, só admin). Ponto de extensão `utils.info` |
 
-Cada plugin (menos `pairing`, `ping` e `sticker-text`) também contribui tools que a IA pode
+Cada plugin (menos `pairing`, `ping`, `ai` e `sticker-text`) também contribui tools que a IA pode
 chamar por function calling: ver [ai-tools.md](ai-tools.md).
 
 Um plugin pode estender outro ou usá-lo pelos serviços do kernel (`ctx.services`), sem importar
