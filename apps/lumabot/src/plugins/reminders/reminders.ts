@@ -238,8 +238,8 @@ export const reminders: PluginDefinition = definePlugin({
       }
       const doc = await docs.get(id);
       if (!doc) {
-        // Série sem doc é órfã (queda entre o `every` e o `docs.update`, ou o doc foi apagado):
-        // sem cancelar, ela dispararia para sempre sem entregar nada.
+        // Série sem doc é órfã (o `list()` apaga o doc de `jobId` vazio, deixado por uma queda
+        // entre o `every` e o `docs.update`): sem cancelar, dispararia para sempre sem entregar.
         if (job.seriesId) {
           try {
             await ctx.scheduler.cancel(job.seriesId);

@@ -31,6 +31,7 @@ kernel cuida do horário de verão: `todo dia 08:00` continua às 08:00 locais, 
 entre os disparos na virada (coberto em `reminders.test.ts`). O intervalo mínimo é de 15 minutos
 (`errIntervalTooShort`). `!lembretes` mostra `🔁 recorrência` e a **próxima** ocorrência
 (`scheduler.next`); uma série que o scheduler não conhece mais some da lista e é logada.
+Uma série cujo doc sumiu é cancelada na ocorrência seguinte, em vez de disparar sem entregar.
 
 ## Tools da IA
 
