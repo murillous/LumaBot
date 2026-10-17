@@ -5,6 +5,7 @@ import { createBot, createLogger, createSecretSet } from '@usebridger/core';
 import { sqlite } from '@usebridger/storage-sqlite';
 import { baileys } from '@usebridger/transport-baileys';
 import { loadConfig } from '#config.ts';
+import { ai } from '#plugins/ai/ai.ts';
 import { download } from '#plugins/download/download.ts';
 import { help } from '#plugins/help/help.ts';
 import { pairing } from '#plugins/pairing.ts';
@@ -38,6 +39,7 @@ const bot = createBot({
   plugins: [
     pairing((text) => process.stdout.write(text)),
     ping,
+    ai,
     help,
     sticker,
     stickerText,

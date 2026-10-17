@@ -14,9 +14,14 @@
     "dev": "node src/main.ts"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^4.0.81",
+    "@ai-sdk/deepseek": "^3.0.66",
+    "@ai-sdk/google": "^4.0.98",
+    "@ai-sdk/openai": "^4.0.95",
     "@usebridger/core": "^0.7.1",
     "@usebridger/storage-sqlite": "^0.3.0",
     "@usebridger/transport-baileys": "^0.4.3",
+    "ai": "^7.0.142",
     "node-webpmux": "^3.2.1",
     "pdf-lib": "^1.17.1",
     "qrcode-terminal": "^0.12.0",
