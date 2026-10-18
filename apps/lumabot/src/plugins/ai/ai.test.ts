@@ -1,6 +1,6 @@
 import { definePlugin } from '@usebridger/core';
 import { createTestBot, type TestBot } from '@usebridger/testing';
-import { APICallError } from 'ai';
+import { APICallError, jsonSchema, tool } from 'ai';
 import { MockLanguageModelV4 } from 'ai/test';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
@@ -532,5 +532,74 @@ describe('ai.generate com tools', () => {
     await ask({ a });
 
     expect(last?.text).toBe('já vi');
+  });
+});
+
+describe('ai.generate com busca nativa', () => {
+  const searchTool = () => ({
+    web: tool({
+      description: 'busca',
+      inputSchema: jsonSchema<unknown>({ type: 'object', properties: {} }),
+      execute: async () => 'achei',
+    }),
+  });
+
+  it('oferece a busca do provider e pula o item cujo provider não tem', async () => {
+    const noSearch = model('sem busca');
+    const withSearch = model('com busca');
+    const ai = await start(
+      [{ model: 'plain:a' }, { model: 'smart:b' }],
+      [
+        fake('plain', { a: noSearch }),
+        { ...fake('smart', { b: withSearch }), nativeSearch: searchTool },
+      ],
+    );
+
+    const result = await ai.generate({ ...hi, nativeSearch: true });
+
+    expect(result.model).toBe('smart:b');
+    expect(noSearch.doGenerateCalls).toHaveLength(0);
+    expect(withSearch.doGenerateCalls[0]?.tools?.map((t) => t.name)).toEqual(['web']);
+  });
+
+  it('sem nativeSearch, a busca do provider não é oferecida', async () => {
+    const a = model('ok');
+    const ai = await start(
+      [{ model: 'smart:a' }],
+      [{ ...fake('smart', { a }), nativeSearch: searchTool }],
+    );
+
+    await ai.generate(hi);
+
+    expect(a.doGenerateCalls[0]?.tools).toBeUndefined();
+  });
+
+  it('nenhum item com busca: recusa, em vez de responder sem buscar', async () => {
+    const ai = await start([{ model: 'plain:a' }], [fake('plain', { a: model('x') })]);
+
+    await expect(ai.generate({ ...hi, nativeSearch: true })).rejects.toBeInstanceOf(
+      AiUnavailableError,
+    );
+  });
+
+  it('o Gemini embutido traz a busca; os outros embutidos, não', async () => {
+    let listed: AiProvider[] = [];
+    const spy = definePlugin({
+      name: 'spy',
+      version: '0.0.0',
+      engine: '<1.0.0',
+      dependsOn: { ai: '^0.1.0' },
+      setup: (ctx) => {
+        listed = [...ctx.services.extensionPoint('ai.providers').list()];
+      },
+    });
+    bot = await createTestBot({
+      plugins: [ai, spy],
+      pluginConfig: { ai: { keys: { google: 'g-key', openai: 'o-key' } } },
+    });
+
+    const byName = Object.fromEntries(listed.map((p) => [p.name, p]));
+    expect(Object.keys(byName['google']?.nativeSearch?.() ?? {})).toEqual(['google_search']);
+    expect(byName['openai']?.nativeSearch).toBeUndefined();
   });
 });

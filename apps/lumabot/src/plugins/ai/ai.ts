@@ -29,6 +29,11 @@ export interface AiProvider {
   /** Prefixo do item da cadeia: `google` em `google:gemini-2.5-flash`. */
   readonly name: string;
   languageModel(modelId: string): LanguageModel;
+  /**
+   * A busca na internet que o próprio provider executa (o Google Grounding do Gemini), se ele
+   * tiver. O `ai` a oferece quando a chamada pede `nativeSearch`.
+   */
+  nativeSearch?(): ToolSet;
 }
 
 /** Uma tentativa num item da cadeia, para quem mede (`ai.observers`). */
@@ -78,6 +83,12 @@ export interface GenerateRequest {
    * Tem o mesmo fallback, cooldown, prazo e observers; vazia ou ausente, vale a cadeia principal.
    */
   readonly models?: readonly ModelChainItem[];
+  /**
+   * Responde com a busca nativa do provider (Google Grounding): só os itens da cadeia cujo
+   * provider a tem são tentados, os outros são pulados com um aviso, porque responder sem buscar
+   * seria inventar.
+   */
+  readonly nativeSearch?: boolean;
   /**
    * Oferece ao modelo as tools do ponto `ai.tools` que o transport atende e roda as que ele
    * chamar com este contexto (a mensagem que originou a conversa). Sem ele, a chamada é só texto:
@@ -192,6 +203,12 @@ export const ai: PluginDefinition = definePlugin({
         ctx.services.contribute('ai.providers', {
           name,
           languageModel: (id) => provider.languageModel(id),
+          // Só o Gemini traz a busca pronta; os outros providers entram sem ela.
+          ...(name === 'google' && {
+            nativeSearch: () => ({
+              google_search: (provider as ReturnType<typeof createGoogle>).tools.googleSearch({}),
+            }),
+          }),
         });
       }
     }
@@ -278,10 +295,18 @@ export const ai: PluginDefinition = definePlugin({
             attempt('unregistered');
             continue;
           }
+          const search = request.nativeSearch ? provider.nativeSearch?.() : undefined;
+          if (request.nativeSearch && !search) {
+            ctx.log.warn('provider sem busca nativa; item pulado', { model: entry.model });
+            continue;
+          }
           // Por tentativa: o que uma tentativa que falhou já executou não pode se repetir na próxima.
           const calls: ToolCallRecord[] = [];
-          const tools = request.toolContext ? sdkTools(request.toolContext, calls) : undefined;
-          const hasTools = tools !== undefined && Object.keys(tools).length > 0;
+          const tools: ToolSet = {
+            ...search,
+            ...(request.toolContext ? sdkTools(request.toolContext, calls) : {}),
+          };
+          const hasTools = Object.keys(tools).length > 0;
           try {
             const result = await generateText({
               model: provider.languageModel(entry.model.slice(sep + 1)),

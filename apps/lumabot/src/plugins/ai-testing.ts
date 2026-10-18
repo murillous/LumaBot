@@ -3,6 +3,7 @@
 // Só os testes importam este módulo.
 
 import { definePlugin, type PluginDefinition } from '@usebridger/core';
+import { jsonSchema, type ToolSet, tool } from 'ai';
 import { MockLanguageModelV4 } from 'ai/test';
 
 interface Usage {
@@ -67,11 +68,23 @@ export function scripted(...steps: Step[]): MockLanguageModelV4 {
   });
 }
 
+/** A busca nativa do provider falso: uma tool comum, só para o modelo falso a ver na lista. */
+export const fakeSearchTools = (): ToolSet => ({
+  fake_search: tool({
+    description: 'busca nativa',
+    inputSchema: jsonSchema<unknown>({ type: 'object', properties: {} }),
+    execute: async () => 'achei',
+  }),
+});
+
 /**
  * Plugin que contribui o provider `fake` com os modelos dados (`fake:a` → `models.a`). Carregue-o
  * depois do `ai`, junto com `pluginConfig: { ai: { models: [{ model: 'fake:a' }] } }`.
  */
-export function fakeProvider(models: Record<string, MockLanguageModelV4>): PluginDefinition {
+export function fakeProvider(
+  models: Record<string, MockLanguageModelV4>,
+  options: { nativeSearch?: boolean } = {},
+): PluginDefinition {
   return definePlugin({
     name: 'fake-provider',
     version: '0.0.0',
@@ -85,6 +98,7 @@ export function fakeProvider(models: Record<string, MockLanguageModelV4>): Plugi
           if (!model) throw new Error(`modelo falso ausente: ${id}`);
           return model;
         },
+        ...(options.nativeSearch && { nativeSearch: fakeSearchTools }),
       });
     },
   });
