@@ -73,6 +73,13 @@ expect(toolResult(bot)).toEqual({ ok: true });
 | [`user-names`](user-names.md#tools-da-ia) | `set_nickname`, `get_name` |
 | [`reminders`](reminders.md#tools-da-ia) | `create_reminder`, `list_reminders`, `cancel_reminder` |
 | [`rank`](rank.md#tools-da-ia) | `ranking` |
+| [`luma`](luma.md#tools-da-ia) | `clear_history`, `create_persona` |
+| [`web-search`](web-search.md#tool-da-ia) | `search_web` |
+| [`transcribe`](transcribe.md#tool-da-ia) | `transcribe_audio` |
+| [`resumo`](resumo.md#tool-da-ia) | `summarize_chat` |
 
-`ping`, `pairing` e `sticker-text` ficam de fora: os dois primeiros são operacionais, e a
+O `ai` lê o ponto e oferece as tools ao modelo no `generate({ toolContext })`
+([ai.md](ai.md#tool-calling-toolcontext)).
+
+`ping`, `pairing`, `sticker-text`, `spontaneous` e `ai-metrics` ficam de fora: os dois primeiros são operacionais, e a
 legenda do `sticker-text` entra pelo `caption` do `create_sticker`.

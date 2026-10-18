@@ -26,16 +26,16 @@ e agora vive aqui.
 | [x] | `!nick Nome`, `!nick @pessoa Nome`, `!apelido` | [user-names](apps/lumabot/docs/user-names.md) |
 | [x] | Enriquecimento de usuários (pushName, contatos, LID) | [user-names](apps/lumabot/docs/user-names.md) |
 | [x] | `!lembrete` / `!lembrar`, `!lembretes`, `!cancelarlembrete <n>` + disparo agendado com menção | reminders ([doc](apps/lumabot/docs/reminders.md)) |
-| [ ] | `!rank`, `!rank global` (sem dado até o `ai` chamar `record`) | [rank](apps/lumabot/docs/rank.md) |
-| [ ] | `!resumo [n]` | resumo |
-| [ ] | IA em PV, quando citada ou por trigger ("Luma, ...") | ai |
-| [ ] | Personas: `!persona` (menu pN), `!persona criar <descrição>`, `!persona deletar pN`, limite 10 por chat | ai |
-| [ ] | Contexto multi-turno | ai |
-| [ ] | Tool calling (sticker, @todos, lembrete etc. pela IA) | ai |
-| [ ] | Busca web (Tavily / Google Grounding) | ai |
-| [ ] | Transcrição de áudio | ai |
-| [ ] | `!luma clear` / `!lc` / `!clear`, `!luma stats` / `!ls` | ai |
-| [ ] | Interações espontâneas em grupo | spontaneous |
+| [x] | `!rank`, `!rank global` (a `luma` conta cada interação) | [rank](apps/lumabot/docs/rank.md) |
+| [x] | `!resumo [n]` | [resumo](apps/lumabot/docs/resumo.md) |
+| [x] | IA em PV, quando citada ou por trigger ("Luma, ..."), e mencionada | [luma](apps/lumabot/docs/luma.md) (sobre o [ai](apps/lumabot/docs/ai.md)) |
+| [x] | Personas: `!persona` (menu), `!persona criar <descrição>`, `!persona deletar <n>`, limite 10 por chat | [luma](apps/lumabot/docs/luma.md#persona) |
+| [x] | Contexto multi-turno | [luma](apps/lumabot/docs/luma.md#memória) |
+| [x] | Tool calling (sticker, lembrete etc. pela IA); `@todos` e `remove_member` seguem sem plugin | [ai](apps/lumabot/docs/ai.md#tool-calling-toolcontext), [ai-tools](apps/lumabot/docs/ai-tools.md) |
+| [x] | Busca web (Tavily / Google Grounding) | [web-search](apps/lumabot/docs/web-search.md) |
+| [x] | Transcrição de áudio (agora só no `!transcribe`; a Luma ouve sem postar o texto) | [transcribe](apps/lumabot/docs/transcribe.md) |
+| [x] | `!luma clear` / `!lc` / `!clear`, `!luma stats` / `!ls` (as estatísticas vêm do `ai-metrics`) | [luma](apps/lumabot/docs/luma.md#comandos), [ai-metrics](apps/lumabot/docs/ai-metrics.md) |
+| [x] | Interações espontâneas em grupo (agora só reação, decidida pela IA) | [spontaneous](apps/lumabot/docs/spontaneous.md) |
 | [ ] | Dashboard: QR, status, logs, config, deploy | dashboard |
 
 ## Do Bridger
