@@ -36,6 +36,11 @@ número e o bot responde `pong`, citando a mensagem. Do próprio número não fu
 `Ctrl+C` (ou `SIGTERM`) encerra pelo `bot.stop()`, que drena as filas e fecha o banco. Um segundo
 sinal mata o processo, para o caso de o encerramento travar.
 
+Quando a reconexão desiste (outro processo assumiu o número, `replaced`, ou erro de configuração,
+`fatal`), o core loga o motivo e deixa o bot em `failed`, sem atender. O plugin `give-up` avisa o
+`main.ts`, que encerra pelo `bot.stop()` com código de saída 1: o supervisor (systemd, pm2) vê a
+falha. Queda de rede e sessão deslogada não entram aqui: o bot reconecta ou pede novo pareamento.
+
 ## Config
 
 Por variáveis de ambiente, lidas em `src/config.ts`. Variável vazia vale como ausente.
