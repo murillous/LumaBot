@@ -1,9 +1,11 @@
 import { definePlugin } from '@usebridger/core';
+import { metrics } from '@usebridger/plugin-metrics';
 import { createTestBot, DEFAULT_SELF, fixtures, type TestBot } from '@usebridger/testing';
 import { APICallError } from 'ai';
 import type { MockLanguageModelV4 } from 'ai/test';
 import { afterEach, describe, expect, it } from 'vitest';
 import { ai } from '#plugins/ai/ai.ts';
+import { aiMetrics } from '#plugins/ai-metrics/ai-metrics.ts';
 import { fakeProvider, promptText, scripted, textAnswer, toolAnswer } from '#plugins/ai-testing.ts';
 import { rank } from '#plugins/rank/rank.ts';
 import { transcribe } from '#plugins/transcribe/transcribe.ts';
@@ -208,6 +210,31 @@ describe('memória', () => {
     await b.receive({ text: '!ls' });
 
     expect(b.sent).toContainText(/Conversas ativas: 1/);
+  });
+});
+
+describe('!luma stats com o aiMetrics', () => {
+  it('mostra respostas, tokens e custo da IA nos últimos dias', async () => {
+    bot = await createTestBot({
+      plugins: [metrics, ai, fakeProvider({ a: scripted('oi') }), aiMetrics, luma],
+      pluginConfig: {
+        ai: { models: [{ model: 'fake:a' }] },
+        'ai-metrics': {
+          prices: { 'fake:a': { inputPerMillion: 1_000_000, outputPerMillion: 2_000_000 } },
+        },
+        luma: FAST,
+      },
+    });
+    await bot.receive({ text: 'oi' });
+    await bot.receive({ text: 'e aí' });
+
+    await bot.receive({ text: '!luma stats' });
+
+    expect(bot.sent).toContainText(/últimos 7 dias/);
+    expect(bot.sent).toContainText(/Conversas ativas: 1/);
+    expect(bot.sent).toContainText(/Respostas: 2 \(100% de sucesso\)/);
+    expect(bot.sent).toContainText(/Tokens: 6 de entrada, 4 de saída/);
+    expect(bot.sent).toContainText(/Custo estimado: US\$\s14,00/);
   });
 });
 

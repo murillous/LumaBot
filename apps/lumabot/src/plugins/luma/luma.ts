@@ -15,6 +15,7 @@ import { createHistory, historyKey } from './history.ts';
 import { PersonaParseError, parsePersona, personaPrompt, slugify } from './persona-generator.ts';
 import { DEFAULT_PERSONA, PERSONAS, type Persona } from './personas.ts';
 import { buildPrompt, type QuotedInfo, quotedContext } from './prompt.ts';
+import { renderStats } from './stats.ts';
 import { isTriggered, stripTrigger } from './trigger.ts';
 
 /** A chat já tem as personas que a Luma deixa criar. */
@@ -74,6 +75,17 @@ const MESSAGES = {
   personaCreateFail: 'Eita, não rolou criar essa persona agora 🥺 Tenta de novo daqui a pouco?',
   personaDeleteOk: '🗑️ Pronto, apaguei a persona *{name}*.',
   personaDeleteActive: '\nComo era a que tava ativa, voltei pra padrão.',
+  statsTitle: '📊 *Estatísticas da Luma* (últimos {days} dias)',
+  statsConversations: '🧠 Conversas ativas: {count}',
+  statsResponses: '💬 Respostas: {count} ({rate} de sucesso)',
+  statsFallback: '↪️ Salvas pelo fallback: {count}',
+  statsTokens: '🔤 Tokens: {input} de entrada, {output} de saída',
+  statsLatency: '⚡ Latência: p50 {p50}, p95 {p95}',
+  statsCost: '💵 Custo estimado: {cost}',
+  statsUnpriced: '⚠️ Sem preço na tabela: {models}',
+  statsModelsTitle: '*Por modelo*',
+  statsModel: '• {model}: {count} respostas ({cost})',
+  statsNoData: 'Nenhuma resposta da IA registrada nesse período.',
   personaDeletePredefined:
     'Essa é de fábrica, não dá pra apagar 😅 Só dá pra deletar as que foram criadas aqui no chat.',
 };
@@ -463,14 +475,25 @@ export const luma: PluginDefinition = definePlugin({
 
     // ---- comandos -------------------------------------------------------------------------
 
-    const stats = (): string =>
-      `📊 *Estatísticas da Luma*\n\n🧠 Conversas ativas: ${history.size()}`;
+    const STATS_DAYS = 7;
+    /** Os números da IA vêm do `aiMetrics`, se ele existe; sem ele, só o que a Luma sabe sozinha. */
+    const stats = async (t: Parameters<typeof renderStats>[3]): Promise<string> => {
+      let summary = null;
+      if (ctx.services.has('aiMetrics')) {
+        try {
+          summary = await ctx.services.get('aiMetrics').summary({ days: STATS_DAYS });
+        } catch (err) {
+          ctx.log.warn('falha ao ler as métricas da IA', { err });
+        }
+      }
+      return renderStats(history.size(), summary, STATS_DAYS, t);
+    };
 
     ctx.commands.add({
       name: 'luma',
       aliases: ['lc', 'clear', 'ls'],
       description: 'Memória e estatísticas da Luma: `!luma clear` ou `!luma stats` (`!lc`, `!ls`)',
-      run: (c) => {
+      run: async (c) => {
         // Os atalhos do legacy (`!lc`, `!clear`, `!ls`) são alias do mesmo comando.
         const sub =
           c.invokedAs === 'lc' || c.invokedAs === 'clear'
@@ -482,7 +505,7 @@ export const luma: PluginDefinition = definePlugin({
           clearHistory(c.message);
           return c.t('historyCleared');
         }
-        if (sub === 'stats') return stats();
+        if (sub === 'stats') return stats(c.t);
         return c.t('lumaUsage');
       },
     });
