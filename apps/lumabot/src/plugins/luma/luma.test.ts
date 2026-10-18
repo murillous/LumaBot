@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { ai } from '#plugins/ai/ai.ts';
 import { fakeProvider, promptText, scripted, textAnswer, toolAnswer } from '#plugins/ai-testing.ts';
 import { rank } from '#plugins/rank/rank.ts';
+import { transcribe } from '#plugins/transcribe/transcribe.ts';
 import { luma } from './luma.ts';
 import { PERSONAS } from './personas.ts';
 
@@ -422,6 +423,25 @@ describe('mídia', () => {
     await b.receive({ voice: fixtures.voice() });
 
     expect(promptText(model)).toContain('não consegue ouvir');
+  });
+});
+
+describe('áudio com o plugin transcribe', () => {
+  it('a Luma ouve o áudio pela tool e responde, sem postar a transcrição no chat', async () => {
+    // 1ª chamada: a Luma pede a tool; 2ª: o transcribe transcreve; 3ª: a Luma responde.
+    const model = scripted(toolAnswer('transcribe_audio', {}), 'quero pizza hoje', 'boa, pizza!');
+    bot = await createTestBot({
+      plugins: [ai, fakeProvider({ a: model }), transcribe, luma],
+      pluginConfig: { ai: { models: [{ model: 'fake:a' }] }, luma: FAST },
+    });
+
+    await bot.receive({ voice: fixtures.voice() });
+
+    expect(bot.sent).toHaveReplied('boa, pizza!');
+    expect(bot.sent).not.toContainText(/quero pizza hoje/);
+    expect(promptText(model, 0)).toContain('Ouça-o com a ferramenta de transcrição');
+    // O texto transcrito volta ao modelo como resultado da tool.
+    expect(promptText(model, 2)).toContain('quero pizza hoje');
   });
 });
 
