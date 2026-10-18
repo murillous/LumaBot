@@ -8,13 +8,13 @@ import {
 } from '@usebridger/core';
 import { z } from 'zod';
 import { AiUnavailableError } from '#plugins/ai/ai.ts';
+import { cleanResponse, splitIntoParts } from '#plugins/ai-response.ts';
 import { aiTool, fail, mediaMessage, ok } from '#plugins/ai-tools.ts';
 import { createChatWindow } from '#plugins/chat-window.ts';
 import { createHistory, historyKey } from './history.ts';
 import { PersonaParseError, parsePersona, personaPrompt, slugify } from './persona-generator.ts';
 import { DEFAULT_PERSONA, PERSONAS, type Persona } from './personas.ts';
 import { buildPrompt, type QuotedInfo, quotedContext } from './prompt.ts';
-import { cleanResponse, splitIntoParts } from './response.ts';
 import { isTriggered, stripTrigger } from './trigger.ts';
 
 /** A chat já tem as personas que a Luma deixa criar. */

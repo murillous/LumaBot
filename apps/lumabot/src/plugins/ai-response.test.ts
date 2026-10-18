@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cleanResponse, splitIntoParts } from './response.ts';
+import { cleanResponse, splitIntoParts } from './ai-response.ts';
 
 describe('cleanResponse', () => {
   it('tira o raciocínio, o rótulo e os espaços', () => {
