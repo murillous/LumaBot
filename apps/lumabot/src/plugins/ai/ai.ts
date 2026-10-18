@@ -48,12 +48,25 @@ export interface AiAttempt {
  */
 export type AiObserver = (attempt: AiAttempt) => void | Promise<void>;
 
+/** Item da cadeia: o modelo (`provider:modelo`) e os parâmetros dele. */
+export interface ModelChainItem {
+  readonly model: string;
+  readonly temperature?: number | undefined;
+  readonly maxOutputTokens?: number | undefined;
+}
+
 export interface GenerateRequest {
   /** Quem chamou (`luma`, `resumo`...): separa o consumo por funcionalidade nas métricas. */
   readonly purpose: string;
   readonly instructions?: string;
   readonly messages: readonly ModelMessage[];
   readonly signal?: AbortSignal;
+  /**
+   * Cadeia só para esta chamada, no formato da config. Serve à finalidade que precisa de um
+   * modelo diferente do principal (a transcrição pede entrada de áudio, que o DeepSeek não tem).
+   * Tem o mesmo fallback, cooldown, prazo e observers; vazia ou ausente, vale a cadeia principal.
+   */
+  readonly models?: readonly ModelChainItem[];
 }
 
 export interface GenerateResult {
@@ -98,20 +111,22 @@ const BUILT_IN = {
 type BuiltIn = keyof typeof BUILT_IN;
 const BUILT_IN_NAMES = Object.keys(BUILT_IN) as BuiltIn[];
 
+/**
+ * Item da cadeia, na config e por chamada: o mesmo schema nos dois lugares, porque o `models` do
+ * `generate` é fronteira entre plugins e não pode aceitar o que a config recusaria.
+ */
+const chainItem = z.object({
+  model: z.string().regex(/^[a-z0-9-]+:.+$/, 'use provider:modelo'),
+  temperature: z.number().min(0).max(2).optional(),
+  maxOutputTokens: z.number().int().positive().optional(),
+});
+
 const config = z.object({
   /**
    * Cadeia de fallback em ordem, misturando providers. Cada item tem os próprios parâmetros,
    * porque a escala muda entre providers (`temperature` vai a 2 no Gemini e a 1 no Claude).
    */
-  models: z
-    .array(
-      z.object({
-        model: z.string().regex(/^[a-z0-9-]+:.+$/, 'use provider:modelo'),
-        temperature: z.number().min(0).max(2).optional(),
-        maxOutputTokens: z.number().int().positive().optional(),
-      }),
-    )
-    .default([]),
+  models: z.array(chainItem).default([]),
   /** Chaves dos providers embutidos; provider de outro plugin traz a própria config. */
   keys: z
     .object(
@@ -176,9 +191,12 @@ export const ai: PluginDefinition = definePlugin({
     ctx.services.provide('ai', {
       async generate(request) {
         const now = Date.now();
+        // Cadeia da chamada, validada como a da config; o cooldown abaixo é por modelo e vale
+        // para todas as cadeias, então um 429 numa finalidade poupa o modelo nas outras.
+        const active = request.models?.length ? z.array(chainItem).parse(request.models) : chain;
         // Em cooldown vai para o fim, não sai: com todos em 429, ainda vale tentar.
         const cooling = (m: { model: string }) => (coolingUntil.get(m.model) ?? 0) > now;
-        const order = [...chain.filter((m) => !cooling(m)), ...chain.filter(cooling)];
+        const order = [...active.filter((m) => !cooling(m)), ...active.filter(cooling)];
         const registered = providers.list();
 
         let lastError: unknown;

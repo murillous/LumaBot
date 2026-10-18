@@ -284,3 +284,102 @@ describe('ai.providers', () => {
     bot = await createTestBot({ plugins: [] });
   });
 });
+
+describe('ai.generate com models por chamada', () => {
+  it('percorre só a cadeia da chamada, com fallback entre os itens', async () => {
+    const principal = model('da principal');
+    const a = model(apiError(503));
+    const b = model('de b');
+    const ai = await start([{ model: 'fake:principal' }], [fake('fake', { principal, a, b })]);
+
+    const result = await ai.generate({ ...hi, models: [{ model: 'fake:a' }, { model: 'fake:b' }] });
+
+    expect(result.model).toBe('fake:b');
+    expect(principal.doGenerateCalls).toHaveLength(0);
+  });
+
+  it('usa os parâmetros do item da chamada', async () => {
+    const a = model('ok');
+    const ai = await start([{ model: 'fake:principal', temperature: 1 }], [fake('fake', { a })]);
+
+    await ai.generate({ ...hi, models: [{ model: 'fake:a', temperature: 0.2 }] });
+
+    expect(a.doGenerateCalls[0]?.temperature).toBe(0.2);
+  });
+
+  it('sem models, ou vazio, vale a cadeia principal', async () => {
+    const principal = model('da principal');
+    const ai = await start([{ model: 'fake:principal' }], [fake('fake', { principal })]);
+
+    expect((await ai.generate(hi)).model).toBe('fake:principal');
+    expect((await ai.generate({ ...hi, models: [] })).model).toBe('fake:principal');
+  });
+
+  it('funciona mesmo sem cadeia principal', async () => {
+    const a = model('ok');
+    const ai = await start([], [fake('fake', { a })]);
+
+    expect((await ai.generate({ ...hi, models: [{ model: 'fake:a' }] })).text).toBe('ok');
+  });
+
+  it('o 429 da cadeia principal vale para a da chamada (cooldown compartilhado)', async () => {
+    const a = model(apiError(429), 'de a');
+    const b = model('de b');
+    const ai = await start([{ model: 'fake:a' }], [fake('fake', { a, b })]);
+
+    await expect(ai.generate(hi)).rejects.toBeInstanceOf(AiUnavailableError);
+    const result = await ai.generate({ ...hi, models: [{ model: 'fake:a' }, { model: 'fake:b' }] });
+
+    expect(result.model).toBe('fake:b');
+    expect(a.doGenerateCalls).toHaveLength(1);
+  });
+
+  it('o 429 da cadeia da chamada vale para a principal', async () => {
+    const a = model(apiError(429), 'de a');
+    const b = model('de b');
+    const ai = await start([{ model: 'fake:a' }, { model: 'fake:b' }], [fake('fake', { a, b })]);
+
+    await ai.generate({ ...hi, models: [{ model: 'fake:a' }, { model: 'fake:b' }] });
+
+    expect((await ai.generate(hi)).model).toBe('fake:b');
+    expect(a.doGenerateCalls).toHaveLength(1);
+  });
+
+  it('pula o item sem provider e notifica os observers com purpose e model da chamada', async () => {
+    const seen: AiAttempt[] = [];
+    const ai = await start(
+      [{ model: 'fake:principal' }],
+      [fake('fake', { a: model('ok'), principal: model('x') })],
+      [(attempt) => void seen.push(attempt)],
+    );
+
+    await ai.generate({
+      ...hi,
+      purpose: 'transcribe',
+      models: [{ model: 'sumido:x' }, { model: 'fake:a' }],
+    });
+
+    expect(seen).toMatchObject([
+      { model: 'sumido:x', purpose: 'transcribe', outcome: 'unregistered' },
+      { model: 'fake:a', purpose: 'transcribe', position: 1, outcome: 'ok' },
+    ]);
+  });
+
+  it('recusa item fora do formato provider:modelo sem chamar ninguém', async () => {
+    const principal = model('x');
+    const ai = await start([{ model: 'fake:principal' }], [fake('fake', { principal })]);
+
+    await expect(ai.generate({ ...hi, models: [{ model: 'gemini' }] })).rejects.toThrow(
+      /provider:modelo/,
+    );
+    expect(principal.doGenerateCalls).toHaveLength(0);
+  });
+
+  it('recusa parâmetro fora da faixa', async () => {
+    const ai = await start([], [fake('fake', { a: model('x') })]);
+
+    await expect(
+      ai.generate({ ...hi, models: [{ model: 'fake:a', temperature: 5 }] }),
+    ).rejects.toThrow();
+  });
+});

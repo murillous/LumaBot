@@ -57,6 +57,33 @@ const { text, model, usage } = await ctx.services.get('ai').generate({
 
 Quem depende declara `dependsOn: { ai: '^0.1.0' }`.
 
+### Modelo por finalidade (`models`)
+
+Cada finalidade pode usar um modelo diferente do principal sem afetar a cadeia principal. O
+`generate` aceita `models` opcional, no mesmo formato da config:
+
+```ts
+await ai.generate({
+  purpose: 'transcribe',
+  messages,
+  // Só esta chamada: o DeepSeek, da cadeia principal, não tem entrada de áudio.
+  models: [{ model: 'google:gemini-2.5-flash' }],
+});
+```
+
+- Com `models`, a chamada percorre **só essa cadeia**, com o mesmo fallback, prazo e observers.
+  Sem `models`, ou vazio, vale a cadeia principal; quem já chama o `generate` não muda.
+- O cooldown é por modelo e compartilhado entre as cadeias: um 429 numa finalidade põe o modelo
+  no fim da fila em todas.
+- Item sem provider registrado (sem chave, ou plugin desligado) é pulado e notificado como
+  `unregistered`, como na cadeia principal. Se nenhum item atender, o `generate` lança
+  `AiUnavailableError`.
+- O formato é validado a cada chamada (`provider:modelo`, `temperature` de 0 a 2,
+  `maxOutputTokens` inteiro positivo), porque é fronteira entre plugins: o `generate` com
+  `models` inválido rejeita sem chamar nenhum modelo.
+- Cada plugin que chama a IA expõe um campo `models` na própria config e o repassa ao `generate`.
+  Vazio usa a cadeia principal; trocar o modelo de uma finalidade é config do plugin dela.
+
 ## Ponto `ai.providers`
 
 Provider novo (Ollama, OpenRouter...) é um plugin que contribui no ponto, sem editar o `ai`:
