@@ -197,14 +197,14 @@ importers:
         specifier: ^4.0.95
         version: 4.0.95(zod@4.6.5)
       '@usebridger/core':
-        specifier: ^0.7.1
-        version: 0.7.1
+        specifier: ^0.9.0
+        version: 0.9.0
       '@usebridger/storage-sqlite':
-        specifier: ^0.3.0
-        version: 0.3.0
+        specifier: ^0.3.2
+        version: 0.3.2
       '@usebridger/transport-baileys':
-        specifier: ^0.4.3
-        version: 0.4.3(sharp@0.35.5(@types/node@24.19.1))
+        specifier: ^0.5.0
+        version: 0.5.0(sharp@0.35.5(@types/node@24.19.1))
       ai:
         specifier: ^7.0.142
         version: 7.0.142(zod@4.6.5)
@@ -228,8 +228,8 @@ importers:
         specifier: ^0.12.2
         version: 0.12.2
       '@usebridger/testing':
-        specifier: ^0.6.2
-        version: 0.6.2(vitest@5.0.3(@types/node@24.19.1)(vite@8.3.2(@types/node@24.19.1)(yaml@2.9.1)))
+        specifier: ^0.6.4
+        version: 0.6.4(vitest@5.0.3(@types/node@24.19.1)(vite@8.3.2(@types/node@24.19.1)(yaml@2.9.1)))
 
 packages:
 
@@ -829,19 +829,19 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@usebridger/core@0.7.1':
-    resolution: {integrity: sha512-LXtbVKipBsIZcWxWw+7CktYLtv2Ct3IsblufK5RpirUT5tyygPn6ifkRapNM+6+Rge4SkT8esA4XeqnXCXoQJQ==}
+  '@usebridger/core@0.9.0':
+    resolution: {integrity: sha512-jqOTokAajWSKThIY0+X2VQSo8/QpthCEpwGtQOCO9ZuAVkiMKppmU97JKCQH/YeYn0rDHkXiduszQTPyRY44/Q==}
 
-  '@usebridger/storage-sqlite@0.3.0':
-    resolution: {integrity: sha512-ilY+UD4EhPJRHpk/ZTjd25j5nQy+59W2YU4HhctDc4E5kQVPtvkOmQF13JiCi9PHO0SE2hm83YzvklyZsKmxgw==}
+  '@usebridger/storage-sqlite@0.3.2':
+    resolution: {integrity: sha512-ObyupH4MdLxhZN9FaWijR4VYpiErPGwDfDAmbTt2D6RF0TZ2uDE2Pz0DyRT2OpOHedKhI1QSoJKzPXkH+zRa1Q==}
 
-  '@usebridger/testing@0.6.2':
-    resolution: {integrity: sha512-AmtmuFjiwV3v4ysaAAw2FUIJToD0ZhC4xtXASO93DkJvRFiSnrwIrV1yU2dIcFR8iaNcozbxm7dJ4BOMMU3D/A==}
+  '@usebridger/testing@0.6.4':
+    resolution: {integrity: sha512-Bdrl67iinUPtjUzRc4lSFVw342ypQqpXriON2B5EzpUb6iOKaRCUMkC9ExcJiKayspPfCACtkvd3SQO0R7ozrQ==}
     peerDependencies:
       vitest: ^5.0.0
 
-  '@usebridger/transport-baileys@0.4.3':
-    resolution: {integrity: sha512-IG0P9v2aASmLLFcrxy0aOH7cZSk99icU9m7ZPmsbXHP4N6gJObedlWSmCk1scDWYL/J4KYp7Ptiu4sI31yJuRQ==}
+  '@usebridger/transport-baileys@0.5.0':
+    resolution: {integrity: sha512-6fCc++3jUTcsdOecq68szmAOg3mPzORcgsQGLBFaoYpwk4NhD2THNpQHF7T/iMJZ+Z3iRSxSOaL4zsHkU21dEg==}
 
   '@vercel/oidc@3.2.0':
     resolution: {integrity: sha512-UycprH3T6n3jH0k44NHMa7pnFHGu/N05MjojYr+Mc6I7obkoLIJujSWwin1pCvdy/eOxrI/l3uDLQsmcrOb4ug==}
@@ -2069,7 +2069,7 @@ snapshots:
   '@typescript/typescript-win32-x64@7.0.2':
     optional: true
 
-  '@usebridger/core@0.7.1':
+  '@usebridger/core@0.9.0':
     dependencies:
       '@hono/node-server': 2.1.4(hono@4.13.13)
       hono: 4.13.13
@@ -2080,24 +2080,24 @@ snapshots:
       - bufferutil
       - utf-8-validate
 
-  '@usebridger/storage-sqlite@0.3.0':
+  '@usebridger/storage-sqlite@0.3.2':
     dependencies:
-      '@usebridger/core': 0.7.1
+      '@usebridger/core': 0.9.0
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
 
-  '@usebridger/testing@0.6.2(vitest@5.0.3(@types/node@24.19.1)(vite@8.3.2(@types/node@24.19.1)(yaml@2.9.1)))':
+  '@usebridger/testing@0.6.4(vitest@5.0.3(@types/node@24.19.1)(vite@8.3.2(@types/node@24.19.1)(yaml@2.9.1)))':
     dependencies:
-      '@usebridger/core': 0.7.1
+      '@usebridger/core': 0.9.0
       vitest: 5.0.3(@types/node@24.19.1)(vite@8.3.2(@types/node@24.19.1)(yaml@2.9.1))
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
 
-  '@usebridger/transport-baileys@0.4.3(sharp@0.35.5(@types/node@24.19.1))':
+  '@usebridger/transport-baileys@0.5.0(sharp@0.35.5(@types/node@24.19.1))':
     dependencies:
-      '@usebridger/core': 0.7.1
+      '@usebridger/core': 0.9.0
       baileys: 7.0.0-rc14(sharp@0.35.5(@types/node@24.19.1))
     transitivePeerDependencies:
       - audio-decode
