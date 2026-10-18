@@ -7,6 +7,7 @@ import { baileys } from '@usebridger/transport-baileys';
 import { loadConfig } from '#config.ts';
 import { ai } from '#plugins/ai/ai.ts';
 import { download } from '#plugins/download/download.ts';
+import { giveUp } from '#plugins/give-up.ts';
 import { help } from '#plugins/help/help.ts';
 import { pairing } from '#plugins/pairing.ts';
 import { pdf } from '#plugins/pdf/pdf.ts';
@@ -38,6 +39,11 @@ const bot = createBot({
   secrets,
   plugins: [
     pairing((text) => process.stdout.write(text)),
+    // O core já logou o motivo; sem `await`, o listener termina e o stop não espera por ele.
+    giveUp(() => {
+      process.exitCode = 1;
+      bot.stop().catch((err: unknown) => log.error('falha ao encerrar', { err }));
+    }),
     ping,
     ai,
     help,
