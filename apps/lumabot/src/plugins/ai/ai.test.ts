@@ -3,6 +3,8 @@ import { createTestBot, type TestBot } from '@usebridger/testing';
 import { APICallError } from 'ai';
 import { MockLanguageModelV4 } from 'ai/test';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { z } from 'zod';
+import { aiTool, ok } from '#plugins/ai-tools.ts';
 import {
   type AiAttempt,
   type AiObserver,
@@ -381,5 +383,154 @@ describe('ai.generate com models por chamada', () => {
     await expect(
       ai.generate({ ...hi, models: [{ model: 'fake:a', temperature: 5 }] }),
     ).rejects.toThrow();
+  });
+});
+
+describe('ai.generate com tools', () => {
+  const toolCall = (name: string, input: unknown) => ({
+    content: [
+      { type: 'text' as const, text: 'já vi' },
+      {
+        type: 'tool-call' as const,
+        toolCallId: `call-${name}`,
+        toolName: name,
+        input: JSON.stringify(input),
+      },
+    ],
+    finishReason: { unified: 'tool-calls' as const, raw: undefined },
+    usage: answer('').usage,
+    warnings: [],
+  });
+
+  /** Modelo que chama a tool no 1º passo e responde no 2º, guardando o que recebeu. */
+  const toolModel = (name: string, input: unknown, final = 'feito') => {
+    let step = 0;
+    return new MockLanguageModelV4({
+      doGenerate: async () => (step++ === 0 ? toolCall(name, input) : answer(final)),
+    });
+  };
+
+  // Plugin consumidor: contribui as tools e chama o `generate` com o contexto de um comando.
+  let last: Awaited<ReturnType<AiService['generate']>> | undefined;
+  const runs: unknown[] = [];
+  const caller = (providers: AiProvider[]) =>
+    definePlugin({
+      name: 'caller',
+      version: '0.0.0',
+      engine: '<1.0.0',
+      dependsOn: { ai: '^0.1.0' },
+      setup: (ctx) => {
+        for (const p of providers) ctx.services.contribute('ai.providers', p);
+        ctx.services.contribute(
+          'ai.tools',
+          aiTool({
+            name: 'echo',
+            description: 'devolve o texto',
+            args: z.object({ text: z.string() }),
+            run: async ({ text }) => {
+              runs.push(text);
+              return ok({ echoed: text });
+            },
+          }),
+        );
+        ctx.services.contribute(
+          'ai.tools',
+          aiTool({
+            name: 'only_sticker',
+            description: 'precisa de figurinha',
+            args: z.object({}),
+            requires: ['send.sticker'],
+            run: async () => ok(),
+          }),
+        );
+        ctx.commands.add({
+          name: 'ask',
+          run: async (c) => {
+            last = await ctx.services.get('ai').generate({
+              ...hi,
+              toolContext: { message: c.message, reply: c.reply, signal: c.signal, log: c.log },
+            });
+            return last.text;
+          },
+        });
+      },
+    });
+
+  async function ask(chain: Record<string, MockLanguageModelV4>, profile?: 'web') {
+    runs.length = 0;
+    last = undefined;
+    bot = await createTestBot({
+      plugins: [ai, caller([fake('fake', chain)])],
+      pluginConfig: { ai: { models: [{ model: 'fake:a' }, { model: 'fake:b' }] } },
+      ...(profile ? { profile } : {}),
+    });
+    await bot.receive({ text: '!ask' });
+  }
+
+  it('oferece as tools ao modelo, roda a chamada e devolve o resultado a ele', async () => {
+    const a = toolModel('echo', { text: 'oi' });
+    await ask({ a });
+
+    expect(runs).toEqual(['oi']);
+    expect(last?.toolCalls).toEqual([
+      { name: 'echo', args: { text: 'oi' }, result: { ok: true, echoed: 'oi' } },
+    ]);
+    expect(last?.text).toBe('feito');
+    const offered = a.doGenerateCalls[0]?.tools?.map((t) => t.name);
+    expect(offered).toContain('echo');
+    // O resultado da tool volta para o modelo no 2º passo.
+    expect(JSON.stringify(a.doGenerateCalls[1]?.prompt)).toContain('echoed');
+  });
+
+  it('não oferece a tool cujo transport não tem a capability', async () => {
+    const a = toolModel('echo', { text: 'oi' });
+    await ask({ a }, 'web');
+
+    const offered = a.doGenerateCalls[0]?.tools?.map((t) => t.name);
+    expect(offered).toEqual(['echo']);
+  });
+
+  it('argumento inválido volta ao modelo como invalid-args, sem rodar a tool', async () => {
+    const a = toolModel('echo', { text: 42 });
+    await ask({ a });
+
+    expect(runs).toEqual([]);
+    expect(last?.toolCalls[0]?.result).toMatchObject({ ok: false, error: 'invalid-args' });
+    expect(last?.text).toBe('feito');
+  });
+
+  it('sem toolContext a chamada é só texto', async () => {
+    const a = model('oi');
+    const generate = await start([{ model: 'fake:a' }], [fake('fake', { a })]);
+
+    const result = await generate.generate(hi);
+
+    expect(a.doGenerateCalls[0]?.tools).toBeUndefined();
+    expect(result.toolCalls).toEqual([]);
+  });
+
+  it('se o modelo falha depois de uma tool rodar, não repete a tool no próximo modelo', async () => {
+    let step = 0;
+    const a = new MockLanguageModelV4({
+      doGenerate: async () => {
+        if (step++ === 0) return toolCall('echo', { text: 'uma vez' });
+        throw apiError(503);
+      },
+    });
+    const b = model('de b');
+    await ask({ a, b }).catch(() => undefined);
+
+    expect(runs).toEqual(['uma vez']);
+    expect(b.doGenerateCalls).toHaveLength(0);
+  });
+
+  it('usa o texto dos passos anteriores quando o último vem vazio', async () => {
+    let step = 0;
+    const a = new MockLanguageModelV4({
+      doGenerate: async () => (step++ === 0 ? toolCall('echo', { text: 'x' }) : answer('')),
+    });
+    await ask({ a });
+
+    expect(last?.text).toBe('já vi');
   });
 });
