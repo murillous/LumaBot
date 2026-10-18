@@ -1,8 +1,10 @@
 import { definePlugin } from '@usebridger/core';
 import { createTestBot, type TestBot } from '@usebridger/testing';
-import { APICallError } from 'ai';
+import { APICallError, jsonSchema, tool } from 'ai';
 import { MockLanguageModelV4 } from 'ai/test';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { z } from 'zod';
+import { aiTool, ok } from '#plugins/ai-tools.ts';
 import {
   type AiAttempt,
   type AiObserver,
@@ -282,5 +284,322 @@ describe('ai.providers', () => {
       createTestBot({ plugins: [ai], pluginConfig: { ai: { models: [{ model: 'gemini' }] } } }),
     ).rejects.toThrow(/provider:modelo/);
     bot = await createTestBot({ plugins: [] });
+  });
+});
+
+describe('ai.generate com models por chamada', () => {
+  it('percorre só a cadeia da chamada, com fallback entre os itens', async () => {
+    const principal = model('da principal');
+    const a = model(apiError(503));
+    const b = model('de b');
+    const ai = await start([{ model: 'fake:principal' }], [fake('fake', { principal, a, b })]);
+
+    const result = await ai.generate({ ...hi, models: [{ model: 'fake:a' }, { model: 'fake:b' }] });
+
+    expect(result.model).toBe('fake:b');
+    expect(principal.doGenerateCalls).toHaveLength(0);
+  });
+
+  it('usa os parâmetros do item da chamada', async () => {
+    const a = model('ok');
+    const ai = await start([{ model: 'fake:principal', temperature: 1 }], [fake('fake', { a })]);
+
+    await ai.generate({ ...hi, models: [{ model: 'fake:a', temperature: 0.2 }] });
+
+    expect(a.doGenerateCalls[0]?.temperature).toBe(0.2);
+  });
+
+  it('sem models, ou vazio, vale a cadeia principal', async () => {
+    const principal = model('da principal');
+    const ai = await start([{ model: 'fake:principal' }], [fake('fake', { principal })]);
+
+    expect((await ai.generate(hi)).model).toBe('fake:principal');
+    expect((await ai.generate({ ...hi, models: [] })).model).toBe('fake:principal');
+  });
+
+  it('funciona mesmo sem cadeia principal', async () => {
+    const a = model('ok');
+    const ai = await start([], [fake('fake', { a })]);
+
+    expect((await ai.generate({ ...hi, models: [{ model: 'fake:a' }] })).text).toBe('ok');
+  });
+
+  it('o 429 da cadeia principal vale para a da chamada (cooldown compartilhado)', async () => {
+    const a = model(apiError(429), 'de a');
+    const b = model('de b');
+    const ai = await start([{ model: 'fake:a' }], [fake('fake', { a, b })]);
+
+    await expect(ai.generate(hi)).rejects.toBeInstanceOf(AiUnavailableError);
+    const result = await ai.generate({ ...hi, models: [{ model: 'fake:a' }, { model: 'fake:b' }] });
+
+    expect(result.model).toBe('fake:b');
+    expect(a.doGenerateCalls).toHaveLength(1);
+  });
+
+  it('o 429 da cadeia da chamada vale para a principal', async () => {
+    const a = model(apiError(429), 'de a');
+    const b = model('de b');
+    const ai = await start([{ model: 'fake:a' }, { model: 'fake:b' }], [fake('fake', { a, b })]);
+
+    await ai.generate({ ...hi, models: [{ model: 'fake:a' }, { model: 'fake:b' }] });
+
+    expect((await ai.generate(hi)).model).toBe('fake:b');
+    expect(a.doGenerateCalls).toHaveLength(1);
+  });
+
+  it('pula o item sem provider e notifica os observers com purpose e model da chamada', async () => {
+    const seen: AiAttempt[] = [];
+    const ai = await start(
+      [{ model: 'fake:principal' }],
+      [fake('fake', { a: model('ok'), principal: model('x') })],
+      [(attempt) => void seen.push(attempt)],
+    );
+
+    await ai.generate({
+      ...hi,
+      purpose: 'transcribe',
+      models: [{ model: 'sumido:x' }, { model: 'fake:a' }],
+    });
+
+    expect(seen).toMatchObject([
+      { model: 'sumido:x', purpose: 'transcribe', outcome: 'unregistered' },
+      { model: 'fake:a', purpose: 'transcribe', position: 1, outcome: 'ok' },
+    ]);
+  });
+
+  it('recusa item fora do formato provider:modelo sem chamar ninguém', async () => {
+    const principal = model('x');
+    const ai = await start([{ model: 'fake:principal' }], [fake('fake', { principal })]);
+
+    await expect(ai.generate({ ...hi, models: [{ model: 'gemini' }] })).rejects.toThrow(
+      /provider:modelo/,
+    );
+    expect(principal.doGenerateCalls).toHaveLength(0);
+  });
+
+  it('recusa parâmetro fora da faixa', async () => {
+    const ai = await start([], [fake('fake', { a: model('x') })]);
+
+    await expect(
+      ai.generate({ ...hi, models: [{ model: 'fake:a', temperature: 5 }] }),
+    ).rejects.toThrow();
+  });
+});
+
+describe('ai.generate com tools', () => {
+  const toolCall = (name: string, input: unknown) => ({
+    content: [
+      { type: 'text' as const, text: 'já vi' },
+      {
+        type: 'tool-call' as const,
+        toolCallId: `call-${name}`,
+        toolName: name,
+        input: JSON.stringify(input),
+      },
+    ],
+    finishReason: { unified: 'tool-calls' as const, raw: undefined },
+    usage: answer('').usage,
+    warnings: [],
+  });
+
+  /** Modelo que chama a tool no 1º passo e responde no 2º, guardando o que recebeu. */
+  const toolModel = (name: string, input: unknown, final = 'feito') => {
+    let step = 0;
+    return new MockLanguageModelV4({
+      doGenerate: async () => (step++ === 0 ? toolCall(name, input) : answer(final)),
+    });
+  };
+
+  // Plugin consumidor: contribui as tools e chama o `generate` com o contexto de um comando.
+  let last: Awaited<ReturnType<AiService['generate']>> | undefined;
+  const runs: unknown[] = [];
+  const caller = (providers: AiProvider[]) =>
+    definePlugin({
+      name: 'caller',
+      version: '0.0.0',
+      engine: '<1.0.0',
+      dependsOn: { ai: '^0.1.0' },
+      setup: (ctx) => {
+        for (const p of providers) ctx.services.contribute('ai.providers', p);
+        ctx.services.contribute(
+          'ai.tools',
+          aiTool({
+            name: 'echo',
+            description: 'devolve o texto',
+            args: z.object({ text: z.string() }),
+            run: async ({ text }) => {
+              runs.push(text);
+              return ok({ echoed: text });
+            },
+          }),
+        );
+        ctx.services.contribute(
+          'ai.tools',
+          aiTool({
+            name: 'only_sticker',
+            description: 'precisa de figurinha',
+            args: z.object({}),
+            requires: ['send.sticker'],
+            run: async () => ok(),
+          }),
+        );
+        ctx.commands.add({
+          name: 'ask',
+          run: async (c) => {
+            last = await ctx.services.get('ai').generate({
+              ...hi,
+              toolContext: { message: c.message, reply: c.reply, signal: c.signal, log: c.log },
+            });
+            return last.text;
+          },
+        });
+      },
+    });
+
+  async function ask(chain: Record<string, MockLanguageModelV4>, profile?: 'web') {
+    runs.length = 0;
+    last = undefined;
+    bot = await createTestBot({
+      plugins: [ai, caller([fake('fake', chain)])],
+      pluginConfig: { ai: { models: [{ model: 'fake:a' }, { model: 'fake:b' }] } },
+      ...(profile ? { profile } : {}),
+    });
+    await bot.receive({ text: '!ask' });
+  }
+
+  it('oferece as tools ao modelo, roda a chamada e devolve o resultado a ele', async () => {
+    const a = toolModel('echo', { text: 'oi' });
+    await ask({ a });
+
+    expect(runs).toEqual(['oi']);
+    expect(last?.toolCalls).toEqual([
+      { name: 'echo', args: { text: 'oi' }, result: { ok: true, echoed: 'oi' } },
+    ]);
+    expect(last?.text).toBe('feito');
+    const offered = a.doGenerateCalls[0]?.tools?.map((t) => t.name);
+    expect(offered).toContain('echo');
+    // O resultado da tool volta para o modelo no 2º passo.
+    expect(JSON.stringify(a.doGenerateCalls[1]?.prompt)).toContain('echoed');
+  });
+
+  it('não oferece a tool cujo transport não tem a capability', async () => {
+    const a = toolModel('echo', { text: 'oi' });
+    await ask({ a }, 'web');
+
+    const offered = a.doGenerateCalls[0]?.tools?.map((t) => t.name);
+    expect(offered).toEqual(['echo']);
+  });
+
+  it('argumento inválido volta ao modelo como invalid-args, sem rodar a tool', async () => {
+    const a = toolModel('echo', { text: 42 });
+    await ask({ a });
+
+    expect(runs).toEqual([]);
+    expect(last?.toolCalls[0]?.result).toMatchObject({ ok: false, error: 'invalid-args' });
+    expect(last?.text).toBe('feito');
+  });
+
+  it('sem toolContext a chamada é só texto', async () => {
+    const a = model('oi');
+    const generate = await start([{ model: 'fake:a' }], [fake('fake', { a })]);
+
+    const result = await generate.generate(hi);
+
+    expect(a.doGenerateCalls[0]?.tools).toBeUndefined();
+    expect(result.toolCalls).toEqual([]);
+  });
+
+  it('se o modelo falha depois de uma tool rodar, não repete a tool no próximo modelo', async () => {
+    let step = 0;
+    const a = new MockLanguageModelV4({
+      doGenerate: async () => {
+        if (step++ === 0) return toolCall('echo', { text: 'uma vez' });
+        throw apiError(503);
+      },
+    });
+    const b = model('de b');
+    await ask({ a, b }).catch(() => undefined);
+
+    expect(runs).toEqual(['uma vez']);
+    expect(b.doGenerateCalls).toHaveLength(0);
+  });
+
+  it('usa o texto dos passos anteriores quando o último vem vazio', async () => {
+    let step = 0;
+    const a = new MockLanguageModelV4({
+      doGenerate: async () => (step++ === 0 ? toolCall('echo', { text: 'x' }) : answer('')),
+    });
+    await ask({ a });
+
+    expect(last?.text).toBe('já vi');
+  });
+});
+
+describe('ai.generate com busca nativa', () => {
+  const searchTool = () => ({
+    web: tool({
+      description: 'busca',
+      inputSchema: jsonSchema<unknown>({ type: 'object', properties: {} }),
+      execute: async () => 'achei',
+    }),
+  });
+
+  it('oferece a busca do provider e pula o item cujo provider não tem', async () => {
+    const noSearch = model('sem busca');
+    const withSearch = model('com busca');
+    const ai = await start(
+      [{ model: 'plain:a' }, { model: 'smart:b' }],
+      [
+        fake('plain', { a: noSearch }),
+        { ...fake('smart', { b: withSearch }), nativeSearch: searchTool },
+      ],
+    );
+
+    const result = await ai.generate({ ...hi, nativeSearch: true });
+
+    expect(result.model).toBe('smart:b');
+    expect(noSearch.doGenerateCalls).toHaveLength(0);
+    expect(withSearch.doGenerateCalls[0]?.tools?.map((t) => t.name)).toEqual(['web']);
+  });
+
+  it('sem nativeSearch, a busca do provider não é oferecida', async () => {
+    const a = model('ok');
+    const ai = await start(
+      [{ model: 'smart:a' }],
+      [{ ...fake('smart', { a }), nativeSearch: searchTool }],
+    );
+
+    await ai.generate(hi);
+
+    expect(a.doGenerateCalls[0]?.tools).toBeUndefined();
+  });
+
+  it('nenhum item com busca: recusa, em vez de responder sem buscar', async () => {
+    const ai = await start([{ model: 'plain:a' }], [fake('plain', { a: model('x') })]);
+
+    await expect(ai.generate({ ...hi, nativeSearch: true })).rejects.toBeInstanceOf(
+      AiUnavailableError,
+    );
+  });
+
+  it('o Gemini embutido traz a busca; os outros embutidos, não', async () => {
+    let listed: AiProvider[] = [];
+    const spy = definePlugin({
+      name: 'spy',
+      version: '0.0.0',
+      engine: '<1.0.0',
+      dependsOn: { ai: '^0.1.0' },
+      setup: (ctx) => {
+        listed = [...ctx.services.extensionPoint('ai.providers').list()];
+      },
+    });
+    bot = await createTestBot({
+      plugins: [ai, spy],
+      pluginConfig: { ai: { keys: { google: 'g-key', openai: 'o-key' } } },
+    });
+
+    const byName = Object.fromEntries(listed.map((p) => [p.name, p]));
+    expect(Object.keys(byName['google']?.nativeSearch?.() ?? {})).toEqual(['google_search']);
+    expect(byName['openai']?.nativeSearch).toBeUndefined();
   });
 });

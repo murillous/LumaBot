@@ -13,7 +13,7 @@ Só entram comandos com `description` e papel `everyone`, ou `group-admin` quand
 remetente ao serviço, então `owner` e papéis custom ficam sempre de fora, mesmo para quem os pode
 rodar.
 
-Os blocos e a ordem deles ficam em `GROUPS` (`help.ts`): 🎨 Mídia, 🏆 Social e 🛠️ Utilitários,
+Os blocos e a ordem deles ficam em `GROUPS` (`help.ts`): 🎨 Mídia, 🧠 Inteligência artificial, 🏆 Social e 🛠️ Utilitários,
 cada um com os nomes dos plugins que agrupa. Plugin fora da lista cai em 📦 Outros, no fim. Dentro
 do bloco, a ordem é a de registro. Plugin novo com comando: inclua o nome dele em `GROUPS`.
 

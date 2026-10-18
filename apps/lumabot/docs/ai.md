@@ -2,8 +2,11 @@
 
 Gera texto por uma cadeia de modelos com fallback entre providers, pelo
 [Vercel AI SDK](https://ai-sdk.dev) ([ADR 0004](../../../docs/adr/0004-providers-da-ia-pelo-ai-sdk.md)).
-Oferece o serviço `ai` e os pontos `ai.providers` e `ai.observers`. Ainda não tem comando:
-histórico, personas, tools e o gatilho da Luma chegam nas próximas sub-issues do M5-1.
+Oferece o serviço `ai` e os pontos `ai.providers` e `ai.observers`, e roda as tools do ponto
+[`ai.tools`](ai-tools.md). O `ai` não tem comando nem gatilho: quem decide quando responder, o
+histórico e a persona são da [`luma`](luma.md)
+([ADR 0005](../../../docs/adr/0005-a-luma-e-um-plugin-a-parte-do-ai.md)); `resumo`, `spontaneous`,
+`transcribe` e `web-search` chamam o `generate` direto.
 
 ## Config
 
@@ -13,6 +16,7 @@ histórico, personas, tools e o gatilho da Luma chegam nas próximas sub-issues 
 | `keys.google`, `keys.openai`, `keys.anthropic`, `keys.deepseek` | — | Chave (secreta) de cada provider embutido |
 | `timeoutMs` | `60000` | Prazo de cada tentativa |
 | `cooldownMs` | `60000` | Tempo que um modelo que respondeu 429 passa no fim da cadeia |
+| `maxToolSteps` | `5` | Passos do modelo numa resposta com tools (chamar, ler o resultado e responder são dois) |
 
 Por ambiente:
 
@@ -57,6 +61,63 @@ const { text, model, usage } = await ctx.services.get('ai').generate({
 
 Quem depende declara `dependsOn: { ai: '^0.1.0' }`.
 
+### Modelo por finalidade (`models`)
+
+
+Cada finalidade pode usar um modelo diferente do principal sem afetar a cadeia principal. O
+`generate` aceita `models` opcional, no mesmo formato da config:
+
+```ts
+await ai.generate({
+  purpose: 'transcribe',
+  messages,
+  // Só esta chamada: o DeepSeek, da cadeia principal, não tem entrada de áudio.
+  models: [{ model: 'google:gemini-2.5-flash' }],
+});
+```
+
+- Com `models`, a chamada percorre **só essa cadeia**, com o mesmo fallback, prazo e observers.
+  Sem `models`, ou vazio, vale a cadeia principal; quem já chama o `generate` não muda.
+- O cooldown é por modelo e compartilhado entre as cadeias: um 429 numa finalidade põe o modelo
+  no fim da fila em todas.
+- Item sem provider registrado (sem chave, ou plugin desligado) é pulado e notificado como
+  `unregistered`, como na cadeia principal. Se nenhum item atender, o `generate` lança
+  `AiUnavailableError`.
+- O formato é validado a cada chamada (`provider:modelo`, `temperature` de 0 a 2,
+  `maxOutputTokens` inteiro positivo), porque é fronteira entre plugins: o `generate` com
+  `models` inválido rejeita sem chamar nenhum modelo.
+- Cada plugin que chama a IA expõe um campo `models` na própria config e o repassa ao `generate`.
+  Vazio usa a cadeia principal; trocar o modelo de uma finalidade é config do plugin dela.
+
+### Tool calling (`toolContext`)
+
+Com `toolContext` (a mensagem que originou a conversa), o `generate` oferece ao modelo as tools do
+ponto `ai.tools` que o transport atende (`offeredTools`) e roda cada chamada por `invokeTool`:
+argumento inválido volta ao modelo como `invalid-args`, e exceção da tool como `failed`. O
+resultado traz `toolCalls` (nome, argumentos e o que a tool devolveu). Sem `toolContext`, a chamada
+é só texto.
+
+```ts
+const { text, toolCalls } = await ai.generate({
+  purpose: 'luma',
+  messages,
+  toolContext: { message, reply, signal, log },
+});
+```
+
+- O texto é o do último passo; se veio vazio, o dos passos anteriores.
+- **Se o modelo falha depois de uma tool rodar, a cadeia não tenta o próximo modelo**: repetir o
+  efeito (um lembrete, uma figurinha) seria pior que devolver o erro. Antes de qualquer tool, o
+  fallback é o de sempre.
+
+### Busca nativa (`nativeSearch`)
+
+`generate({ nativeSearch: true })` responde com a busca que o próprio provider executa (o Google
+Grounding do Gemini). Só os itens da cadeia cujo provider declara `nativeSearch()` são tentados;
+os outros são **pulados** com um aviso, porque responder sem buscar seria inventar. Se nenhum
+atende, `AiUnavailableError`. O plugin [`web-search`](web-search.md) usa isso como fallback do
+Tavily.
+
 ## Ponto `ai.providers`
 
 Provider novo (Ollama, OpenRouter...) é um plugin que contribui no ponto, sem editar o `ai`:
@@ -74,7 +135,8 @@ setup(ctx) {
 }
 ```
 
-Depois disso, `ollama:llama3` passa a valer na cadeia. Os quatro embutidos entram pelo mesmo
+Depois disso, `ollama:llama3` passa a valer na cadeia. O provider pode declarar também
+`nativeSearch(): ToolSet` (a busca nativa dele); o embutido do Gemini já o faz. Os quatro embutidos entram pelo mesmo
 ponto, contribuídos pelo `ai`, só os que têm `keys.<nome>`. Com dois providers de mesmo nome,
 vale o primeiro na ordem de carga.
 

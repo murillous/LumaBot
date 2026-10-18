@@ -199,6 +199,9 @@ importers:
       '@usebridger/core':
         specifier: ^0.9.0
         version: 0.9.0
+      '@usebridger/plugin-metrics':
+        specifier: ^0.2.0
+        version: 0.2.0
       '@usebridger/storage-sqlite':
         specifier: ^0.3.2
         version: 0.3.2
@@ -831,6 +834,9 @@ packages:
 
   '@usebridger/core@0.9.0':
     resolution: {integrity: sha512-jqOTokAajWSKThIY0+X2VQSo8/QpthCEpwGtQOCO9ZuAVkiMKppmU97JKCQH/YeYn0rDHkXiduszQTPyRY44/Q==}
+
+  '@usebridger/plugin-metrics@0.2.0':
+    resolution: {integrity: sha512-uSLEoxEMkBpdAXgnPvBuaFNPj1wFA4UNmCsiWEAkaSRHH1z5rZgKT/KkuXaYF6zhAXZs9kul3YTG7qrOiA2vFw==}
 
   '@usebridger/storage-sqlite@0.3.2':
     resolution: {integrity: sha512-ObyupH4MdLxhZN9FaWijR4VYpiErPGwDfDAmbTt2D6RF0TZ2uDE2Pz0DyRT2OpOHedKhI1QSoJKzPXkH+zRa1Q==}
@@ -2076,6 +2082,13 @@ snapshots:
       pino: 10.4.0
       ws: 8.22.0
       zod: 4.6.5
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
+
+  '@usebridger/plugin-metrics@0.2.0':
+    dependencies:
+      '@usebridger/core': 0.9.0
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate

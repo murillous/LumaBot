@@ -22,9 +22,9 @@ o que o usuário recebe sai como resposta no chat.
 ## Quem conta
 
 Só o serviço `rank.record(chatId, senderId)` conta. No legacy, o único chamador era o fluxo da
-IA (`LumaPlugin`, `incrementInteraction`); não há outra fonte. **Hoje nada chama `record`**: o
-plugin `ai` (M5) vai chamar. Até lá o `!rank` responde "Ninguém interagiu comigo ainda", e por
-isso a linha do `PARIDADE.md` segue desmarcada.
+IA (`LumaPlugin`, `incrementInteraction`), e continua sendo: a [`luma`](luma.md) chama `record` a
+cada vez que responde a alguém (uso opcional, `services.has('rank')`, sem `dependsOn`). Sem a
+`luma`, o `!rank` responde "Ninguém interagiu comigo ainda".
 
 As coleções ficam no storage da sessão: com um segundo transport, o global se divide por bot.
 Migração: `ctx.storage.shared` com id composto por `ctx.transportName`.
