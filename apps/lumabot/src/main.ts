@@ -2,23 +2,30 @@
 // runner). Nada de regra aqui: comportamento novo entra como plugin.
 
 import { createBot, createLogger, createSecretSet } from '@usebridger/core';
+import { metrics } from '@usebridger/plugin-metrics';
 import { sqlite } from '@usebridger/storage-sqlite';
 import { baileys } from '@usebridger/transport-baileys';
 import { loadConfig } from '#config.ts';
 import { ai } from '#plugins/ai/ai.ts';
+import { aiMetrics } from '#plugins/ai-metrics/ai-metrics.ts';
 import { download } from '#plugins/download/download.ts';
 import { giveUp } from '#plugins/give-up.ts';
 import { help } from '#plugins/help/help.ts';
+import { luma } from '#plugins/luma/luma.ts';
 import { pairing } from '#plugins/pairing.ts';
 import { pdf } from '#plugins/pdf/pdf.ts';
 import { ping } from '#plugins/ping.ts';
 import { rank } from '#plugins/rank/rank.ts';
 import { reminders } from '#plugins/reminders/reminders.ts';
+import { resumo } from '#plugins/resumo/resumo.ts';
+import { spontaneous } from '#plugins/spontaneous/spontaneous.ts';
 import { sticker } from '#plugins/sticker/sticker.ts';
 import { stickerConvert } from '#plugins/sticker-convert/sticker-convert.ts';
 import { stickerText } from '#plugins/sticker-text/sticker-text.ts';
+import { transcribe } from '#plugins/transcribe/transcribe.ts';
 import { userNames } from '#plugins/user-names/user-names.ts';
 import { utils } from '#plugins/utils/utils.ts';
+import { webSearch } from '#plugins/web-search/web-search.ts';
 
 const config = loadConfig();
 // O app cria o logger para registrar também a falha de boot; o mesmo SecretSet vai para o bot,
@@ -45,7 +52,14 @@ const bot = createBot({
       bot.stop().catch((err: unknown) => log.error('falha ao encerrar', { err }));
     }),
     ping,
+    metrics,
     ai,
+    aiMetrics,
+    luma,
+    spontaneous,
+    resumo,
+    transcribe,
+    webSearch(),
     help,
     sticker,
     stickerText,

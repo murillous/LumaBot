@@ -33,8 +33,12 @@ const MESSAGES = {
 /** Blocos do menu, em ordem, e os plugins de cada um; plugin fora da lista cai em `OTHER`. */
 const GROUPS: readonly { readonly title: string; readonly plugins: readonly string[] }[] = [
   { title: '🎨 Mídia', plugins: ['sticker', 'sticker-convert', 'pdf'] },
+  { title: '🧠 Inteligência artificial', plugins: ['luma'] },
   { title: '🏆 Social', plugins: ['rank', 'user-names', 'reminders'] },
-  { title: '🛠️ Utilitários', plugins: ['download', 'utils', 'help', 'ping'] },
+  {
+    title: '🛠️ Utilitários',
+    plugins: ['download', 'transcribe', 'resumo', 'utils', 'help', 'ping'],
+  },
 ];
 const OTHER = '📦 Outros';
 
