@@ -8,25 +8,37 @@ plugin em `src/main.ts`; telas, rotas e segurança são do Bridger.
 
 ## Ligar
 
-Desligado por padrão: sem `LUMABOT_DASHBOARD_PORT`, o app não abre porta nem carrega o plugin.
+Ligado por padrão, sem nenhuma variável:
 
 ```sh
-LUMABOT_DASHBOARD_PORT=3000
-BRIDGER_DASHBOARD__TOKEN=<segredo aleatório, 16+ caracteres>
 pnpm --filter lumabot start
 ```
 
-Abra `http://127.0.0.1:3000/plugins/dashboard/` e entre com o token. Com a porta e sem o token
-(ou com token curto), a config do plugin é inválida e o boot para com o campo na mensagem.
+No primeiro boot, o terminal mostra `http://127.0.0.1:3000/plugins/dashboard/` e o token. Nos
+seguintes, só a URL e o caminho do token: o valor sai uma vez, fora do log, como o QR.
 
 | Variável | Padrão | Efeito |
 | --- | --- | --- |
-| `LUMABOT_DASHBOARD_PORT` | — | Porta do HTTP do core (1 a 65535). Liga o dashboard |
+| `LUMABOT_DASHBOARD_PORT` | `3000` | Porta do HTTP do core (1 a 65535). `off` desliga o dashboard |
 | `LUMABOT_DASHBOARD_HOST` | `127.0.0.1` | Interface de escuta. `0.0.0.0` expõe a porta para fora da máquina |
-| `BRIDGER_DASHBOARD__TOKEN` | — | Token de acesso (segredo, mascarado no log e na tela Config) |
+| `BRIDGER_DASHBOARD__TOKEN` | gerado | Token de acesso (segredo, mascarado no log e na tela Config). Definido, vence o arquivo |
+| `BRIDGER_SECRET_KEY` | gerada | Chave mestra que cifra os segredos salvos pela tela Config ([core](https://github.com/murillous/usebridger/blob/develop/packages/core/docs/config.md#segredos-cifrados-no-storage)). Definida, vence o arquivo |
 
 Os outros campos do plugin (`logBufferSize`, `cookieMaxAgeSec`) seguem o padrão
 `BRIDGER_DASHBOARD__<CAMPO>`.
+
+## Token e chave mestra gerados
+
+Sem as duas variáveis, o app gera os valores e os grava, com permissão 0600, na pasta do banco
+(`LUMABOT_DB`): `data/dashboard-token` e `data/secret.key` ([ADR 0006](../../../docs/adr/0006-config-pelo-dashboard-com-segredos-gerados.md)).
+Com a chave, a tela Config grava as chaves da IA e do Tavily cifradas no banco.
+
+- **Trocar o token:** apague `data/dashboard-token` e reinicie; o novo aparece no terminal.
+- **Não apague nem troque o `secret.key`** com segredos salvos: o boot falha com `undecryptable`.
+  Para trocar a chave, siga a rotação do core com `BRIDGER_SECRET_KEY` e
+  `BRIDGER_SECRET_KEY_PREVIOUS`.
+- **Backup:** quem tem o banco e o `secret.key` tem os segredos. Um backup da pasta `data/`
+  inteira leva os dois; guarde-o como guardaria o `.env`.
 
 ## Exposição
 

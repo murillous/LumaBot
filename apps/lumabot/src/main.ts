@@ -1,12 +1,14 @@
 // Ponto de entrada do LumaBot: compõe o bot e cuida do processo (ADR 0034 — o kernel não tem
 // runner). Nada de regra aqui: comportamento novo entra como plugin.
 
+import { dirname, join } from 'node:path';
 import { createBot, createHttp, createLogger, createSecretSet } from '@usebridger/core';
 import { dashboard } from '@usebridger/plugin-dashboard';
 import { metrics } from '@usebridger/plugin-metrics';
 import { sqlite } from '@usebridger/storage-sqlite';
 import { baileys } from '@usebridger/transport-baileys';
-import { loadConfig } from '#config.ts';
+import { loadConfig, pluginEnv } from '#config.ts';
+import { localSecret } from '#local-secret.ts';
 import { ai } from '#plugins/ai/ai.ts';
 import { aiMetrics } from '#plugins/ai-metrics/ai-metrics.ts';
 import { download } from '#plugins/download/download.ts';
@@ -40,8 +42,27 @@ const log = createLogger({
   bindings: { app: 'lumabot' },
 });
 
-// O token vem do core (`BRIDGER_DASHBOARD__TOKEN`): sem ele, a config do plugin é inválida e o
-// boot para. `adminPlugins` libera as telas Plugins e Config.
+// Com o .env vazio, o app gera a chave mestra (sem ela o dashboard não grava as chaves da IA) e o
+// token do dashboard, e guarda os dois ao lado do banco (ADR 0006). Variável definida vence o arquivo.
+const env = { ...pluginEnv() };
+const dataDir = dirname(config.dbPath);
+if (!env['BRIDGER_SECRET_KEY']) {
+  env['BRIDGER_SECRET_KEY'] = (await localSecret(join(dataDir, 'secret.key'), 32)).value;
+}
+if (config.dashboard && !env['BRIDGER_DASHBOARD__TOKEN']) {
+  const tokenFile = join(dataDir, 'dashboard-token');
+  const token = await localSecret(tokenFile, 24);
+  env['BRIDGER_DASHBOARD__TOKEN'] = token.value;
+  // Fora do log, como o QR: o logger censuraria o valor. Só no primeiro boot; depois, o arquivo.
+  process.stdout.write(
+    `\nDashboard: http://${config.dashboard.hostname}:${config.dashboard.port}/plugins/dashboard/\n` +
+      (token.created
+        ? `Token (salvo em ${tokenFile}): ${token.value}\n`
+        : `Token em ${tokenFile}\n`),
+  );
+}
+
+// `adminPlugins` libera as telas Plugins e Config.
 const dashboardConfig = config.dashboard
   ? { http: createHttp(config.dashboard), adminPlugins: ['dashboard'] }
   : {};
@@ -51,6 +72,7 @@ const bot = createBot({
   storage: sqlite({ path: config.dbPath }),
   logger: log,
   secrets,
+  env,
   ...dashboardConfig,
   plugins: [
     pairing((text) => process.stdout.write(text)),
