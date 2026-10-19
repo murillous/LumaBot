@@ -8,6 +8,8 @@ const DEFAULT_EMOJIS = ['😂', '💀', '😭', '🤔', '👀', '😳', '🗿', 
 const config = z.object({
   /** Mensagens recentes de cada chat que a IA lê para decidir. */
   window: z.number().int().min(1).default(15),
+  /** Chance (0 a 1) de uma mensagem ser avaliada; sem ela a Luma reagiria a cada cooldown. */
+  chance: z.number().min(0).max(1).default(0.05),
   /** Tempo mínimo entre duas avaliações no mesmo chat: é o que limita as chamadas à IA. */
   cooldownMs: z.number().int().nonnegative().default(60_000),
   /** Emojis que a IA pode usar; qualquer outro vale como "não reagir". */
@@ -60,6 +62,8 @@ export const spontaneous: PluginDefinition = definePlugin({
       if (claimed || m.sender.isBot) return;
       // Sem reação não há o que decidir: não gasta a IA à toa.
       if (!ctx.capabilities.has('reactions')) return;
+      // O sorteio vem antes do cooldown: mensagem sorteada fora não consome a vez do chat.
+      if (Math.random() >= cfg.chance) return;
 
       const now = Date.now();
       if (now - (evaluatedAt.get(chat.id) ?? -Infinity) < cfg.cooldownMs) return;
