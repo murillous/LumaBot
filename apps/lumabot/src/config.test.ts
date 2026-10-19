@@ -2,11 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { loadConfig } from './config.ts';
 
 describe('loadConfig', () => {
-  it('sem variáveis, usa os padrões: SQLite em data/, pareamento por QR, log em info', () => {
+  it('sem variáveis, usa os padrões: SQLite em data/, pareamento por QR, log em info, dashboard na 3000', () => {
     expect(loadConfig({})).toEqual({
       dbPath: 'data/lumabot.sqlite',
       pairing: 'qr',
       logLevel: 'info',
+      dashboard: { port: 3000, hostname: '127.0.0.1' },
     });
   });
 
@@ -21,6 +22,7 @@ describe('loadConfig', () => {
       dbPath: '/var/lib/lumabot/bot.sqlite',
       pairing: { phone: '5511999999999' },
       logLevel: 'debug',
+      dashboard: { port: 3000, hostname: '127.0.0.1' },
     });
   });
 
@@ -41,8 +43,12 @@ describe('loadConfig', () => {
     expect(loadConfig({ LUMABOT_YTDLP_COOKIES: '' })).not.toHaveProperty('ytdlpCookies');
   });
 
-  it('sem porta, não há dashboard', () => {
-    expect(loadConfig({ LUMABOT_DASHBOARD_PORT: '' })).not.toHaveProperty('dashboard');
+  it('porta off desliga o dashboard; vazia vale como ausente e liga na 3000', () => {
+    expect(loadConfig({ LUMABOT_DASHBOARD_PORT: 'off' })).not.toHaveProperty('dashboard');
+    expect(loadConfig({ LUMABOT_DASHBOARD_PORT: '' }).dashboard).toEqual({
+      port: 3000,
+      hostname: '127.0.0.1',
+    });
   });
 
   it('com porta, liga o dashboard só no loopback, salvo host explícito', () => {

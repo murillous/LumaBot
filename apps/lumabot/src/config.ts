@@ -11,7 +11,7 @@ export interface AppConfig {
   readonly logLevel: LogLevel;
   /** Cookies (formato Netscape) que o plugin `download` repassa ao yt-dlp. */
   readonly ytdlpCookies?: string;
-  /** Presente só com `LUMABOT_DASHBOARD_PORT`: sem porta, o app não abre HTTP nem carrega o dashboard. */
+  /** Ligado por padrão; ausente só com `LUMABOT_DASHBOARD_PORT=off`, e aí o app não abre HTTP. */
   readonly dashboard?: { readonly port: number; readonly hostname: string };
 }
 
@@ -44,12 +44,20 @@ export function loadConfig(env: ConfigEnv = process.env): AppConfig {
   };
 }
 
+/**
+ * Ambiente da config de plugin (`BRIDGER_*`). O `main.ts` completa nele o token do dashboard e a
+ * chave mestra quando faltam, sem ler o `process.env` por conta própria.
+ */
+export function pluginEnv(env: ConfigEnv = process.env): ConfigEnv {
+  return env;
+}
+
 function loadDashboard(env: ConfigEnv): Pick<AppConfig, 'dashboard'> {
-  const raw = env['LUMABOT_DASHBOARD_PORT'];
-  if (!raw) return {};
+  const raw = env['LUMABOT_DASHBOARD_PORT'] || '3000';
+  if (raw === 'off') return {};
   const port = Number(raw);
   if (!/^\d+$/.test(raw) || port < 1 || port > 65535) {
-    throw new Error(`LUMABOT_DASHBOARD_PORT inválido: "${raw}" (use 1 a 65535)`);
+    throw new Error(`LUMABOT_DASHBOARD_PORT inválido: "${raw}" (use 1 a 65535 ou off)`);
   }
   // Só loopback por padrão: o core não faz TLS nem limita tentativas de login, então a porta só
   // sai da máquina por decisão explícita (atrás de um proxy HTTPS).

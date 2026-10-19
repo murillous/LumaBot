@@ -44,11 +44,14 @@ falha. Queda de rede e sessão deslogada não entram aqui: o bot reconecta ou pe
 
 ## Config
 
-Por variáveis de ambiente, lidas em `src/config.ts`. Variável vazia vale como ausente.
+Nenhuma variável é obrigatória. Com o `.env` vazio, o bot sobe com o [dashboard](dashboard.md)
+em `http://127.0.0.1:3000/plugins/dashboard/`, e a config dos plugins (modelos e chaves da IA,
+Luma, busca...) se faz na tela Config. Até ganhar uma cadeia `models`, a IA recusa responder.
 
+As variáveis abaixo, lidas em `src/config.ts`, só mudam os padrões. Variável vazia vale como ausente.
 O `start` e o `dev` carregam `apps/lumabot/.env`, se existir (`--env-file-if-exists` do Node).
-Variável já definida no ambiente vence a do arquivo. Copie o `.env.example`, que lista as
-variáveis do app, do dashboard e da IA. O `.env` fica fora do Git. A exceção é o
+Variável já definida no ambiente vence a do arquivo. O `.env.example` traz as do app comentadas.
+O `.env` fica fora do Git. A exceção é o
 `FONTCONFIG_FILE` do Windows, que precisa estar no ambiente do sistema
 ([sticker.md](sticker.md#emoji-colorido-no-windows)).
 
@@ -58,13 +61,14 @@ variáveis do app, do dashboard e da IA. O `.env` fica fora do Git. A exceção 
 | `LUMABOT_PAIRING_PHONE` | — | Número com DDI, só dígitos (`5511999999999`). Com ele, o bot pede um código de pareamento em vez do QR: digite-o em *Aparelhos conectados → Conectar com número de telefone* |
 | `LUMABOT_YTDLP_COOKIES` | — | Arquivo de cookies (formato Netscape) que o plugin `download` repassa ao yt-dlp ([download.md](download.md#config)) |
 | `LUMABOT_LOG_LEVEL` | `info` | `trace`, `debug`, `info`, `warn`, `error`, `fatal` ou `silent` |
-| `LUMABOT_DASHBOARD_PORT` | — | Liga o [dashboard](dashboard.md) nessa porta (exige `BRIDGER_DASHBOARD__TOKEN`) |
+| `LUMABOT_DASHBOARD_PORT` | `3000` | Porta do [dashboard](dashboard.md); `off` desliga o dashboard e o HTTP |
 | `LUMABOT_DASHBOARD_HOST` | `127.0.0.1` | Interface de escuta do dashboard ([dashboard.md](dashboard.md#exposição)) |
 
 Config inválida de plugin (ex.: `BRIDGER_STICKER_TEXT__COLOR=vermelho`) impede o boot.
 
-A config dos plugins segue o padrão do core (`BRIDGER_<PLUGIN>__<CAMPO>`,
+A config dos plugins também aceita variável, no padrão do core (`BRIDGER_<PLUGIN>__<CAMPO>`,
 [Config](https://github.com/murillous/usebridger/blob/develop/packages/core/docs/config.md)).
+Ela vence o que foi salvo pelo dashboard, que passa a mostrar o campo como `env`, sem edição.
 
 Valor inválido derruba o boot com a variável na mensagem. No terminal, o log sai legível
 (`14:03:22 INFO  [sticker] mensagem chave=valor`, com cor); com o stdout redirecionado (serviço,
@@ -74,7 +78,7 @@ e o código de pareamento saem fora do log, direto no stdout.
 ## Plugins do app
 
 Ficam em `src/plugins/` e entram na lista do `createBot` em `src/main.ts`. Dos oficiais do
-Bridger, o app carrega o `metrics` e, com `LUMABOT_DASHBOARD_PORT`, o [`dashboard`](dashboard.md).
+Bridger, o app carrega o `metrics` e, salvo `LUMABOT_DASHBOARD_PORT=off`, o [`dashboard`](dashboard.md).
 
 | Plugin | O que faz |
 | --- | --- |
