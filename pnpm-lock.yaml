@@ -199,6 +199,9 @@ importers:
       '@usebridger/core':
         specifier: ^0.9.0
         version: 0.9.0
+      '@usebridger/plugin-dashboard':
+        specifier: ^0.2.0
+        version: 0.2.0
       '@usebridger/plugin-metrics':
         specifier: ^0.2.0
         version: 0.2.0
@@ -834,6 +837,9 @@ packages:
 
   '@usebridger/core@0.9.0':
     resolution: {integrity: sha512-jqOTokAajWSKThIY0+X2VQSo8/QpthCEpwGtQOCO9ZuAVkiMKppmU97JKCQH/YeYn0rDHkXiduszQTPyRY44/Q==}
+
+  '@usebridger/plugin-dashboard@0.2.0':
+    resolution: {integrity: sha512-iIZFsr2HocuxnBjLT1wka4TovMiW+qfzt5PGTquLodoQJlAzHn3GfM1+1tiUSkkbtoSmTh0fKGxuWH1vGy4G6A==}
 
   '@usebridger/plugin-metrics@0.2.0':
     resolution: {integrity: sha512-uSLEoxEMkBpdAXgnPvBuaFNPj1wFA4UNmCsiWEAkaSRHH1z5rZgKT/KkuXaYF6zhAXZs9kul3YTG7qrOiA2vFw==}
@@ -2082,6 +2088,13 @@ snapshots:
       pino: 10.4.0
       ws: 8.22.0
       zod: 4.6.5
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
+
+  '@usebridger/plugin-dashboard@0.2.0':
+    dependencies:
+      '@usebridger/core': 0.9.0
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate

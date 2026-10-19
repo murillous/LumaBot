@@ -11,6 +11,8 @@ export interface AppConfig {
   readonly logLevel: LogLevel;
   /** Cookies (formato Netscape) que o plugin `download` repassa ao yt-dlp. */
   readonly ytdlpCookies?: string;
+  /** Presente só com `LUMABOT_DASHBOARD_PORT`: sem porta, o app não abre HTTP nem carrega o dashboard. */
+  readonly dashboard?: { readonly port: number; readonly hostname: string };
 }
 
 const LOG_LEVELS: readonly LogLevel[] = [
@@ -38,5 +40,18 @@ export function loadConfig(env: ConfigEnv = process.env): AppConfig {
     pairing: phone ? { phone } : 'qr',
     logLevel: logLevel as LogLevel,
     ...(env['LUMABOT_YTDLP_COOKIES'] ? { ytdlpCookies: env['LUMABOT_YTDLP_COOKIES'] } : {}),
+    ...loadDashboard(env),
   };
+}
+
+function loadDashboard(env: ConfigEnv): Pick<AppConfig, 'dashboard'> {
+  const raw = env['LUMABOT_DASHBOARD_PORT'];
+  if (!raw) return {};
+  const port = Number(raw);
+  if (!/^\d+$/.test(raw) || port < 1 || port > 65535) {
+    throw new Error(`LUMABOT_DASHBOARD_PORT inválido: "${raw}" (use 1 a 65535)`);
+  }
+  // Só loopback por padrão: o core não faz TLS nem limita tentativas de login, então a porta só
+  // sai da máquina por decisão explícita (atrás de um proxy HTTPS).
+  return { dashboard: { port, hostname: env['LUMABOT_DASHBOARD_HOST'] || '127.0.0.1' } };
 }

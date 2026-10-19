@@ -1,6 +1,8 @@
 // A composição do app: todos os plugins juntos sobre o transport falso. Pega o que um plugin sozinho
 // não vê: conflito de nome de comando ou de serviço, ciclo de dependência, plugin que não carrega.
 
+import { createHttp } from '@usebridger/core';
+import { dashboard } from '@usebridger/plugin-dashboard';
 import { metrics } from '@usebridger/plugin-metrics';
 import { createTestBot, fixtures, type TestBot } from '@usebridger/testing';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -30,9 +32,15 @@ afterEach(async () => {
   bot = undefined;
 });
 
+const http = createHttp({ port: 0, hostname: '127.0.0.1' });
+const TOKEN = 'token-de-teste-com-16+';
+
 async function start(model = scripted('oi')) {
   bot = await createTestBot({
+    http,
+    adminPlugins: ['dashboard'],
     plugins: [
+      dashboard,
       ping,
       metrics,
       ai,
@@ -55,6 +63,7 @@ async function start(model = scripted('oi')) {
       utils,
     ],
     pluginConfig: {
+      dashboard: { token: TOKEN },
       ai: { models: [{ model: 'fake:a' }] },
       luma: { thinkingDelayMs: { min: 0, max: 0 } },
     },
@@ -79,6 +88,34 @@ describe('composição do app', () => {
       ]),
     );
     expect(b.bot.plugins().filter((p) => p.status !== 'loaded')).toEqual([]);
+  });
+
+  it('o dashboard atende com login, admin dos plugins e as métricas da Luma', async () => {
+    const b = await start();
+    await b.receive({ text: 'oi', sender: { id: 'ana@x', name: 'Ana' } });
+
+    const base = `http://127.0.0.1:${http.port}/plugins/dashboard`;
+    expect((await fetch(`${base}/api/status`)).status).toBe(401);
+    const login = await fetch(`${base}/api/login`, {
+      method: 'POST',
+      body: JSON.stringify({ token: TOKEN }),
+    });
+    expect(login.status).toBe(204);
+    const cookie = login.headers.get('set-cookie')?.split(';')[0] ?? '';
+    const get = (path: string) => fetch(`${base}/api/${path}`, { headers: { cookie } });
+
+    expect((await get('status')).status).toBe(200);
+    const plugins = (await (await get('plugins')).json()) as { name: string; status: string }[];
+    expect(plugins.find((p) => p.name === 'luma')?.status).toBe('loaded');
+    const m = (await (await get('metrics')).json()) as {
+      available: boolean;
+      metrics: { name: string }[];
+    };
+    expect(m.available).toBe(true);
+    expect(m.metrics.map((x) => x.name)).toEqual(
+      expect.arrayContaining([expect.stringMatching(/^ai\./)]),
+    );
+    expect((await fetch(`${base}/`)).headers.get('content-type')).toMatch(/text\/html/);
   });
 
   it('!help lista os comandos novos agrupados', async () => {

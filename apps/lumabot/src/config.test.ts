@@ -40,4 +40,25 @@ describe('loadConfig', () => {
     );
     expect(loadConfig({ LUMABOT_YTDLP_COOKIES: '' })).not.toHaveProperty('ytdlpCookies');
   });
+
+  it('sem porta, não há dashboard', () => {
+    expect(loadConfig({ LUMABOT_DASHBOARD_PORT: '' })).not.toHaveProperty('dashboard');
+  });
+
+  it('com porta, liga o dashboard só no loopback, salvo host explícito', () => {
+    expect(loadConfig({ LUMABOT_DASHBOARD_PORT: '3000' }).dashboard).toEqual({
+      port: 3000,
+      hostname: '127.0.0.1',
+    });
+    expect(
+      loadConfig({ LUMABOT_DASHBOARD_PORT: '8080', LUMABOT_DASHBOARD_HOST: '0.0.0.0' }).dashboard,
+    ).toEqual({ port: 8080, hostname: '0.0.0.0' });
+  });
+
+  it.each(['abc', '0', '65536', '30.5', '-1'])(
+    'porta inválida (%s) lança com o nome da variável',
+    (port) => {
+      expect(() => loadConfig({ LUMABOT_DASHBOARD_PORT: port })).toThrow(/LUMABOT_DASHBOARD_PORT/);
+    },
+  );
 });

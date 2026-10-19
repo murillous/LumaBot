@@ -1,7 +1,8 @@
 // Ponto de entrada do LumaBot: compõe o bot e cuida do processo (ADR 0034 — o kernel não tem
 // runner). Nada de regra aqui: comportamento novo entra como plugin.
 
-import { createBot, createLogger, createSecretSet } from '@usebridger/core';
+import { createBot, createHttp, createLogger, createSecretSet } from '@usebridger/core';
+import { dashboard } from '@usebridger/plugin-dashboard';
 import { metrics } from '@usebridger/plugin-metrics';
 import { sqlite } from '@usebridger/storage-sqlite';
 import { baileys } from '@usebridger/transport-baileys';
@@ -39,13 +40,21 @@ const log = createLogger({
   bindings: { app: 'lumabot' },
 });
 
+// O token vem do core (`BRIDGER_DASHBOARD__TOKEN`): sem ele, a config do plugin é inválida e o
+// boot para. `adminPlugins` libera as telas Plugins e Config.
+const dashboardConfig = config.dashboard
+  ? { http: createHttp(config.dashboard), adminPlugins: ['dashboard'] }
+  : {};
+
 const bot = createBot({
   transport: baileys({ pairing: config.pairing }),
   storage: sqlite({ path: config.dbPath }),
   logger: log,
   secrets,
+  ...dashboardConfig,
   plugins: [
     pairing((text) => process.stdout.write(text)),
+    ...(config.dashboard ? [dashboard] : []),
     // O core já logou o motivo; sem `await`, o listener termina e o stop não espera por ele.
     giveUp(() => {
       process.exitCode = 1;
