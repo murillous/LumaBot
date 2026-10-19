@@ -18,10 +18,11 @@ de texto de pessoa:
 1. A mensagem entra na janela de `window` mensagens do chat (em memória), mesmo as reivindicadas.
 2. Não age se `e.claimed` (a Luma ou outro listener já a reivindicou), se o remetente é bot ou se
    o transport não tem `reactions` (não gasta a IA à toa).
-3. Respeita o cooldown: no máximo uma avaliação por chat a cada `cooldownMs`.
-4. Pede ao [`ai`](ai.md) (`purpose: 'spontaneous'`) o emoji, **fora da fila do chat** (esperar a IA
+3. Sorteia: só segue com probabilidade `chance`. A mensagem sorteada fora não consome o cooldown.
+4. Respeita o cooldown: no máximo uma avaliação por chat a cada `cooldownMs`.
+5. Pede ao [`ai`](ai.md) (`purpose: 'spontaneous'`) o emoji, **fora da fila do chat** (esperar a IA
    seguraria comandos e a Luma). O prazo (`timeoutMs`) e o descarte do plugin a cancelam.
-5. Se a resposta é exatamente um emoji da lista, reage. Falha da IA vai para o log em `warn`.
+6. Se a resposta é exatamente um emoji da lista, reage. Falha da IA vai para o log em `warn`.
 
 O cooldown conta quando a avaliação **começa**, também quando a IA falha. O plugin depende do `ai`.
 
@@ -30,6 +31,7 @@ O cooldown conta quando a avaliação **começa**, também quando a IA falha. O 
 | Campo | Padrão | Efeito |
 | --- | --- | --- |
 | `window` | `15` | Mensagens recentes de cada chat que a IA lê |
+| `chance` | `0.05` | Probabilidade (0 a 1) de uma mensagem ser avaliada |
 | `cooldownMs` | `60000` | Tempo mínimo entre duas avaliações no mesmo chat |
 | `emojis` | `😂 💀 😭 🤔 👀 😳 🗿 💅` | Emojis que a IA pode usar |
 | `models` | `[]` | Cadeia só desta decisão, no formato do `ai`. Vazio usa a principal |

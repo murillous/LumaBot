@@ -11,11 +11,14 @@ let bot: TestBot | undefined;
 beforeEach(() => {
   // Só o relógio: o cooldown depende de Date.now(); o resto (promises) segue real.
   vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-10-18T12:00:00Z') });
+  // Sorteio sempre favorável: os testes de `chance` sobrescrevem.
+  vi.spyOn(Math, 'random').mockReturnValue(0);
 });
 afterEach(async () => {
   await bot?.stop();
   bot = undefined;
   vi.useRealTimers();
+  vi.restoreAllMocks();
 });
 
 const group = { id: 'grupo@fake', isGroup: true };
@@ -239,6 +242,32 @@ describe('cooldown', () => {
     await vi.waitFor(() => expect(model.doGenerateCalls).toHaveLength(2));
 
     expect(promptText(model, 1)).toContain('Ana: segunda');
+  });
+});
+
+describe('chance', () => {
+  it('mensagem sorteada fora não chama a IA nem consome o cooldown', async () => {
+    const model = scripted('😂');
+    const b = await start(model, { chance: 0.3, cooldownMs: 60_000 });
+
+    vi.mocked(Math.random).mockReturnValue(0.3);
+    await say(b, 'um');
+    await b.bot.settled();
+    expect(model.doGenerateCalls).toHaveLength(0);
+
+    vi.mocked(Math.random).mockReturnValue(0.29);
+    await say(b, 'dois');
+    await vi.waitFor(() => expect(reactions(b)).toEqual(['😂']));
+  });
+
+  it('chance 0 nunca avalia', async () => {
+    const model = scripted('😂');
+    const b = await start(model, { chance: 0, cooldownMs: 0 });
+
+    await say(b, 'um');
+    await b.bot.settled();
+
+    expect(model.doGenerateCalls).toHaveLength(0);
   });
 });
 
