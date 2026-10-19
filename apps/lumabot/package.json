@@ -10,8 +10,8 @@
   },
   "scripts": {
     "build": "tsdown",
-    "start": "node dist/main.mjs",
-    "dev": "node src/main.ts"
+    "start": "node --env-file-if-exists=.env dist/main.mjs",
+    "dev": "node --env-file-if-exists=.env src/main.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.81",
