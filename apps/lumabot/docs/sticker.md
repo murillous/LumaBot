@@ -108,6 +108,10 @@ fontes, a do sistema e a do usuário, para onde vai a fonte instalada com o "Ins
    Para valer em todo terminal novo:
    `[Environment]::SetEnvironmentVariable('FONTCONFIG_FILE', '<caminho>', 'User')`.
 
+   No `.env` ela não funciona. Quem a lê é o fontconfig nativo do Sharp, pelo `getenv` do runtime
+   C, que só vê o ambiente do início do processo. O `--env-file` do Node e o `process.env` chegam
+   tarde demais.
+
 Com a variável certa, o aviso some do log e o teste `o emoji da legenda sai colorido` passa.
 
 ## Capabilities

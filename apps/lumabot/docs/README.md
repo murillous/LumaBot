@@ -46,6 +46,12 @@ falha. Queda de rede e sessão deslogada não entram aqui: o bot reconecta ou pe
 
 Por variáveis de ambiente, lidas em `src/config.ts`. Variável vazia vale como ausente.
 
+O `start` e o `dev` carregam `apps/lumabot/.env`, se existir (`--env-file-if-exists` do Node).
+Variável já definida no ambiente vence a do arquivo. Copie o `.env.example`, que lista as
+variáveis do app, do dashboard e da IA. O `.env` fica fora do Git. A exceção é o
+`FONTCONFIG_FILE` do Windows, que precisa estar no ambiente do sistema
+([sticker.md](sticker.md#emoji-colorido-no-windows)).
+
 | Variável | Padrão | Efeito |
 | --- | --- | --- |
 | `LUMABOT_DB` | `data/lumabot.sqlite` | Arquivo do banco, relativo ao diretório de onde o processo roda. Guarda as credenciais do WhatsApp: apagar o arquivo (e os `-wal`/`-shm`) obriga a parear de novo |
