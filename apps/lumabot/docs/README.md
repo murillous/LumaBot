@@ -23,7 +23,8 @@ Os plugins `sticker`, `sticker-convert` e `download` rodam o `ffmpeg` do sistema
 também o `yt-dlp`: instale os dois e deixe-os no `PATH` (ver [sticker.md](sticker.md#ffmpeg) e
 [download.md](download.md#binários)). Para o emoji colorido na legenda das figurinhas, instale
 também uma fonte de emoji colorida (`fonts-noto-color-emoji`, ver
-[sticker.md](sticker.md#legenda-sticker-text)).
+[sticker.md](sticker.md#legenda-sticker-text)). No Windows, também é preciso o `FONTCONFIG_FILE`
+([sticker.md](sticker.md#emoji-colorido-no-windows)).
 
 Para desenvolver sem build, `pnpm --filter lumabot dev` executa o `.ts` direto (type stripping
 do Node).

@@ -88,6 +88,28 @@ válida recarrega o `sticker-text`, que registra a etapa com o estilo novo.
 no log (`fonte de emoji colorido não encontrada`). O SVG, usado antes, não serve: o librsvg pinta
 o emoji com a cor do texto mesmo com a fonte instalada.
 
+### Emoji colorido no Windows
+
+Instalar a fonte não basta. O Pango pede o emoji pela família genérica `emoji`, e o fontconfig
+embutido no Sharp (Windows) não tem o alias `emoji → Noto Color Emoji` que as distros Linux trazem.
+Por isso o emoji cai na Segoe UI Symbol, monocromática. A Segoe UI Emoji do Windows também não
+resolve. O arquivo `fontconfig/windows.conf` do app acrescenta o alias e mantém as duas pastas de
+fontes, a do sistema e a do usuário, para onde vai a fonte instalada com o "Instalar" do Windows:
+
+1. Instale a [Noto Color Emoji](https://fonts.google.com/noto/specimen/Noto+Color+Emoji)
+   (botão direito no `.ttf` → *Instalar*).
+2. Aponte o `FONTCONFIG_FILE` para o arquivo, com caminho absoluto, antes de subir o bot (ou os
+   testes):
+
+   ```powershell
+   $env:FONTCONFIG_FILE = "C:\repos\LumaBot\apps\lumabot\fontconfig\windows.conf"
+   ```
+
+   Para valer em todo terminal novo:
+   `[Environment]::SetEnvironmentVariable('FONTCONFIG_FILE', '<caminho>', 'User')`.
+
+Com a variável certa, o aviso some do log e o teste `o emoji da legenda sai colorido` passa.
+
 ## Capabilities
 
 O `sticker` exige `media.download` e `send.sticker`. Sem eles o boot cai com `PluginBootError`
