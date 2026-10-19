@@ -51,6 +51,8 @@ Por variáveis de ambiente, lidas em `src/config.ts`. Variável vazia vale como 
 | `LUMABOT_PAIRING_PHONE` | — | Número com DDI, só dígitos (`5511999999999`). Com ele, o bot pede um código de pareamento em vez do QR: digite-o em *Aparelhos conectados → Conectar com número de telefone* |
 | `LUMABOT_YTDLP_COOKIES` | — | Arquivo de cookies (formato Netscape) que o plugin `download` repassa ao yt-dlp ([download.md](download.md#config)) |
 | `LUMABOT_LOG_LEVEL` | `info` | `trace`, `debug`, `info`, `warn`, `error`, `fatal` ou `silent` |
+| `LUMABOT_DASHBOARD_PORT` | — | Liga o [dashboard](dashboard.md) nessa porta (exige `BRIDGER_DASHBOARD__TOKEN`) |
+| `LUMABOT_DASHBOARD_HOST` | `127.0.0.1` | Interface de escuta do dashboard ([dashboard.md](dashboard.md#exposição)) |
 
 Config inválida de plugin (ex.: `BRIDGER_STICKER_TEXT__COLOR=vermelho`) impede o boot.
 
@@ -64,7 +66,8 @@ e o código de pareamento saem fora do log, direto no stdout.
 
 ## Plugins do app
 
-Ficam em `src/plugins/` e entram na lista do `createBot` em `src/main.ts`.
+Ficam em `src/plugins/` e entram na lista do `createBot` em `src/main.ts`. Dos oficiais do
+Bridger, o app carrega o `metrics` e, com `LUMABOT_DASHBOARD_PORT`, o [`dashboard`](dashboard.md).
 
 | Plugin | O que faz |
 | --- | --- |

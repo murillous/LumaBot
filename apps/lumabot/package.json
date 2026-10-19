@@ -19,6 +19,7 @@
     "@ai-sdk/google": "^4.0.98",
     "@ai-sdk/openai": "^4.0.95",
     "@usebridger/core": "^0.9.0",
+    "@usebridger/plugin-dashboard": "^0.2.0",
     "@usebridger/plugin-metrics": "^0.2.0",
     "@usebridger/storage-sqlite": "^0.3.2",
     "@usebridger/transport-baileys": "^0.5.0",
