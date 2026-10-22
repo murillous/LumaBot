@@ -457,6 +457,8 @@ describe('ai.generate com tools', () => {
     });
 
   // Tools extras vivem num plugin à parte para não mudar o que o `caller` oferece aos outros testes.
+  // A `slow` fica pendurada aqui até o teste soltar: simula uma tool ainda rodando no timeout.
+  let slowGate: Promise<void> = Promise.resolve();
   const extras = definePlugin({
     name: 'extras',
     version: '0.0.0',
@@ -471,7 +473,7 @@ describe('ai.generate com tools', () => {
           args: z.object({}),
           run: async () => {
             runs.push('slow');
-            await new Promise((r) => setTimeout(r, 200));
+            await slowGate;
             return ok();
           },
         }),
@@ -573,9 +575,18 @@ describe('ai.generate com tools', () => {
   it('tool com efeito lenta que estoura o timeout roda uma vez só e o erro é relançado', async () => {
     // O timeout do SDK usa timers reais; com os falsos ele nunca dispararia.
     vi.useRealTimers();
+    let release = () => {};
+    slowGate = new Promise<void>((r) => {
+      release = r;
+    });
     const a = toolModel('slow', {});
-    const b = model('de b');
-    await ask({ a, b }, undefined, 50, true).catch(() => undefined);
+    // `b` chamaria a tool de novo: se o fallback ocorresse, `runs` teria dois 'slow'.
+    const b = toolModel('slow', {});
+    const asked = ask({ a, b }, undefined, 50, true).catch(() => undefined);
+    // Solta a tool só depois do timeout, para o erro vir com ela ainda não resolvida.
+    await new Promise((r) => setTimeout(r, 300));
+    release();
+    await asked;
 
     expect(runs).toEqual(['slow']);
     expect(b.doGenerateCalls).toHaveLength(0);
