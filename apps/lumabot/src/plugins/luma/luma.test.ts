@@ -334,6 +334,33 @@ describe('personas', () => {
     expect(b.sent).toContainText(/de fábrica, não dá pra apagar/);
   });
 
+  it('persona que sumiu entre o menu e o remove responde opção inválida, não "de fábrica"', async () => {
+    const racer = definePlugin({
+      name: 'racer',
+      version: '0.0.0',
+      engine: '<1.0.0',
+      setup: (ctx) => {
+        const { personas } = ctx.services.get('luma');
+        // A persona some entre o `list` e o `remove`: o `remove` real já a acha apagada.
+        const remove = personas.remove;
+        personas.remove = async (chatId, key) => {
+          await remove(chatId, key);
+          return remove(chatId, key);
+        };
+      },
+    });
+    bot = await createTestBot({
+      plugins: [ai, fakeProvider({ a: scripted(generated) }), luma, racer],
+      pluginConfig: { ai: { models: [{ model: 'fake:a' }] }, luma: FAST },
+    });
+    await bot.receive({ text: '!persona criar uma vovó italiana' });
+
+    await bot.receive({ text: '!persona deletar 6' });
+
+    expect(bot.sent).toContainText(/Opção inválida/);
+    expect(bot.sent).not.toContainText(/de fábrica/);
+  });
+
   it('respeita o limite de personas por chat', async () => {
     bot = await createTestBot({
       plugins: [ai, fakeProvider({ a: scripted(generated) }), luma],

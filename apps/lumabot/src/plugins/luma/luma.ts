@@ -578,7 +578,11 @@ export const luma: PluginDefinition = definePlugin({
           const target = resolve(await personas.list(chatId), arg);
           if (!target) return c.t('personaInvalid');
           const result = await personas.remove(chatId, target.key);
-          if (!result.removed) return c.t('personaDeletePredefined');
+          if (!result.removed) {
+            return c.t(
+              result.reason === 'not-found' ? 'personaInvalid' : 'personaDeletePredefined',
+            );
+          }
           return (
             c.t('personaDeleteOk', { name: target.name }) +
             (result.wasActive ? c.t('personaDeleteActive') : '')
