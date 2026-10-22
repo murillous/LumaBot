@@ -114,7 +114,7 @@ const { text, toolCalls } = await ai.generate({
 
 `generate({ nativeSearch: true })` responde com a busca que o próprio provider executa (o Google
 Grounding do Gemini). Só os itens da cadeia cujo provider declara `nativeSearch()` são tentados;
-os outros são **pulados** com um aviso, porque responder sem buscar seria inventar. Se nenhum
+os outros são **pulados** com um aviso e notificados como `unsupported`, porque responder sem buscar seria inventar. Se nenhum
 atende, `AiUnavailableError`. O plugin [`web-search`](web-search.md) usa isso como fallback do
 Tavily.
 
@@ -157,7 +157,7 @@ ctx.services.contribute('ai.observers', (attempt) => {
 | `model`, `provider` | Item da cadeia (`google:gemini-2.5-flash`) e o prefixo dele |
 | `purpose` | O `purpose` de quem chamou o `generate` |
 | `position` | Ordem da tentativa na chamada: `0` respondeu de primeira; acima disso, foi fallback |
-| `outcome` | `ok`, `transient` (foi para o próximo), `error` (relançou), `aborted` (o `signal` de quem chamou) ou `unregistered` (sem provider, pulado sem chamada) |
+| `outcome` | `ok`, `transient` (foi para o próximo), `error` (relançou), `aborted` (o `signal` de quem chamou), `unregistered` (sem provider, pulado sem chamada) ou `unsupported` (provider sem a busca nativa pedida, pulado sem chamada) |
 | `startedAt`, `latencyMs` | Início (epoch ms) e duração da tentativa |
 | `usage` | Só com `ok`: tokens de entrada, saída, cache e reasoning, somados entre os passos |
 | `finishReason` | Só com `ok`: `length` indica resposta cortada e `content-filter` indica recusa |
