@@ -358,6 +358,7 @@ describe('personas', () => {
     await bot.receive({ text: '!persona deletar 6' });
 
     expect(bot.sent).toContainText(/Opção inválida/);
+    expect(bot.sent).not.toContainText(/de fábrica/);
   });
 
   it('respeita o limite de personas por chat', async () => {
