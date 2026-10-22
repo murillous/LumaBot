@@ -46,9 +46,10 @@ export interface AiAttempt {
   readonly position: number;
   /**
    * `transient` passou para o próximo; `error` relançou; `aborted` foi o `signal` de quem chamou;
-   * `unregistered` é item sem provider no ponto, pulado sem chamada.
+   * `unregistered` é item sem provider no ponto e `unsupported` é item cujo provider não tem a
+   * busca nativa pedida; os dois são pulados sem chamada.
    */
-  readonly outcome: 'ok' | 'transient' | 'error' | 'aborted' | 'unregistered';
+  readonly outcome: 'ok' | 'transient' | 'error' | 'aborted' | 'unregistered' | 'unsupported';
   readonly startedAt: number;
   readonly latencyMs: number;
   /** Só com `ok`. Vazão sai daqui: `outputTokens / latencyMs`. */
@@ -298,6 +299,8 @@ export const ai: PluginDefinition = definePlugin({
           const search = request.nativeSearch ? provider.nativeSearch?.() : undefined;
           if (request.nativeSearch && !search) {
             ctx.log.warn('provider sem busca nativa; item pulado', { model: entry.model });
+            // Vira métrica para a causa de uma cadeia de busca mal configurada não sumir.
+            attempt('unsupported');
             continue;
           }
           // Por tentativa: o que uma tentativa que falhou já executou não pode se repetir na próxima.

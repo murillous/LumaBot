@@ -24,7 +24,7 @@ export interface Stats {
   readonly attempts: number;
   /** Tentativas que responderam. */
   readonly responses: number;
-  /** `responses / (attempts - unregistered)`; `null` sem tentativa real. */
+  /** `responses / (attempts - unregistered - unsupported)`; `null` sem tentativa real. */
   readonly successRate: number | null;
   /** Respostas do primeiro modelo da cadeia. */
   readonly firstTry: number;
@@ -127,7 +127,8 @@ export function stats(rows: Rows, prices: Readonly<Record<string, Price>>): Stat
   }
   const responses = outcomes['ok'] ?? 0;
   const attempts = sum(rows.attempts);
-  const real = attempts - (outcomes['unregistered'] ?? 0);
+  // Itens pulados sem chamada (sem provider ou sem busca nativa) não são tentativa de verdade.
+  const real = attempts - (outcomes['unregistered'] ?? 0) - (outcomes['unsupported'] ?? 0);
 
   const latencyCount = rows.latency.reduce((a, r) => a + r.count, 0);
   const latencySum = rows.latency.reduce((a, r) => a + r.sum, 0);

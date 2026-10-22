@@ -33,7 +33,7 @@ summary({ days = 7, model?, purpose? }): Promise<AiSummary>
 
 | Campo | O que é |
 | --- | --- |
-| `attempts`, `responses`, `successRate` | Tentativas, respostas e `responses / (attempts - unregistered)` |
+| `attempts`, `responses`, `successRate` | Tentativas, respostas e `responses / (attempts - unregistered - unsupported)` |
 | `firstTry`, `savedByFallback` | Respostas de primeira e respostas que o fallback salvou |
 | `outcomes`, `statusCodes` | Contagem por desfecho e por HTTP da falha (`429` em destaque) |
 | `latencyMs` | `avg`, `p50` e `p95` (percentil = limite superior do balde) |

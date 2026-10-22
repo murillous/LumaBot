@@ -157,7 +157,7 @@ ctx.services.contribute('ai.observers', (attempt) => {
 | `model`, `provider` | Item da cadeia (`google:gemini-2.5-flash`) e o prefixo dele |
 | `purpose` | O `purpose` de quem chamou o `generate` |
 | `position` | Ordem da tentativa na chamada: `0` respondeu de primeira; acima disso, foi fallback |
-| `outcome` | `ok`, `transient` (foi para o próximo), `error` (relançou), `aborted` (o `signal` de quem chamou) ou `unregistered` (sem provider, pulado sem chamada) |
+| `outcome` | `ok`, `transient` (foi para o próximo), `error` (relançou), `aborted` (o `signal` de quem chamou) ou `unregistered` (sem provider, pulado sem chamada) ou `unsupported` (provider sem a busca nativa pedida, pulado sem chamada) |
 | `startedAt`, `latencyMs` | Início (epoch ms) e duração da tentativa |
 | `usage` | Só com `ok`: tokens de entrada, saída, cache e reasoning, somados entre os passos |
 | `finishReason` | Só com `ok`: `length` indica resposta cortada e `content-filter` indica recusa |

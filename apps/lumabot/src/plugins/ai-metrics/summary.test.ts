@@ -85,6 +85,16 @@ describe('stats', () => {
     expect(s.successRate).toBeCloseTo(8 / 12);
   });
 
+  it('unsupported fica fora do successRate, como unregistered', () => {
+    const s = stats(
+      { ...empty, attempts: [attempt('ok', 'first', 8), attempt('unsupported', 'first', 4)] },
+      {},
+    );
+
+    expect(s).toMatchObject({ attempts: 12, outcomes: { ok: 8, unsupported: 4 } });
+    expect(s.successRate).toBe(1);
+  });
+
   it('latência média, percentis pelo limite do balde e vazão em tokens por segundo', () => {
     const s = stats(
       {

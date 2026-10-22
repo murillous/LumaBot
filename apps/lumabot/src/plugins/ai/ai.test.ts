@@ -562,6 +562,25 @@ describe('ai.generate com busca nativa', () => {
     expect(withSearch.doGenerateCalls[0]?.tools?.map((t) => t.name)).toEqual(['web']);
   });
 
+  it('o item pulado por falta de busca nativa chega aos observers como unsupported', async () => {
+    const seen: AiAttempt[] = [];
+    const ai = await start(
+      [{ model: 'plain:a' }, { model: 'smart:b' }],
+      [
+        fake('plain', { a: model('sem busca') }),
+        { ...fake('smart', { b: model('com busca') }), nativeSearch: searchTool },
+      ],
+      [(a) => void seen.push(a)],
+    );
+
+    await ai.generate({ ...hi, nativeSearch: true });
+
+    expect(seen).toMatchObject([
+      { model: 'plain:a', position: 0, outcome: 'unsupported' },
+      { model: 'smart:b', position: 1, outcome: 'ok' },
+    ]);
+  });
+
   it('sem nativeSearch, a busca do provider não é oferecida', async () => {
     const a = model('ok');
     const ai = await start(
