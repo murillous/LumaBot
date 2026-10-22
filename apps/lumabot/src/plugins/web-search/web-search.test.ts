@@ -226,6 +226,6 @@ describe('formatTavily', () => {
   });
 
   it('sem nada, diz que não achou', () => {
-    expect(formatTavily({})).toBe('Nenhum resultado encontrado.');
+    expect(formatTavily({}, 4)).toBe('Nenhum resultado encontrado.');
   });
 });
