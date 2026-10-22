@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ai } from '#plugins/ai/ai.ts';
 import { fakeProvider, scripted } from '#plugins/ai-testing.ts';
 import { aiToolsProbe, toolResult } from '#plugins/ai-tools-probe.ts';
-import { formatTavily } from './tavily.ts';
+import { formatTavily, TavilyError } from './tavily.ts';
 import { webSearch } from './web-search.ts';
 
 let bot: TestBot | undefined;
@@ -135,6 +135,50 @@ describe('Google Grounding como fallback', () => {
     expect(fetchFn).toHaveBeenCalledTimes(2);
   });
 
+  it('Tavily sem resposta no prazo cai no provider, sem cooldown de cota', async () => {
+    // Prazo curto no lugar dos 10 s; o signal do listener (aqui ausente) nunca é o que corta.
+    vi.spyOn(AbortSignal, 'timeout').mockImplementation(() => AbortSignal.abort());
+    try {
+      const fetchFn = vi.fn((_url: unknown, init?: RequestInit) =>
+        // O signal já nasce abortado (prazo simulado); fetch de verdade rejeitaria na hora.
+        init?.signal?.aborted
+          ? Promise.reject(init.signal.reason)
+          : new Promise<Response>(() => {}),
+      );
+      const g = grounding(fetchFn as never, { tavily: { apiKey: 'tvly-secreta' } });
+      bot = await g.start();
+
+      expect(await search(bot)).toMatchObject({ ok: true });
+      await search(bot);
+
+      expect(fetchFn).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
+
+  it('400 com "limit" no corpo não liga o cooldown', async () => {
+    const fetchFn = vi.fn(async () => json({ detail: 'query exceeds the limit' }, 400));
+    const g = grounding(fetchFn as never, { tavily: { apiKey: 'tvly-secreta' } });
+    bot = await g.start();
+
+    await search(bot);
+    await search(bot);
+
+    expect(fetchFn).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([429, 432, 433])('status %i liga o cooldown', async (status) => {
+    const fetchFn = vi.fn(async () => json({ detail: 'x' }, status));
+    const g = grounding(fetchFn as never, { tavily: { apiKey: 'tvly-secreta' } });
+    bot = await g.start();
+
+    await search(bot);
+    await search(bot);
+
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+  });
+
   it('usa a cadeia própria da busca quando configurada', async () => {
     const principal = scripted('da principal');
     const busca = scripted('da busca');
@@ -167,6 +211,18 @@ describe('formatTavily', () => {
 
     expect(text.match(/\[\d\]/g)).toHaveLength(4);
     expect(text).not.toContain('x'.repeat(351));
+  });
+
+  it('mostra até maxResults fontes', () => {
+    const results = Array.from({ length: 7 }, (_, i) => ({ title: `T${i}`, content: 'c' }));
+
+    expect(formatTavily({ results }, 7).match(/\[\d\]/g)).toHaveLength(7);
+  });
+
+  it('só texto de cota em 401/402/403 conta como cota', () => {
+    expect(new TavilyError(400, 'limit').quota).toBe(false);
+    expect(new TavilyError(432, '').quota).toBe(true);
+    expect(new TavilyError(403, 'usage limit exceeded').quota).toBe(true);
   });
 
   it('sem nada, diz que não achou', () => {
