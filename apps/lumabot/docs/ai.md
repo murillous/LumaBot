@@ -106,9 +106,12 @@ const { text, toolCalls } = await ai.generate({
 ```
 
 - O texto é o do último passo; se veio vazio, o dos passos anteriores.
-- **Se o modelo falha depois de uma tool rodar, a cadeia não tenta o próximo modelo**: repetir o
-  efeito (um lembrete, uma figurinha) seria pior que devolver o erro. Antes de qualquer tool, o
-  fallback é o de sempre.
+- **Se o modelo falha depois de uma tool com efeito começar, a cadeia não tenta o próximo
+  modelo**: repetir o efeito (um lembrete, uma figurinha) seria pior que devolver o erro. Vale
+  desde o início da tool, não só depois dela terminar: um timeout no meio da execução também
+  barra o fallback. Tool só de leitura declara `sideEffects: false` (`search_web`,
+  `transcribe_audio`, `summarize_chat`) e não bloqueia; ausente, assume-se que tem efeito.
+  Antes de qualquer tool, o fallback é o de sempre.
 
 ### Busca nativa (`nativeSearch`)
 

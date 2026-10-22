@@ -124,6 +124,7 @@ export function webSearch({ fetch: fetchFn = fetch }: WebSearchDeps = {}): Plugi
         'ai.tools',
         aiTool({
           name: 'search_web',
+          sideEffects: false,
           description:
             'Busca informações atualizadas na internet. Use quando o usuário pedir para pesquisar, buscar ou googlar algo, ou perguntar sobre notícias recentes, eventos atuais, preços, lançamentos, resultados de jogos, clima ou qualquer assunto que possa ter mudado depois do seu treinamento.',
           args: z.object({
