@@ -1,5 +1,6 @@
 import { definePlugin, type PluginDefinition } from '@usebridger/core';
 import { z } from 'zod';
+import { chainItem } from '#plugins/ai/ai.ts';
 import { createChatWindow } from '#plugins/chat-window.ts';
 import { parseReaction, reactionPrompt } from './decide.ts';
 
@@ -15,15 +16,7 @@ const config = z.object({
   /** Emojis que a IA pode usar; qualquer outro vale como "não reagir". */
   emojis: z.array(z.string().min(1)).min(1).default(DEFAULT_EMOJIS),
   /** Cadeia só desta decisão, no formato do `ai`. Vazio usa a principal. */
-  models: z
-    .array(
-      z.object({
-        model: z.string().regex(/^[a-z0-9-]+:.+$/, 'use provider:modelo'),
-        temperature: z.number().min(0).max(2).optional(),
-        maxOutputTokens: z.number().int().positive().optional(),
-      }),
-    )
-    .default([]),
+  models: z.array(chainItem).default([]),
   /** Prazo da avaliação inteira (cadeia incluída). */
   timeoutMs: z.number().int().positive().default(30_000),
 });

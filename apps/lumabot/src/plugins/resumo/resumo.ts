@@ -1,5 +1,6 @@
 import { definePlugin, type PluginDefinition } from '@usebridger/core';
 import { z } from 'zod';
+import { chainItem } from '#plugins/ai/ai.ts';
 import { cleanResponse } from '#plugins/ai-response.ts';
 import { aiTool, fail, ok } from '#plugins/ai-tools.ts';
 import { createChatWindow } from '#plugins/chat-window.ts';
@@ -33,15 +34,7 @@ const config = z
     /** Teto do `!resumo <n>`. */
     maxLimit: z.number().int().min(1).default(200),
     /** Cadeia só do resumo, no formato do `ai`. Vazio usa a principal. */
-    models: z
-      .array(
-        z.object({
-          model: z.string().regex(/^[a-z0-9-]+:.+$/, 'use provider:modelo'),
-          temperature: z.number().min(0).max(2).optional(),
-          maxOutputTokens: z.number().int().positive().optional(),
-        }),
-      )
-      .default([]),
+    models: z.array(chainItem).default([]),
   })
   .refine((c) => c.defaultLimit <= c.maxLimit, {
     message: 'defaultLimit não pode passar de maxLimit',

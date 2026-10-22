@@ -173,3 +173,14 @@ describe('formatTavily', () => {
     expect(formatTavily({})).toBe('Nenhum resultado encontrado.');
   });
 });
+
+describe('config', () => {
+  it('recusa model sem provider: pelo schema compartilhado da cadeia', async () => {
+    await expect(
+      createTestBot({
+        plugins: [webSearch(), aiToolsProbe],
+        pluginConfig: { 'web-search': { models: [{ model: 'gemini-flash' }] } },
+      }),
+    ).rejects.toThrow(/provider:modelo/);
+  });
+});

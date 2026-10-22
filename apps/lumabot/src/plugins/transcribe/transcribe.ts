@@ -1,6 +1,6 @@
 import { definePlugin, fmt, italic, type Media, type PluginDefinition } from '@usebridger/core';
 import { z } from 'zod';
-import { AiUnavailableError } from '#plugins/ai/ai.ts';
+import { AiUnavailableError, chainItem } from '#plugins/ai/ai.ts';
 import { aiTool, fail, mediaMessage, ok } from '#plugins/ai-tools.ts';
 import { mediaOf } from '#plugins/media-command.ts';
 
@@ -41,15 +41,7 @@ const config = z.object({
    * não tem): `[{ "model": "google:gemini-2.5-flash" }]` transcreve com o Gemini enquanto a Luma
    * segue na cadeia principal. Vazio usa a principal.
    */
-  models: z
-    .array(
-      z.object({
-        model: z.string().regex(/^[a-z0-9-]+:.+$/, 'use provider:modelo'),
-        temperature: z.number().min(0).max(2).optional(),
-        maxOutputTokens: z.number().int().positive().optional(),
-      }),
-    )
-    .default([]),
+  models: z.array(chainItem).default([]),
   /** Áudio acima disso não vai ao modelo. */
   maxBytes: z
     .number()
