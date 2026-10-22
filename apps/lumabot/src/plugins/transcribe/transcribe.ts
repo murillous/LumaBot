@@ -115,6 +115,7 @@ export const transcribe: PluginDefinition = definePlugin({
       'ai.tools',
       aiTool({
         name: 'transcribe_audio',
+        sideEffects: false,
         description:
           'Transcreve o áudio (mensagem de voz) que o usuário mandou ou o da mensagem que ele respondeu, e devolve o texto só para você ler: nada vai para o chat. Use para entender e responder a um áudio.',
         args: z.object({}),

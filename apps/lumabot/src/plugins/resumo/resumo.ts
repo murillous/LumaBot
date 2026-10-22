@@ -116,6 +116,7 @@ export const resumo: PluginDefinition = definePlugin({
       'ai.tools',
       aiTool({
         name: 'summarize_chat',
+        sideEffects: false,
         description:
           'Resume o que foi conversado recentemente neste chat. Use quando pedirem um resumo, "o que rolou" ou "o que perdi".',
         args: z.object({

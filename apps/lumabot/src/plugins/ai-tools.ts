@@ -35,6 +35,8 @@ export interface AiTool<A = unknown> {
   readonly args: z.ZodType<A>;
   /** A IA só oferece a tool se o transport tiver todas. */
   readonly requires?: readonly Capability[];
+  /** `false` para tool só de leitura: iniciada, ela não impede o fallback. Ausente = tem efeito. */
+  readonly sideEffects?: boolean;
   run(args: A, ctx: AiToolContext): Promise<AiToolResult>;
 }
 

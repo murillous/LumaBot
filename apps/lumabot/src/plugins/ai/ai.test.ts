@@ -456,12 +456,60 @@ describe('ai.generate com tools', () => {
       },
     });
 
-  async function ask(chain: Record<string, MockLanguageModelV4>, profile?: 'web') {
+  // Tools extras vivem num plugin à parte para não mudar o que o `caller` oferece aos outros testes.
+  // A `slow` fica pendurada aqui até o teste soltar: simula uma tool ainda rodando no timeout.
+  let slowGate: Promise<void> = Promise.resolve();
+  const extras = definePlugin({
+    name: 'extras',
+    version: '0.0.0',
+    engine: '<1.0.0',
+    dependsOn: { ai: '^0.1.0' },
+    setup: (ctx) => {
+      ctx.services.contribute(
+        'ai.tools',
+        aiTool({
+          name: 'slow',
+          description: 'demora e tem efeito',
+          args: z.object({}),
+          run: async () => {
+            runs.push('slow');
+            await slowGate;
+            return ok();
+          },
+        }),
+      );
+      ctx.services.contribute(
+        'ai.tools',
+        aiTool({
+          name: 'peek',
+          description: 'só leitura',
+          args: z.object({}),
+          sideEffects: false,
+          run: async () => {
+            runs.push('peek');
+            return ok();
+          },
+        }),
+      );
+    },
+  });
+
+  async function ask(
+    chain: Record<string, MockLanguageModelV4>,
+    profile?: 'web',
+    timeoutMs?: number,
+    withExtras = false,
+  ) {
     runs.length = 0;
     last = undefined;
     bot = await createTestBot({
-      plugins: [ai, caller([fake('fake', chain)])],
-      pluginConfig: { ai: { models: [{ model: 'fake:a' }, { model: 'fake:b' }] } },
+      plugins: [ai, caller([fake('fake', chain)]), ...(withExtras ? [extras] : [])],
+      pluginConfig: {
+        ai: {
+          models: [{ model: 'fake:a' }, { model: 'fake:b' }],
+          ...(timeoutMs ? { timeoutMs } : {}),
+        },
+      },
       ...(profile ? { profile } : {}),
     });
     await bot.receive({ text: '!ask' });
@@ -522,6 +570,42 @@ describe('ai.generate com tools', () => {
 
     expect(runs).toEqual(['uma vez']);
     expect(b.doGenerateCalls).toHaveLength(0);
+  });
+
+  it('tool com efeito lenta que estoura o timeout roda uma vez só e o erro é relançado', async () => {
+    // O timeout do SDK usa timers reais; com os falsos ele nunca dispararia.
+    vi.useRealTimers();
+    let release: () => void = () => undefined;
+    slowGate = new Promise<void>((r) => {
+      release = r;
+    });
+    const a = toolModel('slow', {});
+    // `b` chamaria a tool de novo: se o fallback ocorresse, `runs` teria dois 'slow'.
+    const b = toolModel('slow', {});
+    const asked = ask({ a, b }, undefined, 50, true).catch(() => undefined);
+    // Hoje o SDK espera a tool e lança depois; se passar a lançar com ela pendente, este teste pega a repetição.
+    await new Promise((r) => setTimeout(r, 300));
+    release();
+    await asked;
+
+    // A resposta não veio: o erro do timeout foi relançado em vez de cair no `b`.
+    expect(last).toBeUndefined();
+    expect(runs).toEqual(['slow']);
+    expect(b.doGenerateCalls).toHaveLength(0);
+  });
+
+  it('tool só de leitura não bloqueia o fallback para o próximo modelo', async () => {
+    let step = 0;
+    const a = new MockLanguageModelV4({
+      doGenerate: async () => {
+        if (step++ === 0) return toolCall('peek', {});
+        throw apiError(503);
+      },
+    });
+    await ask({ a, b: model('de b') }, undefined, undefined, true);
+
+    expect(runs).toEqual(['peek']);
+    expect(last?.text).toBe('de b');
   });
 
   it('usa o texto dos passos anteriores quando o último vem vazio', async () => {

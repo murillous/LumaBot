@@ -225,7 +225,11 @@ export const ai: PluginDefinition = definePlugin({
     // As tools do SDK saem do `ai.tools` a cada chamada (visão viva) e só com as capabilities do
     // transport. O SDK não valida os argumentos: quem valida é o `invokeTool`, que devolve
     // `invalid-args` ao modelo em vez de abortar a resposta.
-    const sdkTools = (toolCtx: AiToolContext, calls: ToolCallRecord[]): ToolSet => {
+    const sdkTools = (
+      toolCtx: AiToolContext,
+      calls: ToolCallRecord[],
+      onEffect: () => void,
+    ): ToolSet => {
       const entries = offeredTools(toolPoint.list(), ctx.capabilities).map(
         (t: AiTool) =>
           [
@@ -234,6 +238,9 @@ export const ai: PluginDefinition = definePlugin({
               description: t.description,
               inputSchema: jsonSchema<unknown>(z.toJSONSchema(t.args, { io: 'input' }) as never),
               execute: async (args: unknown) => {
+                // Marca antes do await: se o timeout estourar no meio da tool, ela pode ter feito
+                // o efeito e o próximo modelo a repetiria. Tool só de leitura não conta.
+                if (t.sideEffects !== false) onEffect();
                 const result = await invokeTool(t, args, toolCtx);
                 calls.push({ name: t.name, args, result });
                 return result;
@@ -305,9 +312,14 @@ export const ai: PluginDefinition = definePlugin({
           }
           // Por tentativa: o que uma tentativa que falhou já executou não pode se repetir na próxima.
           const calls: ToolCallRecord[] = [];
+          let effectStarted = false;
           const tools: ToolSet = {
             ...search,
-            ...(request.toolContext ? sdkTools(request.toolContext, calls) : {}),
+            ...(request.toolContext
+              ? sdkTools(request.toolContext, calls, () => {
+                  effectStarted = true;
+                })
+              : {}),
           };
           const hasTools = Object.keys(tools).length > 0;
           try {
@@ -355,8 +367,8 @@ export const ai: PluginDefinition = definePlugin({
               attempt('error', extra);
               throw err;
             }
-            // Tool com efeito (lembrete, figurinha) já rodou: tentar o próximo modelo a repetiria.
-            if (calls.length > 0) {
+            // Tool com efeito (lembrete, figurinha) já iniciou: tentar o próximo modelo a repetiria.
+            if (effectStarted) {
               attempt('error', extra);
               throw err;
             }
