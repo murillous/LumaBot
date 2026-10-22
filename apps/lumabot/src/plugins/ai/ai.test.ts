@@ -575,7 +575,7 @@ describe('ai.generate com tools', () => {
   it('tool com efeito lenta que estoura o timeout roda uma vez só e o erro é relançado', async () => {
     // O timeout do SDK usa timers reais; com os falsos ele nunca dispararia.
     vi.useRealTimers();
-    let release = () => {};
+    let release: () => void = () => undefined;
     slowGate = new Promise<void>((r) => {
       release = r;
     });
