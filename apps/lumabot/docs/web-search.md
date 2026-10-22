@@ -14,9 +14,9 @@ Busca na internet para a IA: a tool `search_web` e o serviço `webSearch`. Códi
 3. Nada serve: `SearchUnavailableError`, e a tool devolve `fail('unavailable')`.
 
 Cota esgotada (HTTP 429, 432 ou 433; em 401/402/403 também se o texto fala de cota, limite ou
-crédito) põe o Tavily de
-lado por `quotaCooldownMs` (1 h), sem timer: compara com o relógio. Falha comum (rede, prazo estourado, 5xx, 400 com "limit" no corpo) cai
-no fallback **sem** esperar. O `ai` é opcional (`optionalDependsOn`): sem ele, só o Tavily.
+crédito) põe o Tavily de lado por `quotaCooldownMs` (1 h), sem timer: compara com o relógio.
+Falha comum (rede, prazo estourado, 5xx, 400 com "limit" no corpo) cai no fallback **sem**
+esperar. O `ai` é opcional (`optionalDependsOn`): sem ele, só o Tavily.
 
 ## Tool da IA
 
