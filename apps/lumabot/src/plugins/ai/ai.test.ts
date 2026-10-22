@@ -583,11 +583,13 @@ describe('ai.generate com tools', () => {
     // `b` chamaria a tool de novo: se o fallback ocorresse, `runs` teria dois 'slow'.
     const b = toolModel('slow', {});
     const asked = ask({ a, b }, undefined, 50, true).catch(() => undefined);
-    // Solta a tool só depois do timeout, para o erro vir com ela ainda não resolvida.
+    // Hoje o SDK espera a tool e lança depois; se passar a lançar com ela pendente, este teste pega a repetição.
     await new Promise((r) => setTimeout(r, 300));
     release();
     await asked;
 
+    // A resposta não veio: o erro do timeout foi relançado em vez de cair no `b`.
+    expect(last).toBeUndefined();
     expect(runs).toEqual(['slow']);
     expect(b.doGenerateCalls).toHaveLength(0);
   });
