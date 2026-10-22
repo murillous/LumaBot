@@ -7,7 +7,7 @@ import {
   type Reply,
 } from '@usebridger/core';
 import { z } from 'zod';
-import { AiUnavailableError } from '#plugins/ai/ai.ts';
+import { AiUnavailableError, chainItem } from '#plugins/ai/ai.ts';
 import { cleanResponse, splitIntoParts } from '#plugins/ai-response.ts';
 import { aiTool, fail, mediaMessage, ok } from '#plugins/ai-tools.ts';
 import { createChatWindow } from '#plugins/chat-window.ts';
@@ -91,13 +91,7 @@ const MESSAGES = {
 };
 
 /** Cadeia de modelos no formato do `ai` (`provider:modelo`); o `ai` valida de novo a cada chamada. */
-const chain = z.array(
-  z.object({
-    model: z.string().regex(/^[a-z0-9-]+:.+$/, 'use provider:modelo'),
-    temperature: z.number().min(0).max(2).optional(),
-    maxOutputTokens: z.number().int().positive().optional(),
-  }),
-);
+const chain = z.array(chainItem);
 
 const config = z.object({
   /** Como a Luma é chamada no chat; cada nome vale como gatilho em qualquer ponto do texto. */

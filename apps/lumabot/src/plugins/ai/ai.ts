@@ -153,7 +153,7 @@ const BUILT_IN_NAMES = Object.keys(BUILT_IN) as BuiltIn[];
  * Item da cadeia, na config e por chamada: o mesmo schema nos dois lugares, porque o `models` do
  * `generate` é fronteira entre plugins e não pode aceitar o que a config recusaria.
  */
-const chainItem = z.object({
+export const chainItem: z.ZodType<ModelChainItem, ModelChainItem> = z.object({
   model: z.string().regex(/^[a-z0-9-]+:.+$/, 'use provider:modelo'),
   temperature: z.number().min(0).max(2).optional(),
   maxOutputTokens: z.number().int().positive().optional(),

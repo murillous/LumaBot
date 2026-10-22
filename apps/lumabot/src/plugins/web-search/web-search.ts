@@ -1,6 +1,6 @@
 import { definePlugin, type PluginDefinition, secret } from '@usebridger/core';
 import { z } from 'zod';
-import { AiUnavailableError } from '#plugins/ai/ai.ts';
+import { AiUnavailableError, chainItem } from '#plugins/ai/ai.ts';
 import { aiTool, fail, ok } from '#plugins/ai-tools.ts';
 import { searchTavily, TavilyError } from './tavily.ts';
 
@@ -29,15 +29,7 @@ const config = z.object({
     })
     .default({ maxResults: 5, searchDepth: 'basic' }),
   /** Cadeia da busca nativa (Google Grounding), no formato do `ai`. Vazio usa a principal. */
-  models: z
-    .array(
-      z.object({
-        model: z.string().regex(/^[a-z0-9-]+:.+$/, 'use provider:modelo'),
-        temperature: z.number().min(0).max(2).optional(),
-        maxOutputTokens: z.number().int().positive().optional(),
-      }),
-    )
-    .default([]),
+  models: z.array(chainItem).default([]),
   /** Depois de o Tavily acusar cota esgotada, quanto tempo ele fica de lado. */
   quotaCooldownMs: z
     .number()
