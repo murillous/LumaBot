@@ -143,7 +143,7 @@ describe('Google Grounding como fallback', () => {
         // O signal já nasce abortado (prazo simulado); fetch de verdade rejeitaria na hora.
         init?.signal?.aborted
           ? Promise.reject(init.signal.reason)
-          : new Promise<Response>(() => {}),
+          : new Promise<Response>(() => undefined),
       );
       const g = grounding(fetchFn as never, { tavily: { apiKey: 'tvly-secreta' } });
       bot = await g.start();
