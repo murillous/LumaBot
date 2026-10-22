@@ -31,12 +31,11 @@ export class TavilyError extends Error {
 }
 
 const SNIPPET = 350;
-const SHOWN = 4;
 /** Prazo do Tavily: curto para um Tavily travado não consumir o signal inteiro do listener. */
 export const TAVILY_TIMEOUT_MS = 10_000;
 
 /** Resumo do Tavily e as `shown` primeiras fontes, no tamanho que cabe no contexto do modelo. */
-export function formatTavily(data: TavilyResponse, shown: number = SHOWN): string {
+export function formatTavily(data: TavilyResponse, shown: number): string {
   const lines: string[] = [];
   if (data.answer) lines.push(`Resumo: ${data.answer}`, '');
   (data.results ?? []).slice(0, shown).forEach((r, i) => {

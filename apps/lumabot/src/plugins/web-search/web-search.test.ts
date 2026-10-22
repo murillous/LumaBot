@@ -207,7 +207,7 @@ describe('formatTavily', () => {
       content: 'x'.repeat(500),
     }));
 
-    const text = formatTavily({ results });
+    const text = formatTavily({ results }, 4);
 
     expect(text.match(/\[\d\]/g)).toHaveLength(4);
     expect(text).not.toContain('x'.repeat(351));
