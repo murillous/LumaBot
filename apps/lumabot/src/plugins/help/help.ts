@@ -95,6 +95,7 @@ export const help: PluginDefinition = definePlugin({
       'ai.tools',
       aiTool({
         name: 'list_commands',
+        sideEffects: false,
         description:
           'Lista os comandos da Luma neste chat, com o que cada um faz. Use para responder o que a Luma sabe fazer.',
         args: z.object({}),

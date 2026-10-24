@@ -112,7 +112,8 @@ const { text, toolCalls } = await ai.generate({
   acabar (o `timeoutMs` pode ser ultrapassado pela duração dela) e a tool não é interrompida pelo
   timeout; a marcação antes do `await` é defensiva, caso o SDK passe a lançar com a tool ainda
   rodando. Tool só de leitura declara `sideEffects: false` (`search_web`,
-  `transcribe_audio`, `summarize_chat`) e não bloqueia; ausente, assume-se que tem efeito.
+  `transcribe_audio`, `summarize_chat`, `list_commands`, `get_name`, `ranking`, `chat_info`) e
+  não bloqueia; ausente, assume-se que tem efeito.
   Antes de qualquer tool, o fallback é o de sempre.
 
 ### Busca nativa (`nativeSearch`)
