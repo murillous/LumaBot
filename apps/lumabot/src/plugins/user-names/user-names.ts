@@ -164,6 +164,9 @@ export const userNames: PluginDefinition = definePlugin({
       'ai.tools',
       aiTool({
         name: 'get_name',
+        // O `remember` do mencionado é idempotente (os eventos de mensagem já o fazem): repetir
+        // a tool no próximo modelo não muda nada.
+        sideEffects: false,
         description:
           'Nome pelo qual a Luma chama alguém (apelido, nome do perfil ou fim do número).',
         args: z.object({ target }),

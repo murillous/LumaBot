@@ -84,6 +84,7 @@ export const rank: PluginDefinition = definePlugin({
       'ai.tools',
       aiTool({
         name: 'ranking',
+        sideEffects: false,
         description:
           'Quem mais interage com a Luma, do maior para o menor: neste grupo ou no geral. Em conversa privada é sempre o geral.',
         args: z.object({ scope: z.enum(['chat', 'global']).default('chat') }),

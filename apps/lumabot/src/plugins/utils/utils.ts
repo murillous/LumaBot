@@ -77,6 +77,7 @@ export const utils: PluginDefinition = definePlugin({
       'ai.tools',
       aiTool({
         name: 'chat_info',
+        sideEffects: false,
         description: 'Informações de ID de quem pergunta e deste chat (número, ID do chat).',
         args: z.object({}),
         run: async (_, t) => ok({ lines: await infoLines(t.message.chat, t.message.sender) }),

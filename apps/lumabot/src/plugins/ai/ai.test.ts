@@ -5,6 +5,10 @@ import { MockLanguageModelV4 } from 'ai/test';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { aiTool, ok } from '#plugins/ai-tools.ts';
+import { help } from '#plugins/help/help.ts';
+import { rank } from '#plugins/rank/rank.ts';
+import { userNames } from '#plugins/user-names/user-names.ts';
+import { utils } from '#plugins/utils/utils.ts';
 import {
   type AiAttempt,
   type AiObserver,
@@ -607,6 +611,37 @@ describe('ai.generate com tools', () => {
     expect(runs).toEqual(['peek']);
     expect(last?.text).toBe('de b');
   });
+
+  // As tools reais só de leitura: se uma perder o `sideEffects: false`, um 503 depois dela vira
+  // "Tô sem cabeça agora" em vez de cair no próximo modelo.
+  it.each(['list_commands', 'get_name', 'ranking', 'chat_info'])(
+    'a tool %s não bloqueia o fallback',
+    async (name) => {
+      let step = 0;
+      const a = new MockLanguageModelV4({
+        doGenerate: async () => {
+          if (step++ === 0) return toolCall(name, {});
+          throw apiError(503);
+        },
+      });
+      bot = await createTestBot({
+        plugins: [
+          ai,
+          caller([fake('fake', { a, b: model('de b') })]),
+          help,
+          userNames,
+          rank,
+          utils,
+        ],
+        pluginConfig: { ai: { models: [{ model: 'fake:a' }, { model: 'fake:b' }] } },
+      });
+      await bot.receive({ text: '!ask' });
+
+      // O 2º passo de `a` só existe se a tool rodou e devolveu o resultado ao modelo.
+      expect(a.doGenerateCalls).toHaveLength(2);
+      expect(bot.sent.at(-1)?.content).toMatchObject({ type: 'text', text: 'de b' });
+    },
+  );
 
   it('usa o texto dos passos anteriores quando o último vem vazio', async () => {
     let step = 0;
