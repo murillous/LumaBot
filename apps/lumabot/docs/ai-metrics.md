@@ -13,14 +13,15 @@ expor o `/metrics`, o bot precisa da opção `http`. O plugin depende do `metric
 
 Rótulos de baixa cardinalidade: `model`, `provider`, `purpose`, `outcome`, `position` (`first` ou
 `fallback`), `statusCode`, `kind`, `reason`. **Nunca** texto de conversa nem id de chat ou de
-pessoa (o `metrics` recusa rótulo que parece id).
+pessoa. Os nomes seguem o Prometheus (`_total` no contador, unidade no nome); o `summary` devolve a
+latência em ms. O histórico gravado antes do `plugin-metrics` 0.3 (nomes `ai.*`) não é lido.
 
 | Métrica | Tipo | Rótulos | Quando |
 | --- | --- | --- | --- |
-| `ai.attempts` | contador | `model`, `provider`, `purpose`, `outcome`, `position`, `statusCode?` | Toda tentativa da cadeia |
-| `ai.latency_ms` | histograma | `model`, `purpose` | Tentativa que respondeu |
-| `ai.tokens` | contador | `model`, `purpose`, `kind` (`input`, `output`, `cache_read`, `reasoning`) | Tentativa que respondeu |
-| `ai.finish` | contador | `model`, `purpose`, `reason` | Tentativa que respondeu |
+| `ai_attempts_total` | contador | `model`, `provider`, `purpose`, `outcome`, `position`, `statusCode?` | Toda tentativa da cadeia |
+| `ai_latency_seconds` | histograma (0,25 s a 60 s) | `model`, `purpose` | Tentativa que respondeu |
+| `ai_tokens_total` | contador | `model`, `purpose`, `kind` (`input`, `output`, `cache_read`, `reasoning`) | Tentativa que respondeu |
+| `ai_finish_total` | contador | `model`, `purpose`, `reason` | Tentativa que respondeu |
 
 ## Serviço `aiMetrics`
 
@@ -42,7 +43,8 @@ summary({ days = 7, model?, purpose? }): Promise<AiSummary>
 | `finishReasons` | `length` (resposta cortada), `content-filter` (recusa), `stop`... |
 | `costUsd`, `unpricedModels` | Custo estimado e os modelos que ficaram de fora dele |
 
-O período é em **UTC**, com o dia de hoje incluído. O que ainda não foi gravado no storage entra
+O período é em **UTC** (o `timeZone` padrão do `metrics`), com o dia de hoje incluído, e cabe na
+retenção diária do `metrics` (90 dias). O que ainda não foi gravado no storage entra
 pela memória do `metrics`.
 
 ## Custo

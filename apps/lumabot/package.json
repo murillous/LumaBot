@@ -18,11 +18,11 @@
     "@ai-sdk/deepseek": "^3.0.66",
     "@ai-sdk/google": "^4.0.98",
     "@ai-sdk/openai": "^4.0.95",
-    "@usebridger/core": "^0.9.0",
-    "@usebridger/plugin-dashboard": "^0.3.0",
-    "@usebridger/plugin-metrics": "^0.2.0",
-    "@usebridger/storage-sqlite": "^0.3.2",
-    "@usebridger/transport-baileys": "^0.5.0",
+    "@usebridger/core": "^0.10.0",
+    "@usebridger/plugin-dashboard": "^0.4.0",
+    "@usebridger/plugin-metrics": "^0.3.0",
+    "@usebridger/storage-sqlite": "^0.3.3",
+    "@usebridger/transport-baileys": "^0.6.0",
     "ai": "^7.0.142",
     "node-webpmux": "^3.2.1",
     "pdf-lib": "^1.17.1",
@@ -32,6 +32,6 @@
   },
   "devDependencies": {
     "@types/qrcode-terminal": "^0.12.2",
-    "@usebridger/testing": "^0.6.4"
+    "@usebridger/testing": "^0.7.0"
   }
 }

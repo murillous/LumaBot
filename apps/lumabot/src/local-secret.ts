@@ -1,4 +1,4 @@
-// Segredos que o app gera sozinho no primeiro boot (token do dashboard, chave mestra), para o
+// Segredos que o app gera sozinho no primeiro boot (token do primeiro acesso, chave mestra), para o
 // LumaBot subir com o .env vazio e o resto da config vir pelo dashboard (ADR 0006).
 
 import { randomBytes } from 'node:crypto';
