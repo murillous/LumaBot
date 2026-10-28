@@ -1,4 +1,4 @@
-// Contrato do ponto `ai.tools` (ADR 0003): só tipos e funções puras, sem depender do plugin `ai`.
+// Contrato do ponto `ai.tools`: só tipos e funções puras, sem depender do plugin `ai`.
 // Cada plugin contribui as próprias tools; a IA lê `list()` e não conhece nenhum plugin.
 
 import type {

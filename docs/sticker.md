@@ -2,8 +2,7 @@
 
 Figurinha a partir de imagem, vídeo ou link (`sticker`) e a legenda escrita nela
 (`sticker-text`). O `sticker` oferece o serviço `sticker`, e o `sticker-text` só se encaixa
-nele: desligar o `sticker-text` tira a legenda, e a figurinha segue igual
-([ADR 0001](../../../docs/adr/0001-plugins-compostos-por-servico.md)).
+nele: desligar o `sticker-text` tira a legenda, e a figurinha segue igual.
 
 Código em `src/plugins/sticker/` (`sticker.ts`: comando e serviço; `convert.ts`: conversões;
 `fetch-url.ts`: download do link) e `src/plugins/sticker-text/` (`caption.ts`: a legenda).

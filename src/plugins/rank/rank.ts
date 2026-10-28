@@ -7,7 +7,7 @@ export type RankEntry = { id: string; count: number };
 
 /**
  * Serviço `rank`: quantas vezes cada pessoa interagiu com a Luma. Contrato estável; mudança
- * incompatível sobe a `version` do plugin (ADR 0002 item 6).
+ * incompatível sobe a `version` do plugin.
  */
 export interface RankService {
   /** Soma uma interação de `senderId` em `chatId` (e no total geral). */
@@ -37,7 +37,7 @@ type TotalCount = { userId: string; count: number };
 
 /**
  * Ranking de interações (`!rank`). Hoje nada chama `record`: no legacy só o fluxo da IA contava,
- * e o plugin `ai` ainda não existe. Sem ponto de extensão: não há variação prevista (ADR 0002).
+ * e o plugin `ai` ainda não existe. Sem ponto de extensão: não há variação prevista.
  */
 export const rank: PluginDefinition = definePlugin({
   name: 'rank',

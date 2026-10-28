@@ -1,8 +1,7 @@
 # luma
 
 A personagem: responde em conversa privada, quando citada, chamada pelo nome ou mencionada, com
-histórico, persona por chat e as ferramentas do ponto `ai.tools`
-([ADR 0005](../../../docs/adr/0005-a-luma-e-um-plugin-a-parte-do-ai.md)). A IA em si (cadeia de
+histórico, persona por chat e as ferramentas do ponto `ai.tools`. A IA em si (cadeia de
 modelos, fallback, métricas) é do [`ai`](ai.md); a `luma` depende dele. Código em
 `src/plugins/luma/`: `luma.ts` (plugin), `history.ts`, `trigger.ts`, `prompt.ts`, `personas.ts`,
 `persona-generator.ts` e `stats.ts`, todos puros menos o primeiro.
@@ -120,6 +119,6 @@ Uso opcional de outros plugins: `ctx.services.has('luma')`.
 
 ## Uso opcional de outros plugins
 
-Sem `dependsOn`, na hora do uso (ADR 0002 item 7): o [`rank`](rank.md) conta a interação
+Sem `dependsOn`, na hora do uso: o [`rank`](rank.md) conta a interação
 (`record`), o `user-names` dá o nome de quem fala, e o [`ai-metrics`](ai-metrics.md) alimenta o
 `!luma stats`.

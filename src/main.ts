@@ -1,4 +1,4 @@
-// Ponto de entrada do LumaBot: compõe o bot e cuida do processo (ADR 0034 — o kernel não tem
+// Ponto de entrada do LumaBot: compõe o bot e cuida do processo (o kernel do Bridger não tem
 // runner). Nada de regra aqui: comportamento novo entra como plugin.
 
 import { dirname, join } from 'node:path';
@@ -43,7 +43,7 @@ const log = createLogger({
 });
 
 // Com o .env vazio, o app gera a chave mestra (sem ela o dashboard não grava as chaves da IA) e o
-// token do primeiro acesso, e guarda os dois ao lado do banco (ADR 0006). Variável definida vence o
+// token do primeiro acesso, e guarda os dois ao lado do banco. Variável definida vence o
 // arquivo.
 const env = { ...pluginEnv() };
 const dataDir = dirname(config.dbPath);

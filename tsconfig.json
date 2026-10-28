@@ -1,15 +1,31 @@
 {
-  // Solution da raiz: `pnpm typecheck` roda `tsc -b` nos arquivos de config da raiz e em todos
-  // os pacotes listados em `references` — ao criar um app, adicione-o lá.
-  "extends": "./tsconfig.base.json",
+  "$schema": "https://json.schemastore.org/tsconfig",
   "compilerOptions": {
-    "composite": false,
-    "declaration": false,
-    "emitDeclarationOnly": false,
-    "declarationMap": false,
-    "isolatedDeclarations": false,
-    "noEmit": true
+    // Node 24 roda ES2024 nativo — nada de downlevel.
+    "target": "es2024",
+    "lib": ["es2024"],
+    "types": ["node"],
+
+    // ESM puro com a resolução do Node.
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "moduleDetection": "force",
+    "verbatimModuleSyntax": true,
+
+    // Em dev o Node executa o .ts direto (type stripping): só sintaxe apagável
+    // (sem enum/namespace/parameter properties) e imports com extensão `.ts`.
+    "erasableSyntaxOnly": true,
+    "allowImportingTsExtensions": true,
+
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "noPropertyAccessFromIndexSignature": true,
+
+    // O tsc só checa tipos; o JS sai do tsdown.
+    "noEmit": true,
+    "skipLibCheck": true
   },
-  "include": ["*.config.ts"],
-  "references": [{ "path": "apps/lumabot" }]
+  "include": ["src", "*.config.ts"]
 }

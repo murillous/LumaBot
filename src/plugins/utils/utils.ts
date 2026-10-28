@@ -52,7 +52,7 @@ export const utils: PluginDefinition = definePlugin({
     const { messages } = ctx.plugin;
     // Visão viva: `list()` a cada uso pega as linhas de quem contribuiu ou saiu depois.
     const info = ctx.services.extensionPoint('utils.info');
-    // O número e o chat são linhas padrão contribuídas pelo próprio plugin (ADR 0002).
+    // O número e o chat são linhas padrão contribuídas pelo próprio plugin.
     ctx.services.contribute('utils.info', ({ sender }) =>
       // Fora do WhatsApp não há telefone: o ID nativo identifica o remetente.
       fill(messages.senderLine, sender.phone ?? sender.id),

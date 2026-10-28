@@ -1,4 +1,4 @@
-# apps/lumabot — documentação
+# LumaBot — documentação
 
 O LumaBot sobre o [Bridger](https://github.com/murillous/usebridger), consumido do npm
 (`@usebridger/*`). O app só compõe o bot: transport
@@ -9,11 +9,11 @@ processo (sinais, código de saída). O kernel é uma biblioteca sem runner
 
 ## Rodar
 
-Na raiz, depois do `pnpm install`:
+Depois do `pnpm install`:
 
 ```sh
 pnpm build
-pnpm --filter lumabot start   # roda dist/main.mjs
+pnpm start   # roda dist/main.mjs
 ```
 
 Os plugins `sticker`, `sticker-convert` e `download` rodam o `ffmpeg` do sistema, e o `download`,
@@ -23,7 +23,7 @@ também uma fonte de emoji colorida (`fonts-noto-color-emoji`, ver
 [sticker.md](sticker.md#legenda-sticker-text)). No Windows, também é preciso o `FONTCONFIG_FILE`
 ([sticker.md](sticker.md#emoji-colorido-no-windows)).
 
-Para desenvolver sem build, `pnpm --filter lumabot dev` executa o `.ts` direto (type stripping
+Para desenvolver sem build, `pnpm dev` executa o `.ts` direto (type stripping
 do Node).
 
 No primeiro uso o terminal mostra o QR: no celular, *Aparelhos conectados → Conectar aparelho*.
@@ -46,7 +46,7 @@ em `http://127.0.0.1:3000/plugins/dashboard/`, e a config dos plugins (modelos e
 Luma, busca...) se faz na tela Config. Até ganhar uma cadeia `models`, a IA recusa responder.
 
 As variáveis abaixo, lidas em `src/config.ts`, só mudam os padrões. Variável vazia vale como ausente.
-O `start` e o `dev` carregam `apps/lumabot/.env`, se existir (`--env-file-if-exists` do Node).
+O `start` e o `dev` carregam o `.env` da raiz, se existir (`--env-file-if-exists` do Node).
 Variável já definida no ambiente vence a do arquivo. O `.env.example` traz as do app comentadas.
 O `.env` fica fora do Git. A exceção é o
 `FONTCONFIG_FILE` do Windows, que precisa estar no ambiente do sistema
@@ -103,7 +103,7 @@ Cada plugin (menos `pairing`, `ping`, `ai`, `ai-metrics`, `spontaneous` e `stick
 chamar por function calling: ver [ai-tools.md](ai-tools.md).
 
 Um plugin pode estender outro ou usá-lo pelos serviços do kernel (`ctx.services`), sem importar
-o código dele ([ADR 0001](../../../docs/adr/0001-plugins-compostos-por-servico.md)); o exemplo é
+o código dele; o exemplo é
 o `sticker`, em [sticker.md](sticker.md#serviço-sticker).
 
 Os testes sobem cada plugin num bot de verdade sobre o transport falso do
