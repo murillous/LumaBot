@@ -2,7 +2,7 @@
 // lidas e a tabela de preços, e devolve números. O custo é calculado aqui, na consulta, e nunca
 // gravado, então mudar a tabela vale também para o histórico.
 
-import { type CounterRow, HISTOGRAM_BUCKETS, type HistogramRow } from '@usebridger/plugin-metrics';
+import type { CounterQueryRow, HistogramQueryRow } from '@usebridger/plugin-metrics';
 
 /** US$ por 1 milhão de tokens. */
 export interface Price {
@@ -13,10 +13,11 @@ export interface Price {
 }
 
 export interface Rows {
-  readonly attempts: readonly CounterRow[];
-  readonly latency: readonly HistogramRow[];
-  readonly tokens: readonly CounterRow[];
-  readonly finish: readonly CounterRow[];
+  readonly attempts: readonly CounterQueryRow[];
+  /** Em segundos, como o histograma é gravado. */
+  readonly latency: readonly HistogramQueryRow[];
+  readonly tokens: readonly CounterQueryRow[];
+  readonly finish: readonly CounterQueryRow[];
 }
 
 export interface Stats {
@@ -74,7 +75,8 @@ export interface AiSummary {
 const label = (row: { labels: Readonly<Record<string, string>> }, key: string): string =>
   row.labels[key] ?? '';
 
-const sum = (rows: readonly CounterRow[]): number => rows.reduce((total, r) => total + r.value, 0);
+const sum = (rows: readonly CounterQueryRow[]): number =>
+  rows.reduce((total, r) => total + r.value, 0);
 
 const ratio = (a: number, b: number): number | null => (b > 0 ? a / b : null);
 
@@ -82,17 +84,22 @@ function bump(into: Record<string, number>, key: string, by: number): void {
   into[key] = (into[key] ?? 0) + by;
 }
 
-/** Percentil dos baldes somados: o limite superior do balde onde ele cai, como o plugin-metrics. */
-function percentile(buckets: readonly number[], q: number): number | null {
-  const total = buckets.reduce((a, b) => a + b, 0);
+/**
+ * Percentil, em ms, dos baldes somados por limite: o limite superior do balde onde ele cai. O
+ * balde `+Inf` vale como o maior limite finito, porque não há número melhor para mostrar.
+ */
+function percentile(buckets: ReadonlyMap<number, number>, q: number): number | null {
+  const total = [...buckets.values()].reduce((a, b) => a + b, 0);
   if (total === 0) return null;
+  const limits = [...buckets.keys()].sort((a, b) => a - b);
+  const finite = limits.filter(Number.isFinite);
   const target = Math.ceil(q * total);
   let seen = 0;
-  for (const [i, count] of buckets.entries()) {
-    seen += count;
-    if (seen >= target) return HISTOGRAM_BUCKETS[i] ?? HISTOGRAM_BUCKETS.at(-1) ?? null;
+  for (const le of limits) {
+    seen += buckets.get(le) ?? 0;
+    if (seen >= target) return (Number.isFinite(le) ? le : (finite.at(-1) ?? 0)) * 1000;
   }
-  return HISTOGRAM_BUCKETS.at(-1) ?? null;
+  return null;
 }
 
 /** Custo de uma linha de uso de um modelo com preço. */
@@ -131,10 +138,10 @@ export function stats(rows: Rows, prices: Readonly<Record<string, Price>>): Stat
 
   const latencyCount = rows.latency.reduce((a, r) => a + r.count, 0);
   const latencySum = rows.latency.reduce((a, r) => a + r.sum, 0);
-  const buckets = HISTOGRAM_BUCKETS.map((_, i) =>
-    rows.latency.reduce((a, r) => a + (r.buckets[i] ?? 0), 0),
-  );
-  buckets.push(rows.latency.reduce((a, r) => a + (r.buckets[HISTOGRAM_BUCKETS.length] ?? 0), 0));
+  const buckets = new Map<number, number>();
+  for (const r of rows.latency) {
+    for (const { le, count } of r.buckets) buckets.set(le, (buckets.get(le) ?? 0) + count);
+  }
 
   const byKind = (kind: string) => sum(rows.tokens.filter((r) => label(r, 'kind') === kind));
   const tokens = {
@@ -181,11 +188,11 @@ export function stats(rows: Rows, prices: Readonly<Record<string, Price>>): Stat
     outcomes,
     statusCodes,
     latencyMs: {
-      avg: ratio(latencySum, latencyCount),
+      avg: ratio(latencySum * 1000, latencyCount),
       p50: percentile(buckets, 0.5),
       p95: percentile(buckets, 0.95),
     },
-    outputTokensPerSecond: ratio(tokens.output, latencySum / 1000),
+    outputTokensPerSecond: ratio(tokens.output, latencySum),
     tokens,
     avgInputTokens: ratio(tokens.input, responses),
     avgOutputTokens: ratio(tokens.output, responses),
@@ -211,7 +218,7 @@ export function summarize(
   range: { from: string; to: string },
 ): AiSummary {
   const all = [...rows.attempts, ...rows.tokens];
-  const days = distinct([...all, ...rows.latency].map((r) => r.day));
+  const days = distinct([...all, ...rows.latency].map((r) => r.period));
   return {
     ...range,
     total: stats(rows, prices),
@@ -231,10 +238,10 @@ export function summarize(
     })),
     days: days.map((day) => {
       const dayRows: Rows = {
-        attempts: rows.attempts.filter((r) => r.day === day),
-        latency: rows.latency.filter((r) => r.day === day),
-        tokens: rows.tokens.filter((r) => r.day === day),
-        finish: rows.finish.filter((r) => r.day === day),
+        attempts: rows.attempts.filter((r) => r.period === day),
+        latency: rows.latency.filter((r) => r.period === day),
+        tokens: rows.tokens.filter((r) => r.period === day),
+        finish: rows.finish.filter((r) => r.period === day),
       };
       const s = stats(dayRows, prices);
       return { day, responses: s.responses, costUsd: s.costUsd };

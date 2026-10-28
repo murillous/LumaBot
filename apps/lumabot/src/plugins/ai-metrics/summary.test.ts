@@ -1,4 +1,4 @@
-import { type CounterRow, HISTOGRAM_BUCKETS, type HistogramRow } from '@usebridger/plugin-metrics';
+import type { CounterQueryRow, HistogramQueryRow } from '@usebridger/plugin-metrics';
 import { describe, expect, it } from 'vitest';
 import { type Rows, stats, summarize } from './summary.ts';
 
@@ -6,33 +6,34 @@ const counter = (
   labels: Record<string, string>,
   value: number,
   day = '2026-10-18',
-): CounterRow => ({
-  metric: 'x',
+): CounterQueryRow => ({
   type: 'counter',
-  day,
+  period: day,
   labels,
   value,
 });
 
-/** Histograma com `count` observações todas no balde de `bucket` ms. */
+/** Histograma com `count` observações todas no balde de `bucket` ms (gravado em segundos). */
 const histogram = (
   labels: Record<string, string>,
   bucket: number,
   count: number,
   day = '2026-10-18',
-): HistogramRow => {
-  const buckets = [...HISTOGRAM_BUCKETS, Infinity].map((b) => (b === bucket ? count : 0));
+): HistogramQueryRow => {
+  const le = bucket / 1000;
   return {
-    metric: 'x',
     type: 'histogram',
-    day,
+    period: day,
     labels,
     count,
-    sum: bucket * count,
-    p50: bucket,
-    p95: bucket,
-    p99: bucket,
-    buckets,
+    sum: le * count,
+    p50: le,
+    p95: le,
+    p99: le,
+    buckets: [
+      { le, count },
+      { le: Infinity, count: 0 },
+    ],
   };
 };
 

@@ -180,7 +180,7 @@ importers:
         version: 7.0.2
       vitest:
         specifier: ^5.0.3
-        version: 5.0.3(@types/node@24.19.1)(vite@8.3.2(@types/node@24.19.1)(yaml@2.9.1))
+        version: 5.0.3(@opentelemetry/api@1.10.0)(@types/node@24.19.1)(vite@8.3.2(@types/node@24.19.1)(yaml@2.9.1))
 
   apps/lumabot:
     dependencies:
@@ -197,20 +197,20 @@ importers:
         specifier: ^4.0.95
         version: 4.0.95(zod@4.6.5)
       '@usebridger/core':
-        specifier: ^0.9.0
-        version: 0.9.0
+        specifier: ^0.10.0
+        version: 0.10.0
       '@usebridger/plugin-dashboard':
+        specifier: ^0.4.0
+        version: 0.4.0
+      '@usebridger/plugin-metrics':
         specifier: ^0.3.0
         version: 0.3.0
-      '@usebridger/plugin-metrics':
-        specifier: ^0.2.0
-        version: 0.2.0
       '@usebridger/storage-sqlite':
-        specifier: ^0.3.2
-        version: 0.3.2
+        specifier: ^0.3.3
+        version: 0.3.3
       '@usebridger/transport-baileys':
-        specifier: ^0.5.0
-        version: 0.5.0(sharp@0.35.5(@types/node@24.19.1))
+        specifier: ^0.6.0
+        version: 0.6.0(sharp@0.35.5(@types/node@24.19.1))
       ai:
         specifier: ^7.0.142
         version: 7.0.142(zod@4.6.5)
@@ -234,8 +234,8 @@ importers:
         specifier: ^0.12.2
         version: 0.12.2
       '@usebridger/testing':
-        specifier: ^0.6.4
-        version: 0.6.4(vitest@5.0.3(@types/node@24.19.1)(vite@8.3.2(@types/node@24.19.1)(yaml@2.9.1)))
+        specifier: ^0.7.0
+        version: 0.7.0(vitest@5.0.3(@opentelemetry/api@1.10.0)(@types/node@24.19.1)(vite@8.3.2(@types/node@24.19.1)(yaml@2.9.1)))
 
 packages:
 
@@ -545,6 +545,10 @@ packages:
   '@keyv/serialize@1.1.1':
     resolution: {integrity: sha512-dXn3FZhPv0US+7dtJsIi2R+c7qWYiReoEh5zUntWCf4oSpMNib8FDhSoed6m3QyZdx5hK7iLFkYk3rNxwt8vTA==}
 
+  '@opentelemetry/api@1.10.0':
+    resolution: {integrity: sha512-lMkyes8iHrG+mk6WH7X70MdCLI2RS0FwNBY1PyQ8UemaijE2m5mv5A0Niy3HtbYTFrgkUEQjFMXmSAk2hQDuPQ==}
+    engines: {node: '>=8.0.0'}
+
   '@oxc-project/types@0.152.0':
     resolution: {integrity: sha512-oM/5rLBm2tPkg0iBgkH/FOeR3PCDpY19GTgAZjMFM8h9WI9VW7cLgzp6nwtarYKmovavIQZ+Fe/RKX/8C8O/Rw==}
 
@@ -835,25 +839,26 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@usebridger/core@0.9.0':
-    resolution: {integrity: sha512-jqOTokAajWSKThIY0+X2VQSo8/QpthCEpwGtQOCO9ZuAVkiMKppmU97JKCQH/YeYn0rDHkXiduszQTPyRY44/Q==}
+  '@usebridger/core@0.10.0':
+    resolution: {integrity: sha512-+SdKnPjM1hYGABazl5Bb237C3GQqXUt6qvW62TbYmY9CmEPOYN1Qh+1cQEjq4vfQ8jhYbkp6HhKPdb5dCubEcw==}
+    hasBin: true
 
-  '@usebridger/plugin-dashboard@0.3.0':
-    resolution: {integrity: sha512-2UO53w/sMxWQM9XtQD71H+kLdgg9Xn2nsvrOE9LTupXT20lH1q9IrcbQB/tJ1U3ElnSzhdHPkmqWULV7gS2Cnw==}
+  '@usebridger/plugin-dashboard@0.4.0':
+    resolution: {integrity: sha512-w9lHa1mX7XrmvciTq5LHs5c1vaDya4QwUAS1LdL7ZxTo7ZOYn29obcuKx1O9wZfhdzd1mV2d6nO0260xVZQR/g==}
 
-  '@usebridger/plugin-metrics@0.2.0':
-    resolution: {integrity: sha512-uSLEoxEMkBpdAXgnPvBuaFNPj1wFA4UNmCsiWEAkaSRHH1z5rZgKT/KkuXaYF6zhAXZs9kul3YTG7qrOiA2vFw==}
+  '@usebridger/plugin-metrics@0.3.0':
+    resolution: {integrity: sha512-X0mogC9d5p8waHL94jhP8dGRDi4Gl2mKg97Pum9e+YPWUy/D2VGGAeXK+4oHXL0NZvDfViPWBBGebIU5bVI3Vg==}
 
-  '@usebridger/storage-sqlite@0.3.2':
-    resolution: {integrity: sha512-ObyupH4MdLxhZN9FaWijR4VYpiErPGwDfDAmbTt2D6RF0TZ2uDE2Pz0DyRT2OpOHedKhI1QSoJKzPXkH+zRa1Q==}
+  '@usebridger/storage-sqlite@0.3.3':
+    resolution: {integrity: sha512-dXOB7X/GFwT/SlSkneEUqRf/gGxb5MFENjaNl9skFtRo5WUTLMj4X/kEj107yJEIeIph3VxzlAK/7UAI9W+ZqQ==}
 
-  '@usebridger/testing@0.6.4':
-    resolution: {integrity: sha512-Bdrl67iinUPtjUzRc4lSFVw342ypQqpXriON2B5EzpUb6iOKaRCUMkC9ExcJiKayspPfCACtkvd3SQO0R7ozrQ==}
+  '@usebridger/testing@0.7.0':
+    resolution: {integrity: sha512-qIR/1WGqkBoN4dbxvIjUcim2PWEVjH8V52+ewagfq4N7grl6egFWjs787SPJ0xDeW9lLU5fDFtaL8EwMlwqPVg==}
     peerDependencies:
       vitest: ^5.0.0
 
-  '@usebridger/transport-baileys@0.5.0':
-    resolution: {integrity: sha512-6fCc++3jUTcsdOecq68szmAOg3mPzORcgsQGLBFaoYpwk4NhD2THNpQHF7T/iMJZ+Z3iRSxSOaL4zsHkU21dEg==}
+  '@usebridger/transport-baileys@0.6.0':
+    resolution: {integrity: sha512-51icltUmh3s38R0mPiEsENcGcuKE3dQCPq4qk2LFimpa2qJ3bpwxGO6QBLr6Xf3XZm/n0kBU11uMV6RC5NLRHA==}
 
   '@vercel/oidc@3.2.0':
     resolution: {integrity: sha512-UycprH3T6n3jH0k44NHMa7pnFHGu/N05MjojYr+Mc6I7obkoLIJujSWwin1pCvdy/eOxrI/l3uDLQsmcrOb4ug==}
@@ -1067,6 +1072,9 @@ packages:
         optional: true
       link-preview-js:
         optional: true
+
+  bintrees@1.0.2:
+    resolution: {integrity: sha512-VOMgTMwjAaUG580SXn3LacVgjurrbMme7ZZNYGSSV7mmtY6QQRh0Eg3pwIcntQ77DErK1L0NxkbetjcoXzVwKw==}
 
   cac@7.0.0:
     resolution: {integrity: sha512-tixWYgm5ZoOD+3g6UTea91eow5z6AAHaho3g0V9CNSNb45gM8SmflpAc+GRd1InC4AqN/07Unrgp56Y94N9hJQ==}
@@ -1354,6 +1362,11 @@ packages:
   process-warning@5.1.0:
     resolution: {integrity: sha512-jQSaVHsPgtyw60e1rQ/A+/ArPEj/S8pS/vFnyGa/gYFXrKk/6RuDkoqVDQ5NI5MmS01698ltlAk0NoDBNLujRw==}
 
+  prom-client@15.1.3:
+    resolution: {integrity: sha512-6ZiOBfCywsD4k1BN9IX0uZhF+tJkV8q8llP64G5Hajs4JOeVLPCwpPVcpXy3BwYiUGgyJzsJJQeOIv7+hDSq8g==}
+    engines: {node: ^16 || ^18 || >=20}
+    deprecated: prom-client has been replaced by @prometheus-io/client
+
   protobufjs@7.6.6:
     resolution: {integrity: sha512-dYDWdjSl5RNb7SgPxGQcRU+GtvP7s2fpkrY0r432PcOIaZ0/rBcxEZnQN67iJhFuQiVw754JDoPruPCNdGsbjg==}
     engines: {node: '>=12.0.0'}
@@ -1453,6 +1466,9 @@ packages:
   strtok3@10.3.5:
     resolution: {integrity: sha512-ki4hZQfh5rX0QDLLkOCj+h+CVNkqmp/CMf8v8kZpkNVK6jGQooMytqzLZYUVYIZcFZ6yDB70EfD8POcFXiF5oA==}
     engines: {node: '>=18'}
+
+  tdigest@0.1.3:
+    resolution: {integrity: sha512-zbRt+lT+/H4fRItHshczHErVCQnitJk8MfMT24MqFJf3YL7SJJPqGIGeuOdvxXxM/AHFzKBl7WoyaYwqO9s3Kw==}
 
   thread-stream@3.2.0:
     resolution: {integrity: sha512-zLBvqpwr4Esa0kRjcrzGU6zL25lePWaCLMx0RQFrmteozIfeNdaMLpG5U7PeHzvlFkAWaRKA9/KVW4F60iB+qw==}
@@ -1664,6 +1680,12 @@ packages:
 
   yuku-parser@0.10.2:
     resolution: {integrity: sha512-CgaU0/PPjCAIEZ3WQroosOxTY3eeKldAN3h+vk8pMNz4+jl1CZzBR4pW+K/rRPF112VooCL5FdjJoiMNjDrL2A==}
+
+  zod-openapi@6.0.2:
+    resolution: {integrity: sha512-SwC5Ppi2ov8WimzNWP/XK95VqPyLDzxPYj10HgNPzhZH9gO7zx0sxdYL9eq7wOADHx1JddOApjhYDmMWQvnVnw==}
+    engines: {node: '>=22.14.0'}
+    peerDependencies:
+      zod: ^4.0.0
 
   zod@4.6.5:
     resolution: {integrity: sha512-v5l/aFXZQeai4awLbOpSoHecE9UiMrnfx75tEXLjNonXVARxQ5mOeipTjROUchszUNCqnE+hqAMujRsRHsut2Q==}
@@ -1907,6 +1929,8 @@ snapshots:
 
   '@keyv/serialize@1.1.1': {}
 
+  '@opentelemetry/api@1.10.0': {}
+
   '@oxc-project/types@0.152.0': {}
 
   '@pdf-lib/standard-fonts@1.0.0':
@@ -2081,49 +2105,51 @@ snapshots:
   '@typescript/typescript-win32-x64@7.0.2':
     optional: true
 
-  '@usebridger/core@0.9.0':
+  '@usebridger/core@0.10.0':
     dependencies:
       '@hono/node-server': 2.1.4(hono@4.13.13)
       hono: 4.13.13
       pino: 10.4.0
       ws: 8.22.0
       zod: 4.6.5
+      zod-openapi: 6.0.2(zod@4.6.5)
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
 
-  '@usebridger/plugin-dashboard@0.3.0':
+  '@usebridger/plugin-dashboard@0.4.0':
     dependencies:
-      '@usebridger/core': 0.9.0
+      '@usebridger/core': 0.10.0
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
 
-  '@usebridger/plugin-metrics@0.2.0':
+  '@usebridger/plugin-metrics@0.3.0':
     dependencies:
-      '@usebridger/core': 0.9.0
+      '@usebridger/core': 0.10.0
+      prom-client: 15.1.3
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
 
-  '@usebridger/storage-sqlite@0.3.2':
+  '@usebridger/storage-sqlite@0.3.3':
     dependencies:
-      '@usebridger/core': 0.9.0
+      '@usebridger/core': 0.10.0
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
 
-  '@usebridger/testing@0.6.4(vitest@5.0.3(@types/node@24.19.1)(vite@8.3.2(@types/node@24.19.1)(yaml@2.9.1)))':
+  '@usebridger/testing@0.7.0(vitest@5.0.3(@opentelemetry/api@1.10.0)(@types/node@24.19.1)(vite@8.3.2(@types/node@24.19.1)(yaml@2.9.1)))':
     dependencies:
-      '@usebridger/core': 0.9.0
-      vitest: 5.0.3(@types/node@24.19.1)(vite@8.3.2(@types/node@24.19.1)(yaml@2.9.1))
+      '@usebridger/core': 0.10.0
+      vitest: 5.0.3(@opentelemetry/api@1.10.0)(@types/node@24.19.1)(vite@8.3.2(@types/node@24.19.1)(yaml@2.9.1))
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
 
-  '@usebridger/transport-baileys@0.5.0(sharp@0.35.5(@types/node@24.19.1))':
+  '@usebridger/transport-baileys@0.6.0(sharp@0.35.5(@types/node@24.19.1))':
     dependencies:
-      '@usebridger/core': 0.9.0
+      '@usebridger/core': 0.10.0
       baileys: 7.0.0-rc14(sharp@0.35.5(@types/node@24.19.1))
     transitivePeerDependencies:
       - audio-decode
@@ -2256,6 +2282,8 @@ snapshots:
       - bufferutil
       - supports-color
       - utf-8-validate
+
+  bintrees@1.0.2: {}
 
   cac@7.0.0: {}
 
@@ -2502,6 +2530,11 @@ snapshots:
 
   process-warning@5.1.0: {}
 
+  prom-client@15.1.3:
+    dependencies:
+      '@opentelemetry/api': 1.10.0
+      tdigest: 0.1.3
+
   protobufjs@7.6.6:
     dependencies:
       '@protobufjs/aspromise': 1.1.2
@@ -2631,6 +2664,10 @@ snapshots:
     dependencies:
       '@tokenizer/token': 0.3.0
 
+  tdigest@0.1.3:
+    dependencies:
+      bintrees: 1.0.2
+
   thread-stream@3.2.0:
     dependencies:
       real-require: 0.2.0
@@ -2734,7 +2771,7 @@ snapshots:
       fsevents: 2.3.3
       yaml: 2.9.1
 
-  vitest@5.0.3(@types/node@24.19.1)(vite@8.3.2(@types/node@24.19.1)(yaml@2.9.1)):
+  vitest@5.0.3(@opentelemetry/api@1.10.0)(@types/node@24.19.1)(vite@8.3.2(@types/node@24.19.1)(yaml@2.9.1)):
     dependencies:
       '@types/chai': 5.2.3
       '@vitest/mocker': 5.0.3(vite@8.3.2(@types/node@24.19.1)(yaml@2.9.1))
@@ -2751,6 +2788,7 @@ snapshots:
       vite: 8.3.2(@types/node@24.19.1)(yaml@2.9.1)
       why-is-node-running: 3.2.1
     optionalDependencies:
+      '@opentelemetry/api': 1.10.0
       '@types/node': 24.19.1
     transitivePeerDependencies:
       - msw
@@ -2804,5 +2842,9 @@ snapshots:
       '@yuku-parser/binding-linux-x64-musl': 0.10.2
       '@yuku-parser/binding-win32-arm64': 0.10.2
       '@yuku-parser/binding-win32-x64': 0.10.2
+
+  zod-openapi@6.0.2(zod@4.6.5):
+    dependencies:
+      zod: 4.6.5
 
   zod@4.6.5: {}

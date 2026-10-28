@@ -225,9 +225,17 @@ describe('privacidade', () => {
       messages: [{ role: 'user', content: 'meu segredo, Ana 5511999999999' }],
     });
 
-    const range = { from: '2000-01-01', to: '2999-12-31' };
-    const names = ((await metricsService?.names(range)) ?? []).filter((n) => n.startsWith('ai.'));
-    const rows = (await Promise.all(names.map((n) => metricsService?.query(n, range)))).flat();
+    const today = new Date().toISOString().slice(0, 10);
+    const names = ((await metricsService?.catalog()) ?? [])
+      .filter((d) => d.owner === 'ai-metrics')
+      .map((d) => d.name);
+    const rows = (
+      await Promise.all(
+        names.map((name) =>
+          metricsService?.query({ name, from: today, to: today, granularity: 'day' }),
+        ),
+      )
+    ).flat();
     expect(rows.length).toBeGreaterThan(0);
     const labelKeys = new Set(rows.flatMap((r) => Object.keys(r?.labels ?? {})));
     expect([...labelKeys].sort()).toEqual(

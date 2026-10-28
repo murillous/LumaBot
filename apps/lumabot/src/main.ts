@@ -43,29 +43,32 @@ const log = createLogger({
 });
 
 // Com o .env vazio, o app gera a chave mestra (sem ela o dashboard não grava as chaves da IA) e o
-// token do dashboard, e guarda os dois ao lado do banco (ADR 0006). Variável definida vence o arquivo.
+// token do primeiro acesso, e guarda os dois ao lado do banco (ADR 0006). Variável definida vence o
+// arquivo.
 const env = { ...pluginEnv() };
 const dataDir = dirname(config.dbPath);
 if (!env['BRIDGER_SECRET_KEY']) {
   env['BRIDGER_SECRET_KEY'] = (await localSecret(join(dataDir, 'secret.key'), 32)).value;
 }
-if (config.dashboard && !env['BRIDGER_DASHBOARD__TOKEN']) {
-  const tokenFile = join(dataDir, 'dashboard-token');
+
+// O dashboard é cliente da API do core: login por e-mail e senha, e o `bootstrapToken` cria o
+// primeiro owner. Depois do primeiro usuário, o token não vale mais.
+let apiConfig = {};
+if (config.dashboard) {
+  const tokenFile = join(dataDir, 'bootstrap-token');
   const token = await localSecret(tokenFile, 24);
-  env['BRIDGER_DASHBOARD__TOKEN'] = token.value;
   // Fora do log, como o QR: o logger censuraria o valor. Só no primeiro boot; depois, o arquivo.
   process.stdout.write(
     `\nDashboard: http://${config.dashboard.hostname}:${config.dashboard.port}/plugins/dashboard/\n` +
       (token.created
-        ? `Token (salvo em ${tokenFile}): ${token.value}\n`
-        : `Token em ${tokenFile}\n`),
+        ? `Token do primeiro acesso (salvo em ${tokenFile}): ${token.value}\n`
+        : `Token do primeiro acesso em ${tokenFile}\n`),
   );
+  apiConfig = {
+    http: createHttp(config.dashboard),
+    api: { auth: { bootstrapToken: token.value } },
+  };
 }
-
-// `adminPlugins` libera as telas Plugins e Config.
-const dashboardConfig = config.dashboard
-  ? { http: createHttp(config.dashboard), adminPlugins: ['dashboard'] }
-  : {};
 
 const bot = createBot({
   transport: baileys({ pairing: config.pairing }),
@@ -73,7 +76,7 @@ const bot = createBot({
   logger: log,
   secrets,
   env,
-  ...dashboardConfig,
+  ...apiConfig,
   plugins: [
     pairing((text) => process.stdout.write(text)),
     ...(config.dashboard ? [dashboard] : []),

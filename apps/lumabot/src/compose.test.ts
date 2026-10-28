@@ -38,7 +38,7 @@ const TOKEN = 'token-de-teste-com-16+';
 async function start(model = scripted('oi')) {
   bot = await createTestBot({
     http,
-    adminPlugins: ['dashboard'],
+    api: { auth: { bootstrapToken: TOKEN } },
     plugins: [
       dashboard,
       ping,
@@ -63,7 +63,6 @@ async function start(model = scripted('oi')) {
       utils,
     ],
     pluginConfig: {
-      dashboard: { token: TOKEN },
       ai: { models: [{ model: 'fake:a' }] },
       luma: { thinkingDelayMs: { min: 0, max: 0 } },
     },
@@ -90,32 +89,36 @@ describe('composição do app', () => {
     expect(b.bot.plugins().filter((p) => p.status !== 'loaded')).toEqual([]);
   });
 
-  it('o dashboard atende com login, admin dos plugins e as métricas da Luma', async () => {
+  it('o dashboard atende com o primeiro acesso, o admin dos plugins e as métricas da Luma', async () => {
     const b = await start();
     await b.receive({ text: 'oi', sender: { id: 'ana@x', name: 'Ana' } });
 
-    const base = `http://127.0.0.1:${http.port}/plugins/dashboard`;
-    expect((await fetch(`${base}/api/status`)).status).toBe(401);
-    const login = await fetch(`${base}/api/login`, {
+    const origin = `http://127.0.0.1:${http.port}`;
+    expect((await fetch(`${origin}/api/plugins`)).status).toBe(401);
+    const accept = await fetch(`${origin}/api/auth/invites/accept`, {
       method: 'POST',
-      body: JSON.stringify({ token: TOKEN }),
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        token: TOKEN,
+        name: 'Dona',
+        email: 'dona@exemplo.com',
+        password: 'uma senha bem longa',
+      }),
     });
-    expect(login.status).toBe(204);
-    const cookie = login.headers.get('set-cookie')?.split(';')[0] ?? '';
-    const get = (path: string) => fetch(`${base}/api/${path}`, { headers: { cookie } });
+    expect(accept.ok).toBe(true);
+    const cookie = accept.headers.get('set-cookie')?.split(';')[0] ?? '';
+    const get = (path: string) => fetch(`${origin}/api/${path}`, { headers: { cookie } });
 
-    expect((await get('status')).status).toBe(200);
-    const plugins = (await (await get('plugins')).json()) as { name: string; status: string }[];
-    expect(plugins.find((p) => p.name === 'luma')?.status).toBe('loaded');
-    const m = (await (await get('metrics')).json()) as {
-      available: boolean;
-      metrics: { name: string }[];
+    const { plugins } = (await (await get('plugins')).json()) as {
+      plugins: { name: string; status: string }[];
     };
-    expect(m.available).toBe(true);
-    expect(m.metrics.map((x) => x.name)).toEqual(
-      expect.arrayContaining([expect.stringMatching(/^ai\./)]),
+    expect(plugins.find((p) => p.name === 'luma')?.status).toBe('loaded');
+    expect(JSON.stringify(await (await get('plugins/metrics/catalog')).json())).toMatch(
+      /"ai_attempts_total"/,
     );
-    expect((await fetch(`${base}/`)).headers.get('content-type')).toMatch(/text\/html/);
+    expect((await fetch(`${origin}/plugins/dashboard/`)).headers.get('content-type')).toMatch(
+      /text\/html/,
+    );
   });
 
   it('!help lista os comandos novos agrupados', async () => {
