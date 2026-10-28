@@ -10,14 +10,11 @@ tem, a lacuna é do Bridger — abra a issue no `usebridger`, não contorne aqui
 - **`apps/lumabot`**: a Luma sobre o Bridger. pnpm workspace, TypeScript, Node 24+. Setup,
   comandos, imports e regras do Biome estão no `README.md`; como rodar, em
   `apps/lumabot/docs/README.md`.
-- **`legacy/`**: o LumaBot em produção até a paridade, fora do workspace (npm, JS). Antes de
-  tocar nele, leia `legacy/CLAUDE.md` e rode os comandos (`npm ci`, `npx vitest run`) a partir
-  de `legacy/`.
 
 ## Git
 
-Branch a partir de `develop` e PR com `--base develop`: a `main` alimenta a produção do
-legacy. Commits em Conventional Commits, descrição em PT-BR:
+Branch a partir de `develop` e PR com `--base develop`; a `main` é a versão estável.
+Commits em Conventional Commits, descrição em PT-BR:
 `feat(lumabot): comando de lembrete`. `Closes #N` no commit ou PR de cada issue.
 
 ## Convenções

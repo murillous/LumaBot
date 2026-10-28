@@ -1,7 +1,7 @@
 # resumo
 
 Resumo da conversa do chat: `!resumo [n]` e a tool `summarize_chat`. Código em
-`src/plugins/resumo/resumo.ts`. Port do `ResumoPlugin` do legacy.
+`src/plugins/resumo/resumo.ts`.
 
 ## Como funciona
 

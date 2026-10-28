@@ -2,25 +2,17 @@
 
 Bot de WhatsApp com a **Luma**, assistente virtual com personalidade.
 
-O repositório tem duas versões do bot:
+O bot vive em [`apps/lumabot/`](apps/lumabot/docs/README.md), escrito sobre o
+[Bridger](https://github.com/murillous/usebridger), o kernel de bot de mensageria publicado no npm
+como `@usebridger/*`. O app só compõe o bot e os plugins da Luma.
 
-- [`legacy/`](legacy/README.md) — o LumaBot em produção até a paridade (JavaScript, npm),
-  acompanhada em [`PARIDADE.md`](PARIDADE.md).
-- [`apps/lumabot/`](apps/lumabot/docs/README.md) — a nova versão, escrita sobre o
-  [Bridger](https://github.com/murillous/usebridger), o kernel de bot de mensageria extraído
-  daqui e publicado no npm como `@usebridger/*`. As features do legacy chegam aos poucos, como
-  plugins.
-
-O kernel, os plugins oficiais, o roadmap e os ADRs vivem no
+O kernel, os plugins oficiais, o roadmap e os ADRs do kernel vivem no
 [`usebridger`](https://github.com/murillous/usebridger). Bug ou feature do Bridger vai para lá.
-
-Quer contribuir? Veja o [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ## Desenvolvimento
 
 Workspace pnpm com `apps/*`. A versão do pnpm vem de `packageManager` no `package.json` — com
-`corepack enable`, basta rodar `pnpm install` na raiz. O `legacy/` fica fora do workspace e
-continua usando npm.
+`corepack enable`, basta rodar `pnpm install` na raiz.
 
 Requer Node 24+ (`engines` na raiz; `.nvmrc` para `nvm use`/`fnm use`).
 
@@ -65,16 +57,11 @@ e `catch` sem nenhuma instrução — inclusive só com comentário (plugin em
 
 ### CI
 
-Todo push e PR para `main`/`develop` roda dois workflows:
-
-- [`ci.yml`](.github/workflows/ci.yml) — workspace: jobs `Lint`, `Typecheck`, `Testes` e `Build`
-  (os comandos da tabela acima), com o store do pnpm em cache. O setup comum (Node do `.nvmrc`,
-  pnpm do `packageManager`, `pnpm install --frozen-lockfile`) fica em
-  [`.github/actions/setup`](.github/actions/setup/action.yml).
-- [`legacy-ci.yml`](.github/workflows/legacy-ci.yml) — suíte do `legacy/`.
-
-O deploy de produção ([`deploy-ec2.yml`](.github/workflows/deploy-ec2.yml)) publica o `legacy/`.
+Todo push e PR para `main`/`develop` roda o [`ci.yml`](.github/workflows/ci.yml): jobs `Lint`,
+`Typecheck`, `Testes` e `Build` (os comandos da tabela acima), com o store do pnpm em cache. O
+setup comum (Node do `.nvmrc`, pnpm do `packageManager`, `pnpm install --frozen-lockfile`) fica
+em [`.github/actions/setup`](.github/actions/setup/action.yml).
 
 ## Licença
 
-[Apache-2.0](LICENSE) para `apps/*`. O `legacy/` continua sob [MIT](legacy/LICENSE).
+[Apache-2.0](LICENSE).

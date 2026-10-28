@@ -1,6 +1,5 @@
 name: CI
 
-# App da Luma sobre o Bridger (workspace pnpm). O legacy/ tem o próprio workflow (legacy-ci.yml).
 on:
   push:
     branches: [main, develop]

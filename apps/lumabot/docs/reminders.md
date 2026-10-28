@@ -3,7 +3,6 @@
 Lembretes agendados, únicos ou recorrentes. Código em `src/plugins/reminders/`: `reminders.ts`
 (plugin, serviço e comandos), `parse.ts` (parsers do `!lembrete`), `format.ts` (data, recorrência,
 "faltam" e estatísticas) e `zone.ts` (fuso pelo `Intl`). Os três últimos são puros, sem `@usebridger/*`.
-Port do `ReminderPlugin` do legacy.
 
 ## Comandos
 
@@ -164,13 +163,3 @@ export const figurinhaDiaria = definePlugin({
 
 Em `messages`, sobrescrevíveis pela config (`usage` → `BRIDGER_REMINDERS__MESSAGES__USAGE`).
 `{prefix}` vira o prefixo do chat; os demais placeholders aparecem no texto padrão.
-
-## Diferenças do legacy
-
-- Sem o `|` antes da mensagem, e a data virou opcional (no legacy, `DD/MM HH:mm | mensagem`).
-- Mensagem acima de 500 caracteres é recusada, não cortada (o legacy truncava em silêncio).
-- "A data não existe" virou "Data/hora inválida" (`errInvalidDate`); o resto dos textos é o do legacy.
-- Datas no passado e a mais de 1 ano seguem recusadas, como no legacy.
-- Recorrência (diária, semanal, intervalo) é nova; o legacy só tinha disparo único.
-- Sem o loop próprio de 30 s: o scheduler do kernel arma um timer para o próximo job.
-- Não há mais o `console.log` de depuração da lista.

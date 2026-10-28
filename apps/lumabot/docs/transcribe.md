@@ -1,8 +1,8 @@
 # transcribe
 
 Transcrição de `voice` e `audio`: o comando `!transcribe`, o serviço `transcription` e a tool
-`transcribe_audio`. Código em `src/plugins/transcribe/transcribe.ts`. Port do `AudioTranscriber`
-do legacy, com uma mudança: quando a Luma transcreve para responder, o texto **não** vai ao chat.
+`transcribe_audio`. Código em `src/plugins/transcribe/transcribe.ts`. Quando a Luma transcreve
+para responder, o texto **não** vai ao chat.
 
 ## Comando
 
@@ -50,9 +50,3 @@ provider é pulado; se nenhum atende, o comando responde o erro e a tool devolve
 | `maxBytes` | `15728640` | Áudio maior que isso nem vai ao modelo |
 
 `messages`: `usage`, `failed`, `tooLarge`, `unintelligible`, `silent` (`{prefix}` é o prefixo do chat).
-
-## Diferenças do legacy
-
-- Sem o backend Whisper: a transcrição passa pela cadeia do `ai` (qualquer provider com entrada
-  de áudio). O mimetype é normalizado (`audio/ogg; codecs=opus` → `audio/ogg`).
-- Não foi possível chamar um modelo de verdade neste porte; os testes usam provider falso.
