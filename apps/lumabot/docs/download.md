@@ -2,7 +2,6 @@
 
 Baixa vídeo, foto e áudio de links com o [yt-dlp](https://github.com/yt-dlp/yt-dlp). Código em
 `src/plugins/download/`: `download.ts` (comandos) e `yt-dlp.ts` (chamadas ao yt-dlp e ao FFmpeg).
-Port do `DownloadPlugin` e do `AudioDownloadPlugin` do legacy.
 
 ## Comandos
 
@@ -91,10 +90,3 @@ Cada download roda num diretório temporário próprio (`os.tmpdir()`), apagado 
 
 Os textos ficam em `messages` e a config do bot os sobrescreve (`tooLarge` →
 `BRIDGER_DOWNLOAD__MESSAGES__TOO_LARGE`). `{prefix}` nos textos de uso vira o prefixo do chat.
-
-## Diferenças do legacy
-
-- O yt-dlp vem do sistema, sem o download automático do binário.
-- Sem o extrator genérico (ver acima).
-- As métricas (`videos_downloaded`, `images_downloaded`, `audios_downloaded`) não foram portadas.
-- O `!downloadsticker` é novo, não existe no legacy.

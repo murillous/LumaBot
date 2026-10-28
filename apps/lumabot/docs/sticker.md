@@ -7,7 +7,6 @@ nele: desligar o `sticker-text` tira a legenda, e a figurinha segue igual
 
 Código em `src/plugins/sticker/` (`sticker.ts`: comando e serviço; `convert.ts`: conversões;
 `fetch-url.ts`: download do link) e `src/plugins/sticker-text/` (`caption.ts`: a legenda).
-Port do `!sticker` do `MediaPlugin` do legacy.
 
 ## Comando
 
@@ -157,10 +156,3 @@ Isso inclui `stickerPack` e `stickerAuthor`, o nome e o autor do pacote que o Wh
 nos detalhes da figurinha (gravados no EXIF do WebP), também nas figurinhas do `!downloadsticker`.
 `{prefix}` nos textos de uso vira o prefixo do chat. O `sticker-text` não tem textos, só o
 estilo (ver [Legenda](#legenda-sticker-text)).
-
-## Diferenças do legacy
-
-- Figurinha de vídeo e de GIF têm o mesmo limite de 20 s (o legacy dava 15 s ao GIF).
-- A legenda é um plugin à parte, que pode ser desligado, com estilo configurável e emoji
-  colorido.
-- As métricas (`stickers_created`...) não foram portadas.

@@ -30,7 +30,7 @@ o que o usuário recebe sai como resposta no chat.
 evento `command`), `group.participants` e `contact.updated`. Guarda o último nome e telefone
 não vazios; só grava se mudou.
 
-Não enriquece por `groups.metadata` (o legacy também não). A resposta a um passo de conversa
+Não enriquece por `groups.metadata`. A resposta a um passo de conversa
 (`expectReply`) não passa por `message` nem por `command`, então também não enriquece.
 
 Nomes (apelido e pushName) passam por limpeza: NFC, sem caracteres de controle/formatação
@@ -44,7 +44,7 @@ Nomes (apelido e pushName) passam por limpeza: NFC, sem caracteres de controle/f
 ## Serviço `userNames` (contrato estável, ADR 0002)
 
 ```ts
-displayName(id): Promise<string>  // fontes em ordem; senão '@' + 6 últimos dígitos do telefone observado ou do id (como o legacy)
+displayName(id): Promise<string>  // fontes em ordem; senão '@' + 6 últimos dígitos do telefone observado ou do id
 setNick(id, nick): Promise<void>  // limpa; lança NickEmptyError (vazio) ou NickTooLongError (> 32)
 nick(id): Promise<string | null>
 remember(contact: { id; name; phone }): Promise<void>

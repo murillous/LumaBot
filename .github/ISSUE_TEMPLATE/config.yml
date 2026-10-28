@@ -1,5 +1,0 @@
-blank_issues_enabled: true
-contact_links:
-  - name: Bug ou feature do Bridger (@usebridger/*)
-    url: https://github.com/murillous/usebridger/issues
-    about: O kernel e os plugins oficiais vivem no repositório usebridger; abra a issue lá.

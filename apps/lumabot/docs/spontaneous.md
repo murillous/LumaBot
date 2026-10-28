@@ -1,10 +1,9 @@
 # spontaneous
 
 A Luma reage com emoji às mensagens dos grupos, de acordo com o contexto. Código em
-`src/plugins/spontaneous/` (`spontaneous.ts` e `decide.ts`, este puro). Port do
-`SpontaneousPlugin` do legacy, **com outro comportamento** (#354).
+`src/plugins/spontaneous/` (`spontaneous.ts` e `decide.ts`, este puro).
 
-## O que mudou em relação ao legacy
+## Em resumo
 
 - **Só reação.** O plugin nunca envia texto, figurinha ou mídia: a única saída é `ctx.react`.
 - **Decidida pela IA, não por sorteio.** Ela lê as últimas mensagens do chat e escolhe um emoji da

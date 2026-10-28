@@ -2,8 +2,7 @@
   "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
   "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
   "files": {
-    // legacy/ segue com as próprias ferramentas até a paridade.
-    "includes": ["**", "!legacy", "!**/dist", "!pnpm-lock.yaml"]
+    "includes": ["**", "!**/dist", "!pnpm-lock.yaml"]
   },
   "formatter": {
     "enabled": true,

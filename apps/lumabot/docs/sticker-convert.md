@@ -1,8 +1,7 @@
 # Plugin `sticker-convert`
 
 Figurinha de volta a imagem ou vídeo. Código em `src/plugins/sticker-convert/`:
-`sticker-convert.ts` (comandos) e `convert.ts` (conversões). Port do `!image` e do `!gif` do
-`MediaPlugin` do legacy.
+`sticker-convert.ts` (comandos) e `convert.ts` (conversões).
 
 ## Comandos
 
@@ -43,8 +42,3 @@ O `!gif` roda fora da fila do chat (`background`), até 2 ao mesmo tempo no bot.
 
 Em `messages`, sobrescrevíveis pela config (`gifDone` → `BRIDGER_STICKER_CONVERT__MESSAGES__GIF_DONE`).
 `{prefix}` vira o prefixo do chat.
-
-## Diferenças do legacy
-
-- `!gif` envia o MP4 como vídeo comum, não no modo GIF do WhatsApp (`gifPlayback`, que toca
-  em loop): decisão do dono, o vídeo basta.

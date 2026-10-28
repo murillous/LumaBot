@@ -7,7 +7,7 @@ Ranking de quem mais interage com a Luma. Dados no storage do próprio plugin (c
 
 | Comando | O que faz |
 | --- | --- |
-| `!rank` | Top 10 do grupo; em conversa privada, sempre o global (como o legacy) |
+| `!rank` | Top 10 do grupo; em conversa privada, sempre o global |
 | `!rank global` | Top 10 somando todos os chats |
 
 ## Tools da IA

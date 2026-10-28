@@ -1,4 +1,3 @@
-# legacy/ fica fora do workspace: segue com npm e o próprio package-lock até a paridade.
 packages:
   - apps/*
 # Scripts de instalação dispensáveis: o do baileys só checa a versão do Node (o `engines` da raiz

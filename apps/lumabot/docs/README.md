@@ -7,9 +7,6 @@ O LumaBot sobre o [Bridger](https://github.com/murillous/usebridger), consumido 
 processo (sinais, código de saída). O kernel é uma biblioteca sem runner
 ([ADR 0034](https://github.com/murillous/usebridger/blob/develop/docs/adr/0034-biblioteca-sem-runner.md)).
 
-> M2-5: app mínimo, com o plugin `ping`. As features do legacy chegam como plugins nos marcos
-> seguintes.
-
 ## Rodar
 
 Na raiz, depois do `pnpm install`:

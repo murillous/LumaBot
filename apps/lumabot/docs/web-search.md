@@ -1,7 +1,7 @@
 # web-search
 
 Busca na internet para a IA: a tool `search_web` e o serviço `webSearch`. Código em
-`src/plugins/web-search/` (`web-search.ts` e `tavily.ts`). Port do `WebSearchService` do legacy.
+`src/plugins/web-search/` (`web-search.ts` e `tavily.ts`).
 
 ## Como busca
 
@@ -38,11 +38,3 @@ esperar. O `ai` é opcional (`optionalDependsOn`): sem ele, só o Tavily.
 ```ts
 search(query: string, signal?: AbortSignal): Promise<string>  // lança SearchUnavailableError
 ```
-
-## Diferenças do legacy
-
-- A cota esgotada vale por uma hora, não até o restart.
-- O fallback também cobre falha comum do Tavily, não só cota.
-- A busca nativa passa pelo `ai`: usa a cadeia, os observers e o `purpose: 'web-search'`.
-- Não foi possível chamar o Tavily nem o Google de verdade neste porte; os testes usam `fetch` e
-  provider falsos.

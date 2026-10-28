@@ -5,8 +5,7 @@ histórico, persona por chat e as ferramentas do ponto `ai.tools`
 ([ADR 0005](../../../docs/adr/0005-a-luma-e-um-plugin-a-parte-do-ai.md)). A IA em si (cadeia de
 modelos, fallback, métricas) é do [`ai`](ai.md); a `luma` depende dele. Código em
 `src/plugins/luma/`: `luma.ts` (plugin), `history.ts`, `trigger.ts`, `prompt.ts`, `personas.ts`,
-`persona-generator.ts` e `stats.ts`, todos puros menos o primeiro. Port do `LumaPlugin`, do
-`LumaHandler`, do `PersonalityManager` e do `PromptBuilder` do legacy.
+`persona-generator.ts` e `stats.ts`, todos puros menos o primeiro.
 
 ## Quando responde
 
@@ -124,13 +123,3 @@ Uso opcional de outros plugins: `ctx.services.has('luma')`.
 Sem `dependsOn`, na hora do uso (ADR 0002 item 7): o [`rank`](rank.md) conta a interação
 (`record`), o `user-names` dá o nome de quem fala, e o [`ai-metrics`](ai-metrics.md) alimenta o
 `!luma stats`.
-
-## Diferenças do legacy
-
-- As ferramentas não são listadas no prompt: chegam pelo `ai.tools`, com a descrição de cada uma.
-  `show_help` virou `list_commands` (plugin `help`), `schedule_reminder` virou `create_reminder`,
-  `tag_everyone`/`remove_member` ainda não têm plugin.
-- O menu de persona usa a ação do kernel (botão ou número) no lugar de detectar a citação do menu.
-- A transcrição do áudio não aparece mais no chat (#351).
-- Sem os `safetySettings` do Gemini (`BLOCK_NONE`): ver o ADR 0005.
-- Respostas em vários balões citam a mensagem original, não o balão anterior.

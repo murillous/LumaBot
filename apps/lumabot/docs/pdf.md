@@ -1,7 +1,7 @@
 # Plugin `pdf`
 
 Imagem → PDF e junção de PDFs. Código em `src/plugins/pdf/`: `pdf.ts` (comandos) e `convert.ts`
-(pdf-lib e Sharp). Port do `!pdf` e do `!mergepdf` do `MediaPlugin` do legacy.
+(pdf-lib e Sharp).
 
 ## Comandos
 
@@ -47,7 +47,3 @@ chat, para o `done` não passar à frente do último PDF adicionado.
 Em `messages`, sobrescrevíveis pela config (`mergeFull` → `BRIDGER_PDF__MESSAGES__MERGE_FULL`).
 `{prefix}` vira o prefixo do chat e o `mergeAdded` recebe `{count}`, o tamanho da lista. A
 sobrescrita só pode usar os placeholders do texto padrão.
-
-## Diferenças do legacy
-
-- As métricas (`pdfs_merged`...) não foram portadas.
