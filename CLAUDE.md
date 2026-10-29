@@ -7,9 +7,9 @@ tem, a lacuna é do Bridger — abra a issue no `usebridger`, não contorne aqui
 
 ## Onde você está
 
-A Luma sobre o Bridger, na raiz: `src/` (código e testes), `docs/` (como rodar e cada plugin).
-pnpm, TypeScript, Node 24+. Comandos e convenções no `README.md`; como rodar, em
-`docs/README.md`.
+A Luma sobre o Bridger, na raiz: `src/` (código e testes), `docs/` (cada plugin).
+pnpm, TypeScript, Node 24+. Como rodar, requisitos, config, dashboard, comandos e convenções no
+`README.md`.
 
 ## Git
 
@@ -33,4 +33,4 @@ Uma tarefa só está pronta com **todos** os itens:
 1. `pnpm lint`, `pnpm typecheck`, `pnpm test` e `pnpm build` verdes.
 2. Testes novos para o comportamento novo. Testes existentes ficam intactos — se um parece
    errado, pergunte ao dono do repositório antes de alterar ou apagar.
-3. Docs do COMO em `docs/`.
+3. Docs do COMO: do plugin em `docs/`; setup, config e dependências no `README.md`.
