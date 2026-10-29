@@ -1,5 +1,7 @@
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { createLogger, definePlugin, type PluginDefinition } from '@usebridger/core';
+import { type MetricsService, metrics } from '@usebridger/plugin-metrics';
 import { createTestBot, FakeTransport, fixtures, type TestBot } from '@usebridger/testing';
 import sharp from 'sharp';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -312,5 +314,111 @@ describe('tools', () => {
     await bot.receive({ text: `!tool download_sticker {"url":"${URL}"}` });
 
     expect(toolResult(bot)).toEqual({ ok: false, error: 'sticker-unavailable' });
+  });
+});
+
+describe('log e métricas', () => {
+  let lines: Record<string, unknown>[];
+  let metricsService: MetricsService | undefined;
+
+  /** Sobe o `download` com o `metrics` real e um logger que guarda as linhas em JSON. */
+  async function start(...extra: PluginDefinition[]) {
+    lines = [];
+    const logger = createLogger({
+      level: 'info',
+      destination: { write: (l) => lines.push(JSON.parse(l)) },
+    });
+    const grab = definePlugin({
+      name: 'grab',
+      version: '0.0.0',
+      engine: '<1.0.0',
+      dependsOn: { metrics: '*' },
+      setup: (ctx) => {
+        metricsService = ctx.services.get('metrics');
+      },
+    });
+    bot = await createTestBot({ plugins: [metrics, download(), grab, ...extra], logger });
+  }
+
+  const event = (name: string) => lines.find((l) => l['event'] === name);
+
+  async function rows(name: string) {
+    const today = new Date().toISOString().slice(0, 10);
+    return (
+      (await metricsService?.query({ name, from: today, to: today, granularity: 'day' })) ?? []
+    );
+  }
+
+  it('download enviado vira download.media.done, contador ok e duração, só com o host', async () => {
+    ytDlpWrites(downloadVideo, fixtures.image().data, 'jpg');
+    await start();
+
+    await bot.receive({ text: `!d ${URL}` });
+
+    expect(event('download.media.done')).toMatchObject({
+      level: 'info',
+      kind: 'media',
+      host: 'x.com',
+      bytes: fixtures.image().data.length,
+      durationMs: expect.any(Number),
+    });
+    expect(JSON.stringify(lines)).not.toContain('/luma/status/1');
+    expect(await rows('luma_download_total')).toMatchObject([
+      { labels: { kind: 'media', outcome: 'ok' }, value: 1 },
+    ]);
+    expect(await rows('luma_download_seconds')).toMatchObject([
+      { labels: { kind: 'media' }, count: 1 },
+    ]);
+  });
+
+  it('arquivo grande demais é recusa, não falha', async () => {
+    vi.mocked(downloadVideo).mockRejectedValue(new TooLargeError(URL));
+    await start();
+
+    await bot.receive({ text: `!d ${URL}` });
+
+    expect(event('download.media.refused')).toMatchObject({ kind: 'media', reason: 'too-large' });
+    expect(event('download.media.failed')).toBeUndefined();
+    expect(await rows('luma_download_total')).toMatchObject([
+      { labels: { kind: 'media', outcome: 'refused' }, value: 1 },
+    ]);
+  });
+
+  it('falha do yt-dlp vira download.media.failed com o erro e contador error', async () => {
+    vi.mocked(downloadAudio).mockRejectedValue(new Error('yt-dlp falhou: Private video'));
+    await start();
+
+    await bot.receive({ text: `!a ${URL}` });
+
+    expect(event('download.media.failed')).toMatchObject({
+      level: 'error',
+      kind: 'audio',
+      host: 'x.com',
+      err: expect.objectContaining({ message: 'yt-dlp falhou: Private video' }),
+    });
+    expect(await rows('luma_download_total')).toMatchObject([
+      { labels: { kind: 'audio', outcome: 'error' }, value: 1 },
+    ]);
+    expect(await rows('luma_download_seconds')).toEqual([]);
+  });
+
+  it('tool da IA conta igual ao comando', async () => {
+    ytDlpWrites(downloadVideo, fixtures.image().data, 'jpg');
+    await start(aiToolsProbe);
+
+    await bot.receive({ text: `!tool download_media {"url":"${URL}"}` });
+
+    expect(toolResult(bot)).toEqual({ ok: true });
+    expect(event('download.media.done')).toMatchObject({ kind: 'media', host: 'x.com' });
+    expect(await rows('luma_download_total')).toMatchObject([
+      { labels: { kind: 'media', outcome: 'ok' }, value: 1 },
+    ]);
+  });
+
+  it('sem os binários, o boot registra download.binaries.missing', async () => {
+    vi.mocked(checkBinary).mockRejectedValue(new Error('yt-dlp: not found'));
+    await start();
+
+    expect(event('download.binaries.missing')).toMatchObject({ level: 'warn' });
   });
 });
