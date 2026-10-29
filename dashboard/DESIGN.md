@@ -5,7 +5,7 @@ Quem constrói ou altera o `dashboard/` segue este documento. Ele diz **o que** 
 
 ## Protótipo
 
-Canvas no Claude Design: <https://claude.ai/artifact/1DpDG4M4hWZmNzi27QjorS>
+Canvas no Claude Design: <https://claude.ai/artifact/1DpDG4M4hWZmNzi27QjorS#page-dcb81aee8d83>
 
 - É privado. Um agente da conta do dono lê pela ferramenta `Artifact` (`action: "read"`, com
   `path`). Cada tela é um arquivo: `project/Main.dc.html` (Visão geral), `project/Ai.dc.html` (IA),
