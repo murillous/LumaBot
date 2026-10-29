@@ -402,18 +402,17 @@ describe('queda do bot com sessão carregada', () => {
     app.routes['GET /api/auth/me'] = () => ({ status: 503, body: problem(503, 'bot fora do ar') });
     app.stream().fail(2);
 
-    await waitFor(() =>
-      expect(app.calls.filter((c) => c.path === '/api/auth/me').length).toBeGreaterThan(1),
-    );
+    // Espera a revalidação terminar em erro: só então vale conferir que o shell resistiu.
+    await waitFor(() => expect(app.client.getQueryState(['me'])?.status).toBe('error'));
     expect(screen.getByRole('navigation', { name: 'Principal' })).toBeTruthy();
     expect(screen.queryByRole('alert')).toBeNull();
   });
 });
 
 describe('gaveta e largura da janela', () => {
+  const original = window.matchMedia;
   afterEach(() => {
-    // biome-ignore lint/suspicious/noExplicitAny: remove o falso do happy-dom
-    delete (window as any).matchMedia;
+    window.matchMedia = original;
   });
 
   it('passar de 768 px fecha a gaveta e tira o inert', async () => {

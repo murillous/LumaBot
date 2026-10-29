@@ -222,7 +222,7 @@ export function Shell() {
         ref={main}
         tabIndex={-1}
         inert={open}
-        className="mx-auto w-full min-w-0 max-w-[1100px] px-4 py-6 md:px-8 md:py-8"
+        className="mx-auto w-full min-w-0 max-w-[1100px] px-4 py-6 focus:outline-none md:px-8 md:py-8"
       >
         <ErrorBoundary key={path}>
           <Content path={path} />

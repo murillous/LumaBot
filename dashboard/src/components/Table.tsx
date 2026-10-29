@@ -36,7 +36,16 @@ export function ExpandRow({
   return (
     <>
       {/* O clique na linha toda é conveniência de mouse; o button da 1ª célula é o controle de teclado e leitor de tela. */}
-      <tr onClick={onToggle} className="cursor-pointer">
+      <tr
+        onClick={(event) => {
+          // Controle dentro da linha (link, campo) tem a ação própria; e arrastar para selecionar
+          // texto não é pedido de abrir.
+          if ((event.target as HTMLElement).closest('a,button,input,select,textarea')) return;
+          if (window.getSelection()?.toString()) return;
+          onToggle();
+        }}
+        className="cursor-pointer"
+      >
         <td>
           <button
             type="button"

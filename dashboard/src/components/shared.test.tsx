@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { afterEach, expect, it } from 'vitest';
@@ -87,6 +87,44 @@ it('clicar na linha toda também expande, uma vez só', async () => {
   // O clique no button não pode abrir e fechar no mesmo toque (subindo ao <tr>).
   await user.click(screen.getByRole('button', { name: '12:00' }));
   expect(screen.queryByText('detalhe do evento')).toBeNull();
+});
+
+it('clique em link da linha ou com texto selecionado não expande', async () => {
+  const user = userEvent.setup();
+  function Demo() {
+    const [open, setOpen] = useState(false);
+    return (
+      <Table label="Eventos">
+        <tbody>
+          <ExpandRow
+            cells={[
+              '12:00',
+              <a key="l" href="#x">
+                ver
+              </a>,
+              <span key="t">texto longo</span>,
+            ]}
+            expanded={open}
+            onToggle={() => setOpen(!open)}
+            detail={<p>detalhe do evento</p>}
+          />
+        </tbody>
+      </Table>
+    );
+  }
+  render(<Demo />);
+  await user.click(screen.getByRole('link', { name: 'ver' }));
+  expect(screen.queryByText('detalhe do evento')).toBeNull();
+
+  const text = screen.getByText('texto longo');
+  const range = document.createRange();
+  range.selectNodeContents(text);
+  window.getSelection()?.removeAllRanges();
+  window.getSelection()?.addRange(range);
+  // fireEvent: o mousedown do user-event desfaria a seleção antes do clique.
+  fireEvent.click(text);
+  expect(screen.queryByText('detalhe do evento')).toBeNull();
+  window.getSelection()?.removeAllRanges();
 });
 
 it('ExpandRow expande o detalhe pelo botão com aria-expanded', async () => {
