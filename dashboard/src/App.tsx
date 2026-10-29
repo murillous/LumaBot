@@ -58,7 +58,9 @@ function Gatekeeper() {
       </Centered>
     );
   }
-  if (me.isError) {
+  // Com sessão carregada, a falha de uma revalidação (bot fora do ar) não troca o app pelo erro:
+  // o Shell segue de pé e o indicador mostra "reconectando".
+  if (me.isError && me.data === undefined) {
     return (
       <Centered>
         <ErrorNotice error={me.error} onRetry={() => void me.refetch()} />

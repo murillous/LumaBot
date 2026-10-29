@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { type LiveStatus, useLive, useSession } from '#components/context.tsx';
 import { ErrorBoundary } from '#components/ErrorBoundary.tsx';
+import { PageTitle } from '#components/PageTitle.tsx';
 import { Button, Forbidden } from '#components/ui.tsx';
 import { Link, matchPath, usePath } from '#lib/router.tsx';
 import { applyTheme, loadTheme, saveTheme, THEMES, type Theme } from '#lib/theme.ts';
@@ -93,7 +94,7 @@ function Content({ path }: { path: string }) {
   if (found === null) {
     return (
       <section className="flex flex-col gap-2">
-        <h1 className="font-display text-title font-semibold">Tela não encontrada</h1>
+        <PageTitle>Tela não encontrada</PageTitle>
         <p>
           <Link to="/" className="underline">
             Voltar à Visão geral
@@ -127,8 +128,7 @@ export function Shell() {
   const screenTitle = resolveRoute(path)?.entry.label ?? 'Tela não encontrada';
   const focusScreen = () => {
     const target = main.current?.querySelector<HTMLElement>('h1') ?? main.current;
-    // h1 não é focável por padrão; -1 deixa o foco chegar nele sem entrar na ordem do Tab.
-    target?.setAttribute('tabindex', '-1');
+    // `PageTitle` e o `main` têm tabIndex -1: focáveis por código, fora da ordem do Tab.
     target?.focus();
   };
 
@@ -150,6 +150,18 @@ export function Shell() {
   useEffect(() => {
     if (escapes > 0) trigger.current?.focus();
   }, [escapes]);
+
+  // Passou de 768 px com a gaveta aberta: o menu vira sidebar fixa, então a gaveta fecha (senão
+  // main e header ficariam inertes no desktop).
+  useEffect(() => {
+    if (!open || typeof window.matchMedia !== 'function') return;
+    const query = window.matchMedia('(min-width: 768px)');
+    const onChange = (event: MediaQueryListEvent) => {
+      if (event.matches) setOpenAt(null);
+    };
+    query.addEventListener('change', onChange);
+    return () => query.removeEventListener('change', onChange);
+  }, [open]);
 
   // Gaveta aberta: foco no primeiro link; Esc fecha e devolve o foco ao botão Menu.
   useEffect(() => {
@@ -208,6 +220,7 @@ export function Shell() {
       </aside>
       <main
         ref={main}
+        tabIndex={-1}
         inert={open}
         className="mx-auto w-full min-w-0 max-w-[1100px] px-4 py-6 md:px-8 md:py-8"
       >

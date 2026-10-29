@@ -1,5 +1,6 @@
 import { type ComponentProps, type ReactNode, useId } from 'react';
 import { messageOf } from '#lib/api.ts';
+import { PageTitle } from './PageTitle.tsx';
 
 // Componentes base do guia (DESIGN.md, tabela de Componentes): Button, Field, Card e os avisos.
 // Componente compartilhado novo vai em arquivo próprio de `components/`, para as telas que correm
@@ -114,7 +115,7 @@ export function Loading({ label = 'Carregando…' }: { label?: string }) {
 export function Forbidden() {
   return (
     <section className="flex flex-col gap-2">
-      <h1 className="font-display text-title font-semibold">Sem permissão</h1>
+      <PageTitle>Sem permissão</PageTitle>
       <p className="text-muted">Você não tem permissão para ver esta tela.</p>
     </section>
   );

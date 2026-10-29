@@ -64,6 +64,31 @@ it('StateWord e Chip usam a cor do estado', () => {
   expect(screen.getByText('Precisa de atenção').className).toContain('bg-warn-soft');
 });
 
+it('clicar na linha toda também expande, uma vez só', async () => {
+  const user = userEvent.setup();
+  function Demo() {
+    const [open, setOpen] = useState(false);
+    return (
+      <Table label="Eventos">
+        <tbody>
+          <ExpandRow
+            cells={['12:00', 'ai.generate.done']}
+            expanded={open}
+            onToggle={() => setOpen(!open)}
+            detail={<p>detalhe do evento</p>}
+          />
+        </tbody>
+      </Table>
+    );
+  }
+  render(<Demo />);
+  await user.click(screen.getByText('ai.generate.done'));
+  expect(screen.getByText('detalhe do evento')).toBeTruthy();
+  // O clique no button não pode abrir e fechar no mesmo toque (subindo ao <tr>).
+  await user.click(screen.getByRole('button', { name: '12:00' }));
+  expect(screen.queryByText('detalhe do evento')).toBeNull();
+});
+
 it('ExpandRow expande o detalhe pelo botão com aria-expanded', async () => {
   const user = userEvent.setup();
   function Demo() {

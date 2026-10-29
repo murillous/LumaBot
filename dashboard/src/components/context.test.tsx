@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
-import { cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, render, screen } from '@testing-library/react';
 import { useState } from 'react';
-import { afterEach, expect, it } from 'vitest';
+import { afterEach, expect, it, vi } from 'vitest';
 import type { AppEnv } from '#lib/env.ts';
 import { FakeEventSource, OWNER } from '#test-support.tsx';
 import { EnvProvider, SessionProvider, useLiveEvent } from './context.tsx';
@@ -45,9 +45,7 @@ it('useLiveEvent entrega os eventos do tipo pelo stream único', () => {
 
 // Depois que o stream cai de vez, o provider reabre sozinho e os tipos já assinados continuam
 // chegando no stream novo.
-it('reabre o stream depois de 5 s mantendo as assinaturas', async () => {
-  const { act } = await import('@testing-library/react');
-  const { vi } = await import('vitest');
+it('reabre o stream depois de 5 s mantendo as assinaturas', () => {
   const streams: FakeEventSource[] = [];
   const env: AppEnv = {
     baseUrl: 'http://bot.test',

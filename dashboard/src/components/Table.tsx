@@ -35,13 +35,18 @@ export function ExpandRow({
   const [first, ...rest] = cells;
   return (
     <>
-      <tr>
+      {/* O clique na linha toda é conveniência de mouse; o button da 1ª célula é o controle de teclado e leitor de tela. */}
+      <tr onClick={onToggle} className="cursor-pointer">
         <td>
           <button
             type="button"
             aria-expanded={expanded}
-            onClick={onToggle}
-            className="min-h-11 cursor-pointer text-left"
+            onClick={(event) => {
+              // O clique no button já vale; sem isto subiria ao <tr> e abriria e fecharia no mesmo toque.
+              event.stopPropagation();
+              onToggle();
+            }}
+            className="min-h-11 w-full cursor-pointer text-left"
           >
             {first}
           </button>

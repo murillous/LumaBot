@@ -95,6 +95,8 @@ export const LOG_READER = {
 
 export interface RenderedApp {
   readonly calls: Call[];
+  /** Os handlers em uso; o teste troca um no meio para simular o bot caindo. */
+  readonly routes: Record<string, Handler>;
   readonly streams: FakeEventSource[];
   /** O cache de queries do app, para o teste conferir o que foi esquecido. */
   readonly client: QueryClient;
@@ -110,13 +112,15 @@ export interface RenderedApp {
  */
 export function renderApp({
   me = OWNER,
-  routes = {},
+  routes: given = {},
   path = '/',
 }: {
   me?: object | null;
   routes?: Record<string, Handler>;
   path?: string;
 } = {}): RenderedApp {
+  // Cópia: o teste pode trocar handlers sem mexer no objeto que recebeu.
+  const routes = { ...given };
   history.replaceState(null, '', path);
   const calls: Call[] = [];
   const streams: FakeEventSource[] = [];
@@ -161,6 +165,7 @@ export function renderApp({
   render(<App env={env} queryClient={client} />);
   return {
     calls,
+    routes,
     streams,
     client,
     stream: () => {

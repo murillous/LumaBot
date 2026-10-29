@@ -391,3 +391,53 @@ describe('tema salvo', () => {
     expect(await screen.findByRole('button', { name: 'Tema: Escuro' })).toBeTruthy();
   });
 });
+
+describe('queda do bot com sessão carregada', () => {
+  it('/me falhando na revalidação mantém o shell e o menu', async () => {
+    const app = renderApp();
+    await screen.findByRole('heading', { name: 'Visão geral' });
+    app.stream().open();
+
+    // O proxy responde 503 enquanto o bot está fora: a revalidação do /me falha, mas há sessão.
+    app.routes['GET /api/auth/me'] = () => ({ status: 503, body: problem(503, 'bot fora do ar') });
+    app.stream().fail(2);
+
+    await waitFor(() =>
+      expect(app.calls.filter((c) => c.path === '/api/auth/me').length).toBeGreaterThan(1),
+    );
+    expect(screen.getByRole('navigation', { name: 'Principal' })).toBeTruthy();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+});
+
+describe('gaveta e largura da janela', () => {
+  afterEach(() => {
+    // biome-ignore lint/suspicious/noExplicitAny: remove o falso do happy-dom
+    delete (window as any).matchMedia;
+  });
+
+  it('passar de 768 px fecha a gaveta e tira o inert', async () => {
+    const user = userEvent.setup();
+    const listeners: ((event: { matches: boolean }) => void)[] = [];
+    window.matchMedia = (() => ({
+      matches: false,
+      addEventListener: (_: string, fn: (event: { matches: boolean }) => void) => {
+        listeners.push(fn);
+      },
+      removeEventListener: (_: string, fn: (event: { matches: boolean }) => void) => {
+        listeners.splice(listeners.indexOf(fn), 1);
+      },
+    })) as unknown as typeof window.matchMedia;
+    renderApp();
+    const button = await screen.findByRole('button', { name: 'Menu' });
+    await user.click(button);
+    expect(document.querySelector('main')?.hasAttribute('inert')).toBe(true);
+
+    act(() => {
+      for (const fn of [...listeners]) fn({ matches: true });
+    });
+    expect(button.getAttribute('aria-expanded')).toBe('false');
+    expect(document.querySelector('main')?.hasAttribute('inert')).toBe(false);
+    expect(listeners).toHaveLength(0);
+  });
+});
