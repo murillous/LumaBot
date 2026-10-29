@@ -11,7 +11,7 @@ export type KnownContact = Pick<Contact, 'id' | 'name' | 'phone'>;
 
 /**
  * Serviço `userNames`: identidade por `Contact.id` (opaco, de qualquer plataforma). Contrato
- * estável; mudança incompatível sobe a `version` do plugin (ADR 0002 item 6).
+ * estável; mudança incompatível sobe a `version` do plugin.
  */
 export interface UserNamesService {
   /**

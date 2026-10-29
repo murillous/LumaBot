@@ -36,7 +36,7 @@ do `run` citaria.
 
 `empty`, `titleGroup`, `titleGlobal`, `ranking` (`{title}`, `{lines}`).
 
-## Serviço `rank` (contrato estável, ADR 0002)
+## Serviço `rank` (contrato estável)
 
 ```ts
 record(chatId, senderId): Promise<void>
@@ -55,5 +55,5 @@ sem ele, `@` + 6 últimos dígitos do id.
 
 ## Pontos de extensão
 
-Nenhum: não há variação prevista (ADR 0002 item 2). Se aparecer (ex.: outra fonte de contagem),
+Nenhum: não há variação prevista. Se aparecer (ex.: outra fonte de contagem),
 vira um ponto `rank.<ponto>` sem mudar o contrato do serviço.

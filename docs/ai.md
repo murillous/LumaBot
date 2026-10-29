@@ -1,11 +1,10 @@
 # ai
 
 Gera texto por uma cadeia de modelos com fallback entre providers, pelo
-[Vercel AI SDK](https://ai-sdk.dev) ([ADR 0004](../../../docs/adr/0004-providers-da-ia-pelo-ai-sdk.md)).
+[Vercel AI SDK](https://ai-sdk.dev).
 Oferece o serviço `ai` e os pontos `ai.providers` e `ai.observers`, e roda as tools do ponto
 [`ai.tools`](ai-tools.md). O `ai` não tem comando nem gatilho: quem decide quando responder, o
-histórico e a persona são da [`luma`](luma.md)
-([ADR 0005](../../../docs/adr/0005-a-luma-e-um-plugin-a-parte-do-ai.md)); `resumo`, `spontaneous`,
+histórico e a persona são da [`luma`](luma.md); `resumo`, `spontaneous`,
 `transcribe` e `web-search` chamam o `generate` direto.
 
 ## Config

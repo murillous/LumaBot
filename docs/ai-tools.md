@@ -1,8 +1,7 @@
 # Tools da IA (`ai.tools`)
 
 Todo plugin do app pode ser chamado pela IA por function calling. Cada plugin contribui as
-próprias tools ao ponto de extensão `ai.tools`; a IA lê a lista e não conhece nenhum plugin
-([ADR 0003](../../../docs/adr/0003-tools-da-ia-por-ponto-de-extensao.md)). O contrato fica em
+próprias tools ao ponto de extensão `ai.tools`; a IA lê a lista e não conhece nenhum plugin. O contrato fica em
 `src/plugins/ai-tools.ts`.
 
 ## Contribuir uma tool

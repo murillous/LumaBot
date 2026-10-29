@@ -11,7 +11,7 @@ telas, rotas, login e permissões são do Bridger.
 Ligado por padrão, sem nenhuma variável:
 
 ```sh
-pnpm --filter lumabot start
+pnpm start
 ```
 
 No primeiro boot, o terminal mostra `http://127.0.0.1:3000/plugins/dashboard/` e o token do
@@ -37,8 +37,7 @@ impede o boot (`o plugin não declara config`). Apague a variável.
 ## Token e chave mestra gerados
 
 O app gera os dois e os grava, com permissão 0600, na pasta do banco (`LUMABOT_DB`):
-`data/bootstrap-token` e `data/secret.key` (a chave só sem `BRIDGER_SECRET_KEY`;
-[ADR 0006](../../../docs/adr/0006-config-pelo-dashboard-com-segredos-gerados.md)).
+`data/bootstrap-token` e `data/secret.key` (a chave só sem `BRIDGER_SECRET_KEY`;).
 Com a chave, a tela Config grava as chaves da IA e do Tavily cifradas no banco. O
 `data/dashboard-token` de versões anteriores não é mais lido e pode ser apagado.
 

@@ -1,5 +1,5 @@
 // Segredos que o app gera sozinho no primeiro boot (token do primeiro acesso, chave mestra), para o
-// LumaBot subir com o .env vazio e o resto da config vir pelo dashboard (ADR 0006).
+// LumaBot subir com o .env vazio e o resto da config vir pelo dashboard.
 
 import { randomBytes } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
