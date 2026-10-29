@@ -1,7 +1,7 @@
 # utils
 
 Dois comandos pequenos. O plugin **não oferece serviço**: não há regra a reutilizar além do
-ponto de extensão `utils.info` ([ADR 0002](../../../docs/adr/0002-plugins-abertos-para-extensao.md)).
+ponto de extensão `utils.info`.
 
 ## Comandos
 

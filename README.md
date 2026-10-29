@@ -1,66 +1,36 @@
 # LumaBot
 
-Bot de WhatsApp com a **Luma**, assistente virtual com personalidade.
+Bot de WhatsApp com a **Luma**, assistente virtual com personalidade, escrito sobre o
+[Bridger](https://github.com/murillous/usebridger) (`@usebridger/*` no npm). O app só compõe o
+bot e os plugins da Luma; o kernel, os plugins oficiais e o roadmap vivem no `usebridger`, e bug
+ou feature do Bridger vai para lá.
 
-O bot vive em [`apps/lumabot/`](apps/lumabot/docs/README.md), escrito sobre o
-[Bridger](https://github.com/murillous/usebridger), o kernel de bot de mensageria publicado no npm
-como `@usebridger/*`. O app só compõe o bot e os plugins da Luma.
-
-O kernel, os plugins oficiais, o roadmap e os ADRs do kernel vivem no
-[`usebridger`](https://github.com/murillous/usebridger). Bug ou feature do Bridger vai para lá.
+Como rodar, configurar e o que cada plugin faz: [`docs/README.md`](docs/README.md).
 
 ## Desenvolvimento
 
-Workspace pnpm com `apps/*`. A versão do pnpm vem de `packageManager` no `package.json` — com
-`corepack enable`, basta rodar `pnpm install` na raiz.
-
-Requer Node 24+ (`engines` na raiz; `.nvmrc` para `nvm use`/`fnm use`).
-
-### Comandos (na raiz)
+Node 24+ (`.nvmrc`) e pnpm (versão em `packageManager`; com `corepack enable`, basta
+`pnpm install`).
 
 | Comando | O que faz |
 | --- | --- |
-| `pnpm lint` / `pnpm lint:fix` | Biome: lint + formatação + organização de imports |
-| `pnpm typecheck` | `tsc -b` em todos os apps (project references) |
-| `pnpm test` | Vitest em todos os apps |
-| `pnpm build` | `tsdown` em cada app (`dist/`) |
+| `pnpm dev` | Roda o `.ts` direto, sem build |
+| `pnpm build` / `pnpm start` | `tsdown` para `dist/` e roda o build |
+| `pnpm lint` / `pnpm lint:fix` | Biome: lint, formatação e organização de imports |
+| `pnpm typecheck` | `tsc`, só checagem de tipos |
+| `pnpm test` | Vitest |
 
-Como rodar o bot: [`apps/lumabot/docs/README.md`](apps/lumabot/docs/README.md).
+O CI ([`ci.yml`](.github/workflows/ci.yml)) roda lint, typecheck, testes e build em todo push e
+PR para `main`/`develop`.
 
-### Bridger
+### Convenções
 
-Os pacotes `@usebridger/*` entram como dependência comum do npm, com a faixa de versão no
-`package.json` do app. Para atualizar, suba a faixa e rode `pnpm install`; o changelog de cada
-pacote está no [`usebridger`](https://github.com/murillous/usebridger).
-
-### TypeScript
-
-`tsconfig.base.json`: strict, ESM, `nodenext`. Em dev o Node executa o `.ts` direto, então:
-
-- só vale sintaxe apagável (`erasableSyntaxOnly` — sem `enum`, `namespace`, parameter properties);
-- imports levam a extensão `.ts` (`import { x } from './x.ts'`).
-
-O `tsc` só checa tipos; o JS sai do tsdown.
-
-### Imports
-
-Relativo só para a mesma pasta ou abaixo (`./sub/x.ts`). Para subir de pasta, use o alias do
-próprio app (`import { loadConfig } from '#config.ts'`, via `imports` no `package.json`) — o
-Biome barra `../`.
-
-### Regras do Biome
-
-Além do preset recomendado, viram erro: `export default` (exceto em `*.config.ts`), import
-relativo ascendente, `process.env` fora da camada de config (`src/config.ts` ou `src/config/`)
-e `catch` sem nenhuma instrução — inclusive só com comentário (plugin em
-[`biome/`](biome/no-swallowed-catch.grit)).
-
-### CI
-
-Todo push e PR para `main`/`develop` roda o [`ci.yml`](.github/workflows/ci.yml): jobs `Lint`,
-`Typecheck`, `Testes` e `Build` (os comandos da tabela acima), com o store do pnpm em cache. O
-setup comum (Node do `.nvmrc`, pnpm do `packageManager`, `pnpm install --frozen-lockfile`) fica
-em [`.github/actions/setup`](.github/actions/setup/action.yml).
+- TypeScript strict e ESM. Em dev o Node executa o `.ts` direto, então só vale sintaxe apagável
+  (sem `enum`, `namespace`, parameter properties) e os imports levam a extensão `.ts`.
+- Import relativo só para a mesma pasta ou abaixo; para subir, o alias `#` do `package.json`
+  (`import { loadConfig } from '#config.ts'`).
+- O Biome barra `export default` (exceto em `*.config.ts`), `../`, `process.env` fora de
+  `src/config.ts` e `catch` sem instrução ([`biome/`](biome/no-swallowed-catch.grit)).
 
 ## Licença
 

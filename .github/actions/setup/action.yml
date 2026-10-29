@@ -1,5 +1,5 @@
 name: Setup
-description: Node (versão do .nvmrc), pnpm (versão do packageManager) e dependências do workspace.
+description: Node (versão do .nvmrc), pnpm (versão do packageManager) e dependências.
 
 runs:
   using: composite

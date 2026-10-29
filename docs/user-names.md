@@ -41,7 +41,7 @@ Nomes (apelido e pushName) passam por limpeza: NFC, sem caracteres de controle/f
 
 `nickUsage`, `nickTooLong`, `nickSet`, `nickSetOther` (`{nick}`, `{who}`, `{prefix}`).
 
-## Serviço `userNames` (contrato estável, ADR 0002)
+## Serviço `userNames` (contrato estável)
 
 ```ts
 displayName(id): Promise<string>  // fontes em ordem; senão '@' + 6 últimos dígitos do telefone observado ou do id
