@@ -19,7 +19,7 @@ figurinha estática, até 90 caracteres, com emoji colorido (ver [Legenda](#lege
 Sem ele, o texto é ignorado. Figurinha animada nunca leva legenda.
 
 Enquanto converte, o bot reage ⏳ na mensagem e depois ✅ ou ❌; num transport sem `reactions`, a
-reação é ignorada. Erro de conversão vai para o log (`falha ao processar mídia`) e o chat recebe
+reação é ignorada. Erro de conversão vai para o log (`sticker.create.failed`) e o chat recebe
 `conversionError`; link que não baixa recebe `urlError`.
 
 ## Tools da IA
@@ -85,7 +85,7 @@ válida recarrega o `sticker-text`, que registra a etapa com o estilo novo.
 versionada em `fonts/NotoColorEmoji.ttf` (licença OFL, em `fonts/OFL.txt`), carregada pelo
 `fontfile` do Sharp: não precisa instalar fonte no sistema. O caminho é relativo ao diretório de
 onde o processo roda, como o banco; rodando de fora da raiz, o emoji sai na cor do texto e o
-`setup` avisa no log (`fonte de emoji colorido não encontrada`). O SVG, usado antes, não serve: o
+`setup` avisa no log (`sticker-text.emoji-font.missing`). O SVG, usado antes, não serve: o
 librsvg pinta o emoji com a cor do texto mesmo com a fonte.
 
 Para atualizar a fonte, troque o arquivo pelo `2D/fonts/NotoColorEmoji.ttf` de uma versão nova do
@@ -123,7 +123,7 @@ estejam em `disabledPlugins`; então o `!downloadsticker` responde `stickerUnava
 
 Vídeo → figurinha roda o binário `ffmpeg`, que precisa estar no `PATH` (com `libwebp`, como nos
 builds do apt e do gyan.dev). Figurinha de imagem não depende dele: usa o Sharp. Por isso, sem o
-FFmpeg, o plugin sobe mesmo assim: o `setup` só registra o aviso `ffmpeg indisponível` no log. O
+FFmpeg, o plugin sobe mesmo assim: o `setup` só registra o aviso `sticker.ffmpeg.missing` no log. O
 FFmpeg trabalha em arquivos num diretório temporário (`os.tmpdir()`), apagado ao fim de cada
 conversão.
 

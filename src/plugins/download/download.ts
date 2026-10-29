@@ -1,14 +1,9 @@
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { extname, join } from 'node:path';
-import {
-  type CommandContext,
-  definePlugin,
-  type Logger,
-  type PluginDefinition,
-} from '@usebridger/core';
-import type { MetricsService } from '@usebridger/plugin-metrics';
+import { type CommandContext, definePlugin, type PluginDefinition } from '@usebridger/core';
 import { z } from 'zod';
+import { type ActionSpec, actionTracker, hostOf, trackerFor } from '#plugins/action-metrics.ts';
 import { type AiToolResult, aiTool, fail, ok } from '#plugins/ai-tools.ts';
 import { checkBinary } from '#plugins/binary.ts';
 import {
@@ -57,16 +52,18 @@ const CONCURRENCY = 2;
 /** Post de foto (Instagram, X): o yt-dlp baixa a própria imagem, que vai sem passar pelo FFmpeg. */
 const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp']);
 
-/** O que foi pedido: a mídia do link (vídeo ou foto), só o áudio ou a figurinha. */
-type Kind = 'media' | 'audio' | 'sticker';
-/** Download que terminou sem lançar: enviado, com o tamanho, ou recusado por motivo esperado. */
-type Outcome = { readonly bytes: number } | { readonly refused: string };
-type Track = (
-  log: Logger,
-  kind: Kind,
-  url: string,
-  work: () => Promise<Outcome>,
-) => Promise<Outcome>;
+/**
+ * Cada download no log (`download.media.*`) e em `luma_download_*`. `kind`: `media` (vídeo ou
+ * foto), `audio` ou `sticker`.
+ */
+const ACTION: ActionSpec = {
+  metric: 'download',
+  help: 'Downloads',
+  // Até o prazo dos comandos (240 s): vídeo longo recodificado passa de um minuto.
+  buckets: [1, 2, 5, 10, 20, 30, 60, 120, 240],
+  events: { done: DOWNLOAD_DONE, refused: DOWNLOAD_REFUSED, failed: DOWNLOAD_FAILED },
+  refusal: (err) => (err instanceof TooLargeError ? 'too-large' : undefined),
+};
 
 export interface DownloadOptions {
   /** Arquivo de cookies (formato Netscape) de uma sessão logada, repassado ao yt-dlp. */
@@ -80,7 +77,7 @@ export interface DownloadOptions {
 export function download(options: DownloadOptions = {}): PluginDefinition {
   // Refeitos a cada setup (inclusive no reload), por instância do plugin.
   let binariesMissing = false;
-  let track = tracker();
+  let track = actionTracker(ACTION);
   return definePlugin({
     name: 'download',
     version: '0.0.0',
@@ -91,7 +88,7 @@ export function download(options: DownloadOptions = {}): PluginDefinition {
     // Sem os dois, nenhum comando funciona. Na 0.6 setup que lança derruba o bot inteiro, então
     // o plugin carrega, avisa no boot e cada comando responde `unavailable`.
     setup: async (ctx) => {
-      track = tracker(ctx.services.has('metrics') ? ctx.services.get('metrics') : undefined);
+      track = trackerFor(ACTION, ctx.services);
       try {
         await Promise.all([
           checkBinary('yt-dlp', ['--version']),
@@ -124,12 +121,14 @@ export function download(options: DownloadOptions = {}): PluginDefinition {
           requires: ['send.video'],
           run: ({ url }, t) =>
             guarded(async () => {
-              const sent = await track(t.log, 'media', url, () =>
+              const sent = await track(t.log.child({ host: hostOf(url) }), 'media', (step) =>
                 inTempDir(async (dir) => {
                   const post = await fetchPost(url, dir, { ...options, signal: t.signal });
                   if (post.kind === 'image') {
-                    if (!ctx.capabilities.has('send.image'))
-                      return { refused: 'image-unsupported' };
+                    if (!ctx.capabilities.has('send.image')) {
+                      step.refuse('image-unsupported');
+                      return false;
+                    }
                     await t.reply.image(post.bytes, { caption: ctx.plugin.messages.imageSent });
                   } else {
                     await t.reply.video(post.bytes, {
@@ -137,10 +136,11 @@ export function download(options: DownloadOptions = {}): PluginDefinition {
                       mimetype: 'video/mp4',
                     });
                   }
-                  return { bytes: post.bytes.length };
+                  step.note({ bytes: post.bytes.length });
+                  return true;
                 }),
               );
-              return 'refused' in sent ? fail(sent.refused) : ok();
+              return sent ? ok() : fail('image-unsupported');
             }),
         }),
       );
@@ -153,12 +153,12 @@ export function download(options: DownloadOptions = {}): PluginDefinition {
           requires: ['send.audio'],
           run: ({ url }, t) =>
             guarded(async () => {
-              await track(t.log, 'audio', url, () =>
+              await track(t.log.child({ host: hostOf(url) }), 'audio', (step) =>
                 inTempDir(async (dir) => {
                   const mp3 = await downloadAudio(url, dir, { ...options, signal: t.signal });
                   const bytes = await readFile(mp3);
                   await t.reply.audio(bytes, { mimetype: 'audio/mpeg' });
-                  return { bytes: bytes.length };
+                  step.note({ bytes: bytes.length });
                 }),
               );
               return ok();
@@ -178,7 +178,7 @@ export function download(options: DownloadOptions = {}): PluginDefinition {
               // Opcional como no `!downloadsticker`: consultado a cada uso.
               if (!ctx.services.has('sticker')) return fail('sticker-unavailable');
               const stickers = ctx.services.get('sticker');
-              await track(t.log, 'sticker', url, () =>
+              await track(t.log.child({ host: hostOf(url) }), 'sticker', (step) =>
                 inTempDir(async (dir) => {
                   const file = await downloadVideo(url, dir, { ...options, signal: t.signal });
                   const sticker = await stickers.create(await readFile(file), {
@@ -187,7 +187,7 @@ export function download(options: DownloadOptions = {}): PluginDefinition {
                     signal: t.signal,
                   });
                   await t.reply.sticker(sticker);
-                  return { bytes: sticker.length };
+                  step.note({ bytes: sticker.length });
                 }),
               );
               return ok();
@@ -212,21 +212,28 @@ export function download(options: DownloadOptions = {}): PluginDefinition {
           return inTempDir(async (dir) => {
             await ctx.react('⏳');
             try {
-              const sent = await track(ctx.log, 'media', url, async () => {
-                const post = await fetchPost(url, dir, { ...options, signal: ctx.signal });
-                if (post.kind === 'image') {
-                  if (!plugin.capabilities.has('send.image'))
-                    return { refused: 'image-unsupported' };
-                  await ctx.reply.image(post.bytes, { caption: ctx.t('imageSent') });
-                } else {
-                  await ctx.reply.video(post.bytes, {
-                    caption: ctx.t('videoSent'),
-                    mimetype: 'video/mp4',
-                  });
-                }
-                return { bytes: post.bytes.length };
-              });
-              if ('refused' in sent) {
+              const sent = await track(
+                ctx.log.child({ host: hostOf(url) }),
+                'media',
+                async (step) => {
+                  const post = await fetchPost(url, dir, { ...options, signal: ctx.signal });
+                  if (post.kind === 'image') {
+                    if (!plugin.capabilities.has('send.image')) {
+                      step.refuse('image-unsupported');
+                      return false;
+                    }
+                    await ctx.reply.image(post.bytes, { caption: ctx.t('imageSent') });
+                  } else {
+                    await ctx.reply.video(post.bytes, {
+                      caption: ctx.t('videoSent'),
+                      mimetype: 'video/mp4',
+                    });
+                  }
+                  step.note({ bytes: post.bytes.length });
+                  return true;
+                },
+              );
+              if (!sent) {
                 await ctx.react('❌');
                 return ctx.t('imageUnsupported');
               }
@@ -261,7 +268,7 @@ export function download(options: DownloadOptions = {}): PluginDefinition {
             await ctx.react('⏳');
             let downloaded = false;
             try {
-              await track(ctx.log, 'sticker', url, async () => {
+              await track(ctx.log.child({ host: hostOf(url) }), 'sticker', async (step) => {
                 const file = await downloadVideo(url, dir, { ...options, signal: ctx.signal });
                 downloaded = true;
                 const sticker = await stickers.create(await readFile(file), {
@@ -270,7 +277,7 @@ export function download(options: DownloadOptions = {}): PluginDefinition {
                   signal: ctx.signal,
                 });
                 await ctx.reply.sticker(sticker);
-                return { bytes: sticker.length };
+                step.note({ bytes: sticker.length });
               });
             } catch (err) {
               // O `track` já registrou a falha.
@@ -298,11 +305,11 @@ export function download(options: DownloadOptions = {}): PluginDefinition {
           return inTempDir(async (dir) => {
             await ctx.react('⏳');
             try {
-              await track(ctx.log, 'audio', url, async () => {
+              await track(ctx.log.child({ host: hostOf(url) }), 'audio', async (step) => {
                 const mp3 = await downloadAudio(url, dir, { ...options, signal: ctx.signal });
                 const bytes = await readFile(mp3);
                 await ctx.reply.audio(bytes, { mimetype: 'audio/mpeg' });
-                return { bytes: bytes.length };
+                step.note({ bytes: bytes.length });
               });
             } catch (err) {
               // O `track` já registrou a falha.
@@ -316,53 +323,6 @@ export function download(options: DownloadOptions = {}): PluginDefinition {
       },
     },
   });
-}
-
-/**
- * Registra cada download no log (`download.media.*`) e, com o `metrics` carregado, em
- * `luma_download_total{kind, outcome}` e `luma_download_seconds{kind}`. A falha é relançada para
- * quem chamou responder ao usuário.
- */
-function tracker(metrics?: MetricsService): Track {
-  const total = metrics?.counter({
-    name: 'luma_download_total',
-    help: 'Downloads por tipo e resultado (ok, refused, error)',
-    labelNames: ['kind', 'outcome'],
-  });
-  const seconds = metrics?.histogram({
-    name: 'luma_download_seconds',
-    help: 'Duração dos downloads enviados, da chamada ao yt-dlp ao envio',
-    labelNames: ['kind'],
-    // Até o prazo dos comandos (240 s): vídeo longo recodificado passa de um minuto.
-    buckets: [1, 2, 5, 10, 20, 30, 60, 120, 240],
-  });
-  return async (log, kind, url, work) => {
-    const host = URL.canParse(url) ? new URL(url).hostname : undefined;
-    const start = performance.now();
-    const elapsed = () => Math.round(performance.now() - start);
-    try {
-      const outcome = await work();
-      if ('refused' in outcome) {
-        total?.inc({ kind, outcome: 'refused' });
-        log.event(DOWNLOAD_REFUSED, { kind, host, reason: outcome.refused });
-      } else {
-        const durationMs = elapsed();
-        total?.inc({ kind, outcome: 'ok' });
-        seconds?.observe({ kind }, durationMs / 1000);
-        log.event(DOWNLOAD_DONE, { kind, host, durationMs, bytes: outcome.bytes });
-      }
-      return outcome;
-    } catch (err) {
-      if (err instanceof TooLargeError) {
-        total?.inc({ kind, outcome: 'refused' });
-        log.event(DOWNLOAD_REFUSED, { kind, host, reason: 'too-large' });
-      } else {
-        total?.inc({ kind, outcome: 'error' });
-        log.event(DOWNLOAD_FAILED, { err, kind, host, durationMs: elapsed() });
-      }
-      throw err;
-    }
-  };
 }
 
 /** Foto do post como veio, ou o vídeo recodificado para o WhatsApp. */

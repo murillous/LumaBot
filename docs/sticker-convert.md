@@ -13,7 +13,7 @@ A figurinha vem da própria mensagem ou da citada; outra mídia recebe o texto d
 | `!gif` / `!g` | Figurinha animada | Vídeo MP4 H.264 (figurinha estática: sugere o `!image`) |
 
 Enquanto converte, o bot reage ⏳ e depois ✅ ou ❌. Erro de conversão vai para o log
-(`falha ao processar mídia`) e o chat recebe `conversionError`.
+(`sticker-convert.convert.failed`) e o chat recebe `conversionError`.
 
 ## Tools da IA
 

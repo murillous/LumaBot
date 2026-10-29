@@ -17,7 +17,7 @@ Enquanto baixa, o bot reage ⏳ e depois ✅ ou ❌; num transport sem `reaction
 ignorada. A falha vai
 para o log (`download.media.failed`, com o stderr do yt-dlp) e o chat recebe `downloadError` ou
 `audioError`; arquivo acima de 100 MB recebe `tooLarge`. Eventos e métricas de cada download em
-[logs-e-metricas.md](logs-e-metricas.md#download).
+[logs-e-metricas.md](logs-e-metricas.md#ações-medidas).
 
 Cada comando declara no `requires` a capability do que envia (`!download`: `send.video`;
 `!audio`: `send.audio`; `!downloadsticker`: `send.sticker`). Sem ela, o comando não é registrado. O `!download` não exige

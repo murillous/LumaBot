@@ -6,6 +6,7 @@ import sharp from 'sharp';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { aiToolsProbe } from '#plugins/ai-tools-probe.ts';
 import { checkBinary } from '#plugins/binary.ts';
+import { observedBot } from '#plugins/observe-probe.ts';
 import { stickerConvert } from '#plugins/sticker-convert/sticker-convert.ts';
 import { type StickerStep, sticker as stickerPlugin } from './sticker.ts';
 
@@ -256,5 +257,45 @@ describe('tool create_sticker', () => {
     await bot.receive({ text: '!tool create_sticker {"url":"http://127.0.0.1:8080/admin"}' });
 
     expect(bot.sent).toContainText('{"ok":false,"error":"url-failed"}');
+  });
+});
+
+describe('log e métricas', () => {
+  it('figurinha enviada vira sticker.create.done e conta por origem', async () => {
+    const o = await observedBot([stickerPlugin]);
+    bot = o.bot;
+
+    await bot.receive({ text: '!s', image: fixtures.image() });
+
+    expect(o.event('sticker.create.done')).toMatchObject({
+      kind: 'media',
+      animated: false,
+      bytes: sentBytes('sticker').length,
+      durationMs: expect.any(Number),
+    });
+    expect(await o.rows('luma_sticker_total')).toMatchObject([
+      { labels: { kind: 'media', outcome: 'ok' }, value: 1 },
+    ]);
+    expect(await o.rows('luma_sticker_seconds')).toMatchObject([
+      { labels: { kind: 'media' }, count: 1 },
+    ]);
+  });
+
+  it('falha na conversão vira sticker.create.failed com o erro', async () => {
+    const o = await observedBot([stickerPlugin]);
+    bot = o.bot;
+
+    await bot.receive({
+      text: '!s',
+      image: { data: Buffer.from('não é imagem'), mimetype: 'image/png' },
+    });
+
+    expect(o.event('sticker.create.failed')).toMatchObject({
+      kind: 'media',
+      err: expect.any(Object),
+    });
+    expect(await o.rows('luma_sticker_total')).toMatchObject([
+      { labels: { kind: 'media', outcome: 'error' }, value: 1 },
+    ]);
   });
 });

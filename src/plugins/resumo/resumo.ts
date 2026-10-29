@@ -4,6 +4,7 @@ import { chainItem } from '#plugins/ai/ai.ts';
 import { cleanResponse } from '#plugins/ai-response.ts';
 import { aiTool, fail, ok } from '#plugins/ai-tools.ts';
 import { createChatWindow } from '#plugins/chat-window.ts';
+import { NAME_FAILED, SUMMARY_FAILED, TYPING_FAILED } from './log-events.ts';
 
 export interface ResumoService {
   /**
@@ -68,7 +69,7 @@ export const resumo: PluginDefinition = definePlugin({
         try {
           return await ctx.services.get('userNames').displayName(id);
         } catch (err) {
-          ctx.log.warn('falha ao resolver o nome', { err });
+          ctx.log.event(NAME_FAILED, { err });
         }
       }
       return fallback ?? 'Alguém';
@@ -142,7 +143,7 @@ export const resumo: PluginDefinition = definePlugin({
         const limit = Number.isFinite(n) && n >= 1 ? n : undefined;
         if (ctx.capabilities.has('typing')) {
           await ctx.send.typing(c.message.chat.id, 'text').catch((err: unknown) => {
-            c.log.debug('falha ao avisar que está digitando', { err });
+            c.log.event(TYPING_FAILED, { err });
           });
         }
         try {
@@ -151,7 +152,7 @@ export const resumo: PluginDefinition = definePlugin({
           if (!summary) return c.t('failed');
           return c.t('summary', { text: summary });
         } catch (err) {
-          c.log.error('falha ao gerar o resumo', { err });
+          c.log.event(SUMMARY_FAILED, { err });
           return c.t('failed');
         }
       },

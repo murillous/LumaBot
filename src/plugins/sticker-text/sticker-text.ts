@@ -1,6 +1,7 @@
 import { definePlugin, type PluginDefinition } from '@usebridger/core';
 import { z } from 'zod';
 import { addCaption, rendersColorEmoji } from './caption.ts';
+import { EMOJI_FONT_MISSING } from './log-events.ts';
 
 const color = z.string().regex(/^#[0-9a-f]{6}$/i, 'cor em #rrggbb');
 
@@ -35,9 +36,7 @@ export const stickerText: PluginDefinition = definePlugin({
 
     // A legenda funciona sem a fonte de emoji colorida; o aviso explica o emoji sem cor.
     if (!(await rendersColorEmoji())) {
-      ctx.log.warn(
-        'fonte de emoji colorido não encontrada: emojis da legenda saem sem cor (rode o bot da raiz do repositório, onde fica fonts/NotoColorEmoji.ttf; ver docs/sticker.md)',
-      );
+      ctx.log.event(EMOJI_FONT_MISSING);
     }
   },
 });

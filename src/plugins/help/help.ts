@@ -2,6 +2,7 @@ import { type Chat, definePlugin, type PluginDefinition } from '@usebridger/core
 import { z } from 'zod';
 import { aiTool, ok } from '#plugins/ai-tools.ts';
 import { formatMenu } from './format.ts';
+import { SECTION_FAILED } from './log-events.ts';
 
 /** Bloco extra do menu para o que não é comando; `null` omite a seção neste chat. */
 export type HelpSection = (input: {
@@ -82,7 +83,7 @@ export const help: PluginDefinition = definePlugin({
             try {
               return section({ chat, prefix }) ?? [];
             } catch (err) {
-              ctx.log.warn('seção do menu falhou', { err });
+              ctx.log.event(SECTION_FAILED, { err });
               return [];
             }
           }),
