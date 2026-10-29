@@ -71,7 +71,7 @@ mídia até 60 s, cada um até o prazo do comando.
 | `sticker-text` | `sticker-text.emoji-font.missing` | `warn` |
 | `ai` | `ai.generate.done` (`model`, `purpose`, `durationMs`, tokens) | `info` |
 | `ai` | `ai.model.failed` (tenta o próximo), `ai.search.unsupported`, `ai.models.empty`, `ai.keys.unreadable` | `warn` |
-| `ai` | `ai.provider.unregistered`, `ai.observer.failed` | `error` |
+| `ai` | `ai.provider.unregistered`, `ai.observer.failed`, `ai.tool.failed` (tool que lançou, em `ai-tools.ts`) | `error` |
 | `ai` | `ai.http.disabled` | `info` |
 | `luma` | `luma.reply.failed`, `luma.persona-create.failed` | `error` |
 | `luma` | `luma.name.failed`, `luma.stats.failed`, `luma.error-notice.failed`, `luma.ai-metrics.failed` | `warn` |
@@ -85,6 +85,3 @@ mídia até 60 s, cada um até o prazo do comando.
 | `help` | `help.section.failed` | `warn` |
 | `user-names` | `user-names.source.failed`, `user-names.remember.failed` | `warn` |
 | `utils` | `utils.info-line.failed` | `error` |
-
-A falha de uma tool da IA (`tool da IA falhou`, em `src/plugins/ai-tools.ts`) ainda sai em texto
-livre.
