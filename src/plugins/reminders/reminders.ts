@@ -80,7 +80,7 @@ export interface RemindersService {
   /** Pendentes do chat, por ordem de disparo. */
   list(chatId: string): Promise<Reminder[]>;
   /** `false` se não existe (ou é de outro chat). */
-  cancel(chatId: string, id: string): Promise<boolean>;
+  cancel(chatId: string, id: string, actorId?: string, isGroup?: boolean): Promise<boolean>;
 }
 
 declare module '@usebridger/core' {
@@ -388,12 +388,25 @@ export const reminders: PluginDefinition = definePlugin({
         return out.sort((a, b) => a.fireAt - b.fireAt);
       },
 
-      cancel: async (chatId, id) => {
+      cancel: async (chatId, id, actorId, isGroup) => {
         const doc = await docs.get(id);
         if (!doc || doc.chatId !== chatId) return false;
         // Job primeiro: se o cancel falhar, o doc fica e dá para tentar de novo.
         await ctx.scheduler.cancel(doc.jobId);
         await docs.delete(id);
+        // Cancelar o próprio lembrete é rotina; só o de outra pessoa entra na auditoria.
+        if (actorId && actorId !== doc.creatorId) {
+          ctx.audit.record({
+            action: 'reminders.delete',
+            target: { type: 'reminder', id },
+            details: {
+              // Conversa privada: o id do chat é o número do contato.
+              chat: isGroup ? chatId : ctx.pseudonym(chatId),
+              actor: ctx.pseudonym(actorId),
+              creator: ctx.pseudonym(doc.creatorId),
+            },
+          });
+        }
         return true;
       },
     };
@@ -480,7 +493,9 @@ export const reminders: PluginDefinition = definePlugin({
         description: 'Cancela um lembrete deste chat pelo `id` que o `list_reminders` devolve.',
         args: z.object({ id: z.string() }),
         run: async ({ id }, t) =>
-          (await service.cancel(t.message.chat.id, id)) ? ok() : fail('not-found'),
+          (await service.cancel(t.message.chat.id, id, t.message.sender.id, t.message.chat.isGroup))
+            ? ok()
+            : fail('not-found'),
       }),
     );
   },
@@ -581,7 +596,15 @@ export const reminders: PluginDefinition = definePlugin({
         if (!/^\d+$/.test(arg)) return c.t('cancelUsage');
         const service = plugin.services.get('reminders');
         const target = (await service.list(c.message.chat.id))[Number(arg) - 1];
-        if (!target || !(await service.cancel(target.chatId, target.id))) {
+        if (
+          !target ||
+          !(await service.cancel(
+            target.chatId,
+            target.id,
+            c.message.sender.id,
+            c.message.chat.isGroup,
+          ))
+        ) {
           return c.t('cancelNotFound');
         }
         return c.t('cancelled', { text: target.text });

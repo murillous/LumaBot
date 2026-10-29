@@ -13,6 +13,27 @@ export function pairing(write: PairingOutput): PluginDefinition {
     name: 'pairing',
     version: '0.0.0',
     engine: '<1.0.0',
+    // Um pareamento só conta como novo quando conecta depois de ter pedido QR ou código.
+    setup: (ctx) => {
+      let pending = false;
+      ctx.events.on('connection.qr', () => {
+        pending = true;
+      });
+      ctx.events.on('connection.pairing-code', () => {
+        pending = true;
+      });
+      ctx.events.on('connection.status', ({ payload }) => {
+        if (payload.status === 'open' && pending) {
+          pending = false;
+          ctx.audit.record({ action: 'pairing.session.paired' });
+        } else if (
+          payload.status === 'closed' &&
+          (payload.reason === 'logged-out' || payload.reason === 'auth-failed')
+        ) {
+          ctx.audit.record({ action: 'pairing.session.lost', details: { reason: payload.reason } });
+        }
+      });
+    },
     on: {
       'connection.qr': ({ payload }) => {
         qrcode.generate(payload.qr, { small: true }, (art) => {

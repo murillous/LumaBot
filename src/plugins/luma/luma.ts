@@ -33,14 +33,19 @@ export interface PersonasService {
   list(chatId: string): Promise<Persona[]>;
   active(chatId: string): Promise<Persona>;
   /** Ativa a persona pela `key`; `null` se o chat não a tem. */
-  select(chatId: string, key: string): Promise<Persona | null>;
+  select(chatId: string, key: string, isGroup?: boolean): Promise<Persona | null>;
   /**
    * Gera uma persona da descrição, guarda no chat e a ativa. Lança `PersonaLimitError` no teto,
    * `PersonaParseError` se a IA não devolve algo aproveitável e `AiUnavailableError` sem IA.
    */
-  create(chatId: string, description: string, signal?: AbortSignal): Promise<Persona>;
+  create(
+    chatId: string,
+    description: string,
+    signal?: AbortSignal,
+    isGroup?: boolean,
+  ): Promise<Persona>;
   /** Só as personas criadas no chat saem; as de fábrica ficam. */
-  remove(chatId: string, key: string): Promise<PersonaRemoval>;
+  remove(chatId: string, key: string, isGroup?: boolean): Promise<PersonaRemoval>;
 }
 
 export interface LumaService {
@@ -216,6 +221,11 @@ export const luma: PluginDefinition = definePlugin({
     const custom = async (chatId: string): Promise<Persona[]> =>
       (await docs.find({ where: { chatId } })).map(({ id: _id, chatId: _c, ...p }) => p);
 
+    // Em conversa privada o id do chat é o número do contato: vai pseudonimizado. Sem `isGroup`
+    // (chamada que não sabe), assume privado, o lado seguro.
+    const auditChat = (chatId: string, isGroup = false) =>
+      isGroup ? chatId : ctx.pseudonym(chatId);
+
     const personas: PersonasService = {
       list: async (chatId) => [...PERSONAS, ...(await custom(chatId))],
       active: async (chatId) => {
@@ -226,13 +236,19 @@ export const luma: PluginDefinition = definePlugin({
           all.find((p) => p.key === key) ?? factory.get(defaultKey) ?? (PERSONAS[0] as Persona)
         );
       },
-      select: async (chatId, key) => {
+      select: async (chatId, key, isGroup) => {
         const found = (await personas.list(chatId)).find((p) => p.key === key);
         if (!found) return null;
         await kv.set(`persona:${chatId}`, key);
+        // Sem o texto da persona: o que importa é qual e onde, não o conteúdo.
+        ctx.audit.record({
+          action: 'luma.persona.set',
+          target: { type: 'chat', id: auditChat(chatId, isGroup) },
+          details: { key },
+        });
         return found;
       },
-      create: async (chatId, description, signal) => {
+      create: async (chatId, description, signal, isGroup) => {
         const existing = await custom(chatId);
         if (existing.length >= cfg.maxCustomPersonas) throw new PersonaLimitError();
         const request = {
@@ -257,14 +273,24 @@ export const luma: PluginDefinition = definePlugin({
         const persona: Persona = { key, ...parsed };
         await docs.insert({ chatId, ...persona, traits: [...persona.traits] });
         await kv.set(`persona:${chatId}`, key);
+        ctx.audit.record({
+          action: 'luma.persona.create',
+          target: { type: 'chat', id: auditChat(chatId, isGroup) },
+          details: { key },
+        });
         return persona;
       },
-      remove: async (chatId, key) => {
+      remove: async (chatId, key, isGroup) => {
         if (factory.has(key)) return { removed: false, reason: 'predefined' };
         const removed = await docs.delete({ chatId, key });
         if (removed === 0) return { removed: false, reason: 'not-found' };
         const wasActive = (await kv.get<string>(`persona:${chatId}`)) === key;
         if (wasActive) await kv.delete(`persona:${chatId}`);
+        ctx.audit.record({
+          action: 'luma.persona.delete',
+          target: { type: 'chat', id: auditChat(chatId, isGroup) },
+          details: { key, wasActive },
+        });
         return { removed: true, wasActive };
       },
     };
@@ -272,6 +298,17 @@ export const luma: PluginDefinition = definePlugin({
     const clearHistory = (message: Pick<Message, 'chat' | 'sender'>) => {
       history.clear(historyKey(message));
       window.clear(message.chat.id);
+    };
+    // Só o pedido explícito de esquecer é auditado (comando e tool); limpar ao trocar de persona
+    // já está coberto pela ação da persona. O ator é o titular: o kernel só põe o contato no
+    // escopo de request, então aqui ele vai em `details`.
+    const auditClear = (message: Pick<Message, 'chat' | 'sender'>) => {
+      clearHistory(message);
+      ctx.audit.record({
+        action: 'luma.history.clear',
+        target: { type: 'chat', id: auditChat(message.chat.id, message.chat.isGroup) },
+        details: { contact: ctx.pseudonym(message.sender.id) },
+      });
     };
     ctx.services.provide('luma', { personas, clearHistory });
 
@@ -496,7 +533,7 @@ export const luma: PluginDefinition = definePlugin({
               ? 'stats'
               : (c.args[0] ?? '').toLowerCase();
         if (sub === 'clear') {
-          clearHistory(c.message);
+          auditClear(c.message);
           return c.t('historyCleared');
         }
         if (sub === 'stats') return stats(c.t);
@@ -555,7 +592,7 @@ export const luma: PluginDefinition = definePlugin({
         if (sub === 'criar') {
           if (!arg) return c.t('personaCreateHelp');
           try {
-            const persona = await personas.create(chatId, arg, c.signal);
+            const persona = await personas.create(chatId, arg, c.signal, c.message.chat.isGroup);
             // Persona nova começa do zero: a memória da anterior não pode vazar para ela.
             clearHistory(c.message);
             return c.t('personaCreateOk', { name: persona.name });
@@ -571,7 +608,7 @@ export const luma: PluginDefinition = definePlugin({
         if (sub === 'deletar' || sub === 'apagar') {
           const target = resolve(await personas.list(chatId), arg);
           if (!target) return c.t('personaInvalid');
-          const result = await personas.remove(chatId, target.key);
+          const result = await personas.remove(chatId, target.key, c.message.chat.isGroup);
           if (!result.removed) {
             return c.t(
               result.reason === 'not-found' ? 'personaInvalid' : 'personaDeletePredefined',
@@ -587,7 +624,7 @@ export const luma: PluginDefinition = definePlugin({
         const ref = sub === 'usar' ? arg : c.rawArgs;
         const picked = resolve(await personas.list(chatId), ref);
         if (!picked) return c.t('personaInvalid');
-        await personas.select(chatId, picked.key);
+        await personas.select(chatId, picked.key, c.message.chat.isGroup);
         return c.t('personaChanged', { name: picked.name });
       },
     });
@@ -602,7 +639,7 @@ export const luma: PluginDefinition = definePlugin({
           'Apaga a memória que a Luma tem da conversa com quem está falando. Use quando pedirem para esquecer, limpar a memória ou recomeçar a conversa.',
         args: z.object({}),
         run: async (_, t) => {
-          clearHistory(t.message);
+          auditClear(t.message);
           return ok();
         },
       }),
@@ -624,7 +661,12 @@ export const luma: PluginDefinition = definePlugin({
           const text = description.trim();
           if (!text) return fail('empty');
           try {
-            const persona = await personas.create(t.message.chat.id, text, t.signal);
+            const persona = await personas.create(
+              t.message.chat.id,
+              text,
+              t.signal,
+              t.message.chat.isGroup,
+            );
             clearHistory(t.message);
             await t.reply(ctx.plugin.messages.personaCreateOk.replace('{name}', persona.name));
             return ok({ name: persona.name });
