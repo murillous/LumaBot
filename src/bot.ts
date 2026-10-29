@@ -7,8 +7,9 @@ import { dashboard } from '@usebridger/plugin-dashboard';
 import { metrics } from '@usebridger/plugin-metrics';
 import { sqlite } from '@usebridger/storage-sqlite';
 import { baileys } from '@usebridger/transport-baileys';
-import { loadConfig, pluginEnv } from '#config.ts';
+import { AUDIT_RETENTION_DAYS, loadConfig, pluginEnv } from '#config.ts';
 import { localSecret } from '#local-secret.ts';
+import { ownerAudit } from '#owner-audit.ts';
 import { ai } from '#plugins/ai/ai.ts';
 import { aiMetrics } from '#plugins/ai-metrics/ai-metrics.ts';
 import { download } from '#plugins/download/download.ts';
@@ -76,6 +77,7 @@ const bot = createBot({
   logger: log,
   secrets,
   env,
+  audit: { retentionDays: AUDIT_RETENTION_DAYS },
   ...apiConfig,
   plugins: [
     pairing((text) => process.stdout.write(text)),
@@ -85,6 +87,7 @@ const bot = createBot({
       process.exitCode = 1;
       bot.stop().catch((err: unknown) => log.error('falha ao encerrar', { err }));
     }),
+    ownerAudit,
     ping,
     metrics,
     ai,

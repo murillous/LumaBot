@@ -230,6 +230,12 @@ export const luma: PluginDefinition = definePlugin({
         const found = (await personas.list(chatId)).find((p) => p.key === key);
         if (!found) return null;
         await kv.set(`persona:${chatId}`, key);
+        // Sem o texto da persona: o que importa é qual e onde, não o conteúdo.
+        ctx.audit.record({
+          action: 'luma.persona.set',
+          target: { type: 'chat', id: chatId },
+          details: { key },
+        });
         return found;
       },
       create: async (chatId, description, signal) => {
@@ -257,6 +263,11 @@ export const luma: PluginDefinition = definePlugin({
         const persona: Persona = { key, ...parsed };
         await docs.insert({ chatId, ...persona, traits: [...persona.traits] });
         await kv.set(`persona:${chatId}`, key);
+        ctx.audit.record({
+          action: 'luma.persona.create',
+          target: { type: 'chat', id: chatId },
+          details: { key },
+        });
         return persona;
       },
       remove: async (chatId, key) => {
@@ -265,6 +276,11 @@ export const luma: PluginDefinition = definePlugin({
         if (removed === 0) return { removed: false, reason: 'not-found' };
         const wasActive = (await kv.get<string>(`persona:${chatId}`)) === key;
         if (wasActive) await kv.delete(`persona:${chatId}`);
+        ctx.audit.record({
+          action: 'luma.persona.delete',
+          target: { type: 'chat', id: chatId },
+          details: { key, wasActive },
+        });
         return { removed: true, wasActive };
       },
     };
@@ -272,6 +288,17 @@ export const luma: PluginDefinition = definePlugin({
     const clearHistory = (message: Pick<Message, 'chat' | 'sender'>) => {
       history.clear(historyKey(message));
       window.clear(message.chat.id);
+    };
+    // Só o pedido explícito de esquecer é auditado (comando e tool); limpar ao trocar de persona
+    // já está coberto pela ação da persona. O ator é o titular: o kernel só põe o contato no
+    // escopo de request, então aqui ele vai em `details`.
+    const auditClear = (message: Pick<Message, 'chat' | 'sender'>) => {
+      clearHistory(message);
+      ctx.audit.record({
+        action: 'luma.history.clear',
+        target: { type: 'chat', id: message.chat.id },
+        details: { contact: message.sender.id },
+      });
     };
     ctx.services.provide('luma', { personas, clearHistory });
 
@@ -496,7 +523,7 @@ export const luma: PluginDefinition = definePlugin({
               ? 'stats'
               : (c.args[0] ?? '').toLowerCase();
         if (sub === 'clear') {
-          clearHistory(c.message);
+          auditClear(c.message);
           return c.t('historyCleared');
         }
         if (sub === 'stats') return stats(c.t);
@@ -602,7 +629,7 @@ export const luma: PluginDefinition = definePlugin({
           'Apaga a memória que a Luma tem da conversa com quem está falando. Use quando pedirem para esquecer, limpar a memória ou recomeçar a conversa.',
         args: z.object({}),
         run: async (_, t) => {
-          clearHistory(t.message);
+          auditClear(t.message);
           return ok();
         },
       }),
