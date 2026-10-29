@@ -8,8 +8,10 @@ export default defineConfig(({ mode }) => {
   // `LUMA_` só para a config do dev server; nada disso vai para o bundle.
   const env = loadEnv(mode, import.meta.dirname, 'LUMA_');
   const target = env['LUMA_BOT_URL'] || 'http://127.0.0.1:3000';
-  // Mesma origem: o cookie de sessão do core vai sozinho e o CSRF passa. Sem `changeOrigin`, o
-  // Host chega ao bot igual ao Origin do browser, que é o que o core confere.
+  // Mesma origem: o cookie de sessão do core é `Secure; SameSite=Strict` e sem `api.cors` não há
+  // CORS, então a API só funciona sob a origem do próprio app. Sem `changeOrigin` o Host chega ao
+  // bot como o do browser; o core não confere Host nem Origin sem `api.cors`, então tanto faz, e
+  // o padrão do proxy é o mais simples.
   const proxy = {
     '/api': { target },
     '/openapi.json': { target },

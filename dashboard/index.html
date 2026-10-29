@@ -6,6 +6,16 @@
 <meta name="color-scheme" content="light dark" />
 <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 <title>Luma</title>
+<script>
+  // Tema antes da primeira pintura (o bundle chega depois e causaria flash). A chave é a de
+  // src/lib/theme.ts; sem storage, vale o sistema.
+  try {
+    const t = localStorage.getItem("luma-dashboard-theme");
+    if (t === "light" || t === "dark") document.documentElement.setAttribute("data-theme", t);
+  } catch {
+    document.documentElement.removeAttribute("data-theme");
+  }
+</script>
 </head>
 <body>
 <div id="root"></div>

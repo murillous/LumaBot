@@ -1,5 +1,5 @@
 import type { ComponentType } from 'react';
-import type { PageProps } from '#lib/router.tsx';
+import { matchPath, type PageProps } from '#lib/router.tsx';
 import { Ai } from '#pages/Ai.tsx';
 import { Audit } from '#pages/Audit.tsx';
 import { Logs } from '#pages/Logs.tsx';
@@ -83,3 +83,17 @@ export const ENTRIES: readonly Entry[] = [
     href: `${GENERIC}#/chaves`,
   },
 ];
+
+/** A tela do caminho e os parâmetros dele; `null` quando nenhuma casa. */
+export function resolveRoute(
+  path: string,
+): { entry: Screen; params: Record<string, string> } | null {
+  for (const entry of ENTRIES) {
+    if (isExternal(entry)) continue;
+    for (const pattern of entry.paths) {
+      const params = matchPath(pattern, path);
+      if (params !== null) return { entry, params };
+    }
+  }
+  return null;
+}

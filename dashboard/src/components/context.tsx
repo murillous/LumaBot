@@ -42,12 +42,16 @@ export function useSession(): Session {
 export function SessionProvider({
   me,
   logout,
+  onStreamClosed,
   children,
 }: {
   me: MeView;
   logout: () => void;
+  /** O stream fechou de vez (o servidor recusou): quem sabe revalida a sessão antes de reabrir. */
+  onStreamClosed?: () => void;
   children: ReactNode;
 }) {
+  const env = useEnv();
   const session = useMemo<Session>(() => {
     const permissions = new Set(me.permissions);
     return {
@@ -58,7 +62,7 @@ export function SessionProvider({
   }, [me, logout]);
   return (
     <SessionContext.Provider value={session}>
-      <LiveProvider env={useEnv()} enabled={session.can('connection.read')}>
+      <LiveProvider env={env} enabled={session.can('connection.read')} onClosed={onStreamClosed}>
         {children}
       </LiveProvider>
     </SessionContext.Provider>
@@ -109,12 +113,17 @@ const CLOSED = 2;
 function LiveProvider({
   env,
   enabled,
+  onClosed,
   children,
 }: {
   env: AppEnv;
   enabled: boolean;
+  onClosed: (() => void) | undefined;
   children: ReactNode;
 }) {
+  // O callback novo a cada render não pode reabrir o stream: fica numa ref.
+  const closed = useRef(onClosed);
+  closed.current = onClosed;
   const [status, setStatus] = useState<LiveStatus>('connecting');
   const handlers = useRef(new Map<string, Set<LiveHandler>>());
   // O `EventSource` atual e os tipos já ligados nele; reconectar por conta nossa recomeça do zero.
@@ -161,6 +170,9 @@ function LiveProvider({
         setStatus('reconnecting');
         if (source.readyState === CLOSED) {
           source.close();
+          // 401/403 também fecham o stream: se a sessão acabou, o app volta ao login em vez de
+          // ficar reabrindo à toa.
+          closed.current?.();
           timer = setTimeout(open, REOPEN_MS);
         }
       };

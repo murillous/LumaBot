@@ -1,10 +1,11 @@
 import { type ComponentProps, type ReactNode, useId } from 'react';
 import { messageOf } from '#lib/api.ts';
 
-// Componentes base do guia (DESIGN.md, tabela de Componentes). Só o que a Base usa; as telas
-// seguintes acrescentam o resto aqui, sempre com as cores saindo dos tokens.
+// Componentes base do guia (DESIGN.md, tabela de Componentes): Button, Field, Card e os avisos.
+// Componente compartilhado novo vai em arquivo próprio de `components/`, para as telas que correm
+// em paralelo não brigarem por este. As cores saem sempre dos tokens.
 
-const FOCUS_TARGET = 'min-h-11'; // alvo de toque de 44 px
+const TOUCH_TARGET = 'min-h-11'; // alvo de toque de 44 px
 
 type Variant = 'primary' | 'secondary' | 'danger';
 
@@ -25,13 +26,13 @@ export function Button({
     <button
       {...rest}
       type={type}
-      className={`inline-flex ${FOCUS_TARGET} cursor-pointer items-center justify-center gap-2 rounded-btn px-4 font-medium disabled:cursor-not-allowed disabled:opacity-45 ${VARIANTS[variant]} ${className}`}
+      className={`inline-flex ${TOUCH_TARGET} cursor-pointer items-center justify-center gap-2 rounded-btn px-4 font-medium disabled:cursor-not-allowed disabled:opacity-45 ${VARIANTS[variant]} ${className}`}
     />
   );
 }
 
 /** Campo de texto: 16 px no celular para o iOS não dar zoom. */
-export const inputClass = `${FOCUS_TARGET} w-full rounded-field bg-raised px-3 text-base text-ink shadow-e1 md:text-body aria-[invalid=true]:outline-2 aria-[invalid=true]:outline-danger`;
+export const inputClass = `${TOUCH_TARGET} w-full rounded-field bg-raised px-3 text-base text-ink shadow-e1 md:text-body aria-[invalid=true]:outline-2 aria-[invalid=true]:outline-danger`;
 
 export interface FieldProps {
   id: string;

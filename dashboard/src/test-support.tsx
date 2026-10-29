@@ -1,6 +1,7 @@
 // Apoio dos testes de componente: `fetch` falso por rota, `EventSource` falso e o app montado com
 // eles, sem rede nem bot.
 
+import { QueryClient } from '@tanstack/react-query';
 import { act, render } from '@testing-library/react';
 import { App } from '#App.tsx';
 import type { AppEnv, EventSourceLike } from '#lib/env.ts';
@@ -95,6 +96,8 @@ export const LOG_READER = {
 export interface RenderedApp {
   readonly calls: Call[];
   readonly streams: FakeEventSource[];
+  /** O cache de queries do app, para o teste conferir o que foi esquecido. */
+  readonly client: QueryClient;
   /** O stream mais recente. */
   stream(): FakeEventSource;
   /** Troca o ator que `GET /api/auth/me` devolve (`null`: sem sessão). */
@@ -152,10 +155,14 @@ export function renderApp({
       return source;
     },
   };
-  render(<App env={env} />);
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false } },
+  });
+  render(<App env={env} queryClient={client} />);
   return {
     calls,
     streams,
+    client,
     stream: () => {
       const last = streams.at(-1);
       if (last === undefined) throw new Error('nenhum stream aberto');

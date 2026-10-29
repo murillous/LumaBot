@@ -71,7 +71,7 @@ function Gatekeeper() {
       return (
         <Invite
           onDone={() => {
-            navigate('/');
+            navigate('/', { replace: true });
             entered();
           }}
         />
@@ -80,18 +80,24 @@ function Gatekeeper() {
     return <Login onDone={entered} />;
   }
   return (
-    <SessionProvider me={me.data} logout={logout}>
+    <SessionProvider
+      me={me.data}
+      logout={logout}
+      onStreamClosed={() => void client.invalidateQueries({ queryKey: ME })}
+    >
       <Shell />
     </SessionProvider>
   );
 }
 
-export function App({ env }: { env: AppEnv }) {
+export function App({ env, queryClient }: { env: AppEnv; queryClient?: QueryClient }) {
   // Um cliente da API e um cache por montagem; o 401 de qualquer chamada derruba a sessão.
   const [{ api, client }] = useState(() => {
-    const client = new QueryClient({
-      defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false } },
-    });
+    const client =
+      queryClient ??
+      new QueryClient({
+        defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false } },
+      });
     const api = createApi(env);
     api.onUnauthorized(() => forget(client));
     return { api, client };

@@ -13,7 +13,9 @@ pnpm --filter @lumabot/dashboard dev      # http://localhost:5173
 
 O Vite repassa ao bot `/api`, `/openapi.json` e `/plugins/dashboard` (o painel genérico, usado
 por Conexão, Usuários e Chaves de API até o dashboard cobri-los). Assim o app e a API ficam na
-mesma origem, o cookie de sessão vai sozinho e o CSRF do core passa.
+mesma origem: o cookie de sessão do core é `Secure; SameSite=Strict` e não há CORS configurado,
+então a API só aceita o app sob a mesma origem. O Host não é reescrito (`changeOrigin` fica
+desligado) porque o core não o confere.
 
 O bot em outro endereço que `http://127.0.0.1:3000`: defina `LUMA_BOT_URL` (no ambiente ou num
 `dashboard/.env`).

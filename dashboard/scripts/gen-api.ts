@@ -19,7 +19,7 @@ run('pnpm', ['exec', 'bridger', 'openapi', '../src/api-plugins.ts', '--out', 'op
 run('pnpm', [
   'dlx',
   '--package',
-  'typescript@5',
+  'typescript@5.9.3',
   '--package',
   'openapi-typescript@7.13.0',
   'openapi-typescript',

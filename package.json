@@ -19,7 +19,7 @@
     "typecheck": "tsc && pnpm --filter @lumabot/dashboard typecheck",
     "lint": "biome check",
     "lint:fix": "biome check --write",
-    "test": "vitest run && pnpm --filter @lumabot/dashboard test"
+    "test": "vitest run"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.81",

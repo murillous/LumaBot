@@ -99,7 +99,8 @@ reconecta ou pede novo pareamento.
 Painel web do
 [`@usebridger/plugin-dashboard`](https://github.com/murillous/usebridger/blob/develop/packages/plugin-dashboard/docs/README.md),
 ligado por padrão em `http://127.0.0.1:3000/plugins/dashboard/`. O painel é genérico do Bridger
-(telas, rotas, login e permissões vêm de lá); o app só o compõe em `src/bot.ts`. Ele mostra:
+(telas, rotas, login e permissões vêm de lá); o app só o compõe em `src/bot.ts`. O dashboard próprio
+da Luma, em construção, vive em [`dashboard/`](dashboard/README.md). O painel genérico mostra:
 
 - **Conexão:** QR e código de pareamento.
 - **Config:** os campos de cada plugin (modelos e chaves da IA, Luma, busca, estilo da legenda...),

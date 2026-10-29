@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
-import { cleanup, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { LOG_READER, OWNER, renderApp } from './test-support.tsx';
 
 afterEach(() => {
@@ -267,5 +267,127 @@ describe('gaveta no celular', () => {
     await user.click(button);
     await user.click(screen.getByRole('button', { name: 'Fechar o menu' }));
     expect(button.getAttribute('aria-expanded')).toBe('false');
+  });
+});
+
+describe('foco e gaveta (acessibilidade)', () => {
+  it('ao abrir, o foco vai ao primeiro link e o resto da página fica inerte', async () => {
+    const user = userEvent.setup();
+    renderApp();
+    const button = await screen.findByRole('button', { name: 'Menu' });
+    await user.click(button);
+
+    const menu = screen.getByRole('navigation', { name: 'Principal' });
+    expect(document.activeElement).toBe(within(menu).getAllByRole('link')[0]);
+    expect(document.querySelector('main')?.hasAttribute('inert')).toBe(true);
+    expect(document.querySelector('header')?.hasAttribute('inert')).toBe(true);
+
+    await user.keyboard('{Escape}');
+    expect(document.querySelector('main')?.hasAttribute('inert')).toBe(false);
+  });
+
+  it('ao fechar por navegação, o foco vai ao título da tela nova', async () => {
+    const user = userEvent.setup();
+    renderApp();
+    await user.click(await screen.findByRole('button', { name: 'Menu' }));
+    await user.click(screen.getByRole('link', { name: 'Logs' }));
+    const title = await screen.findByRole('heading', { name: 'Logs' });
+    await waitFor(() => expect(document.activeElement).toBe(title));
+  });
+
+  it('clicar no item da tela atual também fecha a gaveta e leva o foco ao título', async () => {
+    const user = userEvent.setup();
+    renderApp();
+    const button = await screen.findByRole('button', { name: 'Menu' });
+    await user.click(button);
+    await user.click(screen.getByRole('link', { name: 'Visão geral' }));
+    expect(button.getAttribute('aria-expanded')).toBe('false');
+    await waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Visão geral' })),
+    );
+  });
+
+  it('o título da aba acompanha a tela', async () => {
+    const user = userEvent.setup();
+    renderApp();
+    await screen.findByRole('heading', { name: 'Visão geral' });
+    expect(document.title).toBe('Visão geral · Luma');
+    await user.click(screen.getByRole('link', { name: 'Auditoria' }));
+    expect(document.title).toBe('Auditoria · Luma');
+  });
+});
+
+describe('histórico do navegador', () => {
+  it('voltar e avançar (popstate) trocam a tela e o item ativo', async () => {
+    const user = userEvent.setup();
+    renderApp();
+    await user.click(await screen.findByRole('link', { name: 'Logs' }));
+    expect(await screen.findByRole('heading', { name: 'Logs' })).toBeTruthy();
+
+    // O que o botão "voltar" faz: muda a URL e dispara popstate.
+    act(() => {
+      history.replaceState(null, '', '/');
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    });
+    expect(await screen.findByRole('heading', { name: 'Visão geral' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Visão geral' }).getAttribute('aria-current')).toBe(
+      'page',
+    );
+    expect(screen.getByRole('link', { name: 'Logs' }).getAttribute('aria-current')).toBeNull();
+  });
+});
+
+describe('sessão que acaba no meio do uso', () => {
+  it('stream fechado revalida a sessão: /me 401 volta ao login', async () => {
+    const app = renderApp();
+    await screen.findByRole('heading', { name: 'Visão geral' });
+    app.stream().open();
+
+    app.signIn(null);
+    app.stream().fail(2);
+
+    expect(await screen.findByRole('heading', { name: 'Entrar' })).toBeTruthy();
+    expect(app.calls.filter((c) => c.path === '/api/auth/me')).toHaveLength(2);
+  });
+
+  it('o 401 esquece as queries da sessão que acabou', async () => {
+    const app = renderApp();
+    await screen.findByRole('heading', { name: 'Visão geral' });
+    app.client.setQueryData(['plugins'], [{ name: 'ai' }]);
+    app.stream().open();
+
+    app.signIn(null);
+    app.stream().fail(2);
+
+    await screen.findByRole('heading', { name: 'Entrar' });
+    expect(app.client.getQueryData(['plugins'])).toBeUndefined();
+    expect(app.client.getQueryData(['me'])).toBeNull();
+  });
+
+  it('stream que caiu reabre depois de 5 s e fecha o antigo', async () => {
+    const app = renderApp();
+    await screen.findByRole('heading', { name: 'Visão geral' });
+    app.stream().open();
+
+    vi.useFakeTimers();
+    try {
+      app.stream().fail(2);
+      expect(app.streams).toHaveLength(1);
+      expect(app.streams[0]?.closed).toBe(true);
+      act(() => {
+        vi.advanceTimersByTime(5000);
+      });
+      expect(app.streams).toHaveLength(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe('tema salvo', () => {
+  it('um tema escuro guardado aparece já no botão, no início', async () => {
+    localStorage.setItem('luma-dashboard-theme', 'dark');
+    renderApp();
+    expect(await screen.findByRole('button', { name: 'Tema: Escuro' })).toBeTruthy();
   });
 });
