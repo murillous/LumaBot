@@ -831,11 +831,12 @@ describe('API do ai: catálogo e estado', () => {
   it('status com ?models responde sobre os modelos pedidos, não sobre a cadeia', async () => {
     await startApi([{ model: 'fake:a' }], [fake('fake', {})]);
 
-    const { models } = await get('status?models=fake:z,nada:y');
+    const { models } = await get('status?models=fake:z,nada:y,fakex');
 
     expect(models).toEqual([
       { model: 'fake:z', state: 'ready' },
       { model: 'nada:y', state: 'unregistered' },
+      { model: 'fakex', state: 'unregistered' },
     ]);
   });
 });

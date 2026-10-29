@@ -149,7 +149,8 @@ plugin descreve os modelos em `AiProvider.models` (`id`, `audio?`, `nativeSearch
 
 `env` (chave vinda de `BRIDGER_AI__KEYS__*`) só é detectado se o `ai` estiver em `adminPlugins`
 do bot: a fonte de cada campo da config só chega ao plugin por `ctx.admin`. Sem isso, a chave
-presente aparece como `configured`.
+presente aparece como `configured`. Pôr o `ai` em `adminPlugins` só por esse selo dá a ele
+acesso admin inteiro (`setOverrides`, `setSecret`): não é recomendado.
 
 ### `GET /api/plugins/ai/status`
 

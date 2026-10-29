@@ -51,6 +51,17 @@ export interface AiProvider {
   nativeSearch?(): ToolSet;
 }
 
+/** Resultados possíveis de uma tentativa; fonte única do tipo e do schema do `/status`. */
+export const ATTEMPT_OUTCOMES = [
+  'ok',
+  'transient',
+  'error',
+  'aborted',
+  'unregistered',
+  'unsupported',
+] as const;
+export type AttemptOutcome = (typeof ATTEMPT_OUTCOMES)[number];
+
 /** Uma tentativa num item da cadeia, para quem mede (`ai.observers`). */
 export interface AiAttempt {
   /** Item da cadeia, como `google:gemini-2.5-flash`. */
@@ -64,7 +75,7 @@ export interface AiAttempt {
    * `unregistered` é item sem provider no ponto e `unsupported` é item cujo provider não tem a
    * busca nativa pedida; os dois são pulados sem chamada.
    */
-  readonly outcome: 'ok' | 'transient' | 'error' | 'aborted' | 'unregistered' | 'unsupported';
+  readonly outcome: AttemptOutcome;
   readonly startedAt: number;
   readonly latencyMs: number;
   /** Só com `ok`. Vazão sai daqui: `outputTokens / latencyMs`. */
@@ -211,9 +222,7 @@ const statusResponse = z.object({
       model: z.string(),
       state: z.enum(['ready', 'cooldown', 'unregistered']),
       until: z.string().optional(),
-      lastOutcome: z
-        .enum(['ok', 'transient', 'error', 'aborted', 'unregistered', 'unsupported'])
-        .optional(),
+      lastOutcome: z.enum(ATTEMPT_OUTCOMES).optional(),
       lastAt: z.string().optional(),
     }),
   ),
@@ -405,11 +414,14 @@ export const ai: PluginDefinition = definePlugin({
             models: wanted.map((model) => {
               const until = coolingUntil.get(model) ?? 0;
               const last = lastAttempt.get(model);
-              const state = !names.has(model.slice(0, model.indexOf(':')))
-                ? 'unregistered'
-                : until > now
-                  ? 'cooldown'
-                  : 'ready';
+              // Sem `:` não há provider (indexOf -1 cortaria o último caractere do nome).
+              const sep = model.indexOf(':');
+              const state =
+                sep < 0 || !names.has(model.slice(0, sep))
+                  ? 'unregistered'
+                  : until > now
+                    ? 'cooldown'
+                    : 'ready';
               return {
                 model,
                 state,
