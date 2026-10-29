@@ -45,11 +45,26 @@ export function loadConfig(env: ConfigEnv = process.env): AppConfig {
 }
 
 /**
- * Ambiente da config de plugin (`BRIDGER_*`). O `main.ts` completa nele o token do dashboard e a
+ * Ambiente da config de plugin (`BRIDGER_*`). O `bot.ts` completa nele o token do dashboard e a
  * chave mestra quando faltam, sem ler o `process.env` por conta própria.
  */
 export function pluginEnv(env: ConfigEnv = process.env): ConfigEnv {
   return env;
+}
+
+/**
+ * Ambiente com que o `main.ts` relança o processo no Windows, ou `undefined` quando não precisa.
+ * O fontconfig embutido no Sharp (Windows) não tem o alias `emoji → Noto Color Emoji` das distros
+ * Linux, e o `FONTCONFIG_FILE` que o acrescenta só vale no ambiente do início do processo: o
+ * `getenv` do runtime C não vê o que o Node muda depois. Variável já definida vence.
+ */
+export function fontconfigRelaunchEnv(
+  file: string,
+  platform: NodeJS.Platform = process.platform,
+  env: ConfigEnv = process.env,
+): ConfigEnv | undefined {
+  if (platform !== 'win32' || env['FONTCONFIG_FILE']) return undefined;
+  return { ...env, FONTCONFIG_FILE: file };
 }
 
 function loadDashboard(env: ConfigEnv): Pick<AppConfig, 'dashboard'> {
