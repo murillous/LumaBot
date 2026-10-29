@@ -8,3 +8,6 @@ allowBuilds:
 # nova do pnpm só atrasaria a adoção de cada release.
 minimumReleaseAgeExclude:
   - '@usebridger/*'
+# O dashboard é um pacote à parte (Vite + React): as dependências de browser não entram no bot.
+packages:
+  - dashboard
