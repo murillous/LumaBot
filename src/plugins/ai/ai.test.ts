@@ -1,4 +1,4 @@
-import { definePlugin } from '@usebridger/core';
+import { createHttp, definePlugin } from '@usebridger/core';
 import { createTestBot, type TestBot } from '@usebridger/testing';
 import { APICallError, jsonSchema, tool } from 'ai';
 import { MockLanguageModelV4 } from 'ai/test';
@@ -739,5 +739,104 @@ describe('ai.generate com busca nativa', () => {
     const byName = Object.fromEntries(listed.map((p) => [p.name, p]));
     expect(Object.keys(byName['google']?.nativeSearch?.() ?? {})).toEqual(['google_search']);
     expect(byName['openai']?.nativeSearch).toBeUndefined();
+  });
+});
+
+describe('API do ai: catálogo e estado', () => {
+  const http = createHttp({ port: 0, hostname: '127.0.0.1' });
+  interface CatalogProvider {
+    id: string;
+    key: string;
+    temperature?: { min: number; max: number };
+    models: { id: string; audio: boolean; nativeSearch: boolean }[];
+  }
+  const get = async (path: string) =>
+    (await (await fetch(`http://127.0.0.1:${http.port}/api/plugins/ai/${path}`)).json()) as {
+      providers: CatalogProvider[];
+      models: object[];
+    };
+  const catalog = async () => {
+    const { providers } = await get('catalog');
+    const byId = (id: string) => providers.find((p) => p.id === id);
+    return { providers, byId };
+  };
+
+  async function startApi(
+    models: { model: string }[],
+    providers: AiProvider[],
+    extra: { env?: Record<string, string>; adminPlugins?: string[] } = {},
+  ) {
+    bot = await createTestBot({
+      http,
+      plugins: [ai, harness(providers)],
+      pluginConfig: { ai: { models, keys: { google: 'SEGREDO-DO-GOOGLE' }, cooldownMs: 30_000 } },
+      ...extra,
+    });
+    return service as AiService;
+  }
+
+  it('catálogo: provider sem chave aparece missing, com os modelos, e a chave nunca vaza', async () => {
+    await startApi([], []);
+
+    const { providers, byId } = await catalog();
+
+    expect(byId('google')).toMatchObject({ key: 'configured', temperature: { min: 0, max: 2 } });
+    expect(byId('openai')?.key).toBe('missing');
+    expect(byId('openai')?.models.length).toBeGreaterThan(0);
+    expect(byId('anthropic')?.temperature).toEqual({ min: 0, max: 1 });
+    expect(JSON.stringify(providers)).not.toContain('SEGREDO-DO-GOOGLE');
+  });
+
+  it('catálogo: provider de outro plugin aparece, e a chave vinda do env aparece env', async () => {
+    const other: AiProvider = {
+      ...fake('ollama', {}),
+      models: [{ id: 'llama3', audio: false }],
+    };
+    await startApi([], [other], {
+      env: { BRIDGER_AI__KEYS__GOOGLE: 'SEGREDO-DO-ENV' },
+      adminPlugins: ['ai'],
+    });
+
+    const { providers, byId } = await catalog();
+
+    expect(byId('ollama')?.models).toEqual([{ id: 'llama3', audio: false, nativeSearch: false }]);
+    expect(byId('google')?.key).toBe('env');
+    expect(byId('openai')?.key).toBe('missing');
+    expect(JSON.stringify(providers)).not.toContain('SEGREDO');
+  });
+
+  it('status: modelo em cooldown, item sem provider e último resultado', async () => {
+    const svc = await startApi(
+      [{ model: 'fake:a' }, { model: 'fake:b' }, { model: 'sem-chave:x' }],
+      [fake('fake', { a: model(apiError(429)), b: model('ok') })],
+    );
+    await svc.generate(hi);
+
+    const { models } = await get('status');
+
+    expect(models).toEqual([
+      expect.objectContaining({
+        model: 'fake:a',
+        state: 'cooldown',
+        until: '2026-10-17T12:00:30.000Z',
+        lastOutcome: 'transient',
+        lastAt: '2026-10-17T12:00:00.000Z',
+      }),
+      expect.objectContaining({ model: 'fake:b', state: 'ready', lastOutcome: 'ok' }),
+      { model: 'sem-chave:x', state: 'unregistered' },
+    ]);
+    expect(JSON.stringify(models)).not.toContain('SEGREDO');
+  });
+
+  it('status com ?models responde sobre os modelos pedidos, não sobre a cadeia', async () => {
+    await startApi([{ model: 'fake:a' }], [fake('fake', {})]);
+
+    const { models } = await get('status?models=fake:z,nada:y,fakex');
+
+    expect(models).toEqual([
+      { model: 'fake:z', state: 'ready' },
+      { model: 'nada:y', state: 'unregistered' },
+      { model: 'fakex', state: 'unregistered' },
+    ]);
   });
 });
