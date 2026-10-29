@@ -81,36 +81,37 @@ de `#rrggbb`, tamanho fora da faixa) impede o boot (`PluginBootError`, com o cam
 mudança em funcionamento, a mudança é recusada e a legenda segue com o estilo anterior. Mudança
 válida recarrega o `sticker-text`, que registra a etapa com o estilo novo.
 
-**Emoji colorido** depende de uma fonte de emoji colorida no sistema: instale
-`fonts-noto-color-emoji` (Debian/Ubuntu). Sem ela, o emoji sai na cor do texto, e o `setup` avisa
-no log (`fonte de emoji colorido não encontrada`). O SVG, usado antes, não serve: o librsvg pinta
-o emoji com a cor do texto mesmo com a fonte instalada.
+**Emoji colorido** sai da [Noto Color Emoji](https://github.com/googlefonts/noto-emoji)
+versionada em `fonts/NotoColorEmoji.ttf` (licença OFL, em `fonts/OFL.txt`), carregada pelo
+`fontfile` do Sharp: não precisa instalar fonte no sistema. O caminho é relativo ao diretório de
+onde o processo roda, como o banco; rodando de fora da raiz, o emoji sai na cor do texto e o
+`setup` avisa no log (`fonte de emoji colorido não encontrada`). O SVG, usado antes, não serve: o
+librsvg pinta o emoji com a cor do texto mesmo com a fonte.
+
+Para atualizar a fonte, troque o arquivo pelo `2D/fonts/NotoColorEmoji.ttf` de uma versão nova do
+`googlefonts/noto-emoji`.
 
 ### Emoji colorido no Windows
 
-Instalar a fonte não basta. O Pango pede o emoji pela família genérica `emoji`, e o fontconfig
-embutido no Sharp (Windows) não tem o alias `emoji → Noto Color Emoji` que as distros Linux trazem.
-Por isso o emoji cai na Segoe UI Symbol, monocromática. A Segoe UI Emoji do Windows também não
-resolve. O arquivo `fontconfig/windows.conf` do app acrescenta o alias e mantém as duas pastas de
-fontes, a do sistema e a do usuário, para onde vai a fonte instalada com o "Instalar" do Windows:
+O bot cuida disso sozinho; a explicação fica para quem estranhar o processo duplicado.
 
-1. Instale a [Noto Color Emoji](https://fonts.google.com/noto/specimen/Noto+Color+Emoji)
-   (botão direito no `.ttf` → *Instalar*).
-2. Aponte o `FONTCONFIG_FILE` para o arquivo, com caminho absoluto, antes de subir o bot (ou os
-   testes):
+A fonte carregada não basta no Windows. O Pango pede o emoji pela família genérica `emoji`, e o
+fontconfig embutido no Sharp (Windows) não tem o alias `emoji → Noto Color Emoji` que as distros
+Linux trazem: o emoji cai na Segoe UI Symbol, monocromática. O `fontconfig/windows.conf` acrescenta
+o alias e mantém as pastas de fontes do sistema e do usuário.
 
-   ```powershell
-   $env:FONTCONFIG_FILE = "C:\repos\LumaBot\apps\lumabot\fontconfig\windows.conf"
-   ```
+Quem lê o `FONTCONFIG_FILE` é o fontconfig nativo do Sharp, pelo `getenv` do runtime C, que só vê o
+ambiente do início do processo: o `.env`, o `--env-file` do Node e o `process.env` chegam tarde
+demais. Por isso o `src/main.ts`, no Windows e sem a variável, relança o próprio processo com ela
+apontando para o `windows.conf` e só repassa o código de saída do filho. Um `FONTCONFIG_FILE` já
+definido no ambiente vence, e aí não há relançamento.
 
-   Para valer em todo terminal novo:
-   `[Environment]::SetEnvironmentVariable('FONTCONFIG_FILE', '<caminho>', 'User')`.
+Os testes não passam pelo `main.ts`: no Windows, defina a variável antes do `pnpm test` para o
+teste `o emoji da legenda sai colorido` passar.
 
-   No `.env` ela não funciona. Quem a lê é o fontconfig nativo do Sharp, pelo `getenv` do runtime
-   C, que só vê o ambiente do início do processo. O `--env-file` do Node e o `process.env` chegam
-   tarde demais.
-
-Com a variável certa, o aviso some do log e o teste `o emoji da legenda sai colorido` passa.
+```powershell
+$env:FONTCONFIG_FILE = "C:\repos\LumaBot\fontconfig\windows.conf"
+```
 
 ## Capabilities
 

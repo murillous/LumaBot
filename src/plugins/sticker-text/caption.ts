@@ -2,8 +2,14 @@
 // (entrada `text` do Sharp) e não por SVG: o librsvg pinta o emoji com o `fill`, e ele saía
 // como uma silhueta branca; o Pango com `rgba` desenha a fonte de emoji colorida.
 
+import { resolve } from 'node:path';
 import sharp from 'sharp';
 
+/**
+ * Fonte de emoji colorida versionada no repositório, para não depender da do sistema. Relativa ao
+ * diretório de onde o processo roda, como o banco; se faltar, o emoji só sai sem cor.
+ */
+const EMOJI_FONT = resolve('fonts/NotoColorEmoji.ttf');
 const SIZE = 512;
 const MAX_CHARS = 90;
 /** Folga até a borda da figurinha. */
@@ -47,11 +53,13 @@ export async function addCaption(
 }
 
 /**
- * Se o Pango desenha emoji em cores: sem uma fonte de emoji colorida no sistema
- * (`fonts-noto-color-emoji`), o emoji sai na cor do texto.
+ * Se o Pango desenha emoji em cores: sem a `fonts/NotoColorEmoji.ttf` (processo fora da raiz) ou,
+ * no Windows, sem o `FONTCONFIG_FILE`, o emoji sai na cor do texto.
  */
 export async function rendersColorEmoji(): Promise<boolean> {
-  const { channels } = await sharp({ text: { text: '😀', rgba: true, dpi: 144 } }).stats();
+  const { channels } = await sharp({
+    text: { text: '😀', rgba: true, dpi: 144, fontfile: EMOJI_FONT },
+  }).stats();
   const [red, , blue] = channels;
   return Math.abs((red?.mean ?? 0) - (blue?.mean ?? 0)) > 1;
 }
@@ -100,6 +108,7 @@ async function renderText(text: string, style: CaptionStyle, width: number): Pro
     text: `<span foreground="${style.color}">${escapeMarkup(text)}</span>`,
     // Com o dpi padrão (72), ponto e pixel coincidem.
     font: `${style.font} ${style.fontSize}`,
+    fontfile: EMOJI_FONT,
     width,
     align: 'centre',
     wrap: 'word-char',

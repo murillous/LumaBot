@@ -36,7 +36,7 @@ export const stickerText: PluginDefinition = definePlugin({
     // A legenda funciona sem a fonte de emoji colorida; o aviso explica o emoji sem cor.
     if (!(await rendersColorEmoji())) {
       ctx.log.warn(
-        'fonte de emoji colorido não encontrada: emojis da legenda saem sem cor (instale fonts-noto-color-emoji; no Windows, veja docs/sticker.md)',
+        'fonte de emoji colorido não encontrada: emojis da legenda saem sem cor (rode o bot da raiz do repositório, onde fica fonts/NotoColorEmoji.ttf; ver docs/sticker.md)',
       );
     }
   },

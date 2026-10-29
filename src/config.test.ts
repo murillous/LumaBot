@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { loadConfig } from './config.ts';
+import { fontconfigRelaunchEnv, loadConfig } from './config.ts';
 
 describe('loadConfig', () => {
   it('sem variáveis, usa os padrões: SQLite em data/, pareamento por QR, log em info, dashboard na 3000', () => {
@@ -67,4 +67,18 @@ describe('loadConfig', () => {
       expect(() => loadConfig({ LUMABOT_DASHBOARD_PORT: port })).toThrow(/LUMABOT_DASHBOARD_PORT/);
     },
   );
+});
+
+describe('fontconfigRelaunchEnv', () => {
+  it('no Windows sem FONTCONFIG_FILE, relança com ele e o resto do ambiente', () => {
+    expect(fontconfigRelaunchEnv('C:\\lumabot\\windows.conf', 'win32', { PATH: 'x' })).toEqual({
+      PATH: 'x',
+      FONTCONFIG_FILE: 'C:\\lumabot\\windows.conf',
+    });
+  });
+
+  it('não relança fora do Windows nem com a variável já definida', () => {
+    expect(fontconfigRelaunchEnv('a.conf', 'linux', {})).toBeUndefined();
+    expect(fontconfigRelaunchEnv('a.conf', 'win32', { FONTCONFIG_FILE: 'b.conf' })).toBeUndefined();
+  });
 });
