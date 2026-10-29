@@ -12,28 +12,41 @@ async function start() {
   return { bot, reader };
 }
 
-it('pairing.session.paired audita a conexão que veio depois do QR', async () => {
-  const { bot, reader } = await start();
-  await bot.emit('connection.qr', { qr: '2@abc' });
-  await bot.emit('connection.status', { status: 'open' });
+it.each([
+  ['connection.qr', { qr: '2@abc' }],
+  ['connection.pairing-code', { code: 'ABCD1234' }],
+] as const)(
+  'pairing.session.paired audita a conexão que veio depois de %s',
+  async (event, payload) => {
+    const { bot, reader } = await start();
+    await bot.emit(event, payload);
+    await bot.emit('connection.status', { status: 'open' });
 
-  expect(await reader.events('pairing.session.paired')).toHaveLength(1);
-  await bot.stop();
-});
+    expect(await reader.events('pairing.session.paired')).toHaveLength(1);
+    await bot.stop();
+  },
+);
 
 it('reconexão comum, sem QR antes, não é novo pareamento', async () => {
   const { bot, reader } = await start();
   await bot.emit('connection.status', { status: 'open' });
-
-  expect(await reader.events('pairing.session.paired', 1)).toHaveLength(0);
-  await bot.stop();
-});
-
-it('pairing.session.lost audita a sessão perdida, com o motivo', async () => {
-  const { bot, reader } = await start();
+  // Sentinela positiva: o `lost` vem depois do `open`, então se ele já foi gravado o `paired`
+  // indevido também seria.
   await bot.emit('connection.status', { status: 'closed', reason: 'logged-out', error: null });
+  await reader.events('pairing.session.lost');
 
-  const [event] = await reader.events('pairing.session.lost');
-  expect(event?.details).toEqual({ reason: 'logged-out' });
+  expect(await reader.events('pairing.session.paired', 0)).toHaveLength(0);
   await bot.stop();
 });
+
+it.each(['logged-out', 'auth-failed'] as const)(
+  'pairing.session.lost audita a sessão perdida (%s)',
+  async (reason) => {
+    const { bot, reader } = await start();
+    await bot.emit('connection.status', { status: 'closed', reason, error: null });
+
+    const [event] = await reader.events('pairing.session.lost');
+    expect(event?.details).toEqual({ reason });
+    await bot.stop();
+  },
+);

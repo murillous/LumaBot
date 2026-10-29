@@ -25,9 +25,11 @@ it('registra command.owner só para comando de owner, sem os argumentos', async 
   await bot.receive({ text: '!secreto senha123', sender: { id: 'dono@fake' } });
   await bot.receive({ text: '!secreto x' });
 
-  const events = await reader.events('command.owner');
+  const events = await reader.events('command.owner', 2);
   expect(events.map((e) => e.outcome).sort()).toEqual(['denied', 'success']);
   expect(JSON.stringify(events)).not.toContain('senha123');
+  expect(events.map((e) => e.details?.['status']).sort()).toEqual(['ran', 'rejected']);
   expect(events[0]?.details).toMatchObject({ plugin: 'admin', command: 'secreto' });
+  expect(JSON.stringify(events)).not.toContain('dono@fake');
   await bot.stop();
 });

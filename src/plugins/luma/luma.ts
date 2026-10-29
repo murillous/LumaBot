@@ -297,7 +297,7 @@ export const luma: PluginDefinition = definePlugin({
       ctx.audit.record({
         action: 'luma.history.clear',
         target: { type: 'chat', id: message.chat.id },
-        details: { contact: message.sender.id },
+        details: { contact: ctx.pseudonym(message.sender.id) },
       });
     };
     ctx.services.provide('luma', { personas, clearHistory });

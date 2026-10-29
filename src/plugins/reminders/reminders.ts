@@ -399,7 +399,11 @@ export const reminders: PluginDefinition = definePlugin({
           ctx.audit.record({
             action: 'reminders.delete',
             target: { type: 'reminder', id },
-            details: { chat: chatId, actor: actorId, creator: doc.creatorId },
+            details: {
+              chat: chatId,
+              actor: ctx.pseudonym(actorId),
+              creator: ctx.pseudonym(doc.creatorId),
+            },
           });
         }
         return true;

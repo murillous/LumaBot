@@ -25,7 +25,9 @@ export const ownerAudit: PluginDefinition = definePlugin({
           plugin: payload.plugin,
           command: payload.name,
           invokedAs: payload.invokedAs,
-          sender: payload.message.sender.id,
+          // Pseudônimo estável (reversível por `pseudonyms.resolve`): o log não guarda o JID cru.
+          sender: ctx.pseudonym(payload.message.sender.id),
+          status: payload.status,
         },
       });
     });

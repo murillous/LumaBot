@@ -58,5 +58,6 @@ it('luma.history.clear registra o contato que pediu', async () => {
   await b.receive({ text: '!luma clear', sender: { id: 'titular@fake' } });
 
   const [event] = await reader.events('luma.history.clear');
-  expect(event?.details).toEqual({ contact: 'titular@fake' });
+  expect(event?.details?.['contact']).toEqual(expect.stringMatching(/^u_/));
+  expect(JSON.stringify(event)).not.toContain('titular@fake');
 });
