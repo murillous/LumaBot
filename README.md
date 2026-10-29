@@ -139,8 +139,9 @@ kernel já audita (plugins, config, segredos, login), a Luma registra:
 - `pairing.session.paired` (conectou depois de QR ou código) e `pairing.session.lost`
   (`logged-out` ou `auth-failed`).
 
-Contatos (`sender`, `contact`, `actor`, `creator`) vão pseudonimizados com `ctx.pseudonym`, nunca o
-JID cru; quem tem a permissão `pseudonyms.resolve` desfaz pelo dashboard ou pela API. Em
+Contatos (`sender`, `contact`, `actor`, `creator`) e o id de chat privado (`target.id`,
+`details.chat`, que é o número do contato) vão pseudonimizados com `ctx.pseudonym`, nunca o
+JID cru; id de grupo fica cru (não identifica pessoa); quem tem a permissão `pseudonyms.resolve` desfaz pelo dashboard ou pela API. Em
 `command.owner`, `details.status` traz o status cru (`ran`, `rejected`, `failed`; `rejected`
 cobre também recusa por `accepts`).
 

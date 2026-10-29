@@ -17,7 +17,13 @@ export const ownerAudit: PluginDefinition = definePlugin({
       if (info?.role !== 'owner') return;
       ctx.audit.record({
         action: 'command.owner',
-        target: { type: 'chat', id: payload.message.chat.id },
+        // Em conversa privada o id do chat é o número do contato; grupo não identifica pessoa.
+        target: {
+          type: 'chat',
+          id: payload.message.chat.isGroup
+            ? payload.message.chat.id
+            : ctx.pseudonym(payload.message.chat.id),
+        },
         outcome:
           payload.status === 'ran' ? 'success' : payload.status === 'rejected' ? 'denied' : 'error',
         // Só o nome do comando: os argumentos podem carregar texto do usuário.

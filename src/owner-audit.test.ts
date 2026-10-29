@@ -31,5 +31,25 @@ it('registra command.owner só para comando de owner, sem os argumentos', async 
   expect(events.map((e) => e.details?.['status']).sort()).toEqual(['ran', 'rejected']);
   expect(events[0]?.details).toMatchObject({ plugin: 'admin', command: 'secreto' });
   expect(JSON.stringify(events)).not.toContain('dono@fake');
+  expect(JSON.stringify(events)).not.toContain('chat@fake');
+  expect(events[0]?.target?.id).toMatch(/^u_/);
+  await bot.stop();
+});
+
+it('em grupo o alvo mantém o id cru do chat', async () => {
+  const reader = auditReader();
+  const bot = await createTestBot({
+    plugins: [ownerAudit, admin, reader.plugin],
+    adminPlugins: [reader.plugin.name],
+    owners: [{ id: 'dono@fake' }],
+  });
+  await bot.receive({
+    text: '!secreto',
+    chat: { id: 'grupo@fake', isGroup: true },
+    sender: { id: 'dono@fake' },
+  });
+
+  const [event] = await reader.events('command.owner');
+  expect(event?.target).toEqual({ type: 'chat', id: 'grupo@fake' });
   await bot.stop();
 });

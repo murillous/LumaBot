@@ -33,7 +33,18 @@ it('reminders.delete audita quando quem cancela não é o dono, com pseudônimos
   expect(event?.details?.['actor']).toEqual(expect.stringMatching(/^u_/));
   expect(event?.details?.['creator']).toEqual(expect.stringMatching(/^u_/));
   expect(event?.details?.['actor']).not.toBe(event?.details?.['creator']);
-  expect(JSON.stringify(event)).not.toMatch(/dona@|outro@|reunião/);
+  expect(JSON.stringify(event)).not.toMatch(/dona@|outro@|chat@fake|reunião/);
+  expect(event?.details?.['chat']).toMatch(/^u_/);
+});
+
+it('em grupo o id do chat fica cru', async () => {
+  const { b, reader } = await start();
+  const chat = { id: 'grupo@fake', isGroup: true };
+  await b.receive({ text: '!lembrete 16/10 15:00 g', chat, sender: { id: 'dona@fake' } });
+  await b.receive({ text: '!cancelarlembrete 1', chat, sender: { id: 'outro@fake' } });
+
+  const [event] = await reader.events('reminders.delete');
+  expect(event?.details?.['chat']).toBe('grupo@fake');
 });
 
 it('a tool cancel_reminder também audita o cancelamento por terceiro', async () => {
