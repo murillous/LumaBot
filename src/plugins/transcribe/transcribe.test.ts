@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { ai } from '#plugins/ai/ai.ts';
 import { fakeProvider, scripted } from '#plugins/ai-testing.ts';
 import { aiToolsProbe, toolResult } from '#plugins/ai-tools-probe.ts';
+import { observedBot } from '#plugins/observe-probe.ts';
 import { audioMediaType, SILENT, transcribe, UNINTELLIGIBLE } from './transcribe.ts';
 
 let bot: TestBot | undefined;
@@ -179,5 +180,41 @@ describe('audioMediaType', () => {
     ['application/octet-stream', 'audio/ogg'],
   ])('%s → %s', (input, expected) => {
     expect(audioMediaType(input)).toBe(expected);
+  });
+});
+
+describe('log e métricas', () => {
+  const observed = (model: ReturnType<typeof scripted>, config: Record<string, unknown> = {}) =>
+    observedBot([ai, fakeProvider({ a: model }), transcribe], {
+      pluginConfig: { ai: { models: [{ model: 'fake:a' }] }, transcribe: config },
+    });
+
+  it('transcrição vira transcribe.audio.done com o resultado, nunca o texto', async () => {
+    const o = await observed(scripted('meu segredo'));
+    bot = o.bot;
+
+    await bot.receive({ text: '!t', voice: fixtures.voice() });
+
+    expect(o.event('transcribe.audio.done')).toMatchObject({
+      kind: 'audio',
+      result: 'text',
+      bytes: fixtures.voice().data.length,
+    });
+    expect(JSON.stringify(o.lines)).not.toContain('meu segredo');
+    expect(await o.rows('luma_transcribe_total')).toMatchObject([
+      { labels: { kind: 'audio', outcome: 'ok' }, value: 1 },
+    ]);
+  });
+
+  it('áudio grande demais é recusa', async () => {
+    const o = await observed(scripted('x'), { maxBytes: 1 });
+    bot = o.bot;
+
+    await bot.receive({ text: '!t', voice: fixtures.voice() });
+
+    expect(o.event('transcribe.audio.refused')).toMatchObject({ reason: 'too-large' });
+    expect(await o.rows('luma_transcribe_total')).toMatchObject([
+      { labels: { kind: 'audio', outcome: 'refused' }, value: 1 },
+    ]);
   });
 });

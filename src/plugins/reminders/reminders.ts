@@ -9,6 +9,16 @@ import {
 import { z } from 'zod';
 import { aiTool, fail, ok } from '#plugins/ai-tools.ts';
 import { formatRecurrence, formatWhen, remaining, stats } from './format.ts';
+import {
+  FIRED_DELETE_FAILED,
+  JOB_WITHOUT_ID,
+  KIND_DUPLICATE,
+  KIND_MISSING,
+  ORPHAN_CANCEL_FAILED,
+  PARSER_FAILED,
+  SERIES_CANCEL_FAILED,
+  SERIES_ENDED,
+} from './log-events.ts';
 import { brParser, type Recurrence, recurringParser, type WhenParser } from './parse.ts';
 import { isValidTimeZone } from './zone.ts';
 
@@ -234,7 +244,7 @@ export const reminders: PluginDefinition = definePlugin({
     ctx.scheduler.on(JOB, async (payload, job) => {
       const id = (payload as { id?: unknown } | null)?.id;
       if (typeof id !== 'string') {
-        ctx.log.error('job de lembrete sem id', { payload });
+        ctx.log.event(JOB_WITHOUT_ID, { payload });
         return;
       }
       const doc = await docs.get(id);
@@ -245,7 +255,7 @@ export const reminders: PluginDefinition = definePlugin({
           try {
             await ctx.scheduler.cancel(job.seriesId);
           } catch (err) {
-            ctx.log.warn('falha ao cancelar série órfã de lembrete', { err, id });
+            ctx.log.event(ORPHAN_CANCEL_FAILED, { err, id });
           }
         }
         // Cancelado entre o disparo e a leitura: nada a enviar.
@@ -258,13 +268,13 @@ export const reminders: PluginDefinition = definePlugin({
         // Vale o primeiro por ordem de carga; o aviso (uma vez por kind) evita o conflito calado.
         if (matches.length > 1 && !warnedDuplicates.has(reminder.kind)) {
           warnedDuplicates.add(reminder.kind);
-          ctx.log.warn('kind de lembrete contribuído por mais de um plugin; vale o primeiro', {
+          ctx.log.event(KIND_DUPLICATE, {
             kind: reminder.kind,
           });
         }
         if (!kind) {
           // Plugin dono do kind desligado: não entrega; a série espera ele voltar.
-          ctx.log.warn('kind de lembrete sem plugin', { kind: reminder.kind, id });
+          ctx.log.event(KIND_MISSING, { kind: reminder.kind, id });
           return;
         }
         await kind.deliver(reminder, { signal: job.signal });
@@ -274,7 +284,7 @@ export const reminders: PluginDefinition = definePlugin({
           try {
             await docs.delete(id);
           } catch (err) {
-            ctx.log.error('falha ao apagar lembrete disparado', { err, id });
+            ctx.log.event(FIRED_DELETE_FAILED, { err, id });
           }
         }
       }
@@ -358,7 +368,7 @@ export const reminders: PluginDefinition = definePlugin({
             try {
               await ctx.scheduler.cancel(seriesId);
             } catch (cancelErr) {
-              ctx.log.error('falha ao cancelar série órfã', { err: cancelErr, id, seriesId });
+              ctx.log.event(SERIES_CANCEL_FAILED, { err: cancelErr, id, seriesId });
             }
           }
           await docs.delete(id);
@@ -378,7 +388,7 @@ export const reminders: PluginDefinition = definePlugin({
           const next = doc.jobId ? await ctx.scheduler.next(doc.jobId) : undefined;
           if (!next) {
             // Sem ocorrência futura nem a série dispara mais, e ninguém cancelaria o doc: limpa.
-            ctx.log.warn('série de lembrete sem próxima ocorrência; removida', { id: doc.id });
+            ctx.log.event(SERIES_ENDED, { id: doc.id });
             if (doc.jobId) await ctx.scheduler.cancel(doc.jobId);
             await docs.delete(doc.id);
             continue;
@@ -513,7 +523,7 @@ export const reminders: PluginDefinition = definePlugin({
             result = parse(c.rawArgs, now);
           } catch (err) {
             // Parser de terceiro quebrado não derruba o comando: o próximo tenta.
-            c.log.error('parser de lembrete falhou', { err });
+            c.log.event(PARSER_FAILED, { err });
             continue;
           }
           if (result) {

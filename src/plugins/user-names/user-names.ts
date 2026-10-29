@@ -1,6 +1,7 @@
 import { type Contact, definePlugin, type PluginDefinition } from '@usebridger/core';
 import { z } from 'zod';
 import { type AiToolContext, aiTool, fail, ok } from '#plugins/ai-tools.ts';
+import { REMEMBER_FAILED, SOURCE_FAILED } from './log-events.ts';
 import { cleanName, NICK_MAX, nickFromArgs } from './nick-args.ts';
 
 /** Fonte de nome: devolve o nome que conhece para o `id`, ou `null` para passar à próxima. */
@@ -102,7 +103,7 @@ export const userNames: PluginDefinition = definePlugin({
             if (name) return name;
           } catch (err) {
             // Uma fonte quebrada não pode tirar o nome de exibição das outras.
-            ctx.log.warn('fonte de nome falhou', { err });
+            ctx.log.event(SOURCE_FAILED, { err });
           }
         }
         // Como o `fallbackFromJid` do legacy: só os 6 últimos dígitos, nunca o número inteiro.
@@ -118,7 +119,7 @@ export const userNames: PluginDefinition = definePlugin({
     // Falha ao lembrar nunca atrapalha a mensagem: vai para o log e segue.
     const remember = (contact: KnownContact) =>
       service.remember(contact).catch((err: unknown) => {
-        ctx.log.warn('falha ao lembrar o contato', { err });
+        ctx.log.event(REMEMBER_FAILED, { err });
       });
     const fromMessage = async (m: { sender: Contact; mentions: readonly Contact[] }) => {
       for (const c of [m.sender, ...m.mentions]) await remember(c);

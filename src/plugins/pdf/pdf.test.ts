@@ -8,6 +8,7 @@ import {
 import { PDFDocument } from 'pdf-lib';
 import { afterEach, describe, expect, it } from 'vitest';
 import { aiToolsProbe, toolResult } from '#plugins/ai-tools-probe.ts';
+import { observedBot } from '#plugins/observe-probe.ts';
 import { pdf as pdfPlugin } from './pdf.ts';
 
 let bot: TestBot;
@@ -170,5 +171,37 @@ describe('tools', () => {
     });
 
     expect(toolResult(bot)).toEqual({ ok: false, error: 'need-two-pdfs' });
+  });
+});
+
+describe('log e métricas', () => {
+  it('PDF da imagem vira pdf.convert.done e conta por tipo', async () => {
+    const o = await observedBot([pdfPlugin()]);
+    bot = o.bot;
+
+    await bot.receive({ text: '!pdf', image: fixtures.image() });
+
+    expect(o.event('pdf.convert.done')).toMatchObject({
+      kind: 'image',
+      bytes: sentBytes('document').length,
+    });
+    expect(await o.rows('luma_pdf_total')).toMatchObject([
+      { labels: { kind: 'image', outcome: 'ok' }, value: 1 },
+    ]);
+  });
+
+  it('imagem que não converte vira pdf.convert.failed', async () => {
+    const o = await observedBot([pdfPlugin()]);
+    bot = o.bot;
+
+    await bot.receive({
+      text: '!pdf',
+      image: { data: Buffer.from('não é imagem'), mimetype: 'image/png' },
+    });
+
+    expect(o.event('pdf.convert.failed')).toMatchObject({ kind: 'image', err: expect.any(Object) });
+    expect(await o.rows('luma_pdf_total')).toMatchObject([
+      { labels: { kind: 'image', outcome: 'error' }, value: 1 },
+    ]);
   });
 });

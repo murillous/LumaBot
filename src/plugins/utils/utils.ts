@@ -7,6 +7,7 @@ import {
 } from '@usebridger/core';
 import { z } from 'zod';
 import { aiTool, ok } from '#plugins/ai-tools.ts';
+import { INFO_LINE_FAILED } from './log-events.ts';
 
 /** Linha de `!meunumero`; `null` omite a linha. Contribuída ao ponto `utils.info`. */
 export type InfoLine = (input: {
@@ -67,7 +68,7 @@ export const utils: PluginDefinition = definePlugin({
           if (text !== null) lines.push(text);
         } catch (err) {
           // Uma contribuição com defeito não derruba o comando: some só a linha dela.
-          ctx.log.error('linha de utils.info falhou', { err });
+          ctx.log.event(INFO_LINE_FAILED, { err });
         }
       }
       return lines;

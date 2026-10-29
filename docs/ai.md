@@ -45,7 +45,8 @@ cadeia, não o mesmo modelo.
 - **Abort de quem chamou** (`signal`): relança sem tentar o próximo.
 - **Todos falharam**: `AiUnavailableError`, com o último erro em `cause`.
 
-Cada resposta registra `model`, `purpose`, `ms`, `inputTokens` e `outputTokens` no log.
+Cada resposta registra o evento `ai.generate.done` com `model`, `purpose`, `durationMs`, `inputTokens` e
+`outputTokens` ([logs-e-metricas.md](logs-e-metricas.md#outros-eventos)).
 
 ## Serviço `ai`
 

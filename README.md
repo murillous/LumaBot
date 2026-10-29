@@ -105,8 +105,9 @@ ligado por padrão em `http://127.0.0.1:3000/plugins/dashboard/`. O painel é ge
 - **Config:** os campos de cada plugin (modelos e chaves da IA, Luma, busca, estilo da legenda...),
   editáveis sem reiniciar. As chaves são gravadas cifradas no banco.
 - **Logs** (histórico e ao vivo), **plugins** (ligar, desligar, recarregar) e **auditoria**.
-- **Métricas** do `metrics`: as do kernel e as `ai_*` de consumo e custo da IA
-  ([ai-metrics.md](docs/ai-metrics.md)).
+- **Métricas** do `metrics`: as do kernel, as `ai_*` de consumo e custo da IA
+  ([ai-metrics.md](docs/ai-metrics.md)) e as `luma_*` dos plugins
+  ([logs-e-metricas.md](docs/logs-e-metricas.md)).
 - **Usuários e API keys.**
 
 ### Primeiro acesso

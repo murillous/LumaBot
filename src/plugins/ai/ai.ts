@@ -23,6 +23,16 @@ import {
   invokeTool,
   offeredTools,
 } from '#plugins/ai-tools.ts';
+import {
+  GENERATE_DONE,
+  HTTP_DISABLED,
+  KEYS_UNREADABLE,
+  MODEL_FAILED,
+  MODELS_EMPTY,
+  OBSERVER_FAILED,
+  PROVIDER_UNREGISTERED,
+  SEARCH_UNSUPPORTED,
+} from './log-events.ts';
 
 /** Um modelo que o provider oferece, para o catálogo do dashboard. */
 export interface AiModelInfo {
@@ -298,7 +308,7 @@ export const ai: PluginDefinition = definePlugin({
 
     // Sem cadeia o boot segue (config inválida derrubaria o bot inteiro) e o `generate` recusa.
     if (chain.length === 0) {
-      ctx.log.warn('nenhum modelo em models: a IA vai recusar até ser configurada');
+      ctx.log.event(MODELS_EMPTY);
     }
 
     const toolPoint = ctx.services.extensionPoint('ai.tools');
@@ -338,7 +348,7 @@ export const ai: PluginDefinition = definePlugin({
       lastAttempt.set(attempt.model, { outcome: attempt.outcome, at: attempt.startedAt });
       for (const observer of observers.list()) {
         const failed = (err: unknown) =>
-          ctx.log.error('observer da IA falhou', { model: attempt.model, err });
+          ctx.log.event(OBSERVER_FAILED, { model: attempt.model, err });
         try {
           observer(attempt)?.catch(failed);
         } catch (err) {
@@ -353,7 +363,7 @@ export const ai: PluginDefinition = definePlugin({
       try {
         return (await ctx.admin?.config.describe('ai'))?.sources ?? {};
       } catch (err) {
-        ctx.log.warn('não foi possível ler a fonte das chaves da IA', { err });
+        ctx.log.event(KEYS_UNREADABLE, { err });
         return {};
       }
     };
@@ -437,7 +447,7 @@ export const ai: PluginDefinition = definePlugin({
       });
     } catch (err) {
       if (!(err instanceof BotConfigError)) throw err;
-      ctx.log.info('sem http no bot: rotas do ai desligadas');
+      ctx.log.event(HTTP_DISABLED);
     }
 
     ctx.services.provide('ai', {
@@ -473,7 +483,7 @@ export const ai: PluginDefinition = definePlugin({
             });
           if (!provider) {
             // Erro de config, não do modelo: os outros itens ainda podem responder.
-            ctx.log.error('provider não registrado (falta a chave ou o plugin)', {
+            ctx.log.event(PROVIDER_UNREGISTERED, {
               model: entry.model,
             });
             attempt('unregistered');
@@ -481,7 +491,7 @@ export const ai: PluginDefinition = definePlugin({
           }
           const search = request.nativeSearch ? provider.nativeSearch?.() : undefined;
           if (request.nativeSearch && !search) {
-            ctx.log.warn('provider sem busca nativa; item pulado', { model: entry.model });
+            ctx.log.event(SEARCH_UNSUPPORTED, { model: entry.model });
             // Vira métrica para a causa de uma cadeia de busca mal configurada não sumir.
             attempt('unsupported');
             continue;
@@ -517,10 +527,10 @@ export const ai: PluginDefinition = definePlugin({
             // `totalUsage` soma os passos: com tools (M5-1.4), uma chamada tem vários.
             const usage = result.totalUsage;
             attempt('ok', { usage, finishReason: result.finishReason });
-            ctx.log.info('ia respondeu', {
+            ctx.log.event(GENERATE_DONE, {
               model: entry.model,
               purpose: request.purpose,
-              ms: Date.now() - started,
+              durationMs: Date.now() - started,
               inputTokens: usage.inputTokens,
               outputTokens: usage.outputTokens,
             });
@@ -552,7 +562,7 @@ export const ai: PluginDefinition = definePlugin({
             if (statusCode === 429) {
               coolingUntil.set(entry.model, Date.now() + cooldownMs);
             }
-            ctx.log.warn('modelo falhou, tentando o próximo', { model: entry.model, err });
+            ctx.log.event(MODEL_FAILED, { model: entry.model, err });
             lastError = err;
           }
         }

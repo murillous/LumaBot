@@ -1,9 +1,11 @@
 import { definePlugin, type PluginDefinition } from '@usebridger/core';
 import { z } from 'zod';
+import { type ActionSpec, trackerFor } from '#plugins/action-metrics.ts';
 import { type AiToolContext, aiTool, fail, mediaMessage, ok } from '#plugins/ai-tools.ts';
 import { checkBinary } from '#plugins/binary.ts';
 import { attempt, mediaOf, usage } from '#plugins/media-command.ts';
 import { isAnimated, stickerToMp4, stickerToPng } from './convert.ts';
+import { CONVERT_DONE, CONVERT_FAILED, CONVERT_REFUSED, FFMPEG_MISSING } from './log-events.ts';
 
 /**
  * Textos ao usuário; a config do bot sobrescreve cada um (`messages`). `{prefix}` é o prefixo do
@@ -23,6 +25,14 @@ const TIMEOUT_MS = 60_000;
 /** FFmpeg simultâneos no bot por comando: cada vídeo ocupa um núcleo e centenas de MB. */
 const FFMPEG_CONCURRENCY = 2;
 
+/** Cada conversão no log (`sticker-convert.convert.*`) e em `luma_sticker_convert_*`. */
+const ACTION: ActionSpec = {
+  metric: 'sticker_convert',
+  help: 'Conversões de figurinha',
+  buckets: [0.25, 0.5, 1, 2, 5, 10, 20, 30, 60],
+  events: { done: CONVERT_DONE, refused: CONVERT_REFUSED, failed: CONVERT_FAILED },
+};
+
 /** Figurinha de volta a imagem (`!image`) ou a vídeo (`!gif`). */
 export const stickerConvert: PluginDefinition = definePlugin({
   name: 'sticker-convert',
@@ -30,10 +40,13 @@ export const stickerConvert: PluginDefinition = definePlugin({
   engine: '<1.0.0',
   // O plugin exige só o download; cada comando exige a capability do que envia.
   requires: ['media.download'],
+  // Opcional: sem o `metrics` as conversões seguem, só com o log.
+  optionalDependsOn: { metrics: '*' },
   messages: MESSAGES,
   // Só o `!gif` usa o FFmpeg: sem ele, o `!image` segue funcionando.
   setup: async (ctx) => {
     const { messages } = ctx.plugin;
+    const track = trackerFor(ACTION, ctx.services);
     // A figurinha que a pessoa mandou ou respondeu; `null` vira `no-sticker` para o modelo.
     const stickerOf = (t: AiToolContext) => mediaMessage(t.message, ['sticker'])?.media ?? null;
     ctx.services.contribute(
@@ -47,8 +60,11 @@ export const stickerConvert: PluginDefinition = definePlugin({
         run: async (_, t) => {
           const media = stickerOf(t);
           if (!media) return fail('no-sticker');
-          const png = await stickerToPng(await media.download());
-          await t.reply.image(png, { caption: messages.imageDone, mimetype: 'image/png' });
+          await track(t.log, 'image', async (step) => {
+            const png = await stickerToPng(await media.download());
+            await t.reply.image(png, { caption: messages.imageDone, mimetype: 'image/png' });
+            step.note({ bytes: png.length });
+          });
           return ok();
         },
       }),
@@ -64,11 +80,18 @@ export const stickerConvert: PluginDefinition = definePlugin({
         run: async (_, t) => {
           const media = stickerOf(t);
           if (!media) return fail('no-sticker');
-          const sticker = await media.download();
-          if (!(await isAnimated(sticker))) return fail('not-animated');
-          const mp4 = await stickerToMp4(sticker, t.signal);
-          await t.reply.video(mp4, { caption: messages.gifDone, mimetype: 'video/mp4' });
-          return ok();
+          const sent = await track(t.log, 'gif', async (step) => {
+            const sticker = await media.download();
+            if (!(await isAnimated(sticker))) {
+              step.refuse('not-animated');
+              return false;
+            }
+            const mp4 = await stickerToMp4(sticker, t.signal);
+            await t.reply.video(mp4, { caption: messages.gifDone, mimetype: 'video/mp4' });
+            step.note({ bytes: mp4.length });
+            return true;
+          });
+          return sent ? ok() : fail('not-animated');
         },
       }),
     );
@@ -76,7 +99,7 @@ export const stickerConvert: PluginDefinition = definePlugin({
     try {
       await checkBinary('ffmpeg', ['-version']);
     } catch (err) {
-      ctx.log.warn('ffmpeg indisponível: !gif vai falhar', { err });
+      ctx.log.event(FFMPEG_MISSING, { err });
     }
   },
   commands: {
@@ -87,10 +110,11 @@ export const stickerConvert: PluginDefinition = definePlugin({
       accepts: ['sticker', 'quoted:sticker'],
       onReject: usage('imageUsage'),
       timeoutMs: TIMEOUT_MS,
-      run: (ctx) =>
-        attempt(ctx, async () => {
+      run: (ctx, plugin) =>
+        attempt(ctx, trackerFor(ACTION, plugin.services), 'image', async (step) => {
           const png = await stickerToPng(await mediaOf(ctx).download());
           await ctx.reply.image(png, { caption: ctx.t('imageDone'), mimetype: 'image/png' });
+          step.note({ bytes: png.length });
         }),
     },
 
@@ -103,17 +127,24 @@ export const stickerConvert: PluginDefinition = definePlugin({
       timeoutMs: TIMEOUT_MS,
       background: true,
       concurrency: FFMPEG_CONCURRENCY,
-      run: async (ctx) => {
+      run: async (ctx, plugin) => {
         let reply: string | undefined;
-        const failed = await attempt(ctx, async () => {
-          const sticker = await mediaOf(ctx).download();
-          if (!(await isAnimated(sticker))) {
-            reply = ctx.t('gifStatic');
-            return;
-          }
-          const mp4 = await stickerToMp4(sticker, ctx.signal);
-          await ctx.reply.video(mp4, { caption: ctx.t('gifDone'), mimetype: 'video/mp4' });
-        });
+        const failed = await attempt(
+          ctx,
+          trackerFor(ACTION, plugin.services),
+          'gif',
+          async (step) => {
+            const sticker = await mediaOf(ctx).download();
+            if (!(await isAnimated(sticker))) {
+              step.refuse('not-animated');
+              reply = ctx.t('gifStatic');
+              return;
+            }
+            const mp4 = await stickerToMp4(sticker, ctx.signal);
+            await ctx.reply.video(mp4, { caption: ctx.t('gifDone'), mimetype: 'video/mp4' });
+            step.note({ bytes: mp4.length });
+          },
+        );
         return failed ?? reply;
       },
     },

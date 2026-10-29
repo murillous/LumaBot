@@ -12,6 +12,15 @@ import { cleanResponse, splitIntoParts } from '#plugins/ai-response.ts';
 import { aiTool, fail, mediaMessage, ok } from '#plugins/ai-tools.ts';
 import { createChatWindow } from '#plugins/chat-window.ts';
 import { createHistory, historyKey } from './history.ts';
+import {
+  AI_METRICS_FAILED,
+  ERROR_NOTICE_FAILED,
+  NAME_FAILED,
+  PERSONA_CREATE_FAILED,
+  REPLY_FAILED,
+  STATS_FAILED,
+  TYPING_FAILED,
+} from './log-events.ts';
 import { PersonaParseError, parsePersona, personaPrompt, slugify } from './persona-generator.ts';
 import { DEFAULT_PERSONA, PERSONAS, type Persona } from './personas.ts';
 import { buildPrompt, type QuotedInfo, quotedContext } from './prompt.ts';
@@ -320,7 +329,7 @@ export const luma: PluginDefinition = definePlugin({
         try {
           return await ctx.services.get('userNames').displayName(contact.id);
         } catch (err) {
-          ctx.log.warn('falha ao resolver o nome', { err });
+          ctx.log.event(NAME_FAILED, { err });
         }
       }
       return contact.name ?? 'Usuário';
@@ -366,7 +375,7 @@ export const luma: PluginDefinition = definePlugin({
       try {
         await ctx.services.get('rank').record(m.chat.id, m.sender.id);
       } catch (err) {
-        ctx.log.warn('falha ao contar a interação', { err });
+        ctx.log.event(STATS_FAILED, { err });
       }
     };
 
@@ -405,7 +414,7 @@ export const luma: PluginDefinition = definePlugin({
 
         if (ctx.capabilities.has('typing')) {
           await ctx.send.typing(chat.id, 'text').catch((err: unknown) => {
-            i.log.debug('falha ao avisar que está digitando', { err });
+            i.log.event(TYPING_FAILED, { err });
           });
         }
         const { min, max } = cfg.thinkingDelayMs;
@@ -454,13 +463,13 @@ export const luma: PluginDefinition = definePlugin({
         }
       } catch (err) {
         if (signal.aborted) throw err;
-        i.log.error('falha ao responder como a Luma', { err });
+        i.log.event(REPLY_FAILED, { err });
         const text =
           err instanceof AiUnavailableError
             ? ctx.plugin.messages.unavailable
             : pick(cfg.errorReplies);
         await i.reply(text).catch((replyErr: unknown) => {
-          i.log.warn('falha ao avisar do erro', { err: replyErr });
+          i.log.event(ERROR_NOTICE_FAILED, { err: replyErr });
         });
       }
     };
@@ -514,7 +523,7 @@ export const luma: PluginDefinition = definePlugin({
         try {
           summary = await ctx.services.get('aiMetrics').summary({ days: STATS_DAYS });
         } catch (err) {
-          ctx.log.warn('falha ao ler as métricas da IA', { err });
+          ctx.log.event(AI_METRICS_FAILED, { err });
         }
       }
       return renderStats(history.size(), summary, STATS_DAYS, t);
@@ -600,7 +609,7 @@ export const luma: PluginDefinition = definePlugin({
             if (err instanceof PersonaLimitError) {
               return c.t('personaLimit', { max: cfg.maxCustomPersonas });
             }
-            c.log.error('falha ao criar a persona', { err });
+            c.log.event(PERSONA_CREATE_FAILED, { err });
             return c.t('personaCreateFail');
           }
         }
