@@ -15,6 +15,9 @@ export interface AppConfig {
   readonly dashboard?: { readonly port: number; readonly hostname: string };
 }
 
+/** `audit.retentionDays` do bot: o log de auditoria do kernel guarda 1 ano (o padrão do core é 5). */
+export const AUDIT_RETENTION_DAYS = 365;
+
 const LOG_LEVELS: readonly LogLevel[] = [
   'trace',
   'debug',

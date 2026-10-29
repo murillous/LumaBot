@@ -48,6 +48,15 @@ para a padrão.
 Cada chat pode criar até `maxCustomPersonas` (10). O traço de formato dos balões (`MENSAGENS
 CURTAS...`) é do sistema e entra em toda persona gerada; o modelo nunca o escreve.
 
+## Auditoria
+
+Registra no log de auditoria do kernel (`ctx.audit`) só o ato administrativo, nunca a conversa:
+
+| Ação | Quando | `details` |
+| --- | --- | --- |
+| `luma.persona.set` / `.create` / `.delete` | Troca, criação ou remoção de persona (comando ou tool); alvo = chat | `key` (e `wasActive` no delete), nunca o texto da persona |
+| `luma.history.clear` | `!luma clear` ou a tool `clear_history`; alvo = chat | `contact`: quem pediu (o kernel só preenche o ator contato em request, então aqui vai em `details`) |
+
 ## Comandos
 
 | Comando | O que faz |

@@ -3,8 +3,15 @@ import { tmpdir } from 'node:os';
 import { extname, join } from 'node:path';
 import { type CommandContext, definePlugin, type PluginDefinition } from '@usebridger/core';
 import { z } from 'zod';
+import { type ActionSpec, actionTracker, hostOf, trackerFor } from '#plugins/action-metrics.ts';
 import { type AiToolResult, aiTool, fail, ok } from '#plugins/ai-tools.ts';
 import { checkBinary } from '#plugins/binary.ts';
+import {
+  BINARIES_MISSING,
+  DOWNLOAD_DONE,
+  DOWNLOAD_FAILED,
+  DOWNLOAD_REFUSED,
+} from './log-events.ts';
 import {
   compactVideo,
   downloadAudio,
@@ -45,6 +52,19 @@ const CONCURRENCY = 2;
 /** Post de foto (Instagram, X): o yt-dlp baixa a própria imagem, que vai sem passar pelo FFmpeg. */
 const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp']);
 
+/**
+ * Cada download no log (`download.media.*`) e em `luma_download_*`. `kind`: `media` (vídeo ou
+ * foto), `audio` ou `sticker`.
+ */
+const ACTION: ActionSpec = {
+  metric: 'download',
+  help: 'Downloads',
+  // Até o prazo dos comandos (240 s): vídeo longo recodificado passa de um minuto.
+  buckets: [1, 2, 5, 10, 20, 30, 60, 120, 240],
+  events: { done: DOWNLOAD_DONE, refused: DOWNLOAD_REFUSED, failed: DOWNLOAD_FAILED },
+  refusal: (err) => (err instanceof TooLargeError ? 'too-large' : undefined),
+};
+
 export interface DownloadOptions {
   /** Arquivo de cookies (formato Netscape) de uma sessão logada, repassado ao yt-dlp. */
   readonly cookies?: string;
@@ -55,16 +75,20 @@ export interface DownloadOptions {
  * (o vídeo ou a foto como figurinha), pelo yt-dlp.
  */
 export function download(options: DownloadOptions = {}): PluginDefinition {
-  // Refeito a cada setup (inclusive no reload), por instância do plugin.
+  // Refeitos a cada setup (inclusive no reload), por instância do plugin.
   let binariesMissing = false;
+  let track = actionTracker(ACTION);
   return definePlugin({
     name: 'download',
     version: '0.0.0',
     engine: '<1.0.0',
     messages: MESSAGES,
+    // Opcional: sem o `metrics` os downloads seguem, só com o log.
+    optionalDependsOn: { metrics: '*' },
     // Sem os dois, nenhum comando funciona. Na 0.6 setup que lança derruba o bot inteiro, então
     // o plugin carrega, avisa no boot e cada comando responde `unavailable`.
     setup: async (ctx) => {
+      track = trackerFor(ACTION, ctx.services);
       try {
         await Promise.all([
           checkBinary('yt-dlp', ['--version']),
@@ -73,7 +97,7 @@ export function download(options: DownloadOptions = {}): PluginDefinition {
         binariesMissing = false;
       } catch (err) {
         binariesMissing = true;
-        ctx.log.warn('yt-dlp ou ffmpeg indisponível: os comandos de download vão recusar', { err });
+        ctx.log.event(BINARIES_MISSING, { err });
       }
 
       const url = z.url().describe('Link do post ou do vídeo');
@@ -96,21 +120,28 @@ export function download(options: DownloadOptions = {}): PluginDefinition {
           args: z.object({ url }),
           requires: ['send.video'],
           run: ({ url }, t) =>
-            guarded(() =>
-              inTempDir(async (dir) => {
-                const post = await fetchPost(url, dir, { ...options, signal: t.signal });
-                if (post.kind === 'image') {
-                  if (!ctx.capabilities.has('send.image')) return fail('image-unsupported');
-                  await t.reply.image(post.bytes, { caption: ctx.plugin.messages.imageSent });
-                } else {
-                  await t.reply.video(post.bytes, {
-                    caption: ctx.plugin.messages.videoSent,
-                    mimetype: 'video/mp4',
-                  });
-                }
-                return ok();
-              }),
-            ),
+            guarded(async () => {
+              const sent = await track(t.log.child({ host: hostOf(url) }), 'media', (step) =>
+                inTempDir(async (dir) => {
+                  const post = await fetchPost(url, dir, { ...options, signal: t.signal });
+                  if (post.kind === 'image') {
+                    if (!ctx.capabilities.has('send.image')) {
+                      step.refuse('image-unsupported');
+                      return false;
+                    }
+                    await t.reply.image(post.bytes, { caption: ctx.plugin.messages.imageSent });
+                  } else {
+                    await t.reply.video(post.bytes, {
+                      caption: ctx.plugin.messages.videoSent,
+                      mimetype: 'video/mp4',
+                    });
+                  }
+                  step.note({ bytes: post.bytes.length });
+                  return true;
+                }),
+              );
+              return sent ? ok() : fail('image-unsupported');
+            }),
         }),
       );
       ctx.services.contribute(
@@ -121,13 +152,17 @@ export function download(options: DownloadOptions = {}): PluginDefinition {
           args: z.object({ url }),
           requires: ['send.audio'],
           run: ({ url }, t) =>
-            guarded(() =>
-              inTempDir(async (dir) => {
-                const mp3 = await downloadAudio(url, dir, { ...options, signal: t.signal });
-                await t.reply.audio(await readFile(mp3), { mimetype: 'audio/mpeg' });
-                return ok();
-              }),
-            ),
+            guarded(async () => {
+              await track(t.log.child({ host: hostOf(url) }), 'audio', (step) =>
+                inTempDir(async (dir) => {
+                  const mp3 = await downloadAudio(url, dir, { ...options, signal: t.signal });
+                  const bytes = await readFile(mp3);
+                  await t.reply.audio(bytes, { mimetype: 'audio/mpeg' });
+                  step.note({ bytes: bytes.length });
+                }),
+              );
+              return ok();
+            }),
         }),
       );
       ctx.services.contribute(
@@ -143,16 +178,19 @@ export function download(options: DownloadOptions = {}): PluginDefinition {
               // Opcional como no `!downloadsticker`: consultado a cada uso.
               if (!ctx.services.has('sticker')) return fail('sticker-unavailable');
               const stickers = ctx.services.get('sticker');
-              return inTempDir(async (dir) => {
-                const file = await downloadVideo(url, dir, { ...options, signal: t.signal });
-                const sticker = await stickers.create(await readFile(file), {
-                  animated: !IMAGE_EXTENSIONS.has(extname(file).toLowerCase()),
-                  text: caption.replace(/\s+/g, ' ').trim(),
-                  signal: t.signal,
-                });
-                await t.reply.sticker(sticker);
-                return ok();
-              });
+              await track(t.log.child({ host: hostOf(url) }), 'sticker', (step) =>
+                inTempDir(async (dir) => {
+                  const file = await downloadVideo(url, dir, { ...options, signal: t.signal });
+                  const sticker = await stickers.create(await readFile(file), {
+                    animated: !IMAGE_EXTENSIONS.has(extname(file).toLowerCase()),
+                    text: caption.replace(/\s+/g, ' ').trim(),
+                    signal: t.signal,
+                  });
+                  await t.reply.sticker(sticker);
+                  step.note({ bytes: sticker.length });
+                }),
+              );
+              return ok();
             }),
         }),
       );
@@ -174,21 +212,33 @@ export function download(options: DownloadOptions = {}): PluginDefinition {
           return inTempDir(async (dir) => {
             await ctx.react('⏳');
             try {
-              const post = await fetchPost(url, dir, { ...options, signal: ctx.signal });
-              if (post.kind === 'image') {
-                if (!plugin.capabilities.has('send.image')) {
-                  await ctx.react('❌');
-                  return ctx.t('imageUnsupported');
-                }
-                await ctx.reply.image(post.bytes, { caption: ctx.t('imageSent') });
-              } else {
-                await ctx.reply.video(post.bytes, {
-                  caption: ctx.t('videoSent'),
-                  mimetype: 'video/mp4',
-                });
+              const sent = await track(
+                ctx.log.child({ host: hostOf(url) }),
+                'media',
+                async (step) => {
+                  const post = await fetchPost(url, dir, { ...options, signal: ctx.signal });
+                  if (post.kind === 'image') {
+                    if (!plugin.capabilities.has('send.image')) {
+                      step.refuse('image-unsupported');
+                      return false;
+                    }
+                    await ctx.reply.image(post.bytes, { caption: ctx.t('imageSent') });
+                  } else {
+                    await ctx.reply.video(post.bytes, {
+                      caption: ctx.t('videoSent'),
+                      mimetype: 'video/mp4',
+                    });
+                  }
+                  step.note({ bytes: post.bytes.length });
+                  return true;
+                },
+              );
+              if (!sent) {
+                await ctx.react('❌');
+                return ctx.t('imageUnsupported');
               }
             } catch (err) {
-              ctx.log.error('falha no download', { err, url });
+              // O `track` já registrou a falha.
               await ctx.react('❌');
               return ctx.t(err instanceof TooLargeError ? 'tooLarge' : 'downloadError');
             }
@@ -218,16 +268,19 @@ export function download(options: DownloadOptions = {}): PluginDefinition {
             await ctx.react('⏳');
             let downloaded = false;
             try {
-              const file = await downloadVideo(url, dir, { ...options, signal: ctx.signal });
-              downloaded = true;
-              const sticker = await stickers.create(await readFile(file), {
-                animated: !IMAGE_EXTENSIONS.has(extname(file).toLowerCase()),
-                text,
-                signal: ctx.signal,
+              await track(ctx.log.child({ host: hostOf(url) }), 'sticker', async (step) => {
+                const file = await downloadVideo(url, dir, { ...options, signal: ctx.signal });
+                downloaded = true;
+                const sticker = await stickers.create(await readFile(file), {
+                  animated: !IMAGE_EXTENSIONS.has(extname(file).toLowerCase()),
+                  text,
+                  signal: ctx.signal,
+                });
+                await ctx.reply.sticker(sticker);
+                step.note({ bytes: sticker.length });
               });
-              await ctx.reply.sticker(sticker);
             } catch (err) {
-              ctx.log.error('falha no download de figurinha', { err, url });
+              // O `track` já registrou a falha.
               await ctx.react('❌');
               if (downloaded) return ctx.t('stickerError');
               return ctx.t(err instanceof TooLargeError ? 'tooLarge' : 'downloadError');
@@ -252,10 +305,14 @@ export function download(options: DownloadOptions = {}): PluginDefinition {
           return inTempDir(async (dir) => {
             await ctx.react('⏳');
             try {
-              const mp3 = await downloadAudio(url, dir, { ...options, signal: ctx.signal });
-              await ctx.reply.audio(await readFile(mp3), { mimetype: 'audio/mpeg' });
+              await track(ctx.log.child({ host: hostOf(url) }), 'audio', async (step) => {
+                const mp3 = await downloadAudio(url, dir, { ...options, signal: ctx.signal });
+                const bytes = await readFile(mp3);
+                await ctx.reply.audio(bytes, { mimetype: 'audio/mpeg' });
+                step.note({ bytes: bytes.length });
+              });
             } catch (err) {
-              ctx.log.error('falha no download de áudio', { err, url });
+              // O `track` já registrou a falha.
               await ctx.react('❌');
               return ctx.t(err instanceof TooLargeError ? 'tooLarge' : 'audioError');
             }

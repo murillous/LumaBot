@@ -16,7 +16,7 @@ A mídia vem da própria mensagem ou da citada. O `!mergepdf` aceita só documen
 | `!mergepdf clear` | — | Esvazia a lista. Também `limpar`, `cancelar` |
 
 Enquanto converte, o bot reage ⏳ e depois ✅ ou ❌; num transport sem `reactions`, a reação é
-ignorada. Erro vai para o log (`falha ao processar mídia`) e o chat recebe `conversionError`.
+ignorada. Erro vai para o log (`pdf.convert.failed`) e o chat recebe `conversionError`.
 
 ## Tools da IA
 

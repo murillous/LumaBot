@@ -1,10 +1,12 @@
 import { definePlugin, type PluginDefinition } from '@usebridger/core';
 import { z } from 'zod';
+import { type ActionSpec, hostOf, trackerFor } from '#plugins/action-metrics.ts';
 import { aiTool, fail, mediaMessage, ok } from '#plugins/ai-tools.ts';
 import { checkBinary } from '#plugins/binary.ts';
 import { attempt, usage } from '#plugins/media-command.ts';
 import { encodeSticker, type StickerPack, toStickerImage, videoToSticker } from './convert.ts';
 import { fetchUrl, UrlFetchError } from './fetch-url.ts';
+import { FFMPEG_MISSING, STICKER_DONE, STICKER_FAILED, STICKER_REFUSED } from './log-events.ts';
 
 /** O que uma etapa recebe além da imagem. */
 export interface StickerInput {
@@ -59,6 +61,19 @@ const TIMEOUT_MS = 60_000;
 const FFMPEG_CONCURRENCY = 2;
 
 /**
+ * Cada figurinha do `!sticker` e da tool no log (`sticker.create.*`) e em `luma_sticker_*`.
+ * `kind`: `media` (da mensagem) ou `url`. A do `!downloadsticker` conta no `download`.
+ */
+const ACTION: ActionSpec = {
+  metric: 'sticker',
+  help: 'Figurinhas',
+  // Até o prazo do comando (60 s): a de vídeo passa pelo FFmpeg e leva segundos.
+  buckets: [0.25, 0.5, 1, 2, 5, 10, 20, 30, 60],
+  events: { done: STICKER_DONE, refused: STICKER_REFUSED, failed: STICKER_FAILED },
+  refusal: (err) => (err instanceof UrlFetchError ? 'url-failed' : undefined),
+};
+
+/**
  * Figurinha (`!sticker`) e o serviço `sticker`, por onde outros plugins a estendem ou a usam.
  * Sem `send.sticker` o plugin não carrega, e quem depende dele também não.
  */
@@ -67,6 +82,8 @@ export const sticker: PluginDefinition = definePlugin({
   version: '1.0.0',
   engine: '<1.0.0',
   requires: ['media.download', 'send.sticker'],
+  // Opcional: sem o `metrics` as figurinhas seguem, só com o log.
+  optionalDependsOn: { metrics: '*' },
   messages: MESSAGES,
   setup: async (ctx) => {
     const pack: StickerPack = {
@@ -84,6 +101,7 @@ export const sticker: PluginDefinition = definePlugin({
       },
     };
     ctx.services.provide('sticker', service);
+    const track = trackerFor(ACTION, ctx.services);
 
     ctx.services.contribute(
       'ai.tools',
@@ -97,24 +115,30 @@ export const sticker: PluginDefinition = definePlugin({
         }),
         run: async ({ url, caption = '' }, t) => {
           const text = caption.replace(/\s+/g, ' ').trim();
-          let bytes: Buffer;
-          let animated: boolean;
+          const send = async (bytes: Buffer, animated: boolean) => {
+            const sticker = await service.create(bytes, { animated, text, signal: t.signal });
+            await t.reply.sticker(sticker);
+            return { animated, bytes: sticker.length };
+          };
           if (url) {
             try {
-              bytes = await fetchUrl(url, t.signal);
+              await track(t.log.child({ host: hostOf(url) }), 'url', async (step) => {
+                const bytes = await fetchUrl(url, t.signal);
+                step.note(await send(bytes, isAnimatedBytes(bytes)));
+              });
             } catch (err) {
               if (err instanceof UrlFetchError) return fail('url-failed');
               throw err;
             }
-            animated = isAnimatedBytes(bytes);
-          } else {
-            const source = mediaMessage(t.message, ['image', 'video', 'sticker']);
-            if (!source) return fail('no-media');
-            if (source.isViewOnce) return fail('view-once');
-            bytes = await source.media.download();
-            animated = isAnimatedMime(source.media.mimetype);
+            return ok();
           }
-          await t.reply.sticker(await service.create(bytes, { animated, text, signal: t.signal }));
+          const source = mediaMessage(t.message, ['image', 'video', 'sticker']);
+          if (!source) return fail('no-media');
+          if (source.isViewOnce) return fail('view-once');
+          await track(t.log, 'media', async (step) => {
+            const bytes = await source.media.download();
+            step.note(await send(bytes, isAnimatedMime(source.media.mimetype)));
+          });
           return ok();
         },
       }),
@@ -125,7 +149,7 @@ export const sticker: PluginDefinition = definePlugin({
     try {
       await checkBinary('ffmpeg', ['-version']);
     } catch (err) {
-      ctx.log.warn('ffmpeg indisponível: figurinha de vídeo vai falhar', { err });
+      ctx.log.event(FFMPEG_MISSING, { err });
     }
   },
   commands: {
@@ -148,6 +172,7 @@ export const sticker: PluginDefinition = definePlugin({
       concurrency: FFMPEG_CONCURRENCY,
       run: async (ctx, plugin) => {
         const stickers = plugin.services.get('sticker');
+        const track = trackerFor(ACTION, plugin.services);
         const url = /https?:\/\/\S+/i.exec(ctx.rawArgs)?.[0] ?? null;
         const text = (url ? ctx.rawArgs.replace(url, '') : ctx.rawArgs).replace(/\s+/g, ' ').trim();
         const linkError = (err: unknown) =>
@@ -156,15 +181,14 @@ export const sticker: PluginDefinition = definePlugin({
         if (url) {
           return attempt(
             ctx,
-            async () => {
+            (log, kind, work) => track(log.child({ host: hostOf(url) }), kind, work),
+            'url',
+            async (step) => {
               const bytes = await fetchUrl(url, ctx.signal);
-              await ctx.reply.sticker(
-                await stickers.create(bytes, {
-                  animated: isAnimatedBytes(bytes),
-                  text,
-                  signal: ctx.signal,
-                }),
-              );
+              const animated = isAnimatedBytes(bytes);
+              const sticker = await stickers.create(bytes, { animated, text, signal: ctx.signal });
+              await ctx.reply.sticker(sticker);
+              step.note({ animated, bytes: sticker.length });
             },
             linkError,
           );
@@ -173,15 +197,12 @@ export const sticker: PluginDefinition = definePlugin({
         const source = ctx.media;
         if (!source) return usage('stickerUsage')(ctx);
         if (ctx.accepted?.message.isViewOnce) return usage('stickerViewOnce')(ctx);
-        return attempt(ctx, async () => {
+        return attempt(ctx, track, 'media', async (step) => {
           const bytes = await source.download();
-          await ctx.reply.sticker(
-            await stickers.create(bytes, {
-              animated: isAnimatedMime(source.mimetype),
-              text,
-              signal: ctx.signal,
-            }),
-          );
+          const animated = isAnimatedMime(source.mimetype);
+          const sticker = await stickers.create(bytes, { animated, text, signal: ctx.signal });
+          await ctx.reply.sticker(sticker);
+          step.note({ animated, bytes: sticker.length });
         });
       },
     },

@@ -2,7 +2,7 @@ import { createAnthropic } from '@ai-sdk/anthropic';
 import { createDeepSeek } from '@ai-sdk/deepseek';
 import { createGoogle } from '@ai-sdk/google';
 import { createOpenAI } from '@ai-sdk/openai';
-import { definePlugin, type PluginDefinition, secret } from '@usebridger/core';
+import { BotConfigError, definePlugin, type PluginDefinition, secret } from '@usebridger/core';
 import {
   APICallError,
   type FinishReason,
@@ -23,18 +23,54 @@ import {
   invokeTool,
   offeredTools,
 } from '#plugins/ai-tools.ts';
+import {
+  GENERATE_DONE,
+  HTTP_DISABLED,
+  KEYS_UNREADABLE,
+  MODEL_FAILED,
+  MODELS_EMPTY,
+  OBSERVER_FAILED,
+  PROVIDER_UNREGISTERED,
+  SEARCH_UNSUPPORTED,
+} from './log-events.ts';
+
+/** Um modelo que o provider oferece, para o catálogo do dashboard. */
+export interface AiModelInfo {
+  readonly id: string;
+  /** Aceita áudio na entrada (a transcrição precisa). */
+  readonly audio?: boolean;
+  /** Tem a busca nativa do provider. */
+  readonly nativeSearch?: boolean;
+}
 
 /** Fonte de modelos. Provider novo é um plugin que contribui em `ai.providers`, sem editar o `ai`. */
 export interface AiProvider {
   /** Prefixo do item da cadeia: `google` em `google:gemini-2.5-flash`. */
   readonly name: string;
   languageModel(modelId: string): LanguageModel;
+  /** Nome para exibição no catálogo; sem ele, vale o `name`. */
+  readonly label?: string;
+  /** Modelos conhecidos, só para o catálogo: um `provider:modelo` fora da lista continua valendo. */
+  readonly models?: readonly AiModelInfo[];
+  /** Faixa de `temperature` do provider (varia: o Gemini vai a 2, o Claude a 1). */
+  readonly temperature?: { readonly min: number; readonly max: number };
   /**
    * A busca na internet que o próprio provider executa (o Google Grounding do Gemini), se ele
    * tiver. O `ai` a oferece quando a chamada pede `nativeSearch`.
    */
   nativeSearch?(): ToolSet;
 }
+
+/** Resultados possíveis de uma tentativa; fonte única do tipo e do schema do `/status`. */
+export const ATTEMPT_OUTCOMES = [
+  'ok',
+  'transient',
+  'error',
+  'aborted',
+  'unregistered',
+  'unsupported',
+] as const;
+export type AttemptOutcome = (typeof ATTEMPT_OUTCOMES)[number];
 
 /** Uma tentativa num item da cadeia, para quem mede (`ai.observers`). */
 export interface AiAttempt {
@@ -49,7 +85,7 @@ export interface AiAttempt {
    * `unregistered` é item sem provider no ponto e `unsupported` é item cujo provider não tem a
    * busca nativa pedida; os dois são pulados sem chamada.
    */
-  readonly outcome: 'ok' | 'transient' | 'error' | 'aborted' | 'unregistered' | 'unsupported';
+  readonly outcome: AttemptOutcome;
   readonly startedAt: number;
   readonly latencyMs: number;
   /** Só com `ok`. Vazão sai daqui: `outputTokens / latencyMs`. */
@@ -149,6 +185,59 @@ const BUILT_IN = {
 type BuiltIn = keyof typeof BUILT_IN;
 const BUILT_IN_NAMES = Object.keys(BUILT_IN) as BuiltIn[];
 
+type ProviderInfo = Pick<AiProvider, 'label' | 'models' | 'temperature'>;
+/** Descrição dos embutidos: o catálogo os lista mesmo sem chave, para a tela pedir a chave. */
+const BUILT_IN_INFO: Record<BuiltIn, Required<ProviderInfo>> = {
+  google: {
+    label: 'Google',
+    temperature: { min: 0, max: 2 },
+    models: [
+      { id: 'gemini-2.5-flash', audio: true, nativeSearch: true },
+      { id: 'gemini-2.5-flash-lite', audio: true, nativeSearch: true },
+      { id: 'gemini-2.5-pro', audio: true, nativeSearch: true },
+    ],
+  },
+  openai: {
+    label: 'OpenAI',
+    temperature: { min: 0, max: 2 },
+    models: [{ id: 'gpt-5' }, { id: 'gpt-5-mini' }],
+  },
+  anthropic: {
+    label: 'Anthropic',
+    temperature: { min: 0, max: 1 },
+    models: [{ id: 'claude-haiku-5-5' }, { id: 'claude-sonnet-5-5' }, { id: 'claude-opus-5-5' }],
+  },
+  deepseek: {
+    label: 'DeepSeek',
+    temperature: { min: 0, max: 2 },
+    models: [{ id: 'deepseek-chat' }, { id: 'deepseek-reasoner' }],
+  },
+};
+
+const keyState = z.enum(['configured', 'env', 'missing']);
+const catalogResponse = z.object({
+  providers: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      key: keyState,
+      temperature: z.object({ min: z.number(), max: z.number() }).optional(),
+      models: z.array(z.object({ id: z.string(), audio: z.boolean(), nativeSearch: z.boolean() })),
+    }),
+  ),
+});
+const statusResponse = z.object({
+  models: z.array(
+    z.object({
+      model: z.string(),
+      state: z.enum(['ready', 'cooldown', 'unregistered']),
+      until: z.string().optional(),
+      lastOutcome: z.enum(ATTEMPT_OUTCOMES).optional(),
+      lastAt: z.string().optional(),
+    }),
+  ),
+});
+
 /**
  * Item da cadeia, na config e por chamada: o mesmo schema nos dois lugares, porque o `models` do
  * `generate` é fronteira entre plugins e não pode aceitar o que a config recusaria.
@@ -203,6 +292,7 @@ export const ai: PluginDefinition = definePlugin({
         const provider = BUILT_IN[name](key);
         ctx.services.contribute('ai.providers', {
           name,
+          ...BUILT_IN_INFO[name],
           languageModel: (id) => provider.languageModel(id),
           // Só o Gemini traz a busca pronta; os outros providers entram sem ela.
           ...(name === 'google' && {
@@ -218,7 +308,7 @@ export const ai: PluginDefinition = definePlugin({
 
     // Sem cadeia o boot segue (config inválida derrubaria o bot inteiro) e o `generate` recusa.
     if (chain.length === 0) {
-      ctx.log.warn('nenhum modelo em models: a IA vai recusar até ser configurada');
+      ctx.log.event(MODELS_EMPTY);
     }
 
     const toolPoint = ctx.services.extensionPoint('ai.tools');
@@ -252,10 +342,13 @@ export const ai: PluginDefinition = definePlugin({
     };
 
     const observers = ctx.services.extensionPoint('ai.observers');
+    // Última tentativa por modelo, do mesmo ponto que alimenta os observers; zera no restart.
+    const lastAttempt = new Map<string, { outcome: AiAttempt['outcome']; at: number }>();
     const notify = (attempt: AiAttempt) => {
+      lastAttempt.set(attempt.model, { outcome: attempt.outcome, at: attempt.startedAt });
       for (const observer of observers.list()) {
         const failed = (err: unknown) =>
-          ctx.log.error('observer da IA falhou', { model: attempt.model, err });
+          ctx.log.event(OBSERVER_FAILED, { model: attempt.model, err });
         try {
           observer(attempt)?.catch(failed);
         } catch (err) {
@@ -263,6 +356,99 @@ export const ai: PluginDefinition = definePlugin({
         }
       }
     };
+
+    // `env` pede a fonte de cada campo da config, que só o `ctx.admin` (adminPlugins) expõe; sem
+    // ele, a chave presente conta como `configured`.
+    const keySources = async (): Promise<Record<string, string>> => {
+      try {
+        return (await ctx.admin?.config.describe('ai'))?.sources ?? {};
+      } catch (err) {
+        ctx.log.event(KEYS_UNREADABLE, { err });
+        return {};
+      }
+    };
+
+    // Sem http no bot, `api` lança BotConfigError: o `ai` segue sem as rotas.
+    try {
+      ctx.http.api({
+        method: 'GET',
+        path: '/catalog',
+        summary: 'Provedores e modelos que dá para escolher na cadeia, com o estado da chave',
+        tags: ['ai'],
+        permission: 'config.read',
+        response: catalogResponse,
+        handler: async () => {
+          const sources = await keySources();
+          const byName = new Map<string, AiProvider>();
+          for (const p of providers.list()) if (!byName.has(p.name)) byName.set(p.name, p);
+          const names = [...new Set([...BUILT_IN_NAMES, ...byName.keys()])];
+          return {
+            providers: names.map((id) => {
+              const registered = byName.get(id);
+              const info: ProviderInfo | undefined = registered ?? BUILT_IN_INFO[id as BuiltIn];
+              const key = !registered
+                ? 'missing'
+                : sources[`keys.${id}`] === 'env'
+                  ? 'env'
+                  : 'configured';
+              return {
+                id,
+                name: info?.label ?? id,
+                key,
+                ...(info?.temperature && { temperature: info.temperature }),
+                models: (info?.models ?? []).map((m) => ({
+                  id: m.id,
+                  audio: m.audio ?? false,
+                  nativeSearch: m.nativeSearch ?? false,
+                })),
+              };
+            }),
+          };
+        },
+      });
+      ctx.http.api({
+        method: 'GET',
+        path: '/status',
+        summary: 'Estado de cada modelo: da cadeia principal, ou dos listados em ?models=a,b',
+        tags: ['ai'],
+        permission: 'config.read',
+        query: z.object({ models: z.string().optional() }),
+        response: statusResponse,
+        handler: ({ query }) => {
+          const now = Date.now();
+          const names = new Set(providers.list().map((p) => p.name));
+          const wanted: string[] = query.models
+            ? query.models.split(',').filter(Boolean)
+            : chain.map((m) => m.model);
+          return {
+            models: wanted.map((model) => {
+              const until = coolingUntil.get(model) ?? 0;
+              const last = lastAttempt.get(model);
+              // Sem `:` não há provider (indexOf -1 cortaria o último caractere do nome).
+              const sep = model.indexOf(':');
+              const state =
+                sep < 0 || !names.has(model.slice(0, sep))
+                  ? 'unregistered'
+                  : until > now
+                    ? 'cooldown'
+                    : 'ready';
+              return {
+                model,
+                state,
+                ...(state === 'cooldown' && { until: new Date(until).toISOString() }),
+                ...(last && {
+                  lastOutcome: last.outcome,
+                  lastAt: new Date(last.at).toISOString(),
+                }),
+              };
+            }),
+          };
+        },
+      });
+    } catch (err) {
+      if (!(err instanceof BotConfigError)) throw err;
+      ctx.log.event(HTTP_DISABLED);
+    }
 
     ctx.services.provide('ai', {
       async generate(request) {
@@ -297,7 +483,7 @@ export const ai: PluginDefinition = definePlugin({
             });
           if (!provider) {
             // Erro de config, não do modelo: os outros itens ainda podem responder.
-            ctx.log.error('provider não registrado (falta a chave ou o plugin)', {
+            ctx.log.event(PROVIDER_UNREGISTERED, {
               model: entry.model,
             });
             attempt('unregistered');
@@ -305,7 +491,7 @@ export const ai: PluginDefinition = definePlugin({
           }
           const search = request.nativeSearch ? provider.nativeSearch?.() : undefined;
           if (request.nativeSearch && !search) {
-            ctx.log.warn('provider sem busca nativa; item pulado', { model: entry.model });
+            ctx.log.event(SEARCH_UNSUPPORTED, { model: entry.model });
             // Vira métrica para a causa de uma cadeia de busca mal configurada não sumir.
             attempt('unsupported');
             continue;
@@ -341,10 +527,10 @@ export const ai: PluginDefinition = definePlugin({
             // `totalUsage` soma os passos: com tools (M5-1.4), uma chamada tem vários.
             const usage = result.totalUsage;
             attempt('ok', { usage, finishReason: result.finishReason });
-            ctx.log.info('ia respondeu', {
+            ctx.log.event(GENERATE_DONE, {
               model: entry.model,
               purpose: request.purpose,
-              ms: Date.now() - started,
+              durationMs: Date.now() - started,
               inputTokens: usage.inputTokens,
               outputTokens: usage.outputTokens,
             });
@@ -376,7 +562,7 @@ export const ai: PluginDefinition = definePlugin({
             if (statusCode === 429) {
               coolingUntil.set(entry.model, Date.now() + cooldownMs);
             }
-            ctx.log.warn('modelo falhou, tentando o próximo', { model: entry.model, err });
+            ctx.log.event(MODEL_FAILED, { model: entry.model, err });
             lastError = err;
           }
         }

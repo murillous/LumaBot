@@ -9,6 +9,16 @@ import {
 import { z } from 'zod';
 import { aiTool, fail, ok } from '#plugins/ai-tools.ts';
 import { formatRecurrence, formatWhen, remaining, stats } from './format.ts';
+import {
+  FIRED_DELETE_FAILED,
+  JOB_WITHOUT_ID,
+  KIND_DUPLICATE,
+  KIND_MISSING,
+  ORPHAN_CANCEL_FAILED,
+  PARSER_FAILED,
+  SERIES_CANCEL_FAILED,
+  SERIES_ENDED,
+} from './log-events.ts';
 import { brParser, type Recurrence, recurringParser, type WhenParser } from './parse.ts';
 import { isValidTimeZone } from './zone.ts';
 
@@ -80,7 +90,7 @@ export interface RemindersService {
   /** Pendentes do chat, por ordem de disparo. */
   list(chatId: string): Promise<Reminder[]>;
   /** `false` se não existe (ou é de outro chat). */
-  cancel(chatId: string, id: string): Promise<boolean>;
+  cancel(chatId: string, id: string, actorId?: string, isGroup?: boolean): Promise<boolean>;
 }
 
 declare module '@usebridger/core' {
@@ -234,7 +244,7 @@ export const reminders: PluginDefinition = definePlugin({
     ctx.scheduler.on(JOB, async (payload, job) => {
       const id = (payload as { id?: unknown } | null)?.id;
       if (typeof id !== 'string') {
-        ctx.log.error('job de lembrete sem id', { payload });
+        ctx.log.event(JOB_WITHOUT_ID, { payload });
         return;
       }
       const doc = await docs.get(id);
@@ -245,7 +255,7 @@ export const reminders: PluginDefinition = definePlugin({
           try {
             await ctx.scheduler.cancel(job.seriesId);
           } catch (err) {
-            ctx.log.warn('falha ao cancelar série órfã de lembrete', { err, id });
+            ctx.log.event(ORPHAN_CANCEL_FAILED, { err, id });
           }
         }
         // Cancelado entre o disparo e a leitura: nada a enviar.
@@ -258,13 +268,13 @@ export const reminders: PluginDefinition = definePlugin({
         // Vale o primeiro por ordem de carga; o aviso (uma vez por kind) evita o conflito calado.
         if (matches.length > 1 && !warnedDuplicates.has(reminder.kind)) {
           warnedDuplicates.add(reminder.kind);
-          ctx.log.warn('kind de lembrete contribuído por mais de um plugin; vale o primeiro', {
+          ctx.log.event(KIND_DUPLICATE, {
             kind: reminder.kind,
           });
         }
         if (!kind) {
           // Plugin dono do kind desligado: não entrega; a série espera ele voltar.
-          ctx.log.warn('kind de lembrete sem plugin', { kind: reminder.kind, id });
+          ctx.log.event(KIND_MISSING, { kind: reminder.kind, id });
           return;
         }
         await kind.deliver(reminder, { signal: job.signal });
@@ -274,7 +284,7 @@ export const reminders: PluginDefinition = definePlugin({
           try {
             await docs.delete(id);
           } catch (err) {
-            ctx.log.error('falha ao apagar lembrete disparado', { err, id });
+            ctx.log.event(FIRED_DELETE_FAILED, { err, id });
           }
         }
       }
@@ -358,7 +368,7 @@ export const reminders: PluginDefinition = definePlugin({
             try {
               await ctx.scheduler.cancel(seriesId);
             } catch (cancelErr) {
-              ctx.log.error('falha ao cancelar série órfã', { err: cancelErr, id, seriesId });
+              ctx.log.event(SERIES_CANCEL_FAILED, { err: cancelErr, id, seriesId });
             }
           }
           await docs.delete(id);
@@ -378,7 +388,7 @@ export const reminders: PluginDefinition = definePlugin({
           const next = doc.jobId ? await ctx.scheduler.next(doc.jobId) : undefined;
           if (!next) {
             // Sem ocorrência futura nem a série dispara mais, e ninguém cancelaria o doc: limpa.
-            ctx.log.warn('série de lembrete sem próxima ocorrência; removida', { id: doc.id });
+            ctx.log.event(SERIES_ENDED, { id: doc.id });
             if (doc.jobId) await ctx.scheduler.cancel(doc.jobId);
             await docs.delete(doc.id);
             continue;
@@ -388,12 +398,25 @@ export const reminders: PluginDefinition = definePlugin({
         return out.sort((a, b) => a.fireAt - b.fireAt);
       },
 
-      cancel: async (chatId, id) => {
+      cancel: async (chatId, id, actorId, isGroup) => {
         const doc = await docs.get(id);
         if (!doc || doc.chatId !== chatId) return false;
         // Job primeiro: se o cancel falhar, o doc fica e dá para tentar de novo.
         await ctx.scheduler.cancel(doc.jobId);
         await docs.delete(id);
+        // Cancelar o próprio lembrete é rotina; só o de outra pessoa entra na auditoria.
+        if (actorId && actorId !== doc.creatorId) {
+          ctx.audit.record({
+            action: 'reminders.delete',
+            target: { type: 'reminder', id },
+            details: {
+              // Conversa privada: o id do chat é o número do contato.
+              chat: isGroup ? chatId : ctx.pseudonym(chatId),
+              actor: ctx.pseudonym(actorId),
+              creator: ctx.pseudonym(doc.creatorId),
+            },
+          });
+        }
         return true;
       },
     };
@@ -480,7 +503,9 @@ export const reminders: PluginDefinition = definePlugin({
         description: 'Cancela um lembrete deste chat pelo `id` que o `list_reminders` devolve.',
         args: z.object({ id: z.string() }),
         run: async ({ id }, t) =>
-          (await service.cancel(t.message.chat.id, id)) ? ok() : fail('not-found'),
+          (await service.cancel(t.message.chat.id, id, t.message.sender.id, t.message.chat.isGroup))
+            ? ok()
+            : fail('not-found'),
       }),
     );
   },
@@ -498,7 +523,7 @@ export const reminders: PluginDefinition = definePlugin({
             result = parse(c.rawArgs, now);
           } catch (err) {
             // Parser de terceiro quebrado não derruba o comando: o próximo tenta.
-            c.log.error('parser de lembrete falhou', { err });
+            c.log.event(PARSER_FAILED, { err });
             continue;
           }
           if (result) {
@@ -581,7 +606,15 @@ export const reminders: PluginDefinition = definePlugin({
         if (!/^\d+$/.test(arg)) return c.t('cancelUsage');
         const service = plugin.services.get('reminders');
         const target = (await service.list(c.message.chat.id))[Number(arg) - 1];
-        if (!target || !(await service.cancel(target.chatId, target.id))) {
+        if (
+          !target ||
+          !(await service.cancel(
+            target.chatId,
+            target.id,
+            c.message.sender.id,
+            c.message.chat.isGroup,
+          ))
+        ) {
           return c.t('cancelNotFound');
         }
         return c.t('cancelled', { text: target.text });

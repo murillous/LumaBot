@@ -9,6 +9,7 @@ import {
   invokeTool,
   mediaMessage,
   offeredTools,
+  TOOL_FAILED,
 } from './ai-tools.ts';
 import { download } from './download/download.ts';
 import { help } from './help/help.ts';
@@ -33,7 +34,7 @@ const echo = aiTool({
   run: async ({ text }) => text,
 });
 
-const toolCtx = () => ({ log: { error: vi.fn() } }) as unknown as AiToolContext;
+const toolCtx = () => ({ log: { event: vi.fn() } }) as unknown as AiToolContext;
 
 describe('invokeTool', () => {
   it('roda a tool com os argumentos validados', async () => {
@@ -53,7 +54,10 @@ describe('invokeTool', () => {
     const boom = { ...echo, run: () => Promise.reject(new Error('boom')) };
 
     expect(await invokeTool(boom, { text: 'oi' }, ctx)).toEqual({ ok: false, error: 'failed' });
-    expect(ctx.log.error).toHaveBeenCalledOnce();
+    expect(ctx.log.event).toHaveBeenCalledExactlyOnceWith(TOOL_FAILED, {
+      err: expect.any(Error),
+      tool: 'echo',
+    });
   });
 });
 

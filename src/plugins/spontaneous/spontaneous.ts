@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { chainItem } from '#plugins/ai/ai.ts';
 import { createChatWindow } from '#plugins/chat-window.ts';
 import { parseReaction, reactionPrompt } from './decide.ts';
+import { REACTION_FAILED } from './log-events.ts';
 
 const DEFAULT_EMOJIS = ['😂', '💀', '😭', '🤔', '👀', '😳', '🗿', '💅'];
 
@@ -85,7 +86,7 @@ export const spontaneous: PluginDefinition = definePlugin({
         })
         .catch((err: unknown) => {
           if (ctx.signal.aborted) return;
-          e.log.warn('falha ao avaliar a reação espontânea', { err });
+          e.log.event(REACTION_FAILED, { err });
         });
     });
   },

@@ -45,7 +45,8 @@ cadeia, não o mesmo modelo.
 - **Abort de quem chamou** (`signal`): relança sem tentar o próximo.
 - **Todos falharam**: `AiUnavailableError`, com o último erro em `cause`.
 
-Cada resposta registra `model`, `purpose`, `ms`, `inputTokens` e `outputTokens` no log.
+Cada resposta registra o evento `ai.generate.done` com `model`, `purpose`, `durationMs`, `inputTokens` e
+`outputTokens` ([logs-e-metricas.md](logs-e-metricas.md#outros-eventos)).
 
 ## Serviço `ai`
 
@@ -122,6 +123,53 @@ Grounding do Gemini). Só os itens da cadeia cujo provider declara `nativeSearch
 os outros são **pulados** com um aviso e notificados como `unsupported`, porque responder sem buscar seria inventar. Se nenhum
 atende, `AiUnavailableError`. O plugin [`web-search`](web-search.md) usa isso como fallback do
 Tavily.
+
+## API do dashboard
+
+Duas rotas de leitura em `/api/plugins/ai` (entram no `openapi.json`; exigem `config.read`, a mesma
+da tela Config). Sem `http` no bot, o `ai` loga e segue sem elas. Nenhuma devolve o valor de uma
+chave.
+
+### `GET /api/plugins/ai/catalog`
+
+O que dá para escolher na cadeia. Vem dos providers do ponto `ai.providers` (o de outro plugin
+aparece sozinho) mais os quatro embutidos sem chave:
+
+```jsonc
+{ "providers": [{
+  "id": "google", "name": "Google", "key": "configured",   // configured | env | missing
+  "temperature": { "min": 0, "max": 2 },
+  "models": [{ "id": "gemini-2.5-flash", "audio": true, "nativeSearch": true }]
+}] }
+```
+
+`key: "missing"` traz os modelos do mesmo jeito (a tela pede a chave em vez de esconder a opção).
+O catálogo não restringe a config: `provider:modelo` fora da lista continua valendo. Provider de
+plugin descreve os modelos em `AiProvider.models` (`id`, `audio?`, `nativeSearch?`), a faixa em
+`temperature` e o nome em `label`; tudo opcional.
+
+`env` (chave vinda de `BRIDGER_AI__KEYS__*`) só é detectado se o `ai` estiver em `adminPlugins`
+do bot: a fonte de cada campo da config só chega ao plugin por `ctx.admin`. Sem isso, a chave
+presente aparece como `configured`. Pôr o `ai` em `adminPlugins` só por esse selo dá a ele
+acesso admin inteiro (`setOverrides`, `setSecret`): não é recomendado.
+
+### `GET /api/plugins/ai/status`
+
+Estado de cada modelo, para os selos da tela IA. Sem query, a cadeia principal; com
+`?models=a,b`, os modelos listados (o frontend lê as cadeias por finalidade das configs dos
+plugins):
+
+```jsonc
+{ "models": [
+  { "model": "google:gemini-2.5-flash", "state": "ready", "lastOutcome": "ok", "lastAt": "…" },
+  { "model": "deepseek:deepseek-chat", "state": "cooldown", "until": "…" },
+  { "model": "anthropic:claude-haiku-5-5", "state": "unregistered" }
+] }
+```
+
+`state` é `ready`, `cooldown` (com `until`) ou `unregistered` (sem chave ou plugin desligado).
+`lastOutcome`/`lastAt` são a última tentativa naquele modelo (os valores de `AiAttempt.outcome`),
+em memória: zeram no restart, como o cooldown.
 
 ## Ponto `ai.providers`
 

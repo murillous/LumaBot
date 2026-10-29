@@ -1,8 +1,10 @@
 import { definePlugin, type PluginDefinition } from '@usebridger/core';
 import { z } from 'zod';
+import { type ActionSpec, trackerFor } from '#plugins/action-metrics.ts';
 import { aiTool, fail, mediaMessage, ok } from '#plugins/ai-tools.ts';
 import { attempt, mediaOf, usage } from '#plugins/media-command.ts';
 import { imageToPdf, mergePdfs } from './convert.ts';
+import { PDF_DONE, PDF_FAILED, PDF_REFUSED } from './log-events.ts';
 
 /**
  * Textos ao usuário; a config do bot sobrescreve cada um (`messages`). `{prefix}` é o prefixo do
@@ -27,6 +29,14 @@ const MERGE_MAX_BYTES = 50 * 1024 * 1024;
 const MERGE_TTL_MS = 30 * 60_000;
 const PDF_MIMETYPE = 'application/pdf';
 
+/** Cada PDF no log (`pdf.convert.*`) e em `luma_pdf_*`. */
+const ACTION: ActionSpec = {
+  metric: 'pdf',
+  help: 'PDFs',
+  buckets: [0.1, 0.25, 0.5, 1, 2, 5, 10, 30, 60],
+  events: { done: PDF_DONE, refused: PDF_REFUSED, failed: PDF_FAILED },
+};
+
 interface PendingMerge {
   readonly pdfs: Buffer[];
   bytes: number;
@@ -43,9 +53,12 @@ export function pdf(): PluginDefinition {
     version: '0.0.0',
     engine: '<1.0.0',
     requires: ['media.download', 'send.document'],
+    // Opcional: sem o `metrics` os PDFs seguem, só com o log.
+    optionalDependsOn: { metrics: '*' },
     messages: MESSAGES,
     setup: (ctx) => {
       const fileName = z.string().optional().describe('Nome do arquivo, sem extensão');
+      const track = trackerFor(ACTION, ctx.services);
       ctx.services.contribute(
         'ai.tools',
         aiTool({
@@ -56,9 +69,13 @@ export function pdf(): PluginDefinition {
           run: async ({ fileName = '' }, t) => {
             const source = mediaMessage(t.message, ['image']);
             if (!source) return fail('no-image');
-            await t.reply.document(await imageToPdf(await source.media.download()), {
-              fileName: pdfFileName(fileName, 'imagem.pdf'),
-              mimetype: PDF_MIMETYPE,
+            await track(t.log, 'image', async (step) => {
+              const pdf = await imageToPdf(await source.media.download());
+              await t.reply.document(pdf, {
+                fileName: pdfFileName(fileName, 'imagem.pdf'),
+                mimetype: PDF_MIMETYPE,
+              });
+              step.note({ bytes: pdf.length });
             });
             return ok();
           },
@@ -80,16 +97,21 @@ export function pdf(): PluginDefinition {
             if (pdfs.reduce((sum, a) => sum + (a.size ?? 0), 0) > MERGE_MAX_BYTES) {
               return fail('too-large');
             }
-            const files = await Promise.all(pdfs.map((a) => a.download()));
-            if (files.reduce((sum, f) => sum + f.length, 0) > MERGE_MAX_BYTES) {
-              return fail('too-large');
-            }
-            const merged = await mergePdfs(files);
-            await t.reply.document(merged, {
-              fileName: pdfFileName(fileName, 'pdf-juntado.pdf'),
-              mimetype: PDF_MIMETYPE,
+            const sent = await track(t.log, 'merge', async (step) => {
+              const files = await Promise.all(pdfs.map((a) => a.download()));
+              if (files.reduce((sum, f) => sum + f.length, 0) > MERGE_MAX_BYTES) {
+                step.refuse('too-large');
+                return false;
+              }
+              const merged = await mergePdfs(files);
+              await t.reply.document(merged, {
+                fileName: pdfFileName(fileName, 'pdf-juntado.pdf'),
+                mimetype: PDF_MIMETYPE,
+              });
+              step.note({ bytes: merged.length, pdfs: files.length });
+              return true;
             });
-            return ok();
+            return sent ? ok() : fail('too-large');
           },
         }),
       );
@@ -100,13 +122,14 @@ export function pdf(): PluginDefinition {
         accepts: ['image', 'quoted:image'],
         onReject: usage('pdfUsage'),
         timeoutMs: TIMEOUT_MS,
-        run: (ctx) =>
-          attempt(ctx, async () => {
+        run: (ctx, plugin) =>
+          attempt(ctx, trackerFor(ACTION, plugin.services), 'image', async (step) => {
             const pdf = await imageToPdf(await mediaOf(ctx).download());
             await ctx.reply.document(pdf, {
               fileName: pdfFileName(ctx.rawArgs, 'imagem.pdf'),
               mimetype: PDF_MIMETYPE,
             });
+            step.note({ bytes: pdf.length });
           }),
       },
 
@@ -117,7 +140,8 @@ export function pdf(): PluginDefinition {
         accepts: [`document:${PDF_MIMETYPE}`, `quoted:document:${PDF_MIMETYPE}`, 'text'],
         onReject: (ctx) => ctx.t('mergeUsage'),
         timeoutMs: TIMEOUT_MS,
-        run: async (ctx) => {
+        run: async (ctx, plugin) => {
+          const track = trackerFor(ACTION, plugin.services);
           const key = `${ctx.message.chat.id}:${ctx.message.sender.id}`;
           dropExpired(merges);
           const [action = '', ...rest] = ctx.args;
@@ -130,11 +154,13 @@ export function pdf(): PluginDefinition {
           if (/^(done|pronto|finalizar)$/i.test(action)) {
             const pending = merges.get(key);
             if (!pending || pending.pdfs.length < 2) return ctx.t('mergeNeedMore');
-            const failed = await attempt(ctx, async () => {
-              await ctx.reply.document(await mergePdfs(pending.pdfs), {
+            const failed = await attempt(ctx, track, 'merge', async (step) => {
+              const merged = await mergePdfs(pending.pdfs);
+              await ctx.reply.document(merged, {
                 fileName: pdfFileName(rest.join(' '), 'pdf-juntado.pdf'),
                 mimetype: PDF_MIMETYPE,
               });
+              step.note({ bytes: merged.length, pdfs: pending.pdfs.length });
             });
             // Falhou: a lista fica, para a pessoa tentar de novo ou limpar.
             if (!failed) merges.delete(key);
@@ -147,12 +173,14 @@ export function pdf(): PluginDefinition {
           // Com o tamanho informado, recusa antes de baixar.
           if (pending.bytes + (source.size ?? 0) > MERGE_MAX_BYTES) return ctx.t('mergeFull');
           let reply: string | undefined;
-          const failed = await attempt(ctx, async () => {
+          const failed = await attempt(ctx, track, 'add', async (step) => {
             const pdf = await source.download();
             if (pending.bytes + pdf.length > MERGE_MAX_BYTES) {
+              step.refuse('too-large');
               reply = ctx.t('mergeFull');
               return;
             }
+            step.note({ bytes: pdf.length });
             pending.pdfs.push(pdf);
             pending.bytes += pdf.length;
             pending.expiresAt = Date.now() + MERGE_TTL_MS;

@@ -53,6 +53,12 @@ A tool só cria o `kind` `text`; outros tipos vêm de plugins pelo serviço.
 
 Fuso IANA. A conversão não depende do `TZ` do processo.
 
+## Auditoria
+
+`cancel(chatId, id, actorId?)` grava `reminders.delete` (alvo = lembrete; `details`: `chat`, `actor`,
+`creator`, sem o texto) quando `actorId` existe e é diferente do `creatorId`. Cancelar o próprio
+lembrete não é auditado. `!cancelarlembrete` e a tool `cancel_reminder` passam o remetente.
+
 ## Persistência e entrega
 
 O disparo é um job (`at`) ou uma série (`every`) do scheduler do kernel (`fire`), que sobrevive a

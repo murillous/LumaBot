@@ -1,17 +1,25 @@
 // Contrato do ponto `ai.tools`: só tipos e funções puras, sem depender do plugin `ai`.
 // Cada plugin contribui as próprias tools; a IA lê `list()` e não conhece nenhum plugin.
 
-import type {
-  Capability,
-  JsonObject,
-  JsonValue,
-  Logger,
-  Media,
-  MediaMessageType,
-  Message,
-  Reply,
+import {
+  type Capability,
+  defineLogEvent,
+  type JsonObject,
+  type JsonValue,
+  type Logger,
+  type Media,
+  type MediaMessageType,
+  type Message,
+  type Reply,
 } from '@usebridger/core';
 import { z } from 'zod';
+
+/** Exceção que a tool não traduziu; o modelo recebe só `failed`. */
+export const TOOL_FAILED = defineLogEvent({
+  name: 'ai.tool.failed',
+  level: 'error',
+  message: 'tool da IA falhou',
+});
 
 /** O que a tool recebe da mensagem que originou a chamada da IA. */
 export interface AiToolContext {
@@ -82,7 +90,7 @@ export async function invokeTool(
   try {
     return await tool.run(parsed.data, ctx);
   } catch (err) {
-    ctx.log.error('tool da IA falhou', { err, tool: tool.name });
+    ctx.log.event(TOOL_FAILED, { err, tool: tool.name });
     return fail('failed');
   }
 }

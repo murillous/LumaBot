@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ai } from '#plugins/ai/ai.ts';
 import { fakeProvider, scripted } from '#plugins/ai-testing.ts';
 import { aiToolsProbe, toolResult } from '#plugins/ai-tools-probe.ts';
+import { observedBot } from '#plugins/observe-probe.ts';
 import { formatTavily, TavilyError } from './tavily.ts';
 import { webSearch } from './web-search.ts';
 
@@ -238,5 +239,60 @@ describe('config', () => {
         pluginConfig: { 'web-search': { models: [{ model: 'gemini-flash' }] } },
       }),
     ).rejects.toThrow(/provider:modelo/);
+  });
+});
+
+describe('log e métricas', () => {
+  it('cada backend tentado conta: Tavily sem cota recusa e a nativa responde', async () => {
+    const fetchFn = vi.fn(async () => json({ detail: 'plan limit' }, 432));
+    const o = await observedBot(
+      [
+        ai,
+        fakeProvider({ a: scripted('ok') }, { nativeSearch: true }),
+        webSearch({ fetch: fetchFn as never }),
+        aiToolsProbe,
+      ],
+      {
+        pluginConfig: {
+          ai: { models: [{ model: 'fake:a' }] },
+          'web-search': { tavily: { apiKey: 'tvly-secreta' } },
+        },
+      },
+    );
+    bot = o.bot;
+
+    await search(bot, 'termo secreto');
+
+    expect(o.event('web-search.search.refused')).toMatchObject({ kind: 'tavily', reason: 'quota' });
+    expect(o.event('web-search.search.done')).toMatchObject({ kind: 'native' });
+    expect(JSON.stringify(o.lines)).not.toMatch(/termo secreto|tvly-secreta/);
+    const rows = await o.rows('luma_web_search_total');
+    expect(rows).toHaveLength(2);
+    expect(rows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ labels: { kind: 'tavily', outcome: 'refused' }, value: 1 }),
+        expect.objectContaining({ labels: { kind: 'native', outcome: 'ok' }, value: 1 }),
+      ]),
+    );
+  });
+
+  it('erro de rede no Tavily vira web-search.search.failed', async () => {
+    const fetchFn = vi.fn(async () => {
+      throw new TypeError('fetch failed');
+    });
+    const o = await observedBot([webSearch({ fetch: fetchFn as never }), aiToolsProbe], {
+      pluginConfig: { 'web-search': { tavily: { apiKey: 'tvly-secreta' } } },
+    });
+    bot = o.bot;
+
+    await search(bot);
+
+    expect(o.event('web-search.search.failed')).toMatchObject({
+      kind: 'tavily',
+      err: expect.any(Object),
+    });
+    expect(await o.rows('luma_web_search_total')).toMatchObject([
+      { labels: { kind: 'tavily', outcome: 'error' }, value: 1 },
+    ]);
   });
 });

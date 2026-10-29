@@ -9,6 +9,7 @@ import sharp from 'sharp';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { aiToolsProbe, toolResult } from '#plugins/ai-tools-probe.ts';
 import { checkBinary } from '#plugins/binary.ts';
+import { observedBot } from '#plugins/observe-probe.ts';
 import { stickerConvert } from './sticker-convert.ts';
 
 // A checagem do FFmpeg é a de verdade (o CI o instala); um teste a faz falhar.
@@ -107,5 +108,38 @@ describe('tools', () => {
 
     expect(bot.sentMedia('image')).toHaveLength(0);
     expect(toolResult(bot)).toEqual({ ok: false, error: 'not-offered' });
+  });
+});
+
+describe('log e métricas', () => {
+  it('conversão vira sticker-convert.convert.done e conta por tipo', async () => {
+    const o = await observedBot([stickerConvert]);
+    bot = o.bot;
+
+    await bot.receive({ text: '!i', quoted: { sticker: fixtures.sticker() } });
+
+    expect(o.event('sticker-convert.convert.done')).toMatchObject({
+      kind: 'image',
+      bytes: sentBytes('image').length,
+    });
+    expect(await o.rows('luma_sticker_convert_total')).toMatchObject([
+      { labels: { kind: 'image', outcome: 'ok' }, value: 1 },
+    ]);
+  });
+
+  it('figurinha estática no !gif é recusa, não falha', async () => {
+    const o = await observedBot([stickerConvert]);
+    bot = o.bot;
+
+    await bot.receive({ text: '!gif', quoted: { sticker: fixtures.sticker() } });
+
+    expect(o.event('sticker-convert.convert.refused')).toMatchObject({
+      kind: 'gif',
+      reason: 'not-animated',
+    });
+    expect(await o.rows('luma_sticker_convert_total')).toMatchObject([
+      { labels: { kind: 'gif', outcome: 'refused' }, value: 1 },
+    ]);
+    expect(await o.rows('luma_sticker_convert_seconds')).toEqual([]);
   });
 });
