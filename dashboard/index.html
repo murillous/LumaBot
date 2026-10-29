@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="color-scheme" content="light dark" />
+<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+<title>Luma</title>
+<script>
+  // Tema antes da primeira pintura (o bundle chega depois e causaria flash). A chave é a de
+  // src/lib/theme.ts; sem storage, vale o sistema.
+  try {
+    const t = localStorage.getItem("luma-dashboard-theme");
+    if (t === "light" || t === "dark") document.documentElement.setAttribute("data-theme", t);
+  } catch {
+    document.documentElement.removeAttribute("data-theme");
+  }
+</script>
+</head>
+<body>
+<div id="root"></div>
+<script type="module" src="/src/main.tsx"></script>
+</body>
+</html>

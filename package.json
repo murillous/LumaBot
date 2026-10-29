@@ -13,10 +13,10 @@
     "#*": "./src/*"
   },
   "scripts": {
-    "build": "tsdown",
+    "build": "tsdown && pnpm --filter @lumabot/dashboard build",
     "start": "node --env-file-if-exists=.env dist/main.mjs",
     "dev": "node --env-file-if-exists=.env src/main.ts",
-    "typecheck": "tsc",
+    "typecheck": "tsc && pnpm --filter @lumabot/dashboard typecheck",
     "lint": "biome check",
     "lint:fix": "biome check --write",
     "test": "vitest run"
