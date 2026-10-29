@@ -6,7 +6,7 @@ Consumo, vazão e custo por modelo da cadeia do [`ai`](ai.md). Código em
 O `ai-metrics` **não agrega nem persiste**: contribui um observer ao ponto `ai.observers` (o `ai`
 não muda) que traduz cada tentativa para o serviço `metrics` do `@usebridger/plugin-metrics`. A
 agregação diária, a retenção de 90 dias e o `GET /metrics` do Prometheus (Grafana) são dele, e as
-métricas da IA saem pelo mesmo caminho das do kernel. O app carrega o `metrics` no `main.ts`; para
+métricas da IA saem pelo mesmo caminho das do kernel. O app carrega o `metrics` no `bot.ts`; para
 expor o `/metrics`, o bot precisa da opção `http`. O plugin depende do `metrics`.
 
 ## Métricas
