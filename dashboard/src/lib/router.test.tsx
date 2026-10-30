@@ -186,12 +186,36 @@ it('guarda: recusar um voltar com índice no histórico desfaz com history.go', 
   act(() => navigate('/tela?x=1'));
   act(() => navigate('/tela?x=2'));
   push.mockClear();
+  // O índice do módulo vem acumulado dos testes anteriores: o salto é o índice atual até 0.
+  const at = (history.state as { i: number }).i;
 
   // Voltar para a entrada de índice 0, que o browser deixa na `location`.
   history.replaceState({ i: 0 }, '', '/anterior');
   act(() => {
     window.dispatchEvent(new PopStateEvent('popstate'));
   });
-  expect(go).toHaveBeenCalledWith(expect.any(Number));
+  expect(go).toHaveBeenCalledWith(at);
   expect(push).not.toHaveBeenCalled();
+});
+
+it('guarda: após recarregar, o índice vem do history.state e o go é exato', async () => {
+  vi.resetModules();
+  history.replaceState({ i: 3 }, '', '/tela');
+  const fresh = await import('./router.tsx');
+  function Fresh() {
+    fresh.useLeaveGuard(true, 'Descarta?');
+    return <p>em={fresh.usePath()}</p>;
+  }
+  const { rerender } = render(<Fresh />);
+  confirmWith(false);
+  const go = vi.spyOn(history, 'go').mockImplementation(vi.fn());
+
+  history.replaceState({ i: 2 }, '', '/anterior');
+  act(() => {
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  });
+  expect(go).toHaveBeenCalledWith(1);
+  // Até o `go` terminar a `location` está na tela errada; o caminho aceito segue valendo.
+  rerender(<Fresh />);
+  expect(screen.getByText('em=/tela')).toBeTruthy();
 });

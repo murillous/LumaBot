@@ -26,6 +26,9 @@ let currentUrl = '';
 let index = 0;
 // `navigate` avisa os assinantes com um `popstate` sintético; esse não é o voltar do browser.
 let notifying = false;
+// Entre recusar um voltar e o `history.go` terminar, `location` ainda aponta para a tela de
+// destino; `usePath` devolve a aceita para a tela não piscar a errada.
+let undoing = false;
 
 const pathOf = (url: string): string => url.split(/[?#]/)[0] ?? url;
 const here = (): string => location.pathname + location.search;
@@ -43,7 +46,10 @@ export function confirmLeave(): boolean {
 
 if (typeof window !== 'undefined') {
   currentUrl = here();
-  history.replaceState({ i: 0 }, '');
+  // Recarregar preserva `history.state`: o índice continua valendo e o `go` não erra o salto.
+  const initial = stateIndex();
+  index = initial ?? 0;
+  if (initial === null) history.replaceState({ i: 0 }, '');
   // Registrado antes de qualquer assinante: ao recusar, a URL já foi restaurada quando eles leem.
   window.addEventListener('popstate', (event) => {
     if (notifying) return;
@@ -51,13 +57,17 @@ if (typeof window !== 'undefined') {
     if (guards.length === 0 || pathOf(next) === pathOf(currentUrl) || confirmLeave()) {
       currentUrl = next;
       index = stateIndex() ?? index;
+      undoing = false;
       return;
     }
     event.stopImmediatePropagation();
+    undoing = true;
     const target = stateIndex();
     // Sem índice conhecido (ou igual), o único jeito é empilhar a URL de volta.
-    if (target === null || target === index) history.pushState({ i: index }, '', currentUrl);
-    else history.go(index - target);
+    if (target === null || target === index) {
+      history.pushState({ i: index }, '', currentUrl);
+      undoing = false;
+    } else history.go(index - target);
   });
 }
 
@@ -79,7 +89,8 @@ export function useLeaveGuard(when: boolean, message: string): void {
     window.addEventListener('beforeunload', beforeUnload);
     return () => {
       window.removeEventListener('beforeunload', beforeUnload);
-      guards.splice(guards.indexOf(guard), 1);
+      const at = guards.indexOf(guard);
+      if (at !== -1) guards.splice(at, 1);
     };
   }, [when, message]);
 }
@@ -93,7 +104,9 @@ const subscribe = (notify: () => void): (() => void) => {
 const normalize = (path: string): string => (path.length > 1 ? path.replace(/\/+$/, '') : path);
 
 export function usePath(): string {
-  return normalize(useSyncExternalStore(subscribe, () => location.pathname));
+  return normalize(
+    useSyncExternalStore(subscribe, () => (undoing ? pathOf(currentUrl) : location.pathname)),
+  );
 }
 
 export interface NavigateOptions {
