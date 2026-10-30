@@ -3,7 +3,7 @@ import { type LiveStatus, useLive, useSession } from '#components/context.tsx';
 import { ErrorBoundary } from '#components/ErrorBoundary.tsx';
 import { PageTitle } from '#components/PageTitle.tsx';
 import { Button, Forbidden } from '#components/ui.tsx';
-import { Link, matchPath, usePath } from '#lib/router.tsx';
+import { confirmLeave, Link, matchPath, usePath } from '#lib/router.tsx';
 import { applyTheme, loadTheme, saveTheme, THEMES, type Theme } from '#lib/theme.ts';
 import { ENTRIES, GROUPS, isExternal, resolveRoute } from '#routes.ts';
 
@@ -123,9 +123,11 @@ export function Shell() {
   const trigger = useRef<HTMLButtonElement>(null);
   const aside = useRef<HTMLElement>(null);
   const main = useRef<HTMLElement>(null);
-  const shownPath = useRef(path);
+  const screen = resolveRoute(path)?.entry ?? null;
+  // A tela é a entrada da rota, não o caminho: `/plugins/a` -> `/plugins/b` é a mesma tela.
+  const shownScreen = useRef<typeof screen>(undefined);
 
-  const screenTitle = resolveRoute(path)?.entry.label ?? 'Tela não encontrada';
+  const screenTitle = screen?.label ?? 'Tela não encontrada';
   const focusScreen = () => {
     const target = main.current?.querySelector<HTMLElement>('h1') ?? main.current;
     // `PageTitle` e o `main` têm tabIndex -1: focáveis por código, fora da ordem do Tab.
@@ -133,14 +135,14 @@ export function Shell() {
   };
 
   // Troca de tela: título da aba e, se foi navegação (não o 1º render), foco no título da tela
-  // para o leitor de tela anunciar a mudança.
+  // para o leitor de tela anunciar a mudança. Só o parâmetro mudar não refoca nem mexe no título.
   // biome-ignore lint/correctness/useExhaustiveDependencies: focusScreen só lê refs
   useEffect(() => {
+    const first = shownScreen.current === undefined;
+    shownScreen.current = screen;
     document.title = `${screenTitle} · Luma`;
-    if (shownPath.current === path) return;
-    shownPath.current = path;
-    focusScreen();
-  }, [path, screenTitle]);
+    if (!first) focusScreen();
+  }, [screen, screenTitle]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: focusScreen só lê refs
   useEffect(() => {
@@ -215,7 +217,7 @@ export function Shell() {
         <div className="mt-auto flex flex-col gap-3 px-3">
           <p className="text-help text-muted">{me.name}</p>
           <ThemeButton />
-          <Button onClick={logout}>Sair</Button>
+          <Button onClick={() => confirmLeave() && logout()}>Sair</Button>
         </div>
       </aside>
       <main
@@ -224,7 +226,7 @@ export function Shell() {
         inert={open}
         className="mx-auto w-full min-w-0 max-w-[1100px] px-4 py-6 focus:outline-none md:px-8 md:py-8"
       >
-        <ErrorBoundary key={path}>
+        <ErrorBoundary key={screenTitle} resetKey={path}>
           <Content path={path} />
         </ErrorBoundary>
       </main>

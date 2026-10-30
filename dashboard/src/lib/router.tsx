@@ -2,12 +2,70 @@ import {
   type AnchorHTMLAttributes,
   type MouseEvent,
   type ReactNode,
+  useEffect,
   useMemo,
   useSyncExternalStore,
 } from 'react';
 
 // Roteamento por caminho com a history API, sem lib: o `vite dev` e o `vite preview` já devolvem
 // o index.html para qualquer caminho.
+
+// Guarda de saída: a tela com alteração pendente registra a mensagem; navegar para outra tela,
+// voltar no browser, sair da sessão ou fechar a aba pedem confirmação antes de perder o trabalho.
+let guardMessage: string | null = null;
+// Última URL aceita: o `popstate` do voltar chega com `location` já trocada, então é daqui que se
+// desfaz o recuo quando a pessoa recusa.
+let currentUrl = '';
+// `navigate` avisa os assinantes com um `popstate` sintético; esse não é o voltar do browser.
+let notifying = false;
+
+const pathOf = (url: string): string => url.split(/[?#]/)[0] ?? url;
+
+/** Pergunta se pode sair da tela; sem guarda ativa, já pode. */
+export function confirmLeave(): boolean {
+  return guardMessage === null || window.confirm(guardMessage);
+}
+
+if (typeof window !== 'undefined') {
+  currentUrl = location.pathname + location.search;
+  // Registrado antes de qualquer assinante: ao recusar, a URL já foi restaurada quando eles leem.
+  window.addEventListener('popstate', (event) => {
+    if (notifying) return;
+    const next = location.pathname + location.search;
+    if (
+      guardMessage === null ||
+      pathOf(next) === pathOf(currentUrl) ||
+      window.confirm(guardMessage)
+    ) {
+      currentUrl = next;
+      return;
+    }
+    event.stopImmediatePropagation();
+    history.pushState(null, '', currentUrl);
+  });
+}
+
+/**
+ * Enquanto `when` for verdadeiro, sair desta tela pede confirmação com `message`: link, `navigate`,
+ * voltar do browser, "Sair" e `beforeunload` (fechar a aba, recarregar, link externo).
+ * Mudar só a query (filtro) não conta como sair.
+ */
+export function useLeaveGuard(when: boolean, message: string): void {
+  useEffect(() => {
+    if (!when) return;
+    guardMessage = message;
+    currentUrl = location.pathname + location.search;
+    const beforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', beforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', beforeUnload);
+      if (guardMessage === message) guardMessage = null;
+    };
+  }, [when, message]);
+}
 
 const subscribe = (notify: () => void): (() => void) => {
   window.addEventListener('popstate', notify);
@@ -28,10 +86,17 @@ export interface NavigateOptions {
 
 export function navigate(to: string, { replace = false }: NavigateOptions = {}): void {
   if (to === location.pathname + location.search) return;
+  if (pathOf(to) !== location.pathname && !confirmLeave()) return;
   if (replace) history.replaceState(null, '', to);
   else history.pushState(null, '', to);
   // `pushState` e `replaceState` não disparam `popstate`; avisa quem assina.
-  window.dispatchEvent(new PopStateEvent('popstate'));
+  currentUrl = location.pathname + location.search;
+  notifying = true;
+  try {
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  } finally {
+    notifying = false;
+  }
 }
 
 /** A query string da URL, para telas que guardam filtros nela. */
