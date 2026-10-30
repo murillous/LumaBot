@@ -239,8 +239,8 @@ Quem fez o quê, quando e com que resultado.
 - Tabela: quando, o quê (título legível e a `action` em mono), quem (nome e papel ou origem),
   resultado (palavra colorida). A linha expande: alvo, `details`, seq e hash, "Só esta ação".
 - O título legível de cada `action` sai de um mapa no frontend; ação sem título mostra a própria
-  `action`. As ações da Luma (`luma.persona.set`, `luma.history.clear`, `ai.model.change`,
-  `rank.reset`, `command.owner`, `transport.pairing`) entram com a #404.
+  `action`. As ações da Luma (`luma.persona.set|create|delete`, `luma.history.clear`,
+  `command.owner`, `reminders.delete`, `pairing.session.paired|lost`) entram com a #404.
 
 ## Responsivo
 
