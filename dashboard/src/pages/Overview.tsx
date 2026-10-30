@@ -11,7 +11,7 @@ import { Today } from '#pages/overview/Today.tsx';
  *
  * Falta "Mudanças recentes" (auditoria): o `GET /api/audit` devolve em ordem crescente, então
  * `limit=5` traria as 5 mais antigas. Volta quando o core ganhar `order=desc`
- * (murillous/usebridger#315).
+ * (https://github.com/murillous/usebridger/issues/315).
  */
 export function Overview() {
   const { can } = useSession();

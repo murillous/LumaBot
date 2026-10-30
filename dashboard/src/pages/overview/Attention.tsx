@@ -91,7 +91,8 @@ export function Attention() {
     );
     const more = recent.length - SHOWN_LOGS;
     // Com `next`, o servidor ainda tem linhas além das 50 lidas: o número é piso, não total.
-    const count = data.next === undefined ? `${more}` : `de ${more}`;
+    const rest = Math.max(more, 0);
+    const count = data.next === undefined ? `${rest}` : `de ${rest}`;
     return more > 0 || data.next !== undefined
       ? [
           ...shown,
@@ -108,7 +109,7 @@ export function Attention() {
   const plugins = readSource(usePlugins(canPlugins), 'a lista de plugins', (data) =>
     data.plugins
       // `disabled` é escolha de quem configurou e `dependency-skipped` é consequência de outro
-      // plugin que já aparece na lista: só a falha real entra.
+      // plugin, que aparece aqui se falhou ou foi desligado de propósito: só a falha real entra.
       .filter(
         (p) =>
           p.status === 'skipped' &&

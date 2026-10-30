@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useApi } from '#components/context.tsx';
 import { ok } from '#lib/api.ts';
+import { cooldownRefetch } from './ai-state.ts';
 
 // As leituras da Visão geral. Cada uma é uma query própria: a que falha não derruba as outras, e
 // a cadeia de IA e o "Precisa de atenção" compartilham o mesmo `ai/status`.
@@ -21,8 +22,7 @@ export function useAiStatus(enabled = true) {
     queryKey: ['overview', 'ai-status'],
     enabled,
     // O cooldown acaba sozinho no servidor: enquanto houver modelo em espera, relê a cada 5 s.
-    refetchInterval: (query) =>
-      query.state.data?.models.some((m) => m.state === 'cooldown') ? 5000 : false,
+    refetchInterval: (query) => cooldownRefetch(query.state.data),
     queryFn: () => ok(api.client.GET('/api/plugins/ai/status')),
   });
 }

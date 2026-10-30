@@ -45,9 +45,9 @@ spec.
 ## Estrutura
 
 - `src/routes.ts`: tabela única de telas e menu, com a permissão de cada uma.
-- `src/pages/`: uma tela por arquivo; tela grande pode ter a pasta `src/pages/<tela>/` com as seções
-  e as queries dela (a Visão geral usa `pages/overview/`). Todo título de tela é `<PageTitle>`: o Shell leva o foco
-  até ele quando a rota troca.
+- `src/pages/`: uma tela por arquivo; tela grande pode ter a pasta `src/pages/<tela>/` com as
+  seções e as queries dela (a Visão geral usa `pages/overview/`). Todo título de tela é
+  `<PageTitle>`: o Shell leva o foco até ele quando a rota troca.
 - `src/components/`: base reutilizável (`ui.tsx`), layout (`Shell.tsx`) e contextos (sessão e
   stream de eventos único, `useLiveEvent`).
 - `src/tokens.css`: único lugar com cor literal.
