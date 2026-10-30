@@ -28,7 +28,7 @@ export function Segmented<T extends string>({
     <fieldset
       aria-describedby={describedBy}
       aria-invalid={invalid || undefined}
-      className="m-0 inline-flex min-w-0 flex-wrap gap-1 rounded-field border-0 bg-sunken p-1"
+      className="m-0 inline-flex min-w-0 flex-wrap gap-1 rounded-field border-0 bg-sunken p-1 aria-[invalid=true]:outline-2 aria-[invalid=true]:outline-danger"
     >
       <legend className="sr-only">{label}</legend>
       {options.map((option) => (

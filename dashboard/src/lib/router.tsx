@@ -10,38 +10,54 @@ import {
 // Roteamento por caminho com a history API, sem lib: o `vite dev` e o `vite preview` já devolvem
 // o index.html para qualquer caminho.
 
-// Guarda de saída: a tela com alteração pendente registra a mensagem; navegar para outra tela,
-// voltar no browser, sair da sessão ou fechar a aba pedem confirmação antes de perder o trabalho.
-let guardMessage: string | null = null;
+// Guarda de saída: cada tela com alteração pendente registra um token com a mensagem; navegar
+// para outra tela, voltar no browser, sair da sessão ou fechar a aba pedem confirmação antes de
+// perder o trabalho. Token por guarda (e não só a mensagem) para duas telas com o mesmo texto não
+// desligarem uma à outra no cleanup.
+interface Guard {
+  readonly message: string;
+}
+const guards: Guard[] = [];
 // Última URL aceita: o `popstate` do voltar chega com `location` já trocada, então é daqui que se
 // desfaz o recuo quando a pessoa recusa.
 let currentUrl = '';
+// Posição da entrada atual no histórico, guardada em `history.state`: com ela, recusar um voltar
+// ou avançar desfaz com `history.go` em vez de empilhar uma entrada duplicada.
+let index = 0;
 // `navigate` avisa os assinantes com um `popstate` sintético; esse não é o voltar do browser.
 let notifying = false;
 
 const pathOf = (url: string): string => url.split(/[?#]/)[0] ?? url;
+const here = (): string => location.pathname + location.search;
+const stateIndex = (): number | null => {
+  const state: unknown = history.state;
+  const i = (state as { i?: unknown } | null)?.i;
+  return typeof i === 'number' ? i : null;
+};
 
-/** Pergunta se pode sair da tela; sem guarda ativa, já pode. */
+/** Pergunta se pode sair da tela (usa a mensagem da guarda mais recente); sem guarda, já pode. */
 export function confirmLeave(): boolean {
-  return guardMessage === null || window.confirm(guardMessage);
+  const last = guards.at(-1);
+  return last === undefined || window.confirm(last.message);
 }
 
 if (typeof window !== 'undefined') {
-  currentUrl = location.pathname + location.search;
+  currentUrl = here();
+  history.replaceState({ i: 0 }, '');
   // Registrado antes de qualquer assinante: ao recusar, a URL já foi restaurada quando eles leem.
   window.addEventListener('popstate', (event) => {
     if (notifying) return;
-    const next = location.pathname + location.search;
-    if (
-      guardMessage === null ||
-      pathOf(next) === pathOf(currentUrl) ||
-      window.confirm(guardMessage)
-    ) {
+    const next = here();
+    if (guards.length === 0 || pathOf(next) === pathOf(currentUrl) || confirmLeave()) {
       currentUrl = next;
+      index = stateIndex() ?? index;
       return;
     }
     event.stopImmediatePropagation();
-    history.pushState(null, '', currentUrl);
+    const target = stateIndex();
+    // Sem índice conhecido (ou igual), o único jeito é empilhar a URL de volta.
+    if (target === null || target === index) history.pushState({ i: index }, '', currentUrl);
+    else history.go(index - target);
   });
 }
 
@@ -53,8 +69,9 @@ if (typeof window !== 'undefined') {
 export function useLeaveGuard(when: boolean, message: string): void {
   useEffect(() => {
     if (!when) return;
-    guardMessage = message;
-    currentUrl = location.pathname + location.search;
+    const guard: Guard = { message };
+    guards.push(guard);
+    currentUrl = here();
     const beforeUnload = (event: BeforeUnloadEvent) => {
       event.preventDefault();
       event.returnValue = '';
@@ -62,7 +79,7 @@ export function useLeaveGuard(when: boolean, message: string): void {
     window.addEventListener('beforeunload', beforeUnload);
     return () => {
       window.removeEventListener('beforeunload', beforeUnload);
-      if (guardMessage === message) guardMessage = null;
+      guards.splice(guards.indexOf(guard), 1);
     };
   }, [when, message]);
 }
@@ -82,21 +99,28 @@ export function usePath(): string {
 export interface NavigateOptions {
   /** Troca a entrada atual do histórico em vez de empilhar (redirecionar, ajustar filtro). */
   replace?: boolean;
+  /** Pula a confirmação da guarda de saída (a pessoa já decidiu descartar). */
+  force?: boolean;
 }
 
-export function navigate(to: string, { replace = false }: NavigateOptions = {}): void {
-  if (to === location.pathname + location.search) return;
-  if (pathOf(to) !== location.pathname && !confirmLeave()) return;
-  if (replace) history.replaceState(null, '', to);
-  else history.pushState(null, '', to);
+/** `false` só quando a guarda de saída barrou e a pessoa ficou na tela. */
+export function navigate(
+  to: string,
+  { replace = false, force = false }: NavigateOptions = {},
+): boolean {
+  if (to === here()) return true;
+  if (!force && pathOf(to) !== location.pathname && !confirmLeave()) return false;
+  if (replace) history.replaceState({ i: index }, '', to);
+  else history.pushState({ i: ++index }, '', to);
   // `pushState` e `replaceState` não disparam `popstate`; avisa quem assina.
-  currentUrl = location.pathname + location.search;
+  currentUrl = here();
   notifying = true;
   try {
     window.dispatchEvent(new PopStateEvent('popstate'));
   } finally {
     notifying = false;
   }
+  return true;
 }
 
 /** A query string da URL, para telas que guardam filtros nela. */
@@ -140,16 +164,18 @@ export function matchPath(pattern: string, path: string): Record<string, string>
 type LinkProps = Omit<AnchorHTMLAttributes<HTMLAnchorElement>, 'href'> & {
   to: string;
   children: ReactNode;
+  /** Roda só se a navegação aconteceu (a guarda de saída não barrou). */
+  onNavigate?: () => void;
 };
 
 /** Link interno: navega sem recarregar, mas deixa abrir em nova aba e copiar o endereço. */
-export function Link({ to, onClick, children, ...rest }: LinkProps) {
+export function Link({ to, onClick, onNavigate, children, ...rest }: LinkProps) {
   const click = (event: MouseEvent<HTMLAnchorElement>) => {
     onClick?.(event);
     if (event.defaultPrevented || event.button !== 0) return;
     if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     event.preventDefault();
-    navigate(to);
+    if (navigate(to)) onNavigate?.();
   };
   return (
     <a {...rest} href={to} onClick={click}>

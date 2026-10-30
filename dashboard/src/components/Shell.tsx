@@ -69,7 +69,7 @@ function Menu({ path, onNavigate }: { path: string; onNavigate: () => void }) {
                     <Link
                       to={entry.paths[0]}
                       className={itemClass}
-                      onClick={onNavigate}
+                      onNavigate={onNavigate}
                       aria-current={
                         entry.paths.some((p) => matchPath(p, path)) ? 'page' : undefined
                       }
@@ -226,7 +226,7 @@ export function Shell() {
         inert={open}
         className="mx-auto w-full min-w-0 max-w-[1100px] px-4 py-6 focus:outline-none md:px-8 md:py-8"
       >
-        <ErrorBoundary key={screenTitle} resetKey={path}>
+        <ErrorBoundary key={screen?.paths[0] ?? 'nao-encontrada'} resetKey={path}>
           <Content path={path} />
         </ErrorBoundary>
       </main>

@@ -136,3 +136,62 @@ it('guarda: beforeunload só é cancelado enquanto ativa', () => {
   window.dispatchEvent(after);
   expect(after.defaultPrevented).toBe(false);
 });
+
+it('guarda: duas guardas com a mesma mensagem; desmontar uma não desliga a outra', () => {
+  history.replaceState(null, '', '/tela');
+  const ask = confirmWith(false);
+  const first = render(<Guarded />);
+  render(<Guarded />);
+  first.unmount();
+  act(() => navigate('/outra'));
+  expect(ask).toHaveBeenCalledTimes(1);
+  expect(location.pathname).toBe('/tela');
+});
+
+it('navigate devolve false se a guarda barrou e force pula a confirmação', () => {
+  history.replaceState(null, '', '/tela');
+  const ask = confirmWith(false);
+  render(<Guarded />);
+  expect(navigate('/outra')).toBe(false);
+  expect(navigate('/outra', { force: true })).toBe(true);
+  expect(ask).toHaveBeenCalledTimes(1);
+  expect(location.pathname).toBe('/outra');
+});
+
+it('Link só chama onNavigate se a navegação aconteceu', async () => {
+  history.replaceState(null, '', '/tela');
+  const ask = confirmWith(false);
+  const done = vi.fn();
+  render(
+    <>
+      <Guarded />
+      <Link to="/x" onNavigate={done}>
+        x
+      </Link>
+    </>,
+  );
+  await userEvent.click(screen.getByText('x'));
+  expect(done).not.toHaveBeenCalled();
+  ask.mockReturnValue(true);
+  await userEvent.click(screen.getByText('x'));
+  expect(done).toHaveBeenCalledTimes(1);
+});
+
+it('guarda: recusar um voltar com índice no histórico desfaz com history.go', () => {
+  history.replaceState({ i: 0 }, '', '/tela');
+  render(<Guarded />);
+  confirmWith(false);
+  const go = vi.spyOn(history, 'go').mockImplementation(vi.fn());
+  const push = vi.spyOn(history, 'pushState');
+  act(() => navigate('/tela?x=1'));
+  act(() => navigate('/tela?x=2'));
+  push.mockClear();
+
+  // Voltar para a entrada de índice 0, que o browser deixa na `location`.
+  history.replaceState({ i: 0 }, '', '/anterior');
+  act(() => {
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  });
+  expect(go).toHaveBeenCalledWith(expect.any(Number));
+  expect(push).not.toHaveBeenCalled();
+});
