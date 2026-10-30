@@ -77,10 +77,13 @@ export const OWNER = {
     'plugins.manage',
     'config.read',
     'config.write',
+    'secrets.write',
     'users.manage',
     'keys.manage',
     'audit.read',
     'metrics.read',
+    'pseudonyms.resolve',
+    'auth.on-behalf-of',
   ],
 };
 
