@@ -14,6 +14,9 @@ type Plugin = Schemas['Plugin'];
 
 const PLUGINS = ['plugins'] as const;
 
+// Há tela montada antes nesta sessão: distingue navegação de abrir a URL direto.
+let visited = false;
+
 /** Quem para junto quando `name` desliga: dependentes diretos e indiretos que estão ligados. */
 function dependentsOf(name: string, plugins: readonly Plugin[]): string[] {
   const down = new Set([name]);
@@ -37,6 +40,7 @@ function Row({
   canManage,
   onToggle,
   onNavigate,
+  all,
   busy,
 }: {
   plugin: Plugin;
@@ -44,9 +48,10 @@ function Row({
   canManage: boolean;
   onToggle: (plugin: Plugin, enable: boolean) => void;
   onNavigate: (to: string, event: MouseEvent<HTMLAnchorElement>) => void;
+  all: readonly Plugin[];
   busy: boolean;
 }) {
-  const state = stateOf(plugin);
+  const state = stateOf(plugin, all);
   return (
     <li className="flex items-center justify-between gap-3 py-1">
       <div className="flex min-w-0 flex-col">
@@ -171,14 +176,20 @@ export function Plugins({ params }: PageProps) {
   const [pendingNav, setPendingNav] = useState<string>();
   const [pendingOff, setPendingOff] = useState<{ plugin: Plugin; dependents: string[] }>();
   const card = useRef<HTMLHeadingElement>(null);
-  const lastSelected = useRef(selected);
-  // No celular o card fica abaixo da lista: escolher um plugin leva a vista e o foco até ele.
+  // Abaixo de lg o card fica sob a lista: escolher um plugin leva a vista e o foco até ele. O
+  // Shell foca o h1 a cada troca de caminho, depois do effect da tela; o quadro seguinte garante
+  // que o foco do card vence. No desktop o card está ao lado e o foco no h1 do Shell basta.
   useEffect(() => {
-    if (selected !== undefined && selected !== lastSelected.current) {
+    // O Shell remonta a tela a cada caminho: só a 1ª montagem da sessão (link direto) não conta.
+    const navigated = visited;
+    visited = true;
+    if (selected === undefined || !navigated) return;
+    if (window.matchMedia?.('(min-width: 1024px)').matches) return;
+    const frame = requestAnimationFrame(() => {
       card.current?.scrollIntoView?.({ block: 'start' });
       card.current?.focus();
-    }
-    lastSelected.current = selected;
+    });
+    return () => cancelAnimationFrame(frame);
   }, [selected]);
 
   const plugins = list.data?.plugins ?? [];
@@ -189,6 +200,8 @@ export function Plugins({ params }: PageProps) {
     if (dependents.length > 0) setPendingOff({ plugin, dependents });
     else toggle.mutate({ plugin, enable });
   };
+  // O aviso de alteração pendente cobre só a troca de plugin pela lista; o bloqueio geral de
+  // navegação (menu, voltar) virá no router da Base.
   const requestNav = (to: string, event: MouseEvent<HTMLAnchorElement>) => {
     if (!dirty || to === location.pathname) return;
     event.preventDefault();
@@ -260,6 +273,7 @@ export function Plugins({ params }: PageProps) {
                   busy={toggle.isPending}
                   onToggle={requestToggle}
                   onNavigate={requestNav}
+                  all={plugins}
                 />
               ))}
             </ul>

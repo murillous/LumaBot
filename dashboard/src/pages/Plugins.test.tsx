@@ -323,16 +323,18 @@ describe('revisão', () => {
           body: {
             bootedAt: 1,
             plugins: [
+              plugin('ai', { status: 'skipped', reason: { kind: 'disabled', message: 'off' } }),
               plugin('filho', {
                 status: 'skipped',
-                reason: { kind: 'dependency-skipped', message: 'depende de pai' },
+                dependsOn: { ai: '*' },
+                reason: { kind: 'dependency-skipped', message: 'dependência ignorada: ai' },
               }),
             ],
           },
         }),
       },
     });
-    expect(await screen.findByText('desligado: depende de pai')).toBeTruthy();
+    expect(await screen.findByText('desligado: depende de ai')).toBeTruthy();
     expect(screen.queryByText('falhou no boot')).toBeNull();
   });
 
@@ -407,5 +409,29 @@ describe('revisão', () => {
       prices: { a: 1 },
       modo: 2,
     });
+  });
+
+  it('abaixo de lg o foco vai ao card depois do Shell; no desktop fica no h1', async () => {
+    const user = userEvent.setup();
+    const original = window.matchMedia;
+    const media = (matches: boolean) =>
+      ((query: string) => ({ matches, media: query })) as unknown as typeof window.matchMedia;
+    try {
+      window.matchMedia = media(false);
+      renderApp({ path: '/plugins', routes: routes() });
+      await user.click(await screen.findByRole('link', { name: 'luma' }));
+      await waitFor(() => expect(document.activeElement?.textContent).toBe('luma'));
+      expect(document.activeElement?.tagName).toBe('H2');
+      cleanup();
+
+      window.matchMedia = media(true);
+      renderApp({ path: '/plugins', routes: routes() });
+      await user.click(await screen.findByRole('link', { name: 'luma' }));
+      await waitFor(() => expect(document.activeElement?.tagName).toBe('H1'));
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+      expect(document.activeElement?.tagName).toBe('H1');
+    } finally {
+      window.matchMedia = original;
+    }
   });
 });

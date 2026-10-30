@@ -49,7 +49,7 @@ export interface PluginState {
   note?: string;
 }
 
-export function stateOf(plugin: Plugin): PluginState {
+export function stateOf(plugin: Plugin, all: readonly Plugin[] = []): PluginState {
   if (plugin.status === 'loaded') {
     const warned = (plugin.unregistered ?? []).length > 0;
     return warned ? { on: true, word: { tone: 'warn', text: 'com avisos' } } : { on: true };
@@ -57,7 +57,11 @@ export function stateOf(plugin: Plugin): PluginState {
   if (plugin.reason?.kind === 'disabled') return { on: false };
   // Pulado porque uma dependência está desligada: efeito do desligamento, não falha deste plugin.
   if (plugin.reason?.kind === 'dependency-skipped') {
-    return { on: false, note: `desligado: ${plugin.reason.message}` };
+    // O reason só diz "dependência ignorada: x"; o nome vem do `dependsOn` (as que estão puladas).
+    const deps = Object.keys(plugin.dependsOn ?? {});
+    const skipped = deps.filter((d) => all.some((p) => p.name === d && p.status === 'skipped'));
+    const names = (skipped.length > 0 ? skipped : deps).join(', ');
+    return { on: false, note: names === '' ? 'desligado' : `desligado: depende de ${names}` };
   }
   return {
     on: false,

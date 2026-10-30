@@ -242,8 +242,10 @@ describe('grupos e estado', () => {
       stateOf(
         plugin('a', {
           status: 'skipped',
-          reason: { kind: 'dependency-skipped', message: 'depende de b' },
+          dependsOn: { b: '*', c: '*' },
+          reason: { kind: 'dependency-skipped', message: 'dependência ignorada: b' },
         }),
+        [plugin('b', { status: 'skipped' }), plugin('c')],
       ),
     ).toEqual({ on: false, note: 'desligado: depende de b' });
     expect(

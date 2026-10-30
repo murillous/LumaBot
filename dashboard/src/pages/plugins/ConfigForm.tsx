@@ -342,7 +342,13 @@ function Input({ leaf, ctx }: { leaf: Leaf; ctx: Ctx }) {
                   />
                 )}
                 <input
-                  {...(shown === '' ? props : { 'aria-label': `${leaf.label} (hex)` })}
+                  {...(shown === ''
+                    ? props
+                    : {
+                        'aria-label': `${leaf.label} (hex)`,
+                        'aria-describedby': props['aria-describedby'],
+                        'aria-invalid': props['aria-invalid'],
+                      })}
                   type="text"
                   disabled={disabled}
                   value={typeof value === 'string' ? value : ''}
