@@ -4,7 +4,14 @@ import { StateWord } from '#components/StateWord.tsx';
 import { ExpandRow, Table } from '#components/Table.tsx';
 import { Field, inputClass } from '#components/ui.tsx';
 import { type CatalogProvider, ChainEditor } from './ChainEditor.tsx';
-import { type ChainItem, keyEnvName, type ModelStatus } from './chain.ts';
+import {
+  type ChainItem,
+  keyEnvName,
+  lockedLabel,
+  type ModelStatus,
+  type Sources,
+  schemaHasKey,
+} from './chain.ts';
 
 /** Resumo da seção Fallback de `docs/ai.md`: o que a cadeia faz em cada situação. */
 const FALLBACK_RULES: readonly (readonly [string, string])[] = [
@@ -54,11 +61,14 @@ export function LimitFields({
   value,
   onChange,
   readOnly,
+  locked,
   errors,
 }: {
   value: Limits;
   onChange: (value: Limits) => void;
   readOnly: boolean;
+  /** Campos definidos por env ou arquivo: só leitura, com a origem na ajuda. */
+  locked: Partial<Record<keyof Limits, string>>;
   errors: Partial<Record<keyof Limits, string>>;
 }) {
   const fields = [
@@ -81,14 +91,19 @@ export function LimitFields({
   return (
     <div className="grid gap-4 md:grid-cols-3">
       {fields.map(({ key, label, help }) => (
-        <Field key={key} label={label} help={help} error={errors[key]}>
+        <Field
+          key={key}
+          label={label}
+          help={locked[key] ? `Só leitura: ${locked[key]}.` : help}
+          error={errors[key]}
+        >
           {(props) => (
             <input
               {...props}
               type="text"
               inputMode="decimal"
               value={value[key]}
-              disabled={readOnly}
+              disabled={readOnly || Boolean(locked[key])}
               onChange={(event) => onChange({ ...value, [key]: event.target.value })}
               className={inputClass}
             />
@@ -130,8 +145,11 @@ export function ResourceTable({
   status,
   now,
   readOnly,
+  locked,
   errors,
 }: {
+  /** Plugins cujo `models` vem de env ou arquivo, com a origem. */
+  locked: Readonly<Record<string, string | null>>;
   /** Cadeia própria por plugin; `null` é a ordem principal. */
   own: Readonly<Record<string, readonly ChainItem[] | null>>;
   /** Plugins cuja config não carregou. */
@@ -183,7 +201,7 @@ export function ResourceTable({
               onToggle={() => setOpen(open === plugin ? null : plugin)}
               cells={[
                 nameCell,
-                readOnly ? (
+                readOnly || locked[plugin] ? (
                   <span key="mode">{mode === 'main' ? 'Ordem principal' : 'Própria'}</span>
                 ) : (
                   <Segmented<Mode>
@@ -216,7 +234,9 @@ export function ResourceTable({
                     catalog={catalog}
                     status={status}
                     now={now}
-                    readOnly={readOnly}
+                    readOnly={readOnly || Boolean(locked[plugin])}
+                    locked={locked[plugin] ?? null}
+                    flat
                     errors={errors[plugin] ?? {}}
                   />
                 )
@@ -229,86 +249,113 @@ export function ResourceTable({
   );
 }
 
-/** Uma linha por provedor do catálogo: configurada, pela variável ou sem chave. */
+/** Uma linha por provedor do catálogo: configurada, pela variável, pelo arquivo ou sem chave. */
 export function KeysTable({
   catalog,
   typed,
   onType,
   canWrite,
   secretsWritable,
+  sources,
+  schema,
   errors,
 }: {
   catalog: readonly CatalogProvider[];
   typed: Readonly<Record<string, string>>;
   onType: (provider: string, value: string) => void;
-  /** A pessoa tem `secrets.write`. */
+  /** A pessoa tem `config.write` e `secrets.write`. */
   canWrite: boolean;
   /** O servidor tem chave mestra para guardar segredo. */
   secretsWritable: boolean;
+  /** Fontes da config da IA: env e arquivo valem mais que o catálogo. */
+  sources: Sources;
+  /** JSON Schema da config da IA: só provedor com `keys.properties.<id>` aceita chave aqui. */
+  schema: unknown;
   errors: Readonly<Record<string, string>>;
 }) {
+  const origin = (id: string, fallback: CatalogProvider['key']) => {
+    const locked = lockedLabel('ai', sources, `keys.${id}`);
+    if (locked === null) return fallback === 'env' ? 'env' : null;
+    return locked.includes('arquivo') ? 'file' : 'env';
+  };
+  const anyLocked = catalog.some((p) => origin(p.id, p.key) !== null);
   return (
-    <Table label="Chaves dos provedores">
-      <thead>
-        <tr>
-          <th scope="col">Provedor</th>
-          <th scope="col">Estado</th>
-          {canWrite && <th scope="col">Chave</th>}
-        </tr>
-      </thead>
-      <tbody>
-        {catalog.map((provider) => {
-          const error = errors[`keys.${provider.id}`];
-          const errorId = `key-${provider.id}-error`;
-          return (
-            <tr key={provider.id}>
-              <th scope="row" className="font-medium">
-                {provider.name}
-              </th>
-              <td>
-                {provider.key === 'configured' && <StateWord tone="ok">configurada</StateWord>}
-                {provider.key === 'missing' && <StateWord tone="danger">sem chave</StateWord>}
-                {provider.key === 'env' && (
-                  <span className="text-muted">
-                    pela variável{' '}
-                    <span className="font-mono text-label">{keyEnvName(provider.id)}</span>
-                  </span>
-                )}
-              </td>
-              {canWrite && (
+    <div className="flex flex-col gap-3">
+      {canWrite && anyLocked && (
+        <p className="text-help text-muted">
+          Chave definida por variável ou arquivo é só leitura aqui; para trocá-la, mude a origem.
+        </p>
+      )}
+      {canWrite && !secretsWritable && (
+        <p className="text-help text-muted">
+          O servidor não tem chave mestra: defina as chaves pelas variáveis.
+        </p>
+      )}
+      <Table label="Chaves dos provedores">
+        <thead>
+          <tr>
+            <th scope="col">Provedor</th>
+            <th scope="col">Estado</th>
+            {canWrite && <th scope="col">Chave</th>}
+          </tr>
+        </thead>
+        <tbody>
+          {catalog.map((provider) => {
+            const error = errors[`keys.${provider.id}`];
+            const errorId = `key-${provider.id}-error`;
+            const from = origin(provider.id, provider.key);
+            const editable =
+              canWrite && from === null && secretsWritable && schemaHasKey(schema, provider.id);
+            return (
+              <tr key={provider.id}>
+                <th scope="row" className="font-medium">
+                  {provider.name}
+                </th>
                 <td>
-                  {provider.key === 'env' ? (
-                    <span className="text-help text-muted">só leitura</span>
-                  ) : secretsWritable ? (
-                    <div className="flex flex-col gap-1">
-                      <input
-                        type="password"
-                        autoComplete="new-password"
-                        aria-label={`Chave de ${provider.name}`}
-                        aria-invalid={error ? true : undefined}
-                        aria-describedby={error ? errorId : undefined}
-                        placeholder={provider.key === 'missing' ? 'cole a chave' : 'trocar chave'}
-                        value={typed[provider.id] ?? ''}
-                        onChange={(event) => onType(provider.id, event.target.value)}
-                        className={inputClass}
-                      />
-                      {error && (
-                        <p id={errorId} className="text-help text-danger">
-                          {error}
-                        </p>
-                      )}
-                    </div>
-                  ) : (
-                    <span className="text-help text-muted">
-                      O servidor não tem chave mestra: defina pela variável.
+                  {from === 'env' && (
+                    <span className="text-muted">
+                      pela variável{' '}
+                      <span className="font-mono text-label">{keyEnvName(provider.id)}</span>
                     </span>
                   )}
+                  {from === 'file' && <span className="text-muted">pelo arquivo de config</span>}
+                  {from === null && provider.key === 'missing' && (
+                    <StateWord tone="danger">sem chave</StateWord>
+                  )}
+                  {from === null && provider.key !== 'missing' && (
+                    <StateWord tone="ok">configurada</StateWord>
+                  )}
                 </td>
-              )}
-            </tr>
-          );
-        })}
-      </tbody>
-    </Table>
+                {canWrite && (
+                  <td>
+                    {editable && (
+                      <div className="flex flex-col gap-1">
+                        <input
+                          type="password"
+                          autoComplete="new-password"
+                          aria-label={`Chave de ${provider.name}`}
+                          aria-invalid={error ? true : undefined}
+                          aria-describedby={error ? errorId : undefined}
+                          placeholder={provider.key === 'missing' ? 'cole a chave' : 'trocar chave'}
+                          value={typed[provider.id] ?? ''}
+                          onChange={(event) => onType(provider.id, event.target.value)}
+                          className={inputClass}
+                        />
+                        {error && (
+                          <p id={errorId} className="text-help text-danger">
+                            {error}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                    {!editable && error && <p className="text-help text-danger">{error}</p>}
+                  </td>
+                )}
+              </tr>
+            );
+          })}
+        </tbody>
+      </Table>
+    </div>
   );
 }

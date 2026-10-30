@@ -56,6 +56,8 @@ export function ChainEditor({
   readOnly,
   errors,
   footer,
+  locked,
+  flat,
 }: {
   /** Identifica a cadeia nos rótulos dos botões e dos campos. */
   name: string;
@@ -70,6 +72,10 @@ export function ChainEditor({
   errors: Readonly<Record<string, string>>;
   /** Texto depois da lista (a ordem principal fecha dizendo o que acontece se todos falharem). */
   footer?: string;
+  /** Por que a cadeia só tem leitura ("definido por BRIDGER_AI__MODELS"). */
+  locked?: string | null;
+  /** Dentro de uma tabela: a edição não vira outro card. */
+  flat?: boolean;
 }) {
   const [selected, setSelected] = useState(0);
   const [adding, setAdding] = useState(false);
@@ -91,7 +97,8 @@ export function ChainEditor({
             const isSelected = i === index;
             return (
               <li
-                key={item.model}
+                // biome-ignore lint/suspicious/noArrayIndexKey: a mesma cadeia pode ter o modelo repetido vindo do arquivo; a posição desempata
+                key={`${i}-${item.model}`}
                 className={`flex items-center gap-1 rounded-field border-t border-line first:border-t-0 ${isSelected ? 'bg-raised shadow-e1' : ''}`}
               >
                 <span aria-hidden="true" className="w-8 shrink-0 text-center text-muted">
@@ -157,6 +164,7 @@ export function ChainEditor({
           })}
         </ol>
         {footer && <p className="text-help text-muted">{footer}</p>}
+        {locked && <p className="text-help text-muted">Só leitura: {locked}.</p>}
         {!readOnly && (
           <div className="flex flex-col items-start gap-3">
             <Button aria-expanded={adding} onClick={() => setAdding(!adding)}>
@@ -186,6 +194,8 @@ export function ChainEditor({
           catalog={catalog}
           errors={errors}
           index={index}
+          taken={items.filter((_, i) => i !== index).map((i) => i.model)}
+          flat={flat === true}
           onChange={(item) => onChange(replaceAt(items, index, item))}
         />
       )}
@@ -239,6 +249,8 @@ function PositionEditor({
   catalog,
   errors,
   index,
+  taken,
+  flat,
   onChange,
 }: {
   name: string;
@@ -247,6 +259,9 @@ function PositionEditor({
   catalog: readonly CatalogProvider[];
   errors: Readonly<Record<string, string>>;
   index: number;
+  /** Modelos das outras posições: a mesma cadeia não repete modelo. */
+  taken: readonly string[];
+  flat: boolean;
   onChange: (item: ChainItem) => void;
 }) {
   const id = useId();
@@ -259,10 +274,26 @@ function PositionEditor({
   const tempError = errorOf('temperature');
   const outputError = errorOf('maxOutputTokens');
 
+  // Valor fora dos presets (vindo do arquivo) ganha a própria opção, para não sumir da tela.
+  const outputOptions = [
+    ...OUTPUT_PRESETS.map((v) => ({
+      value: v === undefined ? 'default' : String(v),
+      label: v === undefined ? 'padrão' : fmtNumber(v),
+    })),
+    ...(item.maxOutputTokens !== undefined &&
+    !(OUTPUT_PRESETS as readonly (number | undefined)[]).includes(item.maxOutputTokens)
+      ? [
+          {
+            value: String(item.maxOutputTokens),
+            label: `${fmtNumber(item.maxOutputTokens)} (atual)`,
+          },
+        ]
+      : []),
+  ];
   const providerOptions = catalog.map((p) => ({ value: p.id, label: p.name }));
   const pickProvider = (next: string) => {
     const target = catalog.find((p) => p.id === next);
-    const first = target?.models[0]?.id;
+    const first = target?.models.find((m) => !taken.includes(joinModel(next, m.id)))?.id;
     if (target === undefined || first === undefined) return;
     onChange(changeProvider(item, next, first, target.temperature ?? DEFAULT_TEMPERATURE));
   };
@@ -270,7 +301,7 @@ function PositionEditor({
   return (
     <section
       aria-label={`Edição da posição ${position}, ${name}`}
-      className="flex min-w-0 flex-col gap-4 rounded-card bg-raised p-4 shadow-[var(--e1),var(--top)]"
+      className={`flex min-w-0 flex-col gap-4 ${flat ? 'border-t border-line pt-4' : 'rounded-card bg-raised p-4 shadow-[var(--e1),var(--top)]'}`}
     >
       <h3 className="font-display text-sub font-semibold">Posição {position}</h3>
 
@@ -301,6 +332,15 @@ function PositionEditor({
         {provider === undefined && (
           <p className="text-help text-warn">Provedor fora do catálogo.</p>
         )}
+        {provider?.key === 'missing' && (
+          <p className="text-help text-danger">
+            Sem chave da {provider.name}: esta posição é pulada. Veja{' '}
+            <a href="#chaves" className="underline">
+              Chaves
+            </a>
+            .
+          </p>
+        )}
       </div>
 
       <fieldset
@@ -315,9 +355,15 @@ function PositionEditor({
               type="radio"
               name={`${id}-model`}
               checked={m.id === modelId}
+              disabled={taken.includes(joinModel(providerId, m.id))}
               onChange={() => onChange(withModel(item, joinModel(providerId, m.id)))}
             />
             <span className="break-all font-mono text-label">{m.id}</span>
+            {(m.audio || m.nativeSearch) && (
+              <span className="text-help text-muted">
+                {[m.audio && 'áudio', m.nativeSearch && 'busca nativa'].filter(Boolean).join(', ')}
+              </span>
+            )}
           </label>
         ))}
         {!knownModel && (
@@ -373,6 +419,11 @@ function PositionEditor({
         <p className="text-help text-muted">
           De {fmtNumber(range.min)} a {fmtNumber(range.max)} neste provedor.
         </p>
+        {item.temperature !== undefined && item.temperature > range.max && (
+          <p className="text-help text-warn">
+            Temperatura {fmtNumber(item.temperature)} acima do máximo do provedor.
+          </p>
+        )}
         {tempError && (
           <p id={`${id}-temp-error`} className="text-help text-danger">
             {tempError}
@@ -380,17 +431,15 @@ function PositionEditor({
         )}
       </div>
 
-      <div
-        className="flex flex-col gap-1"
+      <fieldset
+        className="m-0 flex min-w-0 flex-col gap-1 border-0 p-0"
+        aria-invalid={outputError ? true : undefined}
         aria-describedby={outputError ? `${id}-out-error` : undefined}
       >
-        <span className="font-medium">Saída máxima</span>
+        <legend className="mb-1 font-medium">Saída máxima</legend>
         <Segmented
-          label="Saída máxima"
-          options={OUTPUT_PRESETS.map((v) => ({
-            value: v === undefined ? 'default' : String(v),
-            label: v === undefined ? 'padrão' : fmtNumber(v),
-          }))}
+          label="Valores de saída máxima"
+          options={outputOptions}
           value={item.maxOutputTokens === undefined ? 'default' : String(item.maxOutputTokens)}
           onChange={(value) =>
             onChange(withMaxOutput(item, value === 'default' ? undefined : Number(value)))
@@ -401,7 +450,7 @@ function PositionEditor({
             {outputError}
           </p>
         )}
-      </div>
+      </fieldset>
     </section>
   );
 }

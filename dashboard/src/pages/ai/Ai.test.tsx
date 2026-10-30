@@ -53,9 +53,25 @@ const CATALOG = {
   ],
 };
 
-const view = (config: unknown, sources: Record<string, string> = {}) => ({
-  view: { config, messages: {}, sources },
-  schema: {},
+type Cfg = {
+  view: { config: unknown; messages: Record<string, string>; sources: Record<string, string> };
+  schema: unknown;
+  secretsWritable: boolean;
+};
+
+const view = (
+  config: unknown,
+  sources: Record<string, string> = {},
+  messages: Record<string, string> = {},
+): Cfg => ({
+  view: { config, messages, sources },
+  schema: {
+    properties: {
+      keys: {
+        properties: { google: {}, anthropic: {}, openai: {}, deepseek: {} },
+      },
+    },
+  },
   secretsWritable: true,
 });
 
@@ -74,8 +90,8 @@ const AI_CONFIG = (
   );
 
 interface Setup {
-  ai?: ReturnType<typeof AI_CONFIG>;
-  plugins?: Record<string, ReturnType<typeof view>>;
+  ai?: Cfg;
+  plugins?: Record<string, Cfg>;
   put?: Handler;
   extra?: Record<string, Handler>;
 }
@@ -232,7 +248,7 @@ describe('IA: edição da posição', () => {
     const edit = screen.getByRole('region', { name: /Edição da posição 1/ });
     await user.click(within(edit).getByRole('checkbox', { name: 'Padrão do provedor' }));
     await user.click(within(edit).getByRole('button', { name: '2.048' }));
-    await user.click(within(edit).getByRole('radio', { name: 'gemini-2.5-flash-lite' }));
+    await user.click(within(edit).getByRole('radio', { name: /^gemini-2.5-flash-lite/ }));
     await user.click(screen.getByRole('button', { name: 'Salvar alterações' }));
     await waitFor(() => expect(putBody(app)).toBeTruthy());
     expect((putBody(app) as { models: unknown[] }).models[0]).toEqual({
@@ -507,5 +523,174 @@ describe('IA: estados e permissões', () => {
     expect((screen.getByLabelText(/Tempo limite por tentativa/) as HTMLInputElement).disabled).toBe(
       true,
     );
+  });
+});
+
+describe('IA: revisão', () => {
+  const cfg = (extra: Record<string, unknown> = {}) => ({
+    models: [{ model: GEMINI }, { model: 'google:gemini-2.5-flash-lite' }, { model: CLAUDE }],
+    timeoutMs: 60_000,
+    cooldownMs: 30_000,
+    maxToolSteps: 5,
+    ...extra,
+  });
+
+  it('as mensagens em override voltam no corpo do PUT', async () => {
+    const user = userEvent.setup();
+    const app = await open({
+      ai: view(cfg(), { models: 'override', 'messages.oi': 'override' }, { oi: 'Olá' }),
+    });
+    const timeout = screen.getByLabelText(/Tempo limite por tentativa/);
+    await user.clear(timeout);
+    await user.type(timeout, '10');
+    await user.click(screen.getByRole('button', { name: 'Salvar alterações' }));
+    await waitFor(() => expect(putBody(app)).toBeTruthy());
+    expect(putBody(app)).toMatchObject({ messages: { oi: 'Olá' }, timeoutMs: 10_000 });
+  });
+
+  it('chave por variável (fonte da config) é só leitura, mesmo com o catálogo dizendo configurada', async () => {
+    await open({ ai: view(cfg(), { models: 'override', 'keys.google': 'env' }) });
+    const table = screen.getByRole('table', { name: 'Chaves dos provedores' });
+    expect(within(table).getAllByText('BRIDGER_AI__KEYS__GOOGLE')).toHaveLength(1);
+    expect(within(table).queryByLabelText('Chave de Google')).toBeNull();
+  });
+
+  it('só há campo de chave para provedor que o schema declara', async () => {
+    await open({
+      ai: {
+        ...view(cfg(), { models: 'override' }),
+        schema: { properties: { keys: { properties: { google: {} } } } },
+      },
+    });
+    expect(screen.getByLabelText('Chave de Google')).toBeTruthy();
+    expect(screen.queryByLabelText('Chave de DeepSeek')).toBeNull();
+  });
+
+  it('409 de segredo sombreado aparece junto da linha da chave', async () => {
+    const user = userEvent.setup();
+    await open({
+      put: () => ({
+        status: 409,
+        body: {
+          type: 'about:blank',
+          title: 'Conflito',
+          status: 409,
+          errors: [
+            { in: 'body', path: 'keys.deepseek', message: 'definida pela env X', code: 'shadowed' },
+          ],
+        },
+      }),
+    });
+    await user.type(screen.getByLabelText('Chave de DeepSeek'), 'k');
+    await user.click(screen.getByRole('button', { name: 'Salvar alterações' }));
+    expect(await screen.findByText('definida pela env X')).toBeTruthy();
+    expect(screen.getByLabelText('Chave de DeepSeek').getAttribute('aria-invalid')).toBe('true');
+  });
+
+  it('campos definidos por env ou arquivo ficam só leitura com a origem', async () => {
+    await open({ ai: view(cfg(), { models: 'env', timeoutMs: 'file', cooldownMs: 'default' }) });
+    expect(screen.queryByRole('button', { name: /^Subir / })).toBeNull();
+    expect(screen.getByText(/definido por BRIDGER_AI__MODELS/)).toBeTruthy();
+    expect((screen.getByLabelText(/Tempo limite por tentativa/) as HTMLInputElement).disabled).toBe(
+      true,
+    );
+    expect(screen.getByText(/definido pelo arquivo de config/)).toBeTruthy();
+    expect((screen.getByLabelText(/Espera depois do 429/) as HTMLInputElement).disabled).toBe(
+      false,
+    );
+  });
+
+  it('models de recurso por env não deixa trocar a cadeia', async () => {
+    const user = userEvent.setup();
+    await open({
+      plugins: { resumo: view({ models: [{ model: 'openai:gpt-5' }] }, { models: 'env' }) },
+    });
+    expect(screen.queryByRole('group', { name: 'Cadeia de Resumo' })).toBeNull();
+    await user.click(screen.getByRole('button', { name: /^Resumo/ }));
+    expect(screen.getByText(/definido por BRIDGER_RESUMO__MODELS/)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Remover openai:gpt-5' })).toBeNull();
+  });
+
+  it('não repete modelo: o rádio de outra posição fica desabilitado', async () => {
+    const user = userEvent.setup();
+    await open({ ai: view(cfg(), { models: 'override' }) });
+    const edit = screen.getByRole('region', { name: /Edição da posição 1/ });
+    const radio = within(edit).getByRole('radio', { name: /^gemini-2.5-flash-lite/ });
+    expect((radio as HTMLInputElement).disabled).toBe(true);
+    await user.click(within(edit).getByRole('button', { name: 'Anthropic' }));
+    // claude-sonnet-5-5 já está na posição 3: a troca cai no primeiro livre.
+    expect(chainNames()[0]).toBe('anthropic:claude-haiku-5-5');
+  });
+
+  it('a edição dentro da tabela não vira outro card', async () => {
+    const user = userEvent.setup();
+    await open({
+      plugins: { resumo: view({ models: [{ model: GEMINI }] }, { models: 'override' }) },
+    });
+    await user.click(screen.getByRole('button', { name: /^Resumo/ }));
+    const edit = screen.getByRole('region', { name: /Edição da posição 1, Resumo/ });
+    expect(edit.className).not.toContain('shadow');
+    expect(edit.className).toContain('border-t');
+  });
+
+  it('saída máxima fora dos presets ganha a própria opção', async () => {
+    await open({ ai: view(cfg({ models: [{ model: GEMINI, maxOutputTokens: 3000 }] })) });
+    expect(screen.getByRole('button', { name: '3.000 (atual)', pressed: true })).toBeTruthy();
+  });
+
+  it('"Própria" com a principal vazia não deixa alteração pendente', async () => {
+    const user = userEvent.setup();
+    await open({ ai: AI_CONFIG([]) });
+    const group = screen.getByRole('group', { name: 'Cadeia de Conversa' });
+    await user.click(within(group).getByRole('button', { name: 'Própria' }));
+    expect(screen.queryByText('Alterações não salvas')).toBeNull();
+  });
+
+  it('temperatura acima do máximo do provedor avisa sem reescrever', async () => {
+    await open({ ai: view(cfg({ models: [{ model: CLAUDE, temperature: 1.8 }] })) });
+    expect(screen.getByText(/acima do máximo do provedor/)).toBeTruthy();
+    expect(screen.queryByText('Alterações não salvas')).toBeNull();
+  });
+
+  it('posição sem chave avisa e linka a seção Chaves; modelo mostra áudio e busca', async () => {
+    await open({ ai: view(cfg({ models: [{ model: DEEPSEEK }] })) });
+    const edit = screen.getByRole('region', { name: /Edição da posição 1/ });
+    expect(within(edit).getByText(/Sem chave da DeepSeek: esta posição é pulada/)).toBeTruthy();
+    expect(within(edit).getByRole('link', { name: 'Chaves' }).getAttribute('href')).toBe('#chaves');
+  });
+
+  it('o modelo do catálogo mostra áudio e busca nativa em texto', async () => {
+    await open({});
+    const edit = screen.getByRole('region', { name: /Edição da posição 1/ });
+    expect(within(edit).getAllByText('áudio, busca nativa').length).toBeGreaterThan(0);
+  });
+
+  it('a chave some sem config.write, mesmo com secrets.write', async () => {
+    const me = { ...OWNER, permissions: ['config.read', 'secrets.write'] };
+    await open({}, me);
+    expect(screen.queryByLabelText('Chave de DeepSeek')).toBeNull();
+  });
+
+  it('o tempo de espera conta a cada segundo', async () => {
+    renderApp({
+      path: '/ia',
+      routes: routes({
+        extra: {
+          'GET /api/plugins/ai/status': () => ({
+            body: {
+              models: [
+                {
+                  model: CLAUDE,
+                  state: 'cooldown',
+                  until: new Date(Date.now() + 3500).toISOString(),
+                },
+              ],
+            },
+          }),
+        },
+      }),
+    });
+    expect(await screen.findByText('em espera, 4 s')).toBeTruthy();
+    expect(await screen.findByText(/^em espera, [123] s$/, {}, { timeout: 3000 })).toBeTruthy();
   });
 });

@@ -5,15 +5,20 @@ import {
   chainErrorTarget,
   changeProvider,
   clampTemperature,
+  envName,
   keyEnvName,
+  lockedLabel,
   moveItem,
   msToSeconds,
+  normalizeOwn,
   overridesOf,
   parseChain,
   removeAt,
+  schemaHasKey,
   secondsToMs,
   splitModel,
   stateWord,
+  viewOverrides,
 } from './chain.ts';
 
 describe('cadeia', () => {
@@ -177,5 +182,49 @@ describe('apoio', () => {
 
   it('nome da variável da chave', () => {
     expect(keyEnvName('google')).toBe('BRIDGER_AI__KEYS__GOOGLE');
+  });
+});
+
+describe('revisão', () => {
+  it('as mensagens em override entram nos overrides', () => {
+    expect(
+      viewOverrides({
+        config: { a: 1 },
+        messages: { oi: 'Olá', tchau: 'Até' },
+        sources: { a: 'default', 'messages.oi': 'override', 'messages.tchau': 'default' },
+      }),
+    ).toEqual({ messages: { oi: 'Olá' } });
+  });
+
+  it('override sombreado por env ou arquivo não volta no corpo', () => {
+    expect(overridesOf({ a: 1, b: 2 }, { a: 'env', b: 'file' })).toEqual({});
+  });
+
+  it('nome da variável segue a regra do core', () => {
+    expect(envName('web-search', ['quotaCooldownMs'])).toBe(
+      'BRIDGER_WEB_SEARCH__QUOTA_COOLDOWN_MS',
+    );
+  });
+
+  it('diz de onde vem o campo travado', () => {
+    expect(lockedLabel('ai', { timeoutMs: 'env' }, 'timeoutMs')).toBe(
+      'definido por BRIDGER_AI__TIMEOUT_MS',
+    );
+    expect(lockedLabel('ai', { 'models.0.model': 'file' }, 'models')).toBe(
+      'definido pelo arquivo de config',
+    );
+    expect(lockedLabel('ai', { models: 'override' }, 'models')).toBeNull();
+  });
+
+  it('o schema declara a chave do provedor?', () => {
+    const schema = { properties: { keys: { properties: { google: {} } } } };
+    expect(schemaHasKey(schema, 'google')).toBe(true);
+    expect(schemaHasKey(schema, 'openai')).toBe(false);
+    expect(schemaHasKey(null, 'google')).toBe(false);
+  });
+
+  it('cadeia própria vazia vale como a principal', () => {
+    expect(normalizeOwn([])).toBeNull();
+    expect(buildResourceBody({ x: 1 }, [])).toEqual({ x: 1 });
   });
 });

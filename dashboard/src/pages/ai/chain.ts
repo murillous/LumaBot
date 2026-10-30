@@ -1,6 +1,8 @@
 // Lógica pura da tela IA: a cadeia de modelos, o estado em palavra e o corpo do PUT. Sem React,
 // para testar sem montar a tela.
 
+import type { paths } from '#lib/api-types.d.ts';
+
 export interface ChainItem {
   readonly model: string;
   readonly temperature?: number | undefined;
@@ -121,12 +123,8 @@ export function sameChain(a: readonly ChainItem[], b: readonly ChainItem[]): boo
   return JSON.stringify(a.map(normalize)) === JSON.stringify(b.map(normalize));
 }
 
-export type StatusState = 'ready' | 'cooldown' | 'unregistered';
-export interface ModelStatus {
-  readonly model: string;
-  readonly state: StatusState;
-  readonly until?: string | undefined;
-}
+export type ModelStatus =
+  paths['/api/plugins/ai/status']['get']['responses'][200]['content']['application/json']['models'][number];
 
 export type Tone = 'ok' | 'warn' | 'danger';
 
@@ -147,16 +145,57 @@ export function stateWord(
   return { tone: 'ok', text: 'pronto' };
 }
 
-/** Variável de ambiente que define a chave do provedor (convenção do Bridger). */
-export const keyEnvName = (provider: string): string =>
-  `BRIDGER_AI__KEYS__${provider.toUpperCase().replaceAll('-', '_')}`;
+/** `apiKey` vira `API_KEY`, `user-names` vira `USER_NAMES` (mesma regra do core). */
+const envSegment = (name: string): string =>
+  name
+    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+    .replace(/([A-Z])([A-Z][a-z])/g, '$1_$2')
+    .replaceAll('-', '_')
+    .toUpperCase();
 
-type Sources = Readonly<Record<string, string>>;
+/** Variável de ambiente de um campo: `BRIDGER_<PLUGIN>__<CAMPO>[__<SUBCAMPO>]`. */
+export const envName = (plugin: string, path: readonly string[]): string =>
+  [`BRIDGER_${envSegment(plugin)}`, ...path.map(envSegment)].join('__');
+
+export const keyEnvName = (provider: string): string => envName('ai', ['keys', provider]);
+
+export type Sources = Readonly<Record<string, string>>;
+
+/**
+ * Por que o campo não é editável aqui: "definido por <variável>" ou "definido pelo arquivo" quando
+ * a fonte dele (ou de um subcampo) é env ou arquivo; `null` quando o override vale.
+ */
+export function lockedLabel(plugin: string, sources: Sources, path: string): string | null {
+  for (const [key, source] of Object.entries(sources)) {
+    if (key !== path && !key.startsWith(`${path}.`)) continue;
+    if (source === 'env') return `definido por ${envName(plugin, path.split('.'))}`;
+    if (source === 'file') return 'definido pelo arquivo de config';
+  }
+  return null;
+}
+
+/** O schema da config declara a chave do provedor (`keys.properties.<id>`)? */
+export function schemaHasKey(schema: unknown, provider: string): boolean {
+  if (!isRecord(schema) || !isRecord(schema['properties'])) return false;
+  const keys = schema['properties']['keys'];
+  return isRecord(keys) && isRecord(keys['properties']) && provider in keys['properties'];
+}
+
+/** Overrides de uma config vista pela API; as mensagens vêm à parte e também são override. */
+export function viewOverrides(view: {
+  config: unknown;
+  messages: Record<string, string>;
+  sources: Sources;
+}): Record<string, unknown> {
+  const config = isRecord(view.config) ? view.config : {};
+  return overridesOf({ ...config, messages: view.messages }, view.sources);
+}
 
 /**
  * Só o que veio de override: a config que a API devolve é a efetiva (padrão, arquivo, env e
  * override juntos). O PUT substitui os overrides, então regravar o que não era override o
- * fixaria e o campo deixaria de seguir o padrão.
+ * fixaria e o campo deixaria de seguir o padrão. Override sombreado por env ou arquivo tem fonte
+ * `env`/`file`, não `override`: é descartado do corpo (já não valia e o PUT o apagaria).
  */
 export function overridesOf(config: unknown, sources: Sources): Record<string, unknown> {
   const overridden = Object.entries(sources)
@@ -214,7 +253,8 @@ export function buildResourceBody(
 ): Record<string, unknown> {
   const body = { ...overrides };
   delete body['models'];
-  if (own !== null) body['models'] = own;
+  // Cadeia própria vazia (a principal estava vazia ao escolher "Própria") é a ordem principal.
+  if (own !== null && own.length > 0) body['models'] = own;
   return body;
 }
 
@@ -233,3 +273,7 @@ export function secondsToMs(text: string): number | null {
 }
 
 export const msToSeconds = (ms: number): string => String(ms / 1000).replace('.', ',');
+
+/** Cadeia própria vazia vale como ordem principal (`null`). */
+export const normalizeOwn = (own: readonly ChainItem[] | null): readonly ChainItem[] | null =>
+  own !== null && own.length > 0 ? own : null;

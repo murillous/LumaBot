@@ -1,5 +1,5 @@
 import { keepPreviousData, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useApi, useSession } from '#components/context.tsx';
 import { PageTitle } from '#components/PageTitle.tsx';
 import { Button, ErrorNotice, Forbidden, Loading } from '#components/ui.tsx';
@@ -11,12 +11,14 @@ import {
   buildResourceBody,
   type ChainItem,
   isRecord,
+  lockedLabel,
   type ModelStatus,
   msToSeconds,
-  overridesOf,
+  normalizeOwn,
   parseChain,
   sameChain,
   secondsToMs,
+  viewOverrides,
 } from './ai/chain.ts';
 import { useLeaveGuard } from './ai/leave-guard.ts';
 import {
@@ -136,9 +138,6 @@ const limitsOf = (draft: AiDraft): Limits => ({
   steps: String(draft.maxToolSteps),
 });
 
-/** Caminhos do 400 → rótulos por plugin. O caminho pode vir com prefixo de `config.`. */
-const cleanPath = (path: string): string => path.replace(/^(body|config)\./, '');
-
 function AiForm({
   aiConfig,
   catalog,
@@ -189,8 +188,8 @@ function AiForm({
   const unavailable = new Set(RESOURCE_NAMES.filter((n) => resourceConfigs[n]?.view == null));
   const ownChanged = RESOURCE_NAMES.filter((n) => {
     if (unavailable.has(n)) return false;
-    const a = own[n] ?? null;
-    const b = baseOwn[n] ?? null;
+    const a = normalizeOwn(own[n] ?? null);
+    const b = normalizeOwn(baseOwn[n] ?? null);
     return a === null || b === null ? a !== b : !sameChain(a, b);
   });
   const draft: AiDraft = {
@@ -230,7 +229,15 @@ function AiForm({
   const status: Record<string, ModelStatus> = Object.fromEntries(
     (statusQuery.data?.models ?? []).map((m) => [m.model, m]),
   );
-  const now = Date.now();
+  // Com modelo em espera, o "N s" conta a cada segundo.
+  const [now, setNow] = useState(() => Date.now());
+  const cooling = (statusQuery.data?.models ?? []).some((m) => m.state === 'cooldown');
+  useEffect(() => {
+    setNow(Date.now());
+    if (!cooling) return;
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [cooling]);
 
   const edit =
     <T,>(setter: (value: T) => void) =>
@@ -259,10 +266,11 @@ function AiForm({
       failed = true;
       const problem = error as Schemas['Problem'] | undefined;
       const issues = problem?.errors ?? [];
-      if (response.status === 400 && issues.length > 0) {
+      // 409 é o segredo sombreado por env ou arquivo: também vem com o campo no `path`.
+      if ((response.status === 400 || response.status === 409) && issues.length > 0) {
         for (const issue of issues) {
           const byPath = nextErrors[name] ?? {};
-          byPath[cleanPath(issue.path)] = issue.message;
+          byPath[issue.path] = issue.message;
           nextErrors[name] = byPath;
         }
       } else {
@@ -271,13 +279,13 @@ function AiForm({
     };
     try {
       if (aiChanged) {
-        const overrides = overridesOf(aiConfig.view?.config, aiConfig.view?.sources ?? {});
+        const overrides = aiConfig.view ? viewOverrides(aiConfig.view) : {};
         await put(AI, buildAiBody(overrides, base, draft));
       }
       for (const name of ownChanged) {
         if (failed) break;
         const cfg = resourceConfigs[name];
-        const overrides = overridesOf(cfg?.view?.config, cfg?.view?.sources ?? {});
+        const overrides = cfg?.view ? viewOverrides(cfg.view) : {};
         await put(name, buildResourceBody(overrides, own[name] ?? null));
       }
     } catch (error) {
@@ -322,6 +330,24 @@ function AiForm({
   }
 
   const aiErrors = errors[AI] ?? {};
+  const aiSources = aiConfig.view?.sources ?? {};
+  const lockedLimits: Partial<Record<keyof Limits, string>> = {
+    ...(lockedLabel(AI, aiSources, 'timeoutMs') && {
+      timeout: lockedLabel(AI, aiSources, 'timeoutMs') ?? '',
+    }),
+    ...(lockedLabel(AI, aiSources, 'cooldownMs') && {
+      cooldown: lockedLabel(AI, aiSources, 'cooldownMs') ?? '',
+    }),
+    ...(lockedLabel(AI, aiSources, 'maxToolSteps') && {
+      steps: lockedLabel(AI, aiSources, 'maxToolSteps') ?? '',
+    }),
+  };
+  const lockedModels = Object.fromEntries(
+    RESOURCE_NAMES.map((n) => [
+      n,
+      lockedLabel(n, resourceConfigs[n]?.view?.sources ?? {}, 'models'),
+    ]),
+  );
   const placed = (path: string) =>
     /^models(\.|$)/.test(path) ||
     /^keys\./.test(path) ||
@@ -356,8 +382,9 @@ function AiForm({
             catalog={catalog}
             status={status}
             now={now}
-            readOnly={!canWrite}
+            readOnly={!canWrite || Boolean(lockedLabel(AI, aiSources, 'models'))}
             errors={aiErrors}
+            locked={lockedLabel(AI, aiSources, 'models')}
             footer="Se todos falharem, a Luma avisa no chat que está indisponível."
           />
         )}
@@ -370,6 +397,7 @@ function AiForm({
           value={limits}
           onChange={edit(setLimits)}
           readOnly={!canWrite}
+          locked={lockedLimits}
           errors={limitErrors}
         />
       </div>
@@ -388,11 +416,12 @@ function AiForm({
           status={status}
           now={now}
           readOnly={!canWrite}
+          locked={lockedModels}
           errors={errors}
         />
       </div>
 
-      <div className="flex flex-col gap-3">
+      <div id="chaves" className="flex flex-col gap-3">
         {h2('Chaves')}
         <KeysTable
           catalog={catalog}
@@ -401,8 +430,10 @@ function AiForm({
             setSaved(false);
             setKeys({ ...keys, [provider]: value });
           }}
-          canWrite={canKeys}
+          canWrite={canWrite && canKeys}
           secretsWritable={aiConfig.secretsWritable}
+          sources={aiSources}
+          schema={aiConfig.schema}
           errors={aiErrors}
         />
       </div>
