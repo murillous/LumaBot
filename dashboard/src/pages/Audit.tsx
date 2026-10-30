@@ -88,7 +88,8 @@ function AuditScreen() {
           },
         }),
       ),
-    getNextPageParam: (page) => page.next,
+    // Página curta é a última; a API devolve em ordem crescente de seq e o cursor é o último seq.
+    getNextPageParam: (page) => (page.events.length < PAGE_SIZE ? undefined : page.next),
   });
 
   const verify = useMutation({ mutationFn: () => ok(client.POST('/api/audit/verify')) });
@@ -96,7 +97,7 @@ function AuditScreen() {
   const change = (patch: Partial<Filters>) =>
     setSearch(toSearch({ ...filters, ...patch }), { replace: true });
 
-  // "Quem" é do cliente: a API só filtra por id de ator, não por tipo.
+  // "Quem" é do cliente: a API só filtra por id de ator, não por tipo (issue 316 do usebridger, `actorKind`).
   const all = events.data?.pages.flatMap((page) => page.events) ?? [];
   const shown = filters.who === 'todos' ? all : all.filter((event) => whoOf(event) === filters.who);
 
@@ -128,6 +129,11 @@ function AuditScreen() {
           Exportar JSON
         </a>
       </header>
+      {filters.who !== 'todos' && (
+        <p className="text-help text-muted">
+          A exportação leva todos os atores: a API ainda não filtra por tipo de ator.
+        </p>
+      )}
 
       <ChainStatus verify={verify} />
 
@@ -215,9 +221,14 @@ function AuditScreen() {
           {events.isError && (
             <ErrorNotice error={events.error} onRetry={() => void events.fetchNextPage()} />
           )}
+          {/* A API pagina do mais antigo para o mais novo; ordem decrescente é issue 315 do usebridger. */}
+          <p className="text-help text-muted">
+            A lista vai do evento mais antigo para o mais novo no período.
+          </p>
           <div className="flex flex-wrap items-center gap-3">
             <p className="min-w-60 flex-1 text-help text-muted">
               {shown.length} {shown.length === 1 ? 'evento' : 'eventos'}
+              {events.hasNextPage && ' carregados'}
               {filters.action !== '' && ` de ${filters.action}`}. Contatos aparecem pseudonimizados.
             </p>
             {filters.action !== '' && (
@@ -228,7 +239,7 @@ function AuditScreen() {
                 disabled={events.isFetchingNextPage}
                 onClick={() => void events.fetchNextPage()}
               >
-                Mais antigos
+                Carregar mais
               </Button>
             )}
           </div>

@@ -10,10 +10,23 @@ export const OUTCOME: Record<AuditEvent['outcome'], { label: string; tone: Tone 
   error: { label: 'erro', tone: 'danger' },
 };
 
-/** Grupo do filtro "Quem": o plugin age pelo bot, então conta como Sistema. */
+/** A Luma grava o ato do WhatsApp com ator `plugin` e o titular (pseudônimo) em `details`. */
+const HOLDER_KEYS = ['sender', 'contact', 'actor'] as const;
+
+function holderOf(event: AuditEvent): string | undefined {
+  if (event.actor.kind !== 'plugin') return undefined;
+  for (const key of HOLDER_KEYS) {
+    const value = event.details?.[key];
+    if (typeof value === 'string' && value !== '') return value;
+  }
+  return undefined;
+}
+
+/** Grupo do filtro "Quem": plugin sem titular age pelo bot, então conta como Sistema. */
 export function whoOf(event: AuditEvent): Exclude<Who, 'todos'> {
   const kind = event.actor.kind;
-  return kind === 'plugin' ? 'system' : kind;
+  if (kind !== 'plugin') return kind;
+  return holderOf(event) === undefined ? 'system' : 'contact';
 }
 
 /** Nome e origem do ator. O papel não vem no evento, então a origem é o que há para dizer. */
@@ -27,8 +40,12 @@ export function actorOf(event: AuditEvent): { name: string; origin: string } {
       };
     case 'contact':
       return { name: actor.id, origin: `contato, ${actor.transport}` };
-    case 'plugin':
-      return { name: actor.name, origin: 'plugin' };
+    case 'plugin': {
+      const holder = holderOf(event);
+      return holder === undefined
+        ? { name: actor.name, origin: 'plugin' }
+        : { name: holder, origin: `WhatsApp, via ${actor.name}` };
+    }
     case 'system':
       return { name: 'sistema', origin: 'bot' };
   }

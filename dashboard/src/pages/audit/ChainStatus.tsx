@@ -30,7 +30,7 @@ export function ChainStatus({ verify }: { verify: Verification }) {
       text = `Conferida agora, ${checked.toLocaleString('pt-BR')} eventos.`;
       tone = 'ok';
     } else {
-      title = `Cadeia quebrada no #${brokenAt?.seq ?? checked + 1}`;
+      title = brokenAt === undefined ? 'Cadeia quebrada' : `Cadeia quebrada no #${brokenAt.seq}`;
       text = brokenAt?.reason ?? 'Um elo não confere com o hash anterior.';
       tone = 'danger';
     }

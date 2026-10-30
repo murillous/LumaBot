@@ -20,7 +20,7 @@ const event = (seq: number, over: Event = {}): Event => ({
   seq,
   at: '2026-10-29T13:58:00.000Z',
   actor: { kind: 'user', id: 'u1', name: 'Murilo' },
-  action: 'ai.model.change',
+  action: 'luma.persona.set',
   target: { type: 'plugin', id: 'ai' },
   outcome: 'success',
   session: 'default',
@@ -41,14 +41,18 @@ describe('mapa de títulos', () => {
     expect(titleOf('kernel.plugin.disable')).toBe('Desligou um plugin');
     for (const action of [
       'luma.persona.set',
+      'luma.persona.create',
+      'luma.persona.delete',
       'luma.history.clear',
-      'ai.model.change',
-      'rank.reset',
+      'reminders.delete',
+      'pairing.session.paired',
+      'pairing.session.lost',
       'command.owner',
-      'transport.pairing',
     ]) {
       expect(titleOf(action)).not.toBe(action);
     }
+    // Estas nunca foram gravadas pelo código: sem título, aparecem como a própria action.
+    expect(titleOf('rank.reset')).toBe('rank.reset');
     expect(titleOf('plugin.novo.acao')).toBe('plugin.novo.acao');
   });
 });
@@ -56,10 +60,12 @@ describe('mapa de títulos', () => {
 describe('filtros', () => {
   it('ida e volta entre URL e filtros, sem o que é padrão', () => {
     const filters = fromSearch(
-      new URLSearchParams('quem=contact&resultado=denied&acao=rank.reset'),
+      new URLSearchParams('quem=contact&resultado=denied&acao=luma.history.clear'),
     );
     expect(filters).toMatchObject({ who: 'contact', outcome: 'denied', period: '7d' });
-    expect(toSearch(filters).toString()).toBe('quem=contact&resultado=denied&acao=rank.reset');
+    expect(toSearch(filters).toString()).toBe(
+      'quem=contact&resultado=denied&acao=luma.history.clear',
+    );
     expect(fromSearch(new URLSearchParams('quem=xx&periodo=zz')).who).toBe('todos');
   });
 
@@ -99,14 +105,14 @@ describe('tela Auditoria', () => {
       routes: {
         'GET /api/audit': () =>
           page([
-            event(2, { action: 'rank.reset', actor: CONTACT, outcome: 'denied' }),
+            event(2, { action: 'luma.history.clear', actor: CONTACT, outcome: 'denied' }),
             event(1, { action: 'plugin.novo.acao', outcome: 'error' }),
           ]),
       },
     });
     const table = await screen.findByRole('table', { name: 'Eventos' });
-    expect(within(table).getByText('Zerou o ranking')).toBeTruthy();
-    expect(within(table).getByText('rank.reset')).toBeTruthy();
+    expect(within(table).getByText('Limpou o histórico com a Luma')).toBeTruthy();
+    expect(within(table).getByText('luma.history.clear')).toBeTruthy();
     expect(within(table).getByText('u_8f3a')).toBeTruthy();
     expect(within(table).getByText('negado').className).toContain('text-warn');
     expect(within(table).getByText('erro').className).toContain('text-danger');
@@ -137,17 +143,17 @@ describe('tela Auditoria', () => {
   it('abre já filtrada pela URL', async () => {
     let seen: URL | undefined;
     renderApp({
-      path: '/auditoria?resultado=error&periodo=todo&acao=rank.reset',
+      path: '/auditoria?resultado=error&periodo=todo&acao=luma.history.clear',
       routes: {
         'GET /api/audit': ({ url }) => {
           seen = url;
-          return page([event(1, { action: 'rank.reset', outcome: 'error' })]);
+          return page([event(1, { action: 'luma.history.clear', outcome: 'error' })]);
         },
       },
     });
     await screen.findByRole('table', { name: 'Eventos' });
     expect(seen?.searchParams.get('outcome')).toBe('error');
-    expect(seen?.searchParams.get('action')).toBe('rank.reset');
+    expect(seen?.searchParams.get('action')).toBe('luma.history.clear');
     expect(seen?.searchParams.get('from')).toBeNull();
     expect(screen.getByRole('button', { name: 'Erro' }).getAttribute('aria-pressed')).toBe('true');
   });
@@ -158,20 +164,20 @@ describe('tela Auditoria', () => {
       path: '/auditoria',
       routes: {
         'GET /api/audit': () =>
-          page([event(2, { actor: CONTACT, action: 'rank.reset' }), event(1)]),
+          page([event(2, { actor: CONTACT, action: 'luma.history.clear' }), event(1)]),
       },
     });
     await screen.findByRole('table', { name: 'Eventos' });
     await user.click(screen.getByRole('button', { name: 'WhatsApp' }));
     expect(location.search).toBe('?quem=contact');
     const table = screen.getByRole('table', { name: 'Eventos' });
-    expect(within(table).getByText('Zerou o ranking')).toBeTruthy();
-    expect(within(table).queryByText('Mudou o modelo da IA')).toBeNull();
+    expect(within(table).getByText('Limpou o histórico com a Luma')).toBeTruthy();
+    expect(within(table).queryByText('Trocou a persona do chat')).toBeNull();
   });
 
   it('exportar leva os filtros da tela', async () => {
     renderApp({
-      path: '/auditoria?resultado=denied&periodo=todo&acao=rank.reset',
+      path: '/auditoria?resultado=denied&periodo=todo&acao=luma.history.clear',
       routes: { 'GET /api/audit': () => page([event(1)]) },
     });
     await screen.findByRole('table', { name: 'Eventos' });
@@ -182,7 +188,7 @@ describe('tela Auditoria', () => {
     expect(csv.pathname).toBe('/api/audit/export');
     expect(csv.searchParams.get('format')).toBe('csv');
     expect(csv.searchParams.get('outcome')).toBe('denied');
-    expect(csv.searchParams.get('action')).toBe('rank.reset');
+    expect(csv.searchParams.get('action')).toBe('luma.history.clear');
     const json = screen.getByRole('link', { name: 'Exportar JSON' }).getAttribute('href');
     expect(json).toContain('format=json');
   });
@@ -202,7 +208,7 @@ describe('tela Auditoria', () => {
     expect(screen.getByText(/#7 · hash-7/)).toBeTruthy();
 
     await user.click(screen.getByRole('button', { name: 'Só esta ação' }));
-    expect(location.search).toBe('?acao=ai.model.change');
+    expect(location.search).toBe('?acao=luma.persona.set');
     await user.click(await screen.findByRole('button', { name: 'Todas as ações' }));
     expect(location.search).toBe('');
   });
@@ -233,7 +239,7 @@ describe('tela Auditoria', () => {
     fireEvent.click(button);
     await waitFor(() => expect(chain().textContent).toBe('Cadeia íntegra'));
     expect(screen.getByText(/1.288 eventos/)).toBeTruthy();
-    // Enquanto roda o botão fica desabilitado, para não disparar duas verificações.
+    // Terminada, o botão volta a ficar habilitado.
     expect((button as HTMLButtonElement).disabled).toBe(false);
 
     broken = true;
@@ -260,7 +266,7 @@ describe('tela Auditoria', () => {
     expect(screen.getByText('storage fora')).toBeTruthy();
   });
 
-  it('pagina por cursor: "Mais antigos" pede o next e some no fim', async () => {
+  it('pagina por cursor em ordem crescente: "Carregar mais" pede o next e some na página curta', async () => {
     const user = userEvent.setup();
     const seen: (string | null)[] = [];
     renderApp({
@@ -269,18 +275,72 @@ describe('tela Auditoria', () => {
         'GET /api/audit': ({ url }) => {
           const after = url.searchParams.get('after');
           seen.push(after);
-          return after === null
-            ? page([event(3), event(2)], 2)
-            : page([event(1, { action: 'rank.reset' })]);
+          // Contrato real: crescente, página cheia traz next = último seq.
+          if (after === null) {
+            const events = Array.from({ length: 100 }, (_, i) => event(i + 1));
+            return page(events, 100);
+          }
+          return page([event(101, { action: 'luma.history.clear' })]);
         },
       },
     });
     await screen.findByRole('table', { name: 'Eventos' });
-    await user.click(screen.getByRole('button', { name: 'Mais antigos' }));
-    await screen.findByText('Zerou o ranking');
-    expect(seen).toEqual([null, '2']);
-    expect(screen.queryByRole('button', { name: 'Mais antigos' })).toBeNull();
-    expect(screen.getByText(/3 eventos/)).toBeTruthy();
+    expect(screen.getByText(/100 eventos carregados/)).toBeTruthy();
+    expect(screen.getByText(/do evento mais antigo para o mais novo/)).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Carregar mais' }));
+    await screen.findByText('Limpou o histórico com a Luma');
+    expect(seen).toEqual([null, '100']);
+    expect(screen.queryByRole('button', { name: 'Carregar mais' })).toBeNull();
+    expect(screen.getByText(/101 eventos./)).toBeTruthy();
+  });
+
+  it('comando de dono pelo WhatsApp (ator plugin) conta como WhatsApp e mostra o pseudônimo', async () => {
+    const user = userEvent.setup();
+    renderApp({
+      path: '/auditoria',
+      routes: {
+        'GET /api/audit': () =>
+          page([
+            event(2, {
+              actor: { kind: 'plugin', name: 'command' },
+              action: 'command.owner',
+              target: { type: 'chat', id: 'p_ab12' },
+              details: { plugin: 'rank', command: 'reset', status: 'ran', sender: 'p_9f3a' },
+            }),
+            event(1, { actor: { kind: 'plugin', name: 'kernel-x' }, action: 'kernel.boot' }),
+          ]),
+      },
+    });
+    const table = await screen.findByRole('table', { name: 'Eventos' });
+    expect(within(table).getByText('p_9f3a')).toBeTruthy();
+    expect(within(table).getByText('WhatsApp, via command')).toBeTruthy();
+    expect(within(table).getByText('Rodou um comando de dono')).toBeTruthy();
+
+    await user.click(screen.getByRole('button', { name: 'WhatsApp' }));
+    expect(
+      within(screen.getByRole('table', { name: 'Eventos' })).queryByText('Iniciou o bot'),
+    ).toBeNull();
+    expect(screen.getByText(/exportação leva todos os atores/)).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Sistema' }));
+    expect(
+      within(screen.getByRole('table', { name: 'Eventos' })).getByText('Iniciou o bot'),
+    ).toBeTruthy();
+    expect(within(screen.getByRole('table', { name: 'Eventos' })).queryByText('p_9f3a')).toBeNull();
+  });
+
+  it('cadeia quebrada sem brokenAt diz só "Cadeia quebrada"', () => {
+    render(
+      <ChainStatus
+        verify={{
+          isPending: false,
+          isError: false,
+          error: null,
+          data: { ok: false, checked: 5 },
+          mutate: vi.fn(),
+        }}
+      />,
+    );
+    expect(screen.getByRole('status').textContent).toBe('Cadeia quebrada');
   });
 
   it('mostra carregando, vazio e erro com "Tentar de novo"', async () => {

@@ -28,17 +28,14 @@ const TITLES: Readonly<Record<string, string>> = {
   'kernel.connection.pairing-code': 'Pediu um código de pareamento',
   'kernel.connection.logout': 'Desconectou o WhatsApp',
   'kernel.pseudonym.resolve': 'Revelou um contato pseudonimizado',
-  // Luma (#404)
+  // Luma (issue 404)
   'luma.persona.set': 'Trocou a persona do chat',
   'luma.persona.create': 'Criou uma persona do chat',
   'luma.persona.delete': 'Apagou uma persona do chat',
   'luma.history.clear': 'Limpou o histórico com a Luma',
-  'ai.model.change': 'Mudou o modelo da IA',
   'reminders.delete': 'Apagou o lembrete de outra pessoa',
-  'rank.reset': 'Zerou o ranking',
   'command.owner': 'Rodou um comando de dono',
-  'transport.pairing': 'Pareou o WhatsApp',
-  'pairing.session.paired': 'Pareou o WhatsApp de novo',
+  'pairing.session.paired': 'Pareou o WhatsApp',
   'pairing.session.lost': 'Perdeu a sessão do WhatsApp',
 };
 
