@@ -127,6 +127,8 @@ export function navigate(
   else history.pushState({ i: ++index }, '', to);
   // `pushState` e `replaceState` não disparam `popstate`; avisa quem assina.
   currentUrl = here();
+  // Navegar de novo encerra qualquer recusa pendente: `location` volta a ser a verdade.
+  undoing = false;
   notifying = true;
   try {
     window.dispatchEvent(new PopStateEvent('popstate'));
@@ -138,7 +140,9 @@ export function navigate(
 
 /** A query string da URL, para telas que guardam filtros nela. */
 export function useSearch(): URLSearchParams {
-  const search = useSyncExternalStore(subscribe, () => location.search);
+  const search = useSyncExternalStore(subscribe, () =>
+    undoing ? (currentUrl.split('?')[1]?.split('#')[0] ?? '') : location.search.slice(1),
+  );
   return useMemo(() => new URLSearchParams(search), [search]);
 }
 

@@ -198,6 +198,7 @@ it('guarda: recusar um voltar com índice no histórico desfaz com history.go', 
   expect(push).not.toHaveBeenCalled();
 });
 
+// Deve ficar por último: o import dinâmico registra um 2º listener de popstate no window.
 it('guarda: após recarregar, o índice vem do history.state e o go é exato', async () => {
   vi.resetModules();
   history.replaceState({ i: 3 }, '', '/tela');
