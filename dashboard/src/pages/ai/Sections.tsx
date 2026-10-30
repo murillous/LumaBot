@@ -7,7 +7,7 @@ import { type CatalogProvider, ChainEditor } from './ChainEditor.tsx';
 import {
   type ChainItem,
   keyEnvName,
-  lockedLabel,
+  lockedSource,
   type ModelStatus,
   type Sources,
   schemaHasKey,
@@ -274,9 +274,7 @@ export function KeysTable({
   errors: Readonly<Record<string, string>>;
 }) {
   const origin = (id: string, fallback: CatalogProvider['key']) => {
-    const locked = lockedLabel('ai', sources, `keys.${id}`);
-    if (locked === null) return fallback === 'env' ? 'env' : null;
-    return locked.includes('arquivo') ? 'file' : 'env';
+    return lockedSource(sources, `keys.${id}`) ?? (fallback === 'env' ? 'env' : null);
   };
   const anyLocked = catalog.some((p) => origin(p.id, p.key) !== null);
   return (
@@ -347,6 +345,9 @@ export function KeysTable({
                           </p>
                         )}
                       </div>
+                    )}
+                    {from === null && !schemaHasKey(schema, provider.id) && (
+                      <span className="text-help text-muted">chave na config do plugin dele</span>
                     )}
                     {!editable && error && <p className="text-help text-danger">{error}</p>}
                   </td>

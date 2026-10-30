@@ -331,16 +331,16 @@ function AiForm({
 
   const aiErrors = errors[AI] ?? {};
   const aiSources = aiConfig.view?.sources ?? {};
+  const limitLock = (field: string) => lockedLabel(AI, aiSources, field);
+  const [lockTimeout, lockCooldown, lockSteps] = [
+    limitLock('timeoutMs'),
+    limitLock('cooldownMs'),
+    limitLock('maxToolSteps'),
+  ];
   const lockedLimits: Partial<Record<keyof Limits, string>> = {
-    ...(lockedLabel(AI, aiSources, 'timeoutMs') && {
-      timeout: lockedLabel(AI, aiSources, 'timeoutMs') ?? '',
-    }),
-    ...(lockedLabel(AI, aiSources, 'cooldownMs') && {
-      cooldown: lockedLabel(AI, aiSources, 'cooldownMs') ?? '',
-    }),
-    ...(lockedLabel(AI, aiSources, 'maxToolSteps') && {
-      steps: lockedLabel(AI, aiSources, 'maxToolSteps') ?? '',
-    }),
+    ...(lockTimeout && { timeout: lockTimeout }),
+    ...(lockCooldown && { cooldown: lockCooldown }),
+    ...(lockSteps && { steps: lockSteps }),
   };
   const lockedModels = Object.fromEntries(
     RESOURCE_NAMES.map((n) => [

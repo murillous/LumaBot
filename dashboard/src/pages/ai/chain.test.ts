@@ -8,6 +8,7 @@ import {
   envName,
   keyEnvName,
   lockedLabel,
+  lockedSource,
   moveItem,
   msToSeconds,
   normalizeOwn,
@@ -226,5 +227,11 @@ describe('revisão', () => {
   it('cadeia própria vazia vale como a principal', () => {
     expect(normalizeOwn([])).toBeNull();
     expect(buildResourceBody({ x: 1 }, [])).toEqual({ x: 1 });
+  });
+
+  it('expõe a fonte que trava o campo', () => {
+    expect(lockedSource({ 'keys.google': 'env' }, 'keys.google')).toBe('env');
+    expect(lockedSource({ 'keys.google': 'file' }, 'keys')).toBe('file');
+    expect(lockedSource({ models: 'override' }, 'models')).toBeNull();
   });
 });

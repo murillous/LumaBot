@@ -145,7 +145,10 @@ export function stateWord(
   return { tone: 'ok', text: 'pronto' };
 }
 
-/** `apiKey` vira `API_KEY`, `user-names` vira `USER_NAMES` (mesma regra do core). */
+/**
+ * `apiKey` vira `API_KEY`, `user-names` vira `USER_NAMES`. Cópia do `toEnvSegment` do core até a
+ * API devolver o nome da variável (issue 317 do usebridger).
+ */
 const envSegment = (name: string): string =>
   name
     .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
@@ -166,10 +169,17 @@ export type Sources = Readonly<Record<string, string>>;
  * a fonte dele (ou de um subcampo) é env ou arquivo; `null` quando o override vale.
  */
 export function lockedLabel(plugin: string, sources: Sources, path: string): string | null {
+  const source = lockedSource(sources, path);
+  if (source === 'env') return `definido por ${envName(plugin, path.split('.'))}`;
+  if (source === 'file') return 'definido pelo arquivo de config';
+  return null;
+}
+
+/** A fonte que trava o campo (ou um subcampo): variável de ambiente ou arquivo. */
+export function lockedSource(sources: Sources, path: string): 'env' | 'file' | null {
   for (const [key, source] of Object.entries(sources)) {
     if (key !== path && !key.startsWith(`${path}.`)) continue;
-    if (source === 'env') return `definido por ${envName(plugin, path.split('.'))}`;
-    if (source === 'file') return 'definido pelo arquivo de config';
+    if (source === 'env' || source === 'file') return source;
   }
   return null;
 }

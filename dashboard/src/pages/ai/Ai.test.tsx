@@ -564,6 +564,7 @@ describe('IA: revisão', () => {
     });
     expect(screen.getByLabelText('Chave de Google')).toBeTruthy();
     expect(screen.queryByLabelText('Chave de DeepSeek')).toBeNull();
+    expect(screen.getAllByText('chave na config do plugin dele')).toHaveLength(2);
   });
 
   it('409 de segredo sombreado aparece junto da linha da chave', async () => {
@@ -692,5 +693,20 @@ describe('IA: revisão', () => {
     });
     expect(await screen.findByText('em espera, 4 s')).toBeTruthy();
     expect(await screen.findByText(/^em espera, [123] s$/, {}, { timeout: 3000 })).toBeTruthy();
+  });
+
+  it('provedor sem modelo livre avisa em vez de ignorar o clique', async () => {
+    const user = userEvent.setup();
+    await open({
+      ai: view(
+        cfg({
+          models: [{ model: GEMINI }, { model: 'anthropic:claude-haiku-5-5' }, { model: CLAUDE }],
+        }),
+      ),
+    });
+    const edit = screen.getByRole('region', { name: /Edição da posição 1/ });
+    await user.click(within(edit).getByRole('button', { name: 'Anthropic' }));
+    expect(screen.getByText('Todos os modelos da Anthropic já estão na cadeia.')).toBeTruthy();
+    expect(chainNames()[0]).toBe(GEMINI);
   });
 });

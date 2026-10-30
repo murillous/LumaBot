@@ -291,10 +291,17 @@ function PositionEditor({
       : []),
   ];
   const providerOptions = catalog.map((p) => ({ value: p.id, label: p.name }));
+  // Provedor escolhido sem modelo livre: a troca não acontece e a tela diz por quê.
+  const [full, setFull] = useState<string | null>(null);
   const pickProvider = (next: string) => {
     const target = catalog.find((p) => p.id === next);
     const first = target?.models.find((m) => !taken.includes(joinModel(next, m.id)))?.id;
-    if (target === undefined || first === undefined) return;
+    if (target === undefined) return;
+    if (first === undefined) {
+      setFull(target.name);
+      return;
+    }
+    setFull(null);
     onChange(changeProvider(item, next, first, target.temperature ?? DEFAULT_TEMPERATURE));
   };
 
@@ -328,6 +335,9 @@ function PositionEditor({
             value={provider === undefined ? '' : providerId}
             onChange={pickProvider}
           />
+        )}
+        {full && (
+          <p className="text-help text-warn">Todos os modelos da {full} já estão na cadeia.</p>
         )}
         {provider === undefined && (
           <p className="text-help text-warn">Provedor fora do catálogo.</p>
