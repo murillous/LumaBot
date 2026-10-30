@@ -93,6 +93,30 @@ export const LOG_READER = {
   permissions: ['logs.read'],
 };
 
+/** As leituras da Visão geral com o bot saudável: nada pendente e sem métricas. */
+export const OVERVIEW_ROUTES: Record<string, Handler> = {
+  'GET /api/connection': () => ({
+    body: {
+      status: 'open',
+      transport: 'baileys',
+      pairing: false,
+      account: { id: '1', name: 'Luma', phone: null },
+      reconnections: 0,
+    },
+  }),
+  'GET /api/plugins/ai/status': () => ({
+    body: {
+      models: [
+        { model: 'google:gemini-2.5-flash', state: 'ready' },
+        { model: 'deepseek:deepseek-chat', state: 'ready' },
+      ],
+    },
+  }),
+  'GET /api/logs': () => ({ body: { logs: [] } }),
+  'GET /api/plugins': () => ({ body: { bootedAt: 1, plugins: [] } }),
+  'GET /api/plugins/metrics/catalog': () => ({ body: { metrics: [] } }),
+};
+
 export interface RenderedApp {
   readonly calls: Call[];
   /** Os handlers em uso; o teste troca um no meio para simular o bot caindo. */

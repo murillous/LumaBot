@@ -2,7 +2,7 @@
 import { cleanup, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it } from 'vitest';
-import { type Handler, LOG_READER, renderApp } from '#test-support.tsx';
+import { type Handler, LOG_READER, OVERVIEW_ROUTES, renderApp } from '#test-support.tsx';
 
 afterEach(() => {
   cleanup();
@@ -19,30 +19,19 @@ const CONNECTION = {
   reconnections: 0,
 };
 
-const HEALTHY: Record<string, Handler> = {
-  'GET /api/connection': () => ({ body: CONNECTION }),
-  'GET /api/plugins/ai/status': () => ({
-    body: {
-      models: [
-        { model: 'google:gemini-2.5-flash', state: 'ready' },
-        { model: 'deepseek:deepseek-chat', state: 'ready' },
-      ],
-    },
-  }),
-  'GET /api/logs': () => ({ body: { logs: [] } }),
-  'GET /api/plugins': () => ({ body: { bootedAt: 1, plugins: [] } }),
-  'GET /api/audit': () => ({ body: { events: [] } }),
-  'GET /api/plugins/metrics/catalog': () => ({ body: { metrics: [] } }),
-};
+const HEALTHY = OVERVIEW_ROUTES;
 
 const main = () => screen.getByRole('main');
 
 describe('Visão geral', () => {
   it('mostra carregando enquanto as leituras não voltam', async () => {
     renderApp({ routes: HEALTHY });
-    expect(await screen.findByRole('heading', { name: 'Visão geral' })).toBeTruthy();
-    expect(screen.getAllByRole('status').length).toBeGreaterThan(0);
-    await screen.findByText('Nada pendente');
+    const card = (await screen.findByRole('heading', { name: 'Precisa de atenção' })).closest(
+      'section',
+    ) as HTMLElement;
+    expect(within(card).getByRole('status').textContent).toBe('Carregando…');
+    expect(within(card).queryByText('Nada pendente')).toBeNull();
+    await within(card).findByText('Nada pendente');
   });
 
   it('sem pendência, uma linha "Nada pendente"', async () => {
@@ -60,15 +49,13 @@ describe('Visão geral', () => {
       '/api/connection',
       '/api/plugins/ai/status',
       '/api/plugins',
-      '/api/audit',
       '/api/plugins/metrics/catalog',
     ]) {
       expect(paths).not.toContain(path);
     }
     expect(screen.queryByText('WhatsApp')).toBeNull();
-    expect(screen.queryByRole('heading', { name: 'Hoje' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Hoje (UTC)' })).toBeNull();
     expect(screen.queryByRole('heading', { name: 'Cadeia de IA' })).toBeNull();
-    expect(screen.queryByRole('heading', { name: 'Mudanças recentes' })).toBeNull();
   });
 
   it('sem nenhuma permissão de leitura, só o título', async () => {
@@ -138,6 +125,51 @@ describe('Visão geral', () => {
       expect(call).toBeTruthy();
     });
 
+    it('mostra 5 avisos e "e mais N"; com cursor de próxima página, "e mais de N"', async () => {
+      const lines = Array.from({ length: 8 }, (_, i) => ({
+        level: 'warn',
+        time: 1000 + i,
+        message: `aviso ${i}`,
+        fields: {},
+      }));
+      renderApp({
+        routes: { ...HEALTHY, 'GET /api/logs': () => ({ body: { logs: lines } }) },
+      });
+      const more = await screen.findByText('e mais 3 avisos e erros nas últimas 24 h');
+      expect(within(more.closest('li') as HTMLElement).getByRole('link').textContent).toBe(
+        'Ver logs',
+      );
+      expect(screen.queryByText('aviso 2')).toBeNull();
+      cleanup();
+      renderApp({
+        routes: { ...HEALTHY, 'GET /api/logs': () => ({ body: { logs: lines, next: 99 } }) },
+      });
+      expect(await screen.findByText('e mais de 3 avisos e erros nas últimas 24 h')).toBeTruthy();
+    });
+
+    it('dependência ignorada por causa de outro plugin não conta como falha', async () => {
+      renderApp({
+        routes: {
+          ...HEALTHY,
+          'GET /api/plugins': () => ({
+            body: {
+              bootedAt: 1,
+              plugins: [
+                {
+                  name: 'rank',
+                  version: '1',
+                  origin: 'x',
+                  status: 'skipped',
+                  reason: { kind: 'dependency-skipped', message: 'depende' },
+                },
+              ],
+            },
+          }),
+        },
+      });
+      expect(await screen.findByText('Nada pendente')).toBeTruthy();
+    });
+
     it('plugin que falhou no boot leva ao plugin; o desabilitado por config não conta', async () => {
       renderApp({
         routes: {
@@ -174,6 +206,7 @@ describe('Visão geral', () => {
   });
 
   describe('Hoje', () => {
+    const wheres: string[][] = [];
     const metricsRoutes = (names: string[]): Record<string, Handler> => ({
       ...HEALTHY,
       'GET /api/plugins/metrics/catalog': () => ({
@@ -189,20 +222,32 @@ describe('Visão geral', () => {
       }),
       'GET /api/plugins/metrics/query': ({ url }) => {
         const name = url.searchParams.get('name');
-        const where = url.searchParams.get('where');
-        const value = name === 'ai_attempts_total' ? 7 : where === 'status:error' ? 3 : 1520;
+        const where = url.searchParams.getAll('where');
+        wheres.push(where);
+        const value =
+          name === 'ai_attempts_total'
+            ? 7
+            : where.includes('status:failed')
+              ? 3
+              : where.includes('status:timeout')
+                ? 2
+                : 1520;
         return { body: { rows: [{ type: 'counter', period: 'x', labels: {}, value }] } };
       },
     });
 
     it('mostra em linha só o que o catálogo tem', async () => {
       renderApp({ routes: metricsRoutes(['bridger_messages_handled_total']) });
-      const today = (await screen.findByRole('heading', { name: 'Hoje' })).closest(
+      const today = (await screen.findByRole('heading', { name: 'Hoje (UTC)' })).closest(
         'section',
       ) as HTMLElement;
       await within(today).findByText('1.520');
       expect(within(today).getByText('Mensagens')).toBeTruthy();
-      expect(within(today).getByText('Erros')).toBeTruthy();
+      // Erros = failed + timeout, duas consultas somadas.
+      const errors = within(today).getByText('Erros');
+      await waitFor(() => expect(errors.nextElementSibling?.textContent).toBe('5'));
+      expect(wheres).toContainEqual(['status:failed']);
+      expect(wheres).toContainEqual(['status:timeout']);
       expect(within(today).queryByText('Respostas da IA')).toBeNull();
       expect(within(today).queryByText('Custo')).toBeNull();
     });
@@ -215,6 +260,27 @@ describe('Visão geral', () => {
       expect(label.tagName).toBe('DT');
       expect((label.nextElementSibling as HTMLElement).textContent).toBe('…');
       await waitFor(() => expect((label.nextElementSibling as HTMLElement).textContent).toBe('7'));
+      expect(wheres).toContainEqual(['outcome:ok']);
+    });
+
+    it('indicador que falha mostra a mensagem e tenta de novo só ele', async () => {
+      const user = userEvent.setup();
+      let fail = true;
+      renderApp({
+        routes: {
+          ...metricsRoutes(['bridger_messages_handled_total', 'ai_attempts_total']),
+          'GET /api/plugins/metrics/query': ({ url }) =>
+            url.searchParams.get('name') === 'ai_attempts_total' && fail
+              ? { status: 500, body: problem('métrica fora do ar') }
+              : { body: { rows: [{ type: 'counter', period: 'x', labels: {}, value: 4 }] } },
+        },
+      });
+      const retry = await screen.findByRole('button', { name: 'Tentar de novo: Respostas da IA' });
+      const dd = retry.closest('dd') as HTMLElement;
+      expect(within(dd).getByRole('alert').textContent).toContain('métrica fora do ar');
+      fail = false;
+      await user.click(retry);
+      await waitFor(() => expect(dd.textContent).toBe('4'));
     });
   });
 
@@ -235,7 +301,7 @@ describe('Visão geral', () => {
     });
   });
 
-  describe('Cadeia e auditoria', () => {
+  describe('Cadeia de IA', () => {
     it('lista a cadeia numerada com o estado em palavra e link para editar', async () => {
       renderApp({
         routes: {
@@ -260,45 +326,6 @@ describe('Visão geral', () => {
       ]);
       expect(within(chain).getByRole('link', { name: 'Editar' }).getAttribute('href')).toBe('/ia');
     });
-
-    it('mostra a action em mono das mudanças recentes e leva à auditoria', async () => {
-      const app = renderApp({
-        routes: {
-          ...HEALTHY,
-          'GET /api/audit': () => ({
-            body: {
-              events: [
-                {
-                  v: 1,
-                  eventId: 'e1',
-                  seq: 1,
-                  at: '2026-10-29T10:00:00.000Z',
-                  actor: { kind: 'user', id: 'u1', name: 'Dona' },
-                  action: 'ai.model.change',
-                  outcome: 'success',
-                  session: 's',
-                  actorId: 'u1',
-                  prevHash: '',
-                  hash: 'h',
-                },
-              ],
-            },
-          }),
-        },
-      });
-      const action = await screen.findByText('ai.model.change');
-      expect(action.className).toContain('font-mono');
-      expect(within(main()).getByText(/Dona/)).toBeTruthy();
-      expect(screen.getByRole('link', { name: 'Ver auditoria' }).getAttribute('href')).toBe(
-        '/auditoria',
-      );
-      expect(app.calls.find((c) => c.path === '/api/audit')).toBeTruthy();
-    });
-
-    it('auditoria vazia diz que não há mudança', async () => {
-      renderApp({ routes: HEALTHY });
-      expect(await screen.findByText('Nenhuma mudança registrada.')).toBeTruthy();
-    });
   });
 
   describe('erro por seção', () => {
@@ -308,27 +335,24 @@ describe('Visão geral', () => {
       const app = renderApp({
         routes: {
           ...HEALTHY,
-          'GET /api/audit': () =>
+          'GET /api/plugins/ai/status': () =>
             fail
-              ? { status: 500, body: problem('auditoria fora do ar') }
-              : { body: { events: [] } },
+              ? { status: 500, body: problem('ia fora do ar') }
+              : { body: { models: [{ model: 'google:gemini-2.5-flash', state: 'ready' }] } },
         },
       });
-      const audit = (await screen.findByRole('heading', { name: 'Mudanças recentes' })).closest(
+      const chain = (await screen.findByRole('heading', { name: 'Cadeia de IA' })).closest(
         'section',
       ) as HTMLElement;
-      expect((await within(audit).findByRole('alert')).textContent).toContain(
-        'auditoria fora do ar',
-      );
+      expect((await within(chain).findByRole('alert')).textContent).toContain('ia fora do ar');
       // As outras seguem de pé.
       expect(await within(main()).findByText('conectado')).toBeTruthy();
-      expect(await screen.findByText('Nada pendente')).toBeTruthy();
-      expect(screen.getByRole('heading', { name: 'Cadeia de IA' })).toBeTruthy();
+      expect(screen.getByRole('heading', { name: 'Hoje (UTC)' })).toBeTruthy();
 
       fail = false;
-      await user.click(within(audit).getByRole('button', { name: 'Tentar de novo' }));
-      expect(await within(audit).findByText('Nenhuma mudança registrada.')).toBeTruthy();
-      expect(app.calls.filter((c) => c.path === '/api/audit').length).toBe(2);
+      await user.click(within(chain).getByRole('button', { name: 'Tentar de novo' }));
+      expect(await within(chain).findByText('google:gemini-2.5-flash')).toBeTruthy();
+      expect(app.calls.filter((c) => c.path === '/api/plugins/ai/status').length).toBe(2);
     });
 
     it('fonte do card que falha mostra o erro e não vira "Nada pendente"', async () => {

@@ -3,13 +3,16 @@ import { Chip } from '#components/Chip.tsx';
 import { useSession } from '#components/context.tsx';
 import type { Tone } from '#components/StateWord.tsx';
 import { Card, ErrorNotice, Loading } from '#components/ui.tsx';
+import { secondsUntil } from './ai-state.ts';
 import { useAiStatus, usePlugins, useRecentProblems } from './queries.ts';
 import { PageLink, Section } from './Remote.tsx';
 
 interface Item {
   readonly key: string;
-  readonly tone: Tone;
-  readonly chip: string;
+  /** Sem `chip`, a linha é só texto (o "e mais N" dos logs). */
+  readonly tone?: Tone;
+  readonly chip?: string;
+  readonly clamp?: boolean;
   readonly text: string;
   readonly mono?: boolean;
   readonly to: string;
@@ -17,10 +20,6 @@ interface Item {
 }
 
 const SHOWN_LOGS = 5;
-
-/** Quantos segundos faltam até `until`; o `ai/status` manda o fim do cooldown em ISO. */
-const secondsUntil = (until: string): number =>
-  Math.max(0, Math.ceil((Date.parse(until) - Date.now()) / 1000));
 
 /** Uma fonte do card: o que ela leu ou o erro dela, sem derrubar as outras. */
 function readSource<T>(
@@ -85,19 +84,20 @@ export function Attention() {
         tone: line.level === 'warn' ? 'warn' : 'danger',
         chip: line.level === 'warn' ? 'Aviso' : 'Erro',
         text: line.message,
+        clamp: true,
         to: '/logs',
         link: 'Ver logs',
       }),
     );
     const more = recent.length - SHOWN_LOGS;
-    return more > 0
+    // Com `next`, o servidor ainda tem linhas além das 50 lidas: o número é piso, não total.
+    const count = data.next === undefined ? `${more}` : `de ${more}`;
+    return more > 0 || data.next !== undefined
       ? [
           ...shown,
           {
             key: 'log-more',
-            tone: 'info',
-            chip: 'Mais',
-            text: `e mais ${more} avisos e erros nas últimas 24 h`,
+            text: `e mais ${count} avisos e erros nas últimas 24 h`,
             to: '/logs',
             link: 'Ver logs',
           },
@@ -107,8 +107,14 @@ export function Attention() {
 
   const plugins = readSource(usePlugins(canPlugins), 'a lista de plugins', (data) =>
     data.plugins
-      // `disabled` é escolha de quem configurou; o resto é plugin que não subiu.
-      .filter((p) => p.status === 'skipped' && p.reason?.kind !== 'disabled')
+      // `disabled` é escolha de quem configurou e `dependency-skipped` é consequência de outro
+      // plugin que já aparece na lista: só a falha real entra.
+      .filter(
+        (p) =>
+          p.status === 'skipped' &&
+          p.reason?.kind !== 'disabled' &&
+          p.reason?.kind !== 'dependency-skipped',
+      )
       .map(
         (p): Item => ({
           key: `plugin-${p.name}`,
@@ -143,8 +149,10 @@ export function Attention() {
                 key={item.key}
                 className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 first:pt-0 last:pb-0"
               >
-                <Chip tone={item.tone}>{item.chip}</Chip>
-                <span className={`min-w-0 break-words ${item.mono ? 'font-mono text-label' : ''}`}>
+                {item.chip && item.tone && <Chip tone={item.tone}>{item.chip}</Chip>}
+                <span
+                  className={`min-w-0 break-words ${item.mono ? 'font-mono text-label' : ''} ${item.clamp ? 'line-clamp-2' : ''}`}
+                >
                   {item.text}
                 </span>
                 <span className="ml-auto">

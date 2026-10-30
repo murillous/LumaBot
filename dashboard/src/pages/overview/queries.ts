@@ -20,6 +20,9 @@ export function useAiStatus(enabled = true) {
   return useQuery({
     queryKey: ['overview', 'ai-status'],
     enabled,
+    // O cooldown acaba sozinho no servidor: enquanto houver modelo em espera, relê a cada 5 s.
+    refetchInterval: (query) =>
+      query.state.data?.models.some((m) => m.state === 'cooldown') ? 5000 : false,
     queryFn: () => ok(api.client.GET('/api/plugins/ai/status')),
   });
 }
@@ -47,14 +50,6 @@ export function useRecentProblems(enabled: boolean) {
           },
         }),
       ),
-  });
-}
-
-export function useRecentAudit() {
-  const api = useApi();
-  return useQuery({
-    queryKey: ['overview', 'audit'],
-    queryFn: () => ok(api.client.GET('/api/audit', { params: { query: { limit: 5 } } })),
   });
 }
 

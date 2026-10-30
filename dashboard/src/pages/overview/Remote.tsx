@@ -25,14 +25,7 @@ export function Section({
 }
 
 /** Link de texto com alvo de toque de 44 px. */
-export function PageLink({
-  to,
-
-  children,
-}: {
-  to: string;
-  children: ReactNode;
-}) {
+export function PageLink({ to, children }: { to: string; children: ReactNode }) {
   return (
     <Link to={to} className="inline-flex min-h-11 items-center underline">
       {children}

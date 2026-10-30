@@ -15,7 +15,7 @@ const STATUS: Record<Connection['status'], { tone: Tone; word: string }> = {
   closed: { tone: 'danger', word: 'desconectado' },
 };
 
-function isStatusEvent(data: unknown): data is Pick<Connection, 'status' | 'reason'> {
+function isStatusEvent(data: unknown): data is Schemas['ConnectionStatusEvent']['data'] {
   return (
     typeof data === 'object' &&
     data !== null &&
