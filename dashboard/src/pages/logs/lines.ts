@@ -147,3 +147,25 @@ export function asLogLine(data: unknown): LogLine | null {
 
 export const formatTime = (time: number): string =>
   new Date(time).toLocaleTimeString('pt-BR', { hour12: false });
+
+export interface Stream {
+  /** Linhas do stream, da mais nova para a mais antiga. */
+  live: readonly LogLine[];
+  /** O que chegou com a tela pausada; entra de uma vez ao retomar. */
+  pending: readonly LogLine[];
+  paused: boolean;
+}
+
+export type StreamAction = { type: 'line'; line: LogLine } | { type: 'toggle' };
+
+// Um reducer só: chegar linha e pausar/retomar mexem juntos em `live`, `pending` e `paused`.
+export function streamReducer(state: Stream, action: StreamAction): Stream {
+  if (action.type === 'line') {
+    return state.paused
+      ? { ...state, pending: [action.line, ...state.pending].slice(0, BUFFER_LINES) }
+      : { ...state, live: [action.line, ...state.live].slice(0, BUFFER_LINES) };
+  }
+  return state.paused
+    ? { live: [...state.pending, ...state.live].slice(0, BUFFER_LINES), pending: [], paused: false }
+    : { ...state, paused: true };
+}

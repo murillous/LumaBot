@@ -244,28 +244,34 @@ describe('Logs', () => {
     expect(calls[0]?.searchParams.get('limit')).toBe('1000');
   });
 
-  it('o total carregado nunca passa de 1.000, ao vivo ou retomando de uma pausa', async () => {
+  it('reconexão com a tela pausada só relê o histórico ao retomar', async () => {
     const user = userEvent.setup();
-    // O filtro esconde a tabela: renderizar 1.000 linhas a cada evento seria o teste mais lento.
-    const app = renderApp({ path: '/logs?q=zzz', routes: logsRoute() });
-    await screen.findByText('Nenhuma linha com esses filtros');
+    const calls: URL[] = [];
+    const app = renderApp({ path: '/logs', routes: logsRoute(calls) });
+    await screen.findByText('yt-dlp saiu com código 1');
     app.stream().open();
-    const fresh = (n: number) => ({
-      level: 'info',
-      time: T0 + 10000 + n,
-      message: `n${n}`,
-      fields: {},
-    });
-    for (let n = 0; n < 1005; n++) app.stream().emit('log', fresh(n));
-    expect(screen.getByRole('button', { name: 'debug 1.000' })).toBeTruthy();
-
     await user.click(screen.getByRole('button', { name: 'Pausar' }));
-    for (let n = 2000; n < 3005; n++) app.stream().emit('log', fresh(n));
-    await user.click(
-      screen.getByRole('button', { name: /Retomar \(1\.?000 novas\)|Retomar \(1000 novas\)/ }),
-    );
-    expect(screen.getByRole('button', { name: 'debug 1.000' })).toBeTruthy();
-  }, 30_000);
+    app.stream().fail();
+    app.stream().open();
+    expect(calls).toHaveLength(1);
+    await user.click(screen.getByRole('button', { name: 'Retomar' }));
+    await waitFor(() => expect(calls).toHaveLength(2));
+  });
+
+  it('"Mais antigas" some com o buffer cheio mesmo havendo cursor', async () => {
+    const full = Array.from({ length: 1000 }, (_, i) => ({
+      level: 'debug',
+      time: T0 + i,
+      message: `m${i}`,
+      fields: {},
+    }));
+    renderApp({
+      path: '/logs?q=zzz',
+      routes: { 'GET /api/logs': () => ({ body: { logs: full, next: 5 } }) },
+    });
+    await screen.findByText('Nenhuma linha com esses filtros');
+    expect(screen.queryByRole('button', { name: 'Mais antigas' })).toBeNull();
+  });
 
   it('buffer vazio diz que não há linha desde o restart', async () => {
     renderApp({ path: '/logs', routes: { 'GET /api/logs': () => ({ body: { logs: [] } }) } });

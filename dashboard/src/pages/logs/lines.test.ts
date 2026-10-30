@@ -9,6 +9,8 @@ import {
   matches,
   mergeLines,
   pluginsIn,
+  type Stream,
+  streamReducer,
 } from './lines.ts';
 
 const line = (
@@ -108,5 +110,42 @@ describe('asLogLine', () => {
     expect(asLogLine({ level: 'info', time: '1', message: 'a', fields: {} })).toBeNull();
     expect(asLogLine('texto')).toBeNull();
     expect(asLogLine(null)).toBeNull();
+  });
+});
+
+describe('streamReducer', () => {
+  const empty: Stream = { live: [], pending: [], paused: false };
+  const feed = (state: Stream, count: number, from = 0): Stream => {
+    let current = state;
+    for (let n = 0; n < count; n++) {
+      current = streamReducer(current, {
+        type: 'line',
+        line: line(from + n, 'info', `m${from + n}`),
+      });
+    }
+    return current;
+  };
+
+  it('ao vivo, 1.005 linhas deixam 1.000 e a mais nova primeiro', () => {
+    const state = feed(empty, 1005);
+    expect(state.live).toHaveLength(1000);
+    expect(state.live[0]?.time).toBe(1004);
+    expect(state.pending).toHaveLength(0);
+  });
+
+  it('pausado, o que chega vai para pending (teto de 1.000) e live não muda', () => {
+    const paused = streamReducer(feed(empty, 3), { type: 'toggle' });
+    const state = feed(paused, 1005, 100);
+    expect(state.live).toHaveLength(3);
+    expect(state.pending).toHaveLength(1000);
+  });
+
+  it('retomar junta pending e live respeitando o teto', () => {
+    const paused = streamReducer(feed(empty, 500), { type: 'toggle' });
+    const resumed = streamReducer(feed(paused, 800, 1000), { type: 'toggle' });
+    expect(resumed.paused).toBe(false);
+    expect(resumed.pending).toHaveLength(0);
+    expect(resumed.live).toHaveLength(1000);
+    expect(resumed.live[0]?.time).toBe(1799);
   });
 });

@@ -18,36 +18,14 @@ import {
   filtersFromSearch,
   filtersToSearch,
   LEVEL_OPTIONS,
-  type LogLine,
   matches,
   mergeLines,
   pluginsIn,
+  streamReducer,
 } from './logs/lines.ts';
 
 /** A API aceita até 1000 por página: a 1ª já traz o buffer inteiro. "Mais antigas" segue o `next`. */
 const PAGE = BUFFER_LINES;
-
-interface Stream {
-  /** Linhas do stream, da mais nova para a mais antiga. */
-  live: readonly LogLine[];
-  /** O que chegou com a tela pausada; entra de uma vez ao retomar. */
-  pending: readonly LogLine[];
-  paused: boolean;
-}
-
-type StreamAction = { type: 'line'; line: LogLine } | { type: 'toggle' };
-
-// Um reducer só: chegar linha e pausar/retomar mexem juntos em `live`, `pending` e `paused`.
-function streamReducer(state: Stream, action: StreamAction): Stream {
-  if (action.type === 'line') {
-    return state.paused
-      ? { ...state, pending: [action.line, ...state.pending].slice(0, BUFFER_LINES) }
-      : { ...state, live: [action.line, ...state.live].slice(0, BUFFER_LINES) };
-  }
-  return state.paused
-    ? { live: [...state.pending, ...state.live].slice(0, BUFFER_LINES), pending: [], paused: false }
-    : { ...state, paused: true };
-}
 
 const number = new Intl.NumberFormat('pt-BR');
 
@@ -101,12 +79,23 @@ export function Logs() {
 
   // Ao voltar de "reconectando", as linhas do intervalo não vieram pelo stream: busca de novo o
   // histórico (o dedupe de `mergeLines` cobre a sobreposição).
+  // Pausada, a reconexão só marca o buraco; a releitura espera o "Retomar".
   const previous = useRef(status);
+  const [gap, setGap] = useState(false);
   const { refetch } = history;
   useEffect(() => {
-    if (previous.current === 'reconnecting' && status === 'live') void refetch();
+    if (previous.current === 'reconnecting' && status === 'live') {
+      if (paused) setGap(true);
+      else void refetch();
+    }
     previous.current = status;
-  }, [status, refetch]);
+  }, [status, paused, refetch]);
+  useEffect(() => {
+    if (!paused && gap) {
+      setGap(false);
+      void refetch();
+    }
+  }, [paused, gap, refetch]);
 
   const loaded = useMemo(
     () => mergeLines(live, history.data?.pages.flatMap((page) => page.logs) ?? []),
@@ -153,7 +142,7 @@ export function Logs() {
         {canPause && (
           <Button onClick={() => dispatch({ type: 'toggle' })} aria-pressed={paused}>
             {paused
-              ? `Retomar${pending.length > 0 ? ` (${pending.length} ${pending.length === 1 ? 'nova' : 'novas'})` : ''}`
+              ? `Retomar${pending.length > 0 ? ` (${number.format(pending.length)} ${pending.length === 1 ? 'nova' : 'novas'})` : ''}`
               : 'Pausar'}
           </Button>
         )}
@@ -233,7 +222,7 @@ export function Logs() {
               {number.format(visible.length)} de {number.format(BUFFER_LINES)} linhas. Chat e
               contato aparecem pseudonimizados.
             </p>
-            {history.hasNextPage && (
+            {history.hasNextPage && loaded.length < BUFFER_LINES && (
               <Button
                 onClick={() => void history.fetchNextPage()}
                 disabled={history.isFetchingNextPage}
