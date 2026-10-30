@@ -4,6 +4,7 @@ import { useApi, useSession } from '#components/context.tsx';
 import { PageTitle } from '#components/PageTitle.tsx';
 import { Button, ErrorNotice, Forbidden, Loading } from '#components/ui.tsx';
 import { ApiFailure, messageOf, ok, type Schemas } from '#lib/api.ts';
+import { useLeaveGuard } from '#lib/router.tsx';
 import { type CatalogProvider, ChainEditor } from './ai/ChainEditor.tsx';
 import {
   type AiDraft,
@@ -20,7 +21,6 @@ import {
   secondsToMs,
   viewOverrides,
 } from './ai/chain.ts';
-import { useLeaveGuard } from './ai/leave-guard.ts';
 import {
   FallbackRules,
   KeysTable,
@@ -206,7 +206,7 @@ function AiForm({
     draft.maxToolSteps !== base.maxToolSteps ||
     Object.values(keys).some((v) => v !== '');
   const dirty = aiChanged || ownChanged.length > 0;
-  useLeaveGuard(dirty);
+  useLeaveGuard(dirty, 'Há alterações não salvas. Sair desta tela descarta tudo.');
 
   // O estado de cada modelo que aparece na tela, inclusive os do rascunho e os de cadeia própria.
   const listed = [

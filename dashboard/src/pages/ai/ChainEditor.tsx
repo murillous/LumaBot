@@ -441,16 +441,14 @@ function PositionEditor({
         )}
       </div>
 
-      <fieldset
-        className="m-0 flex min-w-0 flex-col gap-1 border-0 p-0"
-        aria-invalid={outputError ? true : undefined}
-        aria-describedby={outputError ? `${id}-out-error` : undefined}
-      >
-        <legend className="mb-1 font-medium">Saída máxima</legend>
+      <div className="flex min-w-0 flex-col gap-1">
+        <span className="font-medium">Saída máxima</span>
         <Segmented
-          label="Valores de saída máxima"
+          label="Saída máxima"
           options={outputOptions}
           value={item.maxOutputTokens === undefined ? 'default' : String(item.maxOutputTokens)}
+          describedBy={outputError ? `${id}-out-error` : undefined}
+          invalid={Boolean(outputError)}
           onChange={(value) =>
             onChange(withMaxOutput(item, value === 'default' ? undefined : Number(value)))
           }
@@ -460,7 +458,7 @@ function PositionEditor({
             {outputError}
           </p>
         )}
-      </fieldset>
+      </div>
     </section>
   );
 }

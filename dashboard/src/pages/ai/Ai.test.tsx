@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { cleanup, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { type Handler, LOG_READER, OWNER, renderApp } from '#test-support.tsx';
@@ -377,7 +377,10 @@ describe('IA: chaves', () => {
   });
 
   it('sem secrets.write, o campo de chave some', async () => {
-    await open({}, OWNER);
+    await open(
+      {},
+      { ...OWNER, permissions: OWNER.permissions.filter((p) => p !== 'secrets.write') },
+    );
     expect(screen.queryByLabelText('Chave de DeepSeek')).toBeNull();
   });
 });
@@ -455,6 +458,20 @@ describe('IA: sair com alteração pendente', () => {
     await user.click(screen.getAllByRole('link', { name: 'Plugins' })[0] as HTMLElement);
     expect(confirm).not.toHaveBeenCalled();
     expect(location.pathname).toBe('/plugins');
+  });
+
+  it('o voltar do navegador também pergunta e fica se a pessoa recusar', async () => {
+    const user = userEvent.setup();
+    const confirm = stubConfirm(false);
+    await open();
+    await user.click(screen.getByRole('button', { name: `Remover ${DEEPSEEK}` }));
+    // O voltar do browser chega com a `location` já trocada.
+    history.replaceState(null, '', '/plugins');
+    act(() => {
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    });
+    expect(confirm).toHaveBeenCalledOnce();
+    expect(location.pathname).toBe('/ia');
   });
 
   it('avisa também ao fechar a aba (beforeunload)', async () => {
