@@ -49,4 +49,10 @@ spec.
   até ele quando a rota troca.
 - `src/components/`: base reutilizável (`ui.tsx`), layout (`Shell.tsx`) e contextos (sessão e
   stream de eventos único, `useLiveEvent`).
+- Guarda de saída: tela com alteração pendente chama `useLeaveGuard(dirty, mensagem)`
+  (`lib/router.tsx`). Link, `navigate`, voltar do browser, "Sair" e `beforeunload` pedem
+  confirmação; mudar só a query (filtro) não conta. `confirmLeave()` serve a ações próprias que
+  deixam a tela.
+- Foco: o Shell leva o foco ao `<PageTitle>` e troca o `document.title` só quando a *tela* muda
+  (outra entrada de `routes.ts`); `/plugins/a` para `/plugins/b` é a mesma tela e não refoca.
 - `src/tokens.css`: único lugar com cor literal.
