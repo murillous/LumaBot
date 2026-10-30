@@ -96,11 +96,30 @@ reconecta ou pede novo pareamento.
 
 ## Dashboard
 
-Painel web do
-[`@usebridger/plugin-dashboard`](https://github.com/murillous/usebridger/blob/develop/packages/plugin-dashboard/docs/README.md),
-ligado por padrão em `http://127.0.0.1:3000/plugins/dashboard/`. O painel é genérico do Bridger
-(telas, rotas, login e permissões vêm de lá); o app só o compõe em `src/bot.ts`. O dashboard próprio
-da Luma, em construção, vive em [`dashboard/`](dashboard/README.md). O painel genérico mostra:
+São dois painéis sobre a mesma API HTTP do Bridger, com o mesmo login e as mesmas permissões:
+
+- **O dashboard da Luma**, em [`dashboard/`](dashboard/README.md): Visão geral, IA (a cadeia de
+  modelos, o fallback e as chaves num lugar só), Plugins, Logs e Auditoria. É um app à parte (Vite
+  e React), não um plugin: o bot não serve o build.
+- **O painel genérico** do
+  [`@usebridger/plugin-dashboard`](https://github.com/murillous/usebridger/blob/develop/packages/plugin-dashboard/docs/README.md),
+  ligado por padrão em `http://127.0.0.1:3000/plugins/dashboard/` e composto em `src/bot.ts`. Fica
+  enquanto o dashboard da Luma não cobre Conexão, Usuários e Chaves de API (os itens desse grupo
+  no menu da Luma abrem o genérico).
+
+Para rodar o dashboard da Luma com o bot no ar:
+
+```sh
+pnpm --filter @lumabot/dashboard dev      # http://localhost:5173
+```
+
+O Vite repassa `/api` ao bot (`LUMA_BOT_URL`, padrão `http://127.0.0.1:3000`), e assim o app e a
+API ficam na mesma origem, que o cookie de sessão exige. Para buildar, `pnpm --filter
+@lumabot/dashboard build` gera `dashboard/dist`; em produção, sirva essa pasta pelo mesmo proxy
+HTTPS do bot ([Exposição](#exposição)), repassando `/api`, `/openapi.json` e `/plugins/dashboard`
+ao bot e mandando qualquer outro caminho para o `index.html` (o app usa rotas por caminho).
+
+O painel genérico mostra:
 
 - **Conexão:** QR e código de pareamento.
 - **Config:** os campos de cada plugin (modelos e chaves da IA, Luma, busca, estilo da legenda...),
@@ -248,6 +267,10 @@ exemplo é o `sticker` ([sticker.md](docs/sticker.md#serviço-sticker)).
 | `pnpm lint` / `pnpm lint:fix` | Biome: lint, formatação e organização de imports |
 | `pnpm typecheck` | `tsc`, só checagem de tipos |
 | `pnpm test` | Vitest |
+| `pnpm --filter @lumabot/dashboard dev` | Dashboard da Luma no Vite, com o proxy para o bot ([dashboard/README.md](dashboard/README.md)) |
+| `pnpm --filter @lumabot/dashboard gen:api` | Regera a spec e os tipos da API do dashboard |
+
+Na raiz, `lint`, `typecheck`, `test` e `build` cobrem também o `dashboard/`.
 
 Os testes sobem cada plugin num bot de verdade sobre o transport falso do
 [`@usebridger/testing`](https://github.com/murillous/usebridger/blob/develop/packages/testing/docs/README.md).
