@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
 import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { navigate } from '#lib/router.tsx';
 import { LOG_READER, OWNER, renderApp } from '#test-support.tsx';
 
 afterEach(() => {
@@ -300,7 +301,11 @@ describe('formulário', () => {
 
 describe('revisão', () => {
   it('segredo sem secrets.write fica desabilitado, com a ajuda', async () => {
-    renderApp({ path: '/plugins/sticker', routes: routes() });
+    renderApp({
+      path: '/plugins/sticker',
+      me: { ...OWNER, permissions: OWNER.permissions.filter((p) => p !== 'secrets.write') },
+      routes: routes(),
+    });
     expect(((await screen.findByLabelText('Chave')) as HTMLInputElement).disabled).toBe(true);
     expect(screen.getByText(/secrets\.write/)).toBeTruthy();
   });
@@ -411,7 +416,7 @@ describe('revisão', () => {
     });
   });
 
-  it('abaixo de lg o foco vai ao card depois do Shell; no desktop fica no h1', async () => {
+  it('abaixo de lg o foco vai ao card; no desktop não sai da lista', async () => {
     const user = userEvent.setup();
     const original = window.matchMedia;
     const media = (matches: boolean) =>
@@ -427,11 +432,29 @@ describe('revisão', () => {
       window.matchMedia = media(true);
       renderApp({ path: '/plugins', routes: routes() });
       await user.click(await screen.findByRole('link', { name: 'luma' }));
-      await waitFor(() => expect(document.activeElement?.tagName).toBe('H1'));
-      await new Promise((resolve) => requestAnimationFrame(resolve));
-      expect(document.activeElement?.tagName).toBe('H1');
+      await waitFor(() => expect(location.pathname).toBe('/plugins/luma'));
+      expect(document.activeElement?.tagName).not.toBe('H2');
     } finally {
       window.matchMedia = original;
     }
+  });
+
+  it('a guarda do router pergunta ao sair com edição; descartar pela lista não pergunta de novo', async () => {
+    const user = userEvent.setup();
+    const confirm = vi.fn(() => false);
+    window.confirm = confirm;
+    renderApp({ path: '/plugins/sticker', routes: routes() });
+    await user.click(await screen.findByRole('button', { name: 'b' }));
+
+    // Sair da tela (menu, voltar...) passa pelo confirm do router.
+    navigate('/logs');
+    expect(confirm).toHaveBeenCalledTimes(1);
+    expect(location.pathname).toBe('/plugins/sticker');
+
+    // Trocar pela lista tem aviso próprio e, ao descartar, não pergunta de novo.
+    await user.click(screen.getByRole('link', { name: 'luma' }));
+    await user.click(screen.getByRole('button', { name: 'Descartar e abrir' }));
+    expect(location.pathname).toBe('/plugins/luma');
+    expect(confirm).toHaveBeenCalledTimes(1);
   });
 });

@@ -6,16 +6,13 @@ import { StateWord } from '#components/StateWord.tsx';
 import { Switch } from '#components/Switch.tsx';
 import { Button, Card, ErrorNotice, Loading } from '#components/ui.tsx';
 import { ok, type Schemas } from '#lib/api.ts';
-import { Link, navigate, type PageProps } from '#lib/router.tsx';
+import { Link, navigate, type PageProps, useLeaveGuard } from '#lib/router.tsx';
 import { ConfigForm } from '#pages/plugins/ConfigForm.tsx';
 import { groupPlugins, stateOf } from '#pages/plugins/groups.ts';
 
 type Plugin = Schemas['Plugin'];
 
 const PLUGINS = ['plugins'] as const;
-
-// Há tela montada antes nesta sessão: distingue navegação de abrir a URL direto.
-let visited = false;
 
 /** Quem para junto quando `name` desliga: dependentes diretos e indiretos que estão ligados. */
 function dependentsOf(name: string, plugins: readonly Plugin[]): string[] {
@@ -176,20 +173,19 @@ export function Plugins({ params }: PageProps) {
   const [pendingNav, setPendingNav] = useState<string>();
   const [pendingOff, setPendingOff] = useState<{ plugin: Plugin; dependents: string[] }>();
   const card = useRef<HTMLHeadingElement>(null);
-  // Abaixo de lg o card fica sob a lista: escolher um plugin leva a vista e o foco até ele. O
-  // Shell foca o h1 a cada troca de caminho, depois do effect da tela; o quadro seguinte garante
-  // que o foco do card vence. No desktop o card está ao lado e o foco no h1 do Shell basta.
+  useLeaveGuard(dirty, 'Há alterações não salvas neste plugin. Sair e descartar?');
+  const mounted = useRef(false);
+  // Abaixo de lg o card fica sob a lista: escolher outro plugin com a tela montada leva a vista e
+  // o foco até ele. Ao entrar na tela (1ª montagem) o Shell já foca o h1, e no desktop o card
+  // está ao lado e não precisa.
   useEffect(() => {
-    // O Shell remonta a tela a cada caminho: só a 1ª montagem da sessão (link direto) não conta.
-    const navigated = visited;
-    visited = true;
-    if (selected === undefined || !navigated) return;
-    if (window.matchMedia?.('(min-width: 1024px)').matches) return;
-    const frame = requestAnimationFrame(() => {
-      card.current?.scrollIntoView?.({ block: 'start' });
-      card.current?.focus();
-    });
-    return () => cancelAnimationFrame(frame);
+    if (!mounted.current) {
+      mounted.current = true;
+      return;
+    }
+    if (selected === undefined || window.matchMedia?.('(min-width: 1024px)').matches) return;
+    card.current?.scrollIntoView?.({ block: 'start' });
+    card.current?.focus();
   }, [selected]);
 
   const plugins = list.data?.plugins ?? [];
@@ -200,8 +196,8 @@ export function Plugins({ params }: PageProps) {
     if (dependents.length > 0) setPendingOff({ plugin, dependents });
     else toggle.mutate({ plugin, enable });
   };
-  // O aviso de alteração pendente cobre só a troca de plugin pela lista; o bloqueio geral de
-  // navegação (menu, voltar) virá no router da Base.
+  // Troca pela lista tem aviso próprio (inline); menu, voltar, "Sair" e fechar a aba passam pela
+  // guarda do router (`useLeaveGuard`), então o "Descartar e abrir" navega com `force`.
   const requestNav = (to: string, event: MouseEvent<HTMLAnchorElement>) => {
     if (!dirty || to === location.pathname) return;
     event.preventDefault();
@@ -229,7 +225,7 @@ export function Plugins({ params }: PageProps) {
                 onClick={() => {
                   setDirty(false);
                   setPendingNav(undefined);
-                  navigate(pendingNav);
+                  navigate(pendingNav, { force: true });
                 }}
               >
                 Descartar e abrir

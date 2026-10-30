@@ -39,7 +39,7 @@ function GroupField({
   help?: string | undefined;
   error?: string | undefined;
   bare?: boolean;
-  children: ReactNode;
+  children: ReactNode | ((props: { describedBy?: string; invalid?: boolean }) => ReactNode);
 }) {
   const id = useId();
   const described = [help ? `${id}-help` : undefined, error ? `${id}-error` : undefined]
@@ -53,7 +53,7 @@ function GroupField({
         </p>
       )}
       {error && (
-        <p id={`${id}-error`} role={bare ? 'alert' : undefined} className="text-help text-danger">
+        <p id={`${id}-error`} className="text-help text-danger">
           {error}
         </p>
       )}
@@ -65,7 +65,12 @@ function GroupField({
         <span aria-hidden="true" className="font-medium">
           {label}
         </span>
-        {children}
+        {typeof children === 'function'
+          ? children({
+              ...(described && { describedBy: described }),
+              ...(error && { invalid: true }),
+            })
+          : children}
         {notes}
       </div>
     );
@@ -77,7 +82,7 @@ function GroupField({
       className="m-0 flex min-w-0 flex-col gap-1 border-0 p-0"
     >
       <legend className="p-0 font-medium">{label}</legend>
-      {children}
+      {typeof children === 'function' ? children({}) : children}
       {notes}
     </fieldset>
   );
@@ -217,20 +222,23 @@ function Input({ leaf, ctx }: { leaf: Leaf; ctx: Ctx }) {
     const current = options.find((o) => o.raw === value);
     return (
       <GroupField label={leaf.label} help={help} error={error} bare={!disabled}>
-        {disabled ? (
-          <p className="font-mono text-label">{current?.label ?? '—'}</p>
-        ) : (
-          <Segmented
-            label={leaf.label}
-            options={options.map((o) => ({ value: String(o.raw), label: o.label }))}
-            value={current === undefined ? '' : String(current.raw)}
-            onChange={(next) => {
-              // O valor volta como o schema o declara (enum numérico continua número).
-              const picked = options.find((o) => String(o.raw) === next);
-              if (picked !== undefined) ctx.set(leaf, picked.raw);
-            }}
-          />
-        )}
+        {(aria) =>
+          disabled ? (
+            <p className="font-mono text-label">{current?.label ?? '—'}</p>
+          ) : (
+            <Segmented
+              {...aria}
+              label={leaf.label}
+              options={options.map((o) => ({ value: String(o.raw), label: o.label }))}
+              value={current === undefined ? '' : String(current.raw)}
+              onChange={(next) => {
+                // O valor volta como o schema o declara (enum numérico continua número).
+                const picked = options.find((o) => String(o.raw) === next);
+                if (picked !== undefined) ctx.set(leaf, picked.raw);
+              }}
+            />
+          )
+        }
       </GroupField>
     );
   }
