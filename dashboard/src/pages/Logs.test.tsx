@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { cleanup, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { LOG_READER, renderApp } from '#test-support.tsx';
 
 afterEach(cleanup);
@@ -168,7 +168,7 @@ describe('Logs', () => {
     expect(screen.getByRole('status', { name: 'Fluxo ao vivo' }).textContent).toBe('Pausado');
     app.stream().emit('log', fresh(2));
     expect(screen.queryByText('nova 2')).toBeNull();
-    const resume = screen.getByRole('button', { name: 'Retomar (1 novas)' });
+    const resume = screen.getByRole('button', { name: 'Retomar (1 nova)' });
     expect(resume.getAttribute('aria-pressed')).toBe('true');
 
     await user.click(resume);
@@ -235,6 +235,89 @@ describe('Logs', () => {
     fail = false;
     await user.click(screen.getByRole('button', { name: 'Tentar de novo' }));
     expect(await screen.findByText('yt-dlp saiu com código 1')).toBeTruthy();
+  });
+
+  it('pede o buffer inteiro de uma vez', async () => {
+    const calls: URL[] = [];
+    renderApp({ path: '/logs', routes: logsRoute(calls) });
+    await screen.findByText('yt-dlp saiu com código 1');
+    expect(calls[0]?.searchParams.get('limit')).toBe('1000');
+  });
+
+  it('o total carregado nunca passa de 1.000, ao vivo ou retomando de uma pausa', async () => {
+    const user = userEvent.setup();
+    // O filtro esconde a tabela: renderizar 1.000 linhas a cada evento seria o teste mais lento.
+    const app = renderApp({ path: '/logs?q=zzz', routes: logsRoute() });
+    await screen.findByText('Nenhuma linha com esses filtros');
+    app.stream().open();
+    const fresh = (n: number) => ({
+      level: 'info',
+      time: T0 + 10000 + n,
+      message: `n${n}`,
+      fields: {},
+    });
+    for (let n = 0; n < 1005; n++) app.stream().emit('log', fresh(n));
+    expect(screen.getByRole('button', { name: 'debug 1.000' })).toBeTruthy();
+
+    await user.click(screen.getByRole('button', { name: 'Pausar' }));
+    for (let n = 2000; n < 3005; n++) app.stream().emit('log', fresh(n));
+    await user.click(
+      screen.getByRole('button', { name: /Retomar \(1\.?000 novas\)|Retomar \(1000 novas\)/ }),
+    );
+    expect(screen.getByRole('button', { name: 'debug 1.000' })).toBeTruthy();
+  }, 30_000);
+
+  it('buffer vazio diz que não há linha desde o restart', async () => {
+    renderApp({ path: '/logs', routes: { 'GET /api/logs': () => ({ body: { logs: [] } }) } });
+    expect(await screen.findByText('Nenhuma linha desde o restart')).toBeTruthy();
+    expect(screen.queryByText('Nenhuma linha com esses filtros')).toBeNull();
+  });
+
+  it('clique empilha no histórico e o voltar desfaz; a busca de texto só troca a entrada', async () => {
+    const user = userEvent.setup();
+    renderApp({ path: '/logs', routes: logsRoute() });
+    await screen.findByText('yt-dlp saiu com código 1');
+    await user.click(screen.getByRole('button', { name: 'error 1' }));
+    expect(location.search).toBe('?nivel=error');
+    history.back();
+    await waitFor(() => expect(location.search).toBe(''));
+    expect(messages()).toHaveLength(3);
+
+    const push = vi.spyOn(history, 'pushState');
+    await user.type(screen.getByLabelText('Buscar evento ou texto'), 'abc');
+    expect(push).not.toHaveBeenCalled();
+    push.mockRestore();
+  });
+
+  it('nível fora do segmentado na URL cai em info', async () => {
+    renderApp({ path: '/logs?nivel=fatal', routes: logsRoute() });
+    await screen.findByText('yt-dlp saiu com código 1');
+    expect(screen.getByRole('button', { name: /^info/ }).getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('ao voltar de "reconectando" busca o histórico de novo', async () => {
+    const calls: URL[] = [];
+    const app = renderApp({ path: '/logs', routes: logsRoute(calls) });
+    await screen.findByText('yt-dlp saiu com código 1');
+    app.stream().open();
+    expect(calls).toHaveLength(1);
+    app.stream().fail();
+    app.stream().open();
+    await waitFor(() => expect(calls).toHaveLength(2));
+  });
+
+  it('o erro da 1ª página não mostra "Eventos por plugin"', async () => {
+    renderApp({
+      path: '/logs',
+      routes: {
+        'GET /api/logs': () => ({
+          status: 500,
+          body: { type: 'about:blank', title: 'Erro', status: 500 },
+        }),
+      },
+    });
+    await screen.findByRole('alert');
+    expect(screen.queryByRole('heading', { name: 'Eventos por plugin' })).toBeNull();
   });
 
   it('sem logs.read mostra "Sem permissão" e não chama a API', async () => {

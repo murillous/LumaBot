@@ -38,8 +38,10 @@ describe('filtros na URL', () => {
     expect(filtersToSearch(filtersFromSearch(new URLSearchParams())).toString()).toBe('');
   });
 
-  it('nível inválido cai no padrão', () => {
+  it('nível inválido ou fora do segmentado cai no padrão', () => {
     expect(filtersFromSearch(new URLSearchParams('nivel=banana')).level).toBe('info');
+    expect(filtersFromSearch(new URLSearchParams('nivel=fatal')).level).toBe('info');
+    expect(filtersFromSearch(new URLSearchParams('nivel=trace')).level).toBe('info');
   });
 });
 
@@ -62,6 +64,15 @@ describe('mergeLines', () => {
   it('junta sem repetir e ordena da mais nova para a mais antiga', () => {
     const [a, , c, , e] = SAMPLE as [LogLine, LogLine, LogLine, LogLine, LogLine];
     expect(mergeLines([a, c], [c, e]).map((l) => l.time)).toEqual([5, 3, 1]);
+  });
+});
+
+describe('teto do buffer', () => {
+  it('mergeLines não passa de 1.000 linhas e guarda as mais novas', () => {
+    const many = Array.from({ length: 1200 }, (_, i) => line(i, 'info', `m${i}`));
+    const merged = mergeLines(many);
+    expect(merged).toHaveLength(1000);
+    expect(merged[0]?.time).toBe(1199);
   });
 });
 

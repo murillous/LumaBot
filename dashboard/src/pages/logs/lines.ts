@@ -21,6 +21,10 @@ export const atLeast = (line: LogLine, level: Level): boolean => rank(line.level
 const isLevel = (value: string | null): value is Level =>
   value !== null && (LEVELS as readonly string[]).includes(value);
 
+/** Só os níveis do segmentado valem na URL: `trace` e `fatal` caem no padrão. */
+const isOption = (value: string | null): value is Level =>
+  isLevel(value) && LEVEL_OPTIONS.includes(value);
+
 const text = (value: unknown): string | undefined =>
   typeof value === 'string' && value !== '' ? value : undefined;
 
@@ -40,7 +44,7 @@ export interface Filters {
 export function filtersFromSearch(params: URLSearchParams): Filters {
   const level = params.get('nivel');
   return {
-    level: isLevel(level) ? level : DEFAULT_LEVEL,
+    level: isOption(level) ? level : DEFAULT_LEVEL,
     plugins: (params.get('plugins') ?? '').split(',').filter((name) => name !== ''),
     query: params.get('q') ?? '',
     event: params.get('evento') ?? '',
@@ -70,7 +74,7 @@ export function matches(line: LogLine, filters: Filters): boolean {
 export const lineKey = (line: LogLine): string =>
   `${line.time}|${line.level}|${line.message}|${JSON.stringify(line.fields)}`;
 
-/** Une as listas sem repetir linha, da mais nova para a mais antiga. */
+/** Une as listas sem repetir linha, da mais nova para a mais antiga, até o teto do buffer. */
 export function mergeLines(...lists: readonly (readonly LogLine[])[]): LogLine[] {
   const seen = new Set<string>();
   const merged: LogLine[] = [];
@@ -82,7 +86,7 @@ export function mergeLines(...lists: readonly (readonly LogLine[])[]): LogLine[]
       merged.push(line);
     }
   }
-  return merged.sort((a, b) => b.time - a.time);
+  return merged.sort((a, b) => b.time - a.time).slice(0, BUFFER_LINES);
 }
 
 /** Quantas linhas há de cada nível para cima: "warn 12" inclui `error` e `fatal`. */

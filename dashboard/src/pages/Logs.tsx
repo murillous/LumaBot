@@ -1,5 +1,5 @@
 import { useInfiniteQuery } from '@tanstack/react-query';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { useApi, useLive, useLiveEvent } from '#components/context.tsx';
 import { PageTitle } from '#components/PageTitle.tsx';
 import { Segmented } from '#components/Segmented.tsx';
@@ -24,8 +24,30 @@ import {
   pluginsIn,
 } from './logs/lines.ts';
 
-/** Linhas por página do histórico; "Mais antigas" pede a seguinte pelo cursor `before`. */
-const PAGE = 200;
+/** A API aceita até 1000 por página: a 1ª já traz o buffer inteiro. "Mais antigas" segue o `next`. */
+const PAGE = BUFFER_LINES;
+
+interface Stream {
+  /** Linhas do stream, da mais nova para a mais antiga. */
+  live: readonly LogLine[];
+  /** O que chegou com a tela pausada; entra de uma vez ao retomar. */
+  pending: readonly LogLine[];
+  paused: boolean;
+}
+
+type StreamAction = { type: 'line'; line: LogLine } | { type: 'toggle' };
+
+// Um reducer só: chegar linha e pausar/retomar mexem juntos em `live`, `pending` e `paused`.
+function streamReducer(state: Stream, action: StreamAction): Stream {
+  if (action.type === 'line') {
+    return state.paused
+      ? { ...state, pending: [action.line, ...state.pending].slice(0, BUFFER_LINES) }
+      : { ...state, live: [action.line, ...state.live].slice(0, BUFFER_LINES) };
+  }
+  return state.paused
+    ? { live: [...state.pending, ...state.live].slice(0, BUFFER_LINES), pending: [], paused: false }
+    : { ...state, paused: true };
+}
 
 const number = new Intl.NumberFormat('pt-BR');
 
@@ -64,27 +86,27 @@ export function Logs() {
 
   // Linhas do stream, da mais nova para a mais antiga. Pausado, o que chega espera em `pending`
   // e entra de uma vez ao retomar.
-  const [live, setLive] = useState<readonly LogLine[]>([]);
-  const [pending, setPending] = useState<readonly LogLine[]>([]);
-  const [paused, setPaused] = useState(false);
-  const pausedRef = useRef(false);
+  const [{ live, pending, paused }, dispatch] = useReducer(streamReducer, {
+    live: [],
+    pending: [],
+    paused: false,
+  });
   const [expanded, setExpanded] = useState<string | null>(null);
 
   useLiveEvent('log', (data) => {
     const line = asLogLine(data);
     if (line === null) return;
-    if (pausedRef.current) setPending((current) => [line, ...current]);
-    else setLive((current) => [line, ...current].slice(0, BUFFER_LINES));
+    dispatch({ type: 'line', line });
   });
 
-  const togglePause = () => {
-    if (paused) {
-      setLive((current) => [...pending, ...current].slice(0, BUFFER_LINES));
-      setPending([]);
-    }
-    pausedRef.current = !paused;
-    setPaused(!paused);
-  };
+  // Ao voltar de "reconectando", as linhas do intervalo não vieram pelo stream: busca de novo o
+  // histórico (o dedupe de `mergeLines` cobre a sobreposição).
+  const previous = useRef(status);
+  const { refetch } = history;
+  useEffect(() => {
+    if (previous.current === 'reconnecting' && status === 'live') void refetch();
+    previous.current = status;
+  }, [status, refetch]);
 
   const loaded = useMemo(
     () => mergeLines(live, history.data?.pages.flatMap((page) => page.logs) ?? []),
@@ -98,10 +120,11 @@ export function Logs() {
   );
   const coverage = useMemo(() => eventsByPlugin(loaded), [loaded]);
 
-  // Filtro que muda a cada tecla troca a entrada do histórico em vez de empilhar.
+  // Clique empilha no histórico (o "voltar" desfaz o filtro); a busca de texto muda a cada tecla e
+  // por isso troca a entrada em vez de empilhar.
   const update = useCallback(
-    (patch: Partial<Filters>) =>
-      setSearch(filtersToSearch({ ...filters, ...patch }), { replace: true }),
+    (patch: Partial<Filters>, replace = false) =>
+      setSearch(filtersToSearch({ ...filters, ...patch }), { replace }),
     [filters],
   );
   const togglePlugin = (name: string) =>
@@ -128,8 +151,10 @@ export function Logs() {
           <LiveIndicator paused={paused} />
         </span>
         {canPause && (
-          <Button onClick={togglePause} aria-pressed={paused}>
-            {paused ? `Retomar${pending.length > 0 ? ` (${pending.length} novas)` : ''}` : 'Pausar'}
+          <Button onClick={() => dispatch({ type: 'toggle' })} aria-pressed={paused}>
+            {paused
+              ? `Retomar${pending.length > 0 ? ` (${pending.length} ${pending.length === 1 ? 'nova' : 'novas'})` : ''}`
+              : 'Pausar'}
           </Button>
         )}
       </header>
@@ -150,7 +175,7 @@ export function Logs() {
             aria-label="Buscar evento ou texto"
             placeholder="evento ou texto"
             value={filters.query}
-            onChange={(e) => update({ query: e.target.value })}
+            onChange={(e) => update({ query: e.target.value }, true)}
             className={`${inputClass} max-w-80 flex-[1_1_220px] font-mono`}
           />
           {filters.event !== '' && (
@@ -188,7 +213,9 @@ export function Logs() {
         <section aria-label="Histórico" className="flex flex-col gap-3">
           {visible.length === 0 ? (
             <p className="rounded-card bg-raised p-8 text-center text-muted shadow-e1">
-              Nenhuma linha com esses filtros
+              {loaded.length === 0
+                ? 'Nenhuma linha desde o restart'
+                : 'Nenhuma linha com esses filtros'}
             </p>
           ) : (
             <LogTable
@@ -218,10 +245,9 @@ export function Logs() {
           {history.isFetchNextPageError && (
             <ErrorNotice error={history.error} onRetry={() => void history.fetchNextPage()} />
           )}
+          <EventsByPlugin rows={coverage} />
         </section>
       )}
-
-      <EventsByPlugin rows={coverage} />
     </section>
   );
 }
