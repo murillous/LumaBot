@@ -11,7 +11,6 @@ const GROUP_OF: Readonly<Record<string, PluginGroup>> = {
   ai: 'Conversa',
   resumo: 'Conversa',
   spontaneous: 'Conversa',
-  'give-up': 'Conversa',
   download: 'Mídia',
   pdf: 'Mídia',
   sticker: 'Mídia',
@@ -23,6 +22,7 @@ const GROUP_OF: Readonly<Record<string, PluginGroup>> = {
   rank: 'Utilidades',
   reminders: 'Utilidades',
   'user-names': 'Utilidades',
+  utils: 'Utilidades',
   'web-search': 'Utilidades',
 };
 
@@ -45,6 +45,8 @@ export interface PluginState {
   /** Só o estado fora do normal aparece em texto. */
   word?: { tone: 'warn' | 'danger'; text: string };
   detail?: string;
+  /** Observação neutra (sem cor de estado), como "desligado: depende de X". */
+  note?: string;
 }
 
 export function stateOf(plugin: Plugin): PluginState {
@@ -53,6 +55,10 @@ export function stateOf(plugin: Plugin): PluginState {
     return warned ? { on: true, word: { tone: 'warn', text: 'com avisos' } } : { on: true };
   }
   if (plugin.reason?.kind === 'disabled') return { on: false };
+  // Pulado porque uma dependência está desligada: efeito do desligamento, não falha deste plugin.
+  if (plugin.reason?.kind === 'dependency-skipped') {
+    return { on: false, note: `desligado: ${plugin.reason.message}` };
+  }
   return {
     on: false,
     word: { tone: 'danger', text: 'falhou no boot' },

@@ -1,4 +1,4 @@
-import { type ReactNode, useId, useState } from 'react';
+import { type ReactNode, useEffect, useId, useState } from 'react';
 import { Segmented } from '#components/Segmented.tsx';
 import { Button, ErrorNotice, Field, type FieldProps, inputClass } from '#components/ui.tsx';
 import { ApiFailure, type Schemas } from '#lib/api.ts';
@@ -16,52 +16,69 @@ import {
   MASK,
   type Node,
   nodesOf,
+  type Option,
   sameValue,
-} from './schema.ts';
+  sourceOf,
+} from '#pages/plugins/schema.ts';
 
 type PluginConfig = Schemas['PluginConfig'];
 
-// O seletor de cor exige um valor válido mesmo sem dado; montado sem literal para a regra de cor do guia.
-const EMPTY_COLOR = '#'.padEnd(7, '0');
-
-const YES_NO = [
-  { value: 'true', label: 'Sim' },
-  { value: 'false', label: 'Não' },
-] as const;
-
-/** Rótulo, ajuda e erro de um controle que não é um único `input` (segmentado, etiquetas). */
+/**
+ * Rótulo, ajuda e erro de um controle que não é um único `input` (etiquetas, valor só leitura).
+ * O `fieldset` carrega `aria-describedby` e `aria-invalid`. Com `bare` (segmentado, que já
+ * tem o próprio `fieldset` com legenda) o rótulo é só visual, para não anunciar duas vezes.
+ */
 function GroupField({
   label,
   help,
   error,
+  bare = false,
   children,
 }: {
   label: string;
   help?: string | undefined;
   error?: string | undefined;
-  children: (props: { 'aria-describedby'?: string; 'aria-invalid'?: true }) => ReactNode;
+  bare?: boolean;
+  children: ReactNode;
 }) {
   const id = useId();
   const described = [help ? `${id}-help` : undefined, error ? `${id}-error` : undefined]
     .filter(Boolean)
     .join(' ');
-  return (
-    <fieldset className="m-0 flex min-w-0 flex-col gap-1 border-0 p-0">
-      <legend className="p-0 font-medium">{label}</legend>
-      {children({
-        ...(described && { 'aria-describedby': described }),
-        ...(error && { 'aria-invalid': true as const }),
-      })}
+  const notes = (
+    <>
       {help && (
         <p id={`${id}-help`} className="text-help text-muted">
           {help}
         </p>
       )}
       {error && (
-        <p id={`${id}-error`} className="text-help text-danger">
+        <p id={`${id}-error`} role={bare ? 'alert' : undefined} className="text-help text-danger">
           {error}
         </p>
       )}
+    </>
+  );
+  if (bare) {
+    return (
+      <div className="flex flex-col gap-1">
+        <span aria-hidden="true" className="font-medium">
+          {label}
+        </span>
+        {children}
+        {notes}
+      </div>
+    );
+  }
+  return (
+    <fieldset
+      aria-describedby={described || undefined}
+      aria-invalid={error ? true : undefined}
+      className="m-0 flex min-w-0 flex-col gap-1 border-0 p-0"
+    >
+      <legend className="p-0 font-medium">{label}</legend>
+      {children}
+      {notes}
     </fieldset>
   );
 }
@@ -134,33 +151,41 @@ interface Ctx {
   plugin: string;
   readOnly: boolean;
   secretsWritable: boolean;
+  canSecrets: boolean;
   errors: Readonly<Record<string, string>>;
   valueOf: (leaf: Leaf) => unknown;
   set: (leaf: Leaf, value: unknown) => void;
 }
 
 function Input({ leaf, ctx }: { leaf: Leaf; ctx: Ctx }) {
-  const source = ctx.sources[leaf.path];
+  const source = sourceOf(ctx.sources, leaf.path);
   const locked = isLocked(source);
   const value = ctx.valueOf(leaf);
   const control = leaf.control;
   const error = ctx.errors[leaf.path];
   const disabled = ctx.readOnly || locked;
-  const help =
+  const lockNote =
     source === 'env'
       ? `Definido pela variável ${envName(ctx.plugin, leaf.path)}: não muda por aqui.`
       : source === 'file'
         ? 'Definido no arquivo de config: não muda por aqui.'
-        : leaf.help;
+        : undefined;
+  const secretNote =
+    control.kind === 'secret' && !ctx.canSecrets
+      ? 'Sem permissão para gravar segredos (secrets.write).'
+      : undefined;
+  const help = [leaf.help, lockNote, secretNote].filter(Boolean).join(' ') || undefined;
 
   if (control.kind === 'models') {
-    const own = source === 'override' && Array.isArray(value);
+    const chain = Array.isArray(value) ? (value as { model?: string }[]) : [];
+    // No plugin ai o `models` é a própria ordem principal; nos outros, vazio herda dela.
+    const main = ctx.plugin === 'ai' && leaf.path === 'models';
     return (
       <div className="flex flex-col gap-1">
-        <span className="font-medium">Modelos</span>
-        {own ? (
+        <span className="font-medium">{leaf.label === 'models' ? 'Modelos' : leaf.label}</span>
+        {chain.length > 0 ? (
           <ol className="m-0 list-decimal pl-6">
-            {(value as { model?: string }[]).map((item, i) => (
+            {chain.map((item, i) => (
               // A posição é parte do sentido da cadeia (ordem de tentativa); o id repete.
               // biome-ignore lint/suspicious/noArrayIndexKey: a ordem é o dado
               <li key={`${i}-${item.model}`} className="font-mono text-label">
@@ -169,39 +194,43 @@ function Input({ leaf, ctx }: { leaf: Leaf; ctx: Ctx }) {
             ))}
           </ol>
         ) : (
-          <p>Ordem principal</p>
+          !main && <p>{leaf.path === 'models' ? 'Ordem principal' : 'Ordem principal da IA'}</p>
         )}
         <p className="text-help text-muted">
-          O modelo se escolhe só na tela{' '}
           <Link to="/ia" className="underline">
-            IA
+            {main ? 'Editar na tela IA' : 'Escolher na tela IA'}
           </Link>
-          .
         </p>
       </div>
     );
   }
 
   if (control.kind === 'segmented' || control.kind === 'toggle') {
-    const options =
+    const options: readonly { raw: Option; label: string }[] =
       control.kind === 'toggle'
-        ? YES_NO
-        : control.options.map((option) => ({ value: option, label: option }));
-    const current = control.kind === 'toggle' ? String(value === true) : String(value ?? '');
+        ? [
+            { raw: true, label: 'Sim' },
+            { raw: false, label: 'Não' },
+          ]
+        : control.options.map((option) => ({ raw: option, label: String(option) }));
+    // Opcional sem valor não aparece marcado: nenhuma opção ativa.
+    const current = options.find((o) => o.raw === value);
     return (
-      <GroupField label={leaf.label} help={help} error={error}>
-        {() =>
-          disabled ? (
-            <p className="font-mono text-label">{current}</p>
-          ) : (
-            <Segmented
-              label={leaf.label}
-              options={options}
-              value={current}
-              onChange={(next) => ctx.set(leaf, control.kind === 'toggle' ? next === 'true' : next)}
-            />
-          )
-        }
+      <GroupField label={leaf.label} help={help} error={error} bare={!disabled}>
+        {disabled ? (
+          <p className="font-mono text-label">{current?.label ?? '—'}</p>
+        ) : (
+          <Segmented
+            label={leaf.label}
+            options={options.map((o) => ({ value: String(o.raw), label: o.label }))}
+            value={current === undefined ? '' : String(current.raw)}
+            onChange={(next) => {
+              // O valor volta como o schema o declara (enum numérico continua número).
+              const picked = options.find((o) => String(o.raw) === next);
+              if (picked !== undefined) ctx.set(leaf, picked.raw);
+            }}
+          />
+        )}
       </GroupField>
     );
   }
@@ -209,14 +238,12 @@ function Input({ leaf, ctx }: { leaf: Leaf; ctx: Ctx }) {
   if (control.kind === 'tags') {
     return (
       <GroupField label={leaf.label} help={help} error={error}>
-        {() => (
-          <Tags
-            label={leaf.label}
-            values={Array.isArray(value) ? (value as string[]) : []}
-            disabled={disabled}
-            onChange={(next) => ctx.set(leaf, next)}
-          />
-        )}
+        <Tags
+          label={leaf.label}
+          values={Array.isArray(value) ? (value as string[]) : []}
+          disabled={disabled}
+          onChange={(next) => ctx.set(leaf, next)}
+        />
       </GroupField>
     );
   }
@@ -224,11 +251,9 @@ function Input({ leaf, ctx }: { leaf: Leaf; ctx: Ctx }) {
   if (control.kind === 'json') {
     return (
       <GroupField label={leaf.label} help={help ?? 'Não se edita por aqui; o valor é mantido.'}>
-        {() => (
-          <pre className="m-0 overflow-x-auto font-mono text-label">
-            {JSON.stringify(value, null, 2)}
-          </pre>
-        )}
+        <pre className="m-0 overflow-x-auto font-mono text-label">
+          {JSON.stringify(value, null, 2)}
+        </pre>
       </GroupField>
     );
   }
@@ -283,30 +308,48 @@ function Input({ leaf, ctx }: { leaf: Leaf; ctx: Ctx }) {
                 {...props}
                 disabled={disabled}
                 value={String(value ?? '')}
-                onChange={(e) => ctx.set(leaf, e.target.value)}
+                onChange={(e) =>
+                  ctx.set(
+                    leaf,
+                    control.options.find((o) => String(o) === e.target.value) ?? e.target.value,
+                  )
+                }
                 className={inputClass}
               >
                 {isEmpty(value) && <option value="">—</option>}
                 {control.options.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
+                  <option key={String(option)} value={String(option)}>
+                    {String(option)}
                   </option>
                 ))}
               </select>
             );
           case 'color': {
-            const hex = typeof value === 'string' && /^#[0-9a-fA-F]{6}$/.test(value) ? value : '';
+            const valid = (v: unknown): v is string =>
+              typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v);
+            const shown = valid(value) ? value : valid(control.fallback) ? control.fallback : '';
+            // Sem valor nem padrão não há cor para o seletor mostrar: só o campo de texto.
             return (
               <div className="flex items-center gap-3">
+                {shown !== '' && (
+                  <input
+                    {...props}
+                    type="color"
+                    disabled={disabled}
+                    value={shown}
+                    onChange={(e) => ctx.set(leaf, e.target.value)}
+                    className="h-11 w-14 cursor-pointer rounded-field bg-raised p-1 shadow-e1 disabled:opacity-45"
+                  />
+                )}
                 <input
-                  {...props}
-                  type="color"
+                  {...(shown === '' ? props : { 'aria-label': `${leaf.label} (hex)` })}
+                  type="text"
                   disabled={disabled}
-                  value={hex === '' ? EMPTY_COLOR : hex}
+                  value={typeof value === 'string' ? value : ''}
+                  placeholder={shown === '' ? leaf.placeholder : shown}
                   onChange={(e) => ctx.set(leaf, e.target.value)}
-                  className="h-11 w-14 cursor-pointer rounded-field bg-raised p-1 shadow-e1 disabled:opacity-45"
+                  className={`${inputClass} font-mono`}
                 />
-                <span className="font-mono text-label">{hex === '' ? '—' : hex}</span>
               </div>
             );
           }
@@ -317,7 +360,7 @@ function Input({ leaf, ctx }: { leaf: Leaf; ctx: Ctx }) {
                 {...props}
                 type="password"
                 autoComplete="new-password"
-                disabled={disabled || !ctx.secretsWritable}
+                disabled={disabled || !ctx.secretsWritable || !ctx.canSecrets}
                 placeholder={saved ? MASK : ''}
                 value={typeof value === 'string' && value !== MASK ? value : ''}
                 onChange={(e) => ctx.set(leaf, e.target.value)}
@@ -364,13 +407,17 @@ export function ConfigForm({
   plugin,
   data,
   canWrite,
+  canSecrets,
   saving,
   error,
   onSave,
+  onDirtyChange,
 }: {
   plugin: string;
   data: PluginConfig;
   canWrite: boolean;
+  canSecrets: boolean;
+  onDirtyChange?: (dirty: boolean) => void;
   saving: boolean;
   error: unknown;
   onSave: (body: Json) => void;
@@ -394,6 +441,7 @@ export function ConfigForm({
     plugin,
     readOnly: !canWrite,
     secretsWritable: data.secretsWritable,
+    canSecrets,
     errors,
     valueOf: (leaf) => (leaf.path in edits ? edits[leaf.path] : getPath(config, leaf.path)),
     set: (leaf, value) => {
@@ -412,6 +460,10 @@ export function ConfigForm({
 
   const dirty = Object.keys(edits).length > 0;
   const invalidNow = data.view === null;
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+    return () => onDirtyChange?.(false);
+  }, [dirty, onDirtyChange]);
   const save = () => {
     onSave(buildBody({ leaves, config, sources, messages: data.view?.messages ?? {}, edits }));
     setConfirming(false);
@@ -456,7 +508,7 @@ export function ConfigForm({
           {confirming ? (
             <>
               <p className="text-warn">Salvar substitui todos os overrides atuais.</p>
-              <Button type="submit" variant="primary" disabled={saving}>
+              <Button type="submit" variant="danger" disabled={saving}>
                 Substituir e salvar
               </Button>
               <Button onClick={() => setConfirming(false)}>Cancelar</Button>

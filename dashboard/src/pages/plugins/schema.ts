@@ -11,14 +11,17 @@ export const MAX_SLIDER_STEPS = 200;
 /** Segmentado vai até aqui; enum maior vira `select`. */
 export const MAX_SEGMENTED = 4;
 
+/** Valor do enum como o schema o declara (número continua número ao salvar). */
+export type Option = string | number | boolean;
+
 export type Control =
   | { kind: 'slider'; min: number; max: number; step: number }
   | { kind: 'number'; integer: boolean; min?: number; max?: number; unit?: string }
-  | { kind: 'segmented'; options: readonly string[] }
-  | { kind: 'select'; options: readonly string[] }
+  | { kind: 'segmented'; options: readonly Option[] }
+  | { kind: 'select'; options: readonly Option[] }
   | { kind: 'toggle' }
   | { kind: 'tags' }
-  | { kind: 'color' }
+  | { kind: 'color'; fallback?: string }
   | { kind: 'secret' }
   | { kind: 'models' }
   | { kind: 'text' }
@@ -75,36 +78,37 @@ const SUFFIX_UNITS: readonly (readonly [RegExp, string])[] = [
   [/Px$/, 'px'],
 ];
 
-/** Unidade do campo numérico, pelo sufixo do nome (`timeoutMs` -> ms); sem sufixo, nenhuma. */
+/** Unidade pelo sufixo do nome (`timeoutMs` -> ms): só o plano B de quando o schema não traz `unit`. */
 export function unitOf(key: string): string | undefined {
   return SUFFIX_UNITS.find(([pattern]) => pattern.test(key))?.[1];
 }
 
+// O `pattern` de uma cor é sempre o mesmo texto de regex; compará-lo como texto dispensa testar
+// com amostra de cor.
+const COLOR_PATTERN = /^\^?#\[(?:0-9a-f(?:A-F)?|0-9A-F(?:a-f)?|\\da-f(?:A-F)?)\]\{6\}\$?$/i;
+
 /** O padrão do schema só aceita `#rrggbb`? */
-export function isColorPattern(pattern: unknown): boolean {
-  if (typeof pattern !== 'string') return false;
-  try {
-    const re = new RegExp(pattern);
-    const hex = (digits: string) => `#${digits}`;
-    return (
-      re.test(hex('a1b2c3')) && !re.test(hex('xyz123')) && !re.test('a1b2c3') && !re.test('red')
-    );
-  } catch {
-    // Padrão que o JS não entende não é cor: cai no campo de texto.
-    return false;
-  }
-}
+export const isColorPattern = (pattern: unknown): boolean =>
+  typeof pattern === 'string' && COLOR_PATTERN.test(pattern);
 
 /** O mapa schema -> controle do guia, para um campo (nunca um objeto). */
-export function controlOf(rawSchema: Json, key: string, path = key): Control {
+export function controlOf(rawSchema: Json, key: string, path = key, unitKey = key): Control {
   const schema = normalize(rawSchema);
   const type = schema['type'];
   if (path === 'models') return { kind: 'models' };
+  const items = isObject(schema['items']) ? normalize(schema['items']) : {};
+  const itemProps = items['properties'];
+  // Cadeia de modelos (`models`, `visionModels`): item com `model`. Quem escolhe é a tela IA.
+  if (type === 'array' && isObject(itemProps) && isObject(itemProps['model'])) {
+    return { kind: 'models' };
+  }
   if (schema['secret'] === true || schema['writeOnly'] === true) return { kind: 'secret' };
 
   const values = schema['enum'];
   if (Array.isArray(values) && values.length > 0) {
-    const options = values.map(String);
+    const options = values.filter((v): v is Option =>
+      ['string', 'number', 'boolean'].includes(typeof v),
+    );
     return options.length <= MAX_SEGMENTED
       ? { kind: 'segmented', options }
       : { kind: 'select', options };
@@ -116,10 +120,16 @@ export function controlOf(rawSchema: Json, key: string, path = key): Control {
     const max = typeof schema['maximum'] === 'number' ? schema['maximum'] : undefined;
     if (min !== undefined && max !== undefined && max > min) {
       const declared = schema['multipleOf'];
-      const step = typeof declared === 'number' && declared > 0 ? declared : integer ? 1 : 0.1;
+      // Sem `multipleOf`, cem passos: não arredonda valor fino (0,05 em 0 a 1) sem entupir o slider.
+      const step =
+        typeof declared === 'number' && declared > 0
+          ? declared
+          : integer
+            ? 1
+            : Number(((max - min) / 100).toPrecision(6));
       if ((max - min) / step <= MAX_SLIDER_STEPS + 1e-9) return { kind: 'slider', min, max, step };
     }
-    const unit = unitOf(key);
+    const unit = typeof schema['unit'] === 'string' ? schema['unit'] : unitOf(unitKey);
     return {
       kind: 'number',
       integer,
@@ -129,13 +139,14 @@ export function controlOf(rawSchema: Json, key: string, path = key): Control {
     };
   }
   if (type === 'array') {
-    const items = isObject(schema['items']) ? normalize(schema['items']) : {};
     return items['type'] === 'string' && items['enum'] === undefined
       ? { kind: 'tags' }
       : { kind: 'json' };
   }
   if (type === 'string') {
-    return isColorPattern(schema['pattern']) ? { kind: 'color' } : { kind: 'text' };
+    if (!isColorPattern(schema['pattern'])) return { kind: 'text' };
+    const fallback = schema['default'];
+    return { kind: 'color', ...(typeof fallback === 'string' && { fallback }) };
   }
   return { kind: 'json' };
 }
@@ -166,7 +177,13 @@ export function nodesOf(rawSchema: Json, prefix = ''): readonly Node[] {
       path,
       label,
       ...(help !== undefined && { help }),
-      control: controlOf(schema, key, path),
+      // `min`/`max` dentro de objeto herdam a unidade do pai (`thinkingDelayMs.min`).
+      control: controlOf(
+        schema,
+        key,
+        path,
+        key === 'min' || key === 'max' ? (prefix.split('.').at(-1) ?? key) : key,
+      ),
       ...(fallback !== undefined &&
         typeof fallback !== 'object' && { placeholder: `padrão: ${String(fallback)}` }),
     });
@@ -212,9 +229,12 @@ export const isEmpty = (value: unknown): boolean =>
 export const sameValue = (a: unknown, b: unknown): boolean =>
   JSON.stringify(a) === JSON.stringify(b);
 
+// Mesma regra do `toEnvSegment` do core: a API não informa o nome da variável (issue 317 do
+// usebridger), então a tela a reconstrói.
 const snake = (s: string): string =>
   s
     .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+    .replace(/([A-Z])([A-Z][a-z])/g, '$1_$2')
     .replace(/-/g, '_')
     .toUpperCase();
 
@@ -225,6 +245,22 @@ export const envName = (plugin: string, path: string): string =>
 /** Quem decide o campo: `env` e `file` ganham do override, então a tela não deixa editar. */
 export const isLocked = (source: string | undefined): boolean =>
   source === 'env' || source === 'file';
+
+/**
+ * Fonte do campo. Valor inteiro (record, array de objetos) tem a fonte nas chaves `${path}.*`:
+ * qualquer env/arquivo trava o campo; senão, qualquer override preserva o valor inteiro.
+ */
+export function sourceOf(
+  sources: Readonly<Record<string, string>>,
+  path: string,
+): string | undefined {
+  const own = sources[path];
+  if (own !== undefined) return own;
+  const inner = Object.entries(sources)
+    .filter(([key]) => key.startsWith(`${path}.`))
+    .map(([, source]) => source);
+  return inner.find(isLocked) ?? inner.find((source) => source === 'override');
+}
 
 /**
  * Corpo do `PUT`: os overrides que já existiam (e segredos salvos, pela máscara) mais o que a
@@ -240,7 +276,7 @@ export function buildBody(args: {
   const { leaves, config, sources, messages, edits } = args;
   const body: Json = {};
   for (const leaf of leaves) {
-    const source = sources[leaf.path];
+    const source = sourceOf(sources, leaf.path);
     if (isLocked(source)) continue;
     if (leaf.path in edits) {
       const value = edits[leaf.path];

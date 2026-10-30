@@ -156,12 +156,10 @@ describe('formulário', () => {
     expect(fixed.disabled).toBe(true);
     expect(screen.getByText(/BRIDGER_STICKER__FIXED/)).toBeTruthy();
     expect(screen.getByText('Ordem principal')).toBeTruthy();
-    expect(
-      screen
-        .getByText(/O modelo se escolhe/)
-        .querySelector('a')
-        ?.getAttribute('href'),
-    ).toBe('/ia');
+    expect(screen.getByText('Escolher na tela IA').getAttribute('href')).toBe('/ia');
+    // Ver logs leva ao filtro por plugin; aria-current marca a linha escolhida.
+    expect(screen.getByText('Ver logs').getAttribute('href')).toBe('/logs?plugins=sticker');
+    expect(screen.getByRole('link', { name: 'sticker' }).getAttribute('aria-current')).toBe('true');
   });
 
   it('salva overrides existentes mais a mudança, mantém o segredo e tira o campo esvaziado', async () => {
@@ -200,6 +198,7 @@ describe('formulário', () => {
     const user = userEvent.setup();
     const app = renderApp({
       path: '/plugins/sticker',
+      me: { ...OWNER, permissions: [...OWNER.permissions, 'secrets.write'] },
       routes: { ...routes(), 'PUT /api/plugins/sticker/config': () => ({ body: CONFIG }) },
     });
     await user.type(await screen.findByLabelText('Chave'), 'sk-novo');
@@ -296,5 +295,117 @@ describe('formulário', () => {
     });
     expect((await screen.findByText('sem config')).closest('[role=alert]')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Tentar de novo' })).toBeTruthy();
+  });
+});
+
+describe('revisão', () => {
+  it('segredo sem secrets.write fica desabilitado, com a ajuda', async () => {
+    renderApp({ path: '/plugins/sticker', routes: routes() });
+    expect(((await screen.findByLabelText('Chave')) as HTMLInputElement).disabled).toBe(true);
+    expect(screen.getByText(/secrets\.write/)).toBeTruthy();
+  });
+
+  it('sem logs.read não há Ver logs', async () => {
+    renderApp({
+      path: '/plugins/sticker',
+      me: { ...OWNER, permissions: ['plugins.read', 'config.read'] },
+      routes: routes(),
+    });
+    await screen.findByLabelText('Tempo limite');
+    expect(screen.queryByText('Ver logs')).toBeNull();
+  });
+
+  it('plugin pulado por dependência é "desligado", não falha de boot', async () => {
+    renderApp({
+      path: '/plugins',
+      routes: {
+        'GET /api/plugins': () => ({
+          body: {
+            bootedAt: 1,
+            plugins: [
+              plugin('filho', {
+                status: 'skipped',
+                reason: { kind: 'dependency-skipped', message: 'depende de pai' },
+              }),
+            ],
+          },
+        }),
+      },
+    });
+    expect(await screen.findByText('desligado: depende de pai')).toBeTruthy();
+    expect(screen.queryByText('falhou no boot')).toBeNull();
+  });
+
+  it('desligar plugin com dependentes pede confirmação', async () => {
+    const user = userEvent.setup();
+    const app = renderApp({
+      path: '/plugins',
+      routes: {
+        'GET /api/plugins': () => ({
+          body: {
+            bootedAt: 1,
+            plugins: [plugin('pai'), plugin('filho', { dependsOn: { pai: '*' } })],
+          },
+        }),
+        'POST /api/plugins/pai/disable': () => ({
+          body: { plugin: plugin('pai'), dependents: [] },
+        }),
+      },
+    });
+    await user.click(await screen.findByRole('switch', { name: 'pai' }));
+    expect(screen.getByText(/também desliga: filho/)).toBeTruthy();
+    expect(app.calls.some((c) => c.method === 'POST')).toBe(false);
+    await user.click(screen.getByRole('button', { name: 'Desligar' }));
+    await waitFor(() =>
+      expect(app.calls.some((c) => c.path === '/api/plugins/pai/disable')).toBe(true),
+    );
+  });
+
+  it('trocar de plugin com edição pendente pede confirmação', async () => {
+    const user = userEvent.setup();
+    renderApp({ path: '/plugins/sticker', routes: routes() });
+    await user.click(await screen.findByRole('button', { name: 'b' }));
+    await user.click(screen.getByRole('link', { name: 'luma' }));
+    expect(screen.getByText('Há alterações não salvas neste plugin.')).toBeTruthy();
+    expect(location.pathname).toBe('/plugins/sticker');
+    await user.click(screen.getByRole('button', { name: 'Descartar e abrir' }));
+    expect(location.pathname).toBe('/plugins/luma');
+  });
+
+  it('record com override é preservado inteiro e travado por env', async () => {
+    const user = userEvent.setup();
+    const schema = {
+      type: 'object',
+      properties: {
+        prices: { type: 'object', title: 'Preços', additionalProperties: { type: 'number' } },
+        modo: { type: 'integer', enum: [1, 2], title: 'Nível' },
+      },
+    };
+    const app = renderApp({
+      path: '/plugins/sticker',
+      routes: {
+        'GET /api/plugins': () => ({ body: LIST }),
+        'GET /api/plugins/sticker/config': () => ({
+          body: {
+            view: {
+              config: { prices: { a: 1 }, modo: 1 },
+              messages: {},
+              sources: { 'prices.a': 'override', modo: 'default' },
+            },
+            schema,
+            secretsWritable: true,
+          },
+        }),
+        'PUT /api/plugins/sticker/config': () => ({ body: CONFIG }),
+      },
+    });
+    await user.click(await screen.findByRole('button', { name: '2' }));
+    await user.click(screen.getByRole('button', { name: 'Salvar' }));
+    await waitFor(() => expect(app.calls.some((c) => c.method === 'PUT')).toBe(true));
+    // Enum numérico volta número, e o record sai inteiro.
+    expect(app.calls.find((c) => c.method === 'PUT')?.body).toEqual({
+      prices: { a: 1 },
+      modo: 2,
+    });
   });
 });

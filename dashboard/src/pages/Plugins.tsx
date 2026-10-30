@@ -1,12 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { type MouseEvent, useEffect, useRef, useState } from 'react';
 import { useApi, useLiveEvent, useSession } from '#components/context.tsx';
 import { PageTitle } from '#components/PageTitle.tsx';
 import { StateWord } from '#components/StateWord.tsx';
 import { Switch } from '#components/Switch.tsx';
-import { Card, ErrorNotice, Loading } from '#components/ui.tsx';
+import { Button, Card, ErrorNotice, Loading } from '#components/ui.tsx';
 import { ok, type Schemas } from '#lib/api.ts';
-import { Link, type PageProps } from '#lib/router.tsx';
+import { Link, navigate, type PageProps } from '#lib/router.tsx';
 import { ConfigForm } from '#pages/plugins/ConfigForm.tsx';
 import { groupPlugins, stateOf } from '#pages/plugins/groups.ts';
 
@@ -14,17 +14,36 @@ type Plugin = Schemas['Plugin'];
 
 const PLUGINS = ['plugins'] as const;
 
+/** Quem para junto quando `name` desliga: dependentes diretos e indiretos que estão ligados. */
+function dependentsOf(name: string, plugins: readonly Plugin[]): string[] {
+  const down = new Set([name]);
+  for (let grew = true; grew; ) {
+    grew = false;
+    for (const p of plugins) {
+      if (p.status !== 'loaded' || down.has(p.name)) continue;
+      if (Object.keys(p.dependsOn ?? {}).some((dep) => down.has(dep))) {
+        down.add(p.name);
+        grew = true;
+      }
+    }
+  }
+  down.delete(name);
+  return [...down].sort();
+}
+
 function Row({
   plugin,
   selected,
   canManage,
   onToggle,
+  onNavigate,
   busy,
 }: {
   plugin: Plugin;
   selected: boolean;
   canManage: boolean;
   onToggle: (plugin: Plugin, enable: boolean) => void;
+  onNavigate: (to: string, event: MouseEvent<HTMLAnchorElement>) => void;
   busy: boolean;
 }) {
   const state = stateOf(plugin);
@@ -33,7 +52,8 @@ function Row({
       <div className="flex min-w-0 flex-col">
         <Link
           to={`/plugins/${encodeURIComponent(plugin.name)}`}
-          {...(selected && { 'aria-current': 'page' as const })}
+          {...(selected && { 'aria-current': 'true' as const })}
+          onClick={(event) => onNavigate(`/plugins/${encodeURIComponent(plugin.name)}`, event)}
           className={`flex min-h-11 items-center truncate rounded-field px-3 ${selected ? 'bg-raised font-medium shadow-e1' : ''}`}
         >
           {plugin.name}
@@ -44,6 +64,7 @@ function Row({
             {state.detail && <span className="text-muted">: {state.detail}</span>}
           </span>
         )}
+        {state.note && <span className="px-3 text-help text-muted">{state.note}</span>}
       </div>
       {canManage ? (
         <Switch
@@ -53,13 +74,21 @@ function Row({
           onChange={(next) => onToggle(plugin, next)}
         />
       ) : (
-        !state.on && !state.word && <span className="pr-3 text-help text-muted">desligado</span>
+        !state.on &&
+        !state.word &&
+        !state.note && <span className="pr-3 text-help text-muted">desligado</span>
       )}
     </li>
   );
 }
 
-function ConfigPane({ name }: { name: string }) {
+function ConfigPane({
+  name,
+  onDirtyChange,
+}: {
+  name: string;
+  onDirtyChange: (dirty: boolean) => void;
+}) {
   const api = useApi();
   const { can } = useSession();
   const client = useQueryClient();
@@ -103,6 +132,8 @@ function ConfigPane({ name }: { name: string }) {
         plugin={name}
         data={config.data}
         canWrite={can('config.write')}
+        canSecrets={can('secrets.write')}
+        onDirtyChange={onDirtyChange}
         saving={save.isPending}
         error={save.error}
         onSave={(body) => save.mutate(body)}
@@ -136,8 +167,33 @@ export function Plugins({ params }: PageProps) {
     onSettled: () => client.invalidateQueries({ queryKey: PLUGINS }),
   });
 
+  const [dirty, setDirty] = useState(false);
+  const [pendingNav, setPendingNav] = useState<string>();
+  const [pendingOff, setPendingOff] = useState<{ plugin: Plugin; dependents: string[] }>();
+  const card = useRef<HTMLHeadingElement>(null);
+  const lastSelected = useRef(selected);
+  // No celular o card fica abaixo da lista: escolher um plugin leva a vista e o foco até ele.
+  useEffect(() => {
+    if (selected !== undefined && selected !== lastSelected.current) {
+      card.current?.scrollIntoView?.({ block: 'start' });
+      card.current?.focus();
+    }
+    lastSelected.current = selected;
+  }, [selected]);
+
   const plugins = list.data?.plugins ?? [];
   const current = plugins.find((p) => p.name === selected);
+
+  const requestToggle = (plugin: Plugin, enable: boolean) => {
+    const dependents = enable ? [] : dependentsOf(plugin.name, plugins);
+    if (dependents.length > 0) setPendingOff({ plugin, dependents });
+    else toggle.mutate({ plugin, enable });
+  };
+  const requestNav = (to: string, event: MouseEvent<HTMLAnchorElement>) => {
+    if (!dirty || to === location.pathname) return;
+    event.preventDefault();
+    setPendingNav(to);
+  };
 
   let left: React.ReactNode;
   if (list.isPending) left = <Loading />;
@@ -148,6 +204,49 @@ export function Plugins({ params }: PageProps) {
     left = (
       <div className="flex flex-col gap-4">
         {toggle.isError && <ErrorNotice error={toggle.error} />}
+        {pendingNav !== undefined && (
+          <div
+            role="alert"
+            className="flex flex-col items-start gap-3 rounded-field bg-warn-soft p-4"
+          >
+            <p className="text-warn">Há alterações não salvas neste plugin.</p>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="danger"
+                onClick={() => {
+                  setDirty(false);
+                  setPendingNav(undefined);
+                  navigate(pendingNav);
+                }}
+              >
+                Descartar e abrir
+              </Button>
+              <Button onClick={() => setPendingNav(undefined)}>Continuar editando</Button>
+            </div>
+          </div>
+        )}
+        {pendingOff !== undefined && (
+          <div
+            role="alert"
+            className="flex flex-col items-start gap-3 rounded-field bg-warn-soft p-4"
+          >
+            <p className="text-warn">
+              Desligar {pendingOff.plugin.name} também desliga: {pendingOff.dependents.join(', ')}.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="danger"
+                onClick={() => {
+                  toggle.mutate({ plugin: pendingOff.plugin, enable: false });
+                  setPendingOff(undefined);
+                }}
+              >
+                Desligar
+              </Button>
+              <Button onClick={() => setPendingOff(undefined)}>Cancelar</Button>
+            </div>
+          </div>
+        )}
         {groupPlugins(plugins).map((group) => (
           <section key={group.name} aria-label={group.name} className="flex flex-col gap-1">
             <h2 className="font-display text-sub font-semibold">{group.name}</h2>
@@ -159,7 +258,8 @@ export function Plugins({ params }: PageProps) {
                   selected={plugin.name === selected}
                   canManage={can('plugins.manage')}
                   busy={toggle.isPending}
-                  onToggle={(p, enable) => toggle.mutate({ plugin: p, enable })}
+                  onToggle={requestToggle}
+                  onNavigate={requestNav}
                 />
               ))}
             </ul>
@@ -174,7 +274,7 @@ export function Plugins({ params }: PageProps) {
     right = <p className="text-muted">Escolha um plugin para ver a config.</p>;
   else if (list.isSuccess && current === undefined) {
     right = <p className="text-muted">Plugin “{selected}” não encontrado.</p>;
-  } else right = <ConfigPane key={selected} name={selected} />;
+  } else right = <ConfigPane key={selected} name={selected} onDirtyChange={setDirty} />;
 
   return (
     <section className="flex flex-col gap-6">
@@ -184,9 +284,19 @@ export function Plugins({ params }: PageProps) {
         {(selected !== undefined || list.isSuccess) && (
           <Card className="flex flex-col gap-4">
             {selected !== undefined && (
-              <h2 className="font-display text-section font-semibold">
-                <span className="font-mono text-body">{selected}</span>
-              </h2>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h2 ref={card} tabIndex={-1} className="font-display text-section font-semibold">
+                  <span className="font-mono text-body">{selected}</span>
+                </h2>
+                {can('logs.read') && (
+                  <Link
+                    to={`/logs?plugins=${encodeURIComponent(selected)}`}
+                    className="inline-flex min-h-11 items-center underline"
+                  >
+                    Ver logs
+                  </Link>
+                )}
+              </div>
             )}
             {right}
           </Card>
