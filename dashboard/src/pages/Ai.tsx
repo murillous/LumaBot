@@ -331,7 +331,8 @@ function AiForm({
 
   const aiErrors = errors[AI] ?? {};
   const aiSources = aiConfig.view?.sources ?? {};
-  const limitLock = (field: string) => lockedLabel(AI, aiSources, field);
+  const aiEnv = aiConfig.view?.env ?? {};
+  const limitLock = (field: string) => lockedLabel(aiSources, aiEnv, field);
   const [lockTimeout, lockCooldown, lockSteps] = [
     limitLock('timeoutMs'),
     limitLock('cooldownMs'),
@@ -345,7 +346,11 @@ function AiForm({
   const lockedModels = Object.fromEntries(
     RESOURCE_NAMES.map((n) => [
       n,
-      lockedLabel(n, resourceConfigs[n]?.view?.sources ?? {}, 'models'),
+      lockedLabel(
+        resourceConfigs[n]?.view?.sources ?? {},
+        resourceConfigs[n]?.view?.env ?? {},
+        'models',
+      ),
     ]),
   );
   const placed = (path: string) =>
@@ -382,9 +387,9 @@ function AiForm({
             catalog={catalog}
             status={status}
             now={now}
-            readOnly={!canWrite || Boolean(lockedLabel(AI, aiSources, 'models'))}
+            readOnly={!canWrite || Boolean(lockedLabel(aiSources, aiEnv, 'models'))}
             errors={aiErrors}
-            locked={lockedLabel(AI, aiSources, 'models')}
+            locked={lockedLabel(aiSources, aiEnv, 'models')}
             footer="Se todos falharem, a Luma avisa no chat que está indisponível."
           />
         )}
@@ -433,6 +438,7 @@ function AiForm({
           canWrite={canWrite && canKeys}
           secretsWritable={aiConfig.secretsWritable}
           sources={aiSources}
+          env={aiEnv}
           schema={aiConfig.schema}
           errors={aiErrors}
         />

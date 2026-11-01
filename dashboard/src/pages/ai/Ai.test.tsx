@@ -54,7 +54,12 @@ const CATALOG = {
 };
 
 type Cfg = {
-  view: { config: unknown; messages: Record<string, string>; sources: Record<string, string> };
+  view: {
+    config: unknown;
+    messages: Record<string, string>;
+    sources: Record<string, string>;
+    env: Record<string, string>;
+  };
   schema: unknown;
   secretsWritable: boolean;
 };
@@ -63,8 +68,9 @@ const view = (
   config: unknown,
   sources: Record<string, string> = {},
   messages: Record<string, string> = {},
+  env: Record<string, string> = {},
 ): Cfg => ({
-  view: { config, messages, sources },
+  view: { config, messages, sources, env },
   schema: {
     properties: {
       keys: {
@@ -356,9 +362,10 @@ describe('IA: chaves', () => {
     await open();
     const table = screen.getByRole('table', { name: 'Chaves dos provedores' });
     expect(within(table).getAllByRole('row')).toHaveLength(5);
+    // O catálogo diz `env`, mas a config não trouxe o nome: não se inventa variável.
+    expect(within(table).getByText('de ambiente')).toBeTruthy();
     expect(within(table).getAllByText('configurada')).toHaveLength(2);
     expect(within(table).getByText('sem chave')).toBeTruthy();
-    expect(within(table).getByText('BRIDGER_AI__KEYS__OPENAI')).toBeTruthy();
     expect(within(table).queryByLabelText('Chave de OpenAI')).toBeNull();
     expect((within(table).getByLabelText('Chave de Google') as HTMLInputElement).type).toBe(
       'password',
@@ -566,7 +573,14 @@ describe('IA: revisão', () => {
   });
 
   it('chave por variável (fonte da config) é só leitura, mesmo com o catálogo dizendo configurada', async () => {
-    await open({ ai: view(cfg(), { models: 'override', 'keys.google': 'env' }) });
+    await open({
+      ai: view(
+        cfg(),
+        { models: 'override', 'keys.google': 'env' },
+        {},
+        { 'keys.google': 'BRIDGER_AI__KEYS__GOOGLE' },
+      ),
+    });
     const table = screen.getByRole('table', { name: 'Chaves dos provedores' });
     expect(within(table).getAllByText('BRIDGER_AI__KEYS__GOOGLE')).toHaveLength(1);
     expect(within(table).queryByLabelText('Chave de Google')).toBeNull();
@@ -606,7 +620,14 @@ describe('IA: revisão', () => {
   });
 
   it('campos definidos por env ou arquivo ficam só leitura com a origem', async () => {
-    await open({ ai: view(cfg(), { models: 'env', timeoutMs: 'file', cooldownMs: 'default' }) });
+    await open({
+      ai: view(
+        cfg(),
+        { 'models.0.model': 'env', timeoutMs: 'file', cooldownMs: 'default' },
+        {},
+        { 'models.0.model': 'BRIDGER_AI__MODELS' },
+      ),
+    });
     expect(screen.queryByRole('button', { name: /^Subir / })).toBeNull();
     expect(screen.getByText(/definido por BRIDGER_AI__MODELS/)).toBeTruthy();
     expect((screen.getByLabelText(/Tempo limite por tentativa/) as HTMLInputElement).disabled).toBe(
@@ -621,7 +642,14 @@ describe('IA: revisão', () => {
   it('models de recurso por env não deixa trocar a cadeia', async () => {
     const user = userEvent.setup();
     await open({
-      plugins: { resumo: view({ models: [{ model: 'openai:gpt-5' }] }, { models: 'env' }) },
+      plugins: {
+        resumo: view(
+          { models: [{ model: 'openai:gpt-5' }] },
+          { models: 'env' },
+          {},
+          { models: 'BRIDGER_RESUMO__MODELS' },
+        ),
+      },
     });
     expect(screen.queryByRole('group', { name: 'Cadeia de Resumo' })).toBeNull();
     await user.click(screen.getByRole('button', { name: /^Resumo/ }));

@@ -2,10 +2,10 @@ import { type ReactNode, useEffect, useId, useState } from 'react';
 import { Segmented } from '#components/Segmented.tsx';
 import { Button, ErrorNotice, Field, type FieldProps, inputClass } from '#components/ui.tsx';
 import { ApiFailure, type Schemas } from '#lib/api.ts';
+import { type EnvNames, envOf } from '#lib/config-env.ts';
 import { Link } from '#lib/router.tsx';
 import {
   buildBody,
-  envName,
   errorsByPath,
   getPath,
   isEmpty,
@@ -153,6 +153,7 @@ function Tags({
 interface Ctx {
   config: unknown;
   sources: Readonly<Record<string, string>>;
+  env: EnvNames;
   plugin: string;
   readOnly: boolean;
   secretsWritable: boolean;
@@ -171,7 +172,7 @@ function Input({ leaf, ctx }: { leaf: Leaf; ctx: Ctx }) {
   const disabled = ctx.readOnly || locked;
   const lockNote =
     source === 'env'
-      ? `Definido pela variável ${envName(ctx.plugin, leaf.path)}: não muda por aqui.`
+      ? `Definido pela variável ${envOf(ctx.env, leaf.path) ?? 'de ambiente'}: não muda por aqui.`
       : source === 'file'
         ? 'Definido no arquivo de config: não muda por aqui.'
         : undefined;
@@ -452,6 +453,7 @@ export function ConfigForm({
   const ctx: Ctx = {
     config,
     sources,
+    env: data.view?.env ?? {},
     plugin,
     readOnly: !canWrite,
     secretsWritable: data.secretsWritable,

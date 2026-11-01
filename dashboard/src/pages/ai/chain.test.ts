@@ -5,8 +5,6 @@ import {
   chainErrorTarget,
   changeProvider,
   clampTemperature,
-  envName,
-  keyEnvName,
   lockedLabel,
   lockedSource,
   moveItem,
@@ -180,10 +178,6 @@ describe('apoio', () => {
     expect(secondsToMs('-1')).toBeNull();
     expect(msToSeconds(1500)).toBe('1,5');
   });
-
-  it('nome da variável da chave', () => {
-    expect(keyEnvName('google')).toBe('BRIDGER_AI__KEYS__GOOGLE');
-  });
 });
 
 describe('revisão', () => {
@@ -201,20 +195,27 @@ describe('revisão', () => {
     expect(overridesOf({ a: 1, b: 2 }, { a: 'env', b: 'file' })).toEqual({});
   });
 
-  it('nome da variável segue a regra do core', () => {
-    expect(envName('web-search', ['quotaCooldownMs'])).toBe(
-      'BRIDGER_WEB_SEARCH__QUOTA_COOLDOWN_MS',
-    );
-  });
-
   it('diz de onde vem o campo travado', () => {
-    expect(lockedLabel('ai', { timeoutMs: 'env' }, 'timeoutMs')).toBe(
-      'definido por BRIDGER_AI__TIMEOUT_MS',
-    );
-    expect(lockedLabel('ai', { 'models.0.model': 'file' }, 'models')).toBe(
+    expect(
+      lockedLabel({ timeoutMs: 'env' }, { timeoutMs: 'BRIDGER_AI__TIMEOUT_MS' }, 'timeoutMs'),
+    ).toBe('definido por BRIDGER_AI__TIMEOUT_MS');
+    expect(lockedLabel({ 'models.0.model': 'file' }, {}, 'models')).toBe(
       'definido pelo arquivo de config',
     );
-    expect(lockedLabel('ai', { models: 'override' }, 'models')).toBeNull();
+    expect(lockedLabel({ models: 'override' }, {}, 'models')).toBeNull();
+  });
+
+  it('o nome vem de um subcampo quando o valor é inteiro, sem inventar nome', () => {
+    expect(
+      lockedLabel(
+        { 'models.0.model': 'env' },
+        { 'models.0.model': 'BRIDGER_AI__MODELS' },
+        'models',
+      ),
+    ).toBe('definido por BRIDGER_AI__MODELS');
+    expect(lockedLabel({ timeoutMs: 'env' }, {}, 'timeoutMs')).toBe(
+      'definido por variável de ambiente',
+    );
   });
 
   it('o schema declara a chave do provedor?', () => {

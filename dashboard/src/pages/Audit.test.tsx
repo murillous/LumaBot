@@ -266,30 +266,30 @@ describe('tela Auditoria', () => {
     expect(screen.getByText('storage fora')).toBeTruthy();
   });
 
-  it('pagina por cursor em ordem crescente: "Carregar mais" pede o next e some na página curta', async () => {
+  it('pagina do mais novo para o mais antigo: "Carregar mais" pede o next em before e some na página curta', async () => {
     const user = userEvent.setup();
     const seen: (string | null)[] = [];
     renderApp({
       path: '/auditoria',
       routes: {
         'GET /api/audit': ({ url }) => {
-          const after = url.searchParams.get('after');
-          seen.push(after);
-          // Contrato real: crescente, página cheia traz next = último seq.
-          if (after === null) {
-            const events = Array.from({ length: 100 }, (_, i) => event(i + 1));
-            return page(events, 100);
+          const before = url.searchParams.get('before');
+          seen.push(before);
+          expect(url.searchParams.get('order')).toBe('desc');
+          // Contrato real: decrescente, página cheia traz next = último seq.
+          if (before === null) {
+            const events = Array.from({ length: 100 }, (_, i) => event(101 - i));
+            return page(events, 2);
           }
-          return page([event(101, { action: 'luma.history.clear' })]);
+          return page([event(1, { action: 'luma.history.clear' })]);
         },
       },
     });
     await screen.findByRole('table', { name: 'Eventos' });
     expect(screen.getByText(/100 eventos carregados/)).toBeTruthy();
-    expect(screen.getByText(/do evento mais antigo para o mais novo/)).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Carregar mais' }));
     await screen.findByText('Limpou o histórico com a Luma');
-    expect(seen).toEqual([null, '100']);
+    expect(seen).toEqual([null, '2']);
     expect(screen.queryByRole('button', { name: 'Carregar mais' })).toBeNull();
     expect(screen.getByText(/101 eventos./)).toBeTruthy();
   });
@@ -320,12 +320,47 @@ describe('tela Auditoria', () => {
     expect(
       within(screen.getByRole('table', { name: 'Eventos' })).queryByText('Iniciou o bot'),
     ).toBeNull();
-    expect(screen.getByText(/exportação leva todos os atores/)).toBeTruthy();
+    expect(screen.getByText(/exportação leva todos os atos de plugins/)).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Sistema' }));
     expect(
       within(screen.getByRole('table', { name: 'Eventos' })).getByText('Iniciou o bot'),
     ).toBeTruthy();
     expect(within(screen.getByRole('table', { name: 'Eventos' })).queryByText('p_9f3a')).toBeNull();
+  });
+
+  it('"Quem" vai para a consulta e para a exportação pelo tipo de ator', async () => {
+    const user = userEvent.setup();
+    const kinds: string[][] = [];
+    renderApp({
+      path: '/auditoria',
+      routes: {
+        'GET /api/audit': ({ url }) => {
+          kinds.push(url.searchParams.getAll('actorKind'));
+          return page([event(1)]);
+        },
+      },
+    });
+    await screen.findByRole('table', { name: 'Eventos' });
+    const exported = () =>
+      new URL(
+        screen.getByRole('link', { name: 'Exportar CSV' }).getAttribute('href') ?? '',
+        'http://x',
+      ).searchParams;
+    expect(exported().getAll('actorKind')).toEqual([]);
+
+    await user.click(screen.getByRole('button', { name: 'Painel' }));
+    await waitFor(() => expect(kinds.at(-1)).toEqual(['user']));
+    expect(exported().getAll('actorKind')).toEqual(['user']);
+    expect(exported().get('order')).toBe('desc');
+    expect(screen.getByText(/Eventos antigos/)).toBeTruthy();
+    expect(screen.queryByText(/exportação leva/)).toBeNull();
+
+    // Plugin vem nos dois grupos: quem separa é o titular, na tela.
+    await user.click(screen.getByRole('button', { name: 'WhatsApp' }));
+    await waitFor(() => expect(kinds.at(-1)).toEqual(['contact', 'plugin']));
+    await user.click(screen.getByRole('button', { name: 'Sistema' }));
+    await waitFor(() => expect(kinds.at(-1)).toEqual(['system', 'plugin']));
+    expect(exported().getAll('actorKind')).toEqual(['system', 'plugin']);
   });
 
   it('cadeia quebrada sem brokenAt diz só "Cadeia quebrada"', () => {

@@ -52,6 +52,16 @@ export function toSearch(filters: Filters): URLSearchParams {
   return out;
 }
 
+/**
+ * Tipos de ator de cada grupo do "Quem". Plugin entra nos dois grupos porque o que decide é o titular
+ * em `details` (`whoOf`), que a API não filtra: ela reduz pelo tipo e a tela refina esses eventos.
+ */
+const ACTOR_KINDS: Record<Exclude<Who, 'todos'>, NonNullable<Query['actorKind']>> = {
+  user: ['user'],
+  contact: ['contact', 'plugin'],
+  system: ['system', 'plugin'],
+};
+
 const DAY_MS = 86_400_000;
 
 /** Intervalo `from`/`to` da API para o período; datas locais viram instante ISO. */
@@ -77,10 +87,12 @@ function range(filters: Filters, now: Date): Pick<Query, 'from' | 'to'> {
   }
 }
 
-/** Query comum à consulta e à exportação. "Quem" não entra: a API não filtra por tipo de ator. */
+/** Query comum à consulta e à exportação: o que vai para o arquivo é o que a tela pede. */
 export function toQuery(filters: Filters, now: Date): Query {
   return {
+    order: 'desc',
     ...range(filters, now),
+    ...(filters.who !== 'todos' && { actorKind: ACTOR_KINDS[filters.who] }),
     ...(filters.outcome !== 'todos' && { outcome: filters.outcome }),
     ...(filters.action !== '' && { action: filters.action }),
   };

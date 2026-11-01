@@ -55,6 +55,8 @@ const CONFIG = {
     },
     messages: {},
     sources: { timeoutMs: 'override', key: 'secret', fixed: 'env', models: 'default' },
+    // Nome fora da regra `BRIDGER_*`: prova que a tela mostra o que a API diz.
+    env: { fixed: 'NOME_VINDO_DA_API' },
   },
   schema: SCHEMA,
   secretsWritable: true,
@@ -155,7 +157,7 @@ describe('formulário', () => {
     expect((screen.getByLabelText('Chave') as HTMLInputElement).placeholder).toBe('********');
     const fixed = screen.getByLabelText('Fixo') as HTMLInputElement;
     expect(fixed.disabled).toBe(true);
-    expect(screen.getByText(/BRIDGER_STICKER__FIXED/)).toBeTruthy();
+    expect(screen.getByText(/NOME_VINDO_DA_API/)).toBeTruthy();
     expect(screen.getByText('Ordem principal')).toBeTruthy();
     expect(screen.getByText('Escolher na tela IA').getAttribute('href')).toBe('/ia');
     // Ver logs leva ao filtro por plugin; aria-current marca a linha escolhida.

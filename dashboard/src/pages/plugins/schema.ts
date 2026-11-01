@@ -229,19 +229,6 @@ export const isEmpty = (value: unknown): boolean =>
 export const sameValue = (a: unknown, b: unknown): boolean =>
   JSON.stringify(a) === JSON.stringify(b);
 
-// Mesma regra do `toEnvSegment` do core: a API não informa o nome da variável (issue 317 do
-// usebridger), então a tela a reconstrói.
-const snake = (s: string): string =>
-  s
-    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
-    .replace(/([A-Z])([A-Z][a-z])/g, '$1_$2')
-    .replace(/-/g, '_')
-    .toUpperCase();
-
-/** `BRIDGER_<PLUGIN>__<CAMPO>[__<SUB>]`: a variável que decide o campo (para a ajuda). */
-export const envName = (plugin: string, path: string): string =>
-  `BRIDGER_${snake(plugin)}__${path.split('.').map(snake).join('__')}`;
-
 /** Quem decide o campo: `env` e `file` ganham do override, então a tela não deixa editar. */
 export const isLocked = (source: string | undefined): boolean =>
   source === 'env' || source === 'file';

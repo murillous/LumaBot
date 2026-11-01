@@ -118,6 +118,7 @@ export const OVERVIEW_ROUTES: Record<string, Handler> = {
   'GET /api/logs': () => ({ body: { logs: [] } }),
   'GET /api/plugins': () => ({ body: { bootedAt: 1, plugins: [] } }),
   'GET /api/plugins/metrics/catalog': () => ({ body: { metrics: [] } }),
+  'GET /api/audit': () => ({ body: { events: [] } }),
 };
 
 export interface RenderedApp {
