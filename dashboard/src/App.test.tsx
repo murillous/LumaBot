@@ -3,7 +3,7 @@ import { act, cleanup, render, screen, waitFor, within } from '@testing-library/
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { navigate, useLeaveGuard } from '#lib/router.tsx';
-import { LOG_READER, OWNER, renderApp } from './test-support.tsx';
+import { LOG_READER, OVERVIEW_ROUTES, OWNER, renderApp } from './test-support.tsx';
 
 afterEach(() => {
   cleanup();
@@ -440,7 +440,7 @@ describe('tema salvo', () => {
 
 describe('queda do bot com sessão carregada', () => {
   it('/me falhando na revalidação mantém o shell e o menu', async () => {
-    const app = renderApp();
+    const app = renderApp({ routes: OVERVIEW_ROUTES });
     await screen.findByRole('heading', { name: 'Visão geral' });
     app.stream().open();
 
