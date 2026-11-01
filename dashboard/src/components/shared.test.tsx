@@ -2,8 +2,9 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
-import { afterEach, expect, it } from 'vitest';
+import { afterEach, expect, it, vi } from 'vitest';
 import { Chip } from './Chip.tsx';
+import { ErrorBoundary } from './ErrorBoundary.tsx';
 import { Segmented } from './Segmented.tsx';
 import { StateWord } from './StateWord.tsx';
 import { Switch } from './Switch.tsx';
@@ -33,6 +34,55 @@ it('Segmented marca a opção ativa com aria-pressed e troca ao clicar', async (
   expect(screen.getByRole('button', { name: 'Aviso' }).getAttribute('aria-pressed')).toBe('true');
   expect(screen.getByRole('button', { name: 'Info' }).getAttribute('aria-pressed')).toBe('false');
   expect(screen.getByRole('group', { name: 'Nível' })).toBeTruthy();
+});
+
+it('Segmented repassa describedBy e invalid ao fieldset', () => {
+  render(
+    <Segmented
+      label="Modo"
+      value="a"
+      onChange={vi.fn()}
+      describedBy="erro-modo"
+      invalid
+      options={[{ value: 'a', label: 'A' }]}
+    />,
+  );
+  const group = screen.getByRole('group', { name: 'Modo' });
+  expect(group.getAttribute('aria-describedby')).toBe('erro-modo');
+  expect(group.getAttribute('aria-invalid')).toBe('true');
+  cleanup();
+  render(<Segmented label="Modo" value="a" onChange={vi.fn()} options={[]} />);
+  expect(screen.getByRole('group').hasAttribute('aria-invalid')).toBe(false);
+});
+
+it('ErrorBoundary com resetKey novo limpa o erro sem remontar os filhos', async () => {
+  const user = userEvent.setup();
+  vi.spyOn(console, 'error').mockImplementation(vi.fn());
+  function Screen({ param }: { param: string }) {
+    const [count, setCount] = useState(0);
+    if (param === 'ruim') throw new Error('quebrou');
+    return (
+      <button type="button" onClick={() => setCount(count + 1)}>
+        {param}:{count}
+      </button>
+    );
+  }
+  const view = (param: string) => (
+    <ErrorBoundary resetKey={param}>
+      <Screen param={param} />
+    </ErrorBoundary>
+  );
+  const { rerender } = render(view('a'));
+  await user.click(screen.getByRole('button', { name: 'a:0' }));
+  rerender(view('b'));
+  // Mesmo componente montado: o estado local sobreviveu à troca de parâmetro.
+  expect(screen.getByRole('button', { name: 'b:1' })).toBeTruthy();
+
+  rerender(view('ruim'));
+  expect(screen.getByRole('alert')).toBeTruthy();
+  rerender(view('c'));
+  expect(screen.getByRole('button', { name: 'c:0' })).toBeTruthy();
+  vi.restoreAllMocks();
 });
 
 it('Switch é um role=switch que reflete e inverte o estado', async () => {
