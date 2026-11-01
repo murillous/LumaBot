@@ -70,7 +70,7 @@ function AuditScreen() {
   // biome-ignore lint/correctness/useExhaustiveDependencies: o filtro é a identidade do período
   const query = useMemo(
     () => toQuery(filters, new Date()),
-    [filters.period, filters.from, filters.to, filters.outcome, filters.action],
+    [filters.who, filters.period, filters.from, filters.to, filters.outcome, filters.action],
   );
 
   const events = useInfiniteQuery({
@@ -83,12 +83,12 @@ function AuditScreen() {
             query: {
               ...query,
               limit: PAGE_SIZE,
-              ...(pageParam !== undefined && { after: pageParam }),
+              ...(pageParam !== undefined && { before: pageParam }),
             },
           },
         }),
       ),
-    // Página curta é a última; a API devolve em ordem crescente de seq e o cursor é o último seq.
+    // Página curta é a última; do mais novo para o mais antigo, o cursor `before` é o último seq.
     getNextPageParam: (page) => (page.events.length < PAGE_SIZE ? undefined : page.next),
   });
 
@@ -97,13 +97,18 @@ function AuditScreen() {
   const change = (patch: Partial<Filters>) =>
     setSearch(toSearch({ ...filters, ...patch }), { replace: true });
 
-  // "Quem" é do cliente: a API só filtra por id de ator, não por tipo (issue 316 do usebridger, `actorKind`).
+  // A API já filtrou pelo tipo de ator; falta separar os eventos de plugin pelo titular (`whoOf`).
   const all = events.data?.pages.flatMap((page) => page.events) ?? [];
   const shown = filters.who === 'todos' ? all : all.filter((event) => whoOf(event) === filters.who);
 
   // Mesma origem do bot: o cookie vai no download, sem fetch.
   const exportHref = (format: 'csv' | 'json') =>
-    `/api/audit/export?${new URLSearchParams([...Object.entries(query).map(([k, v]) => [k, String(v)] as [string, string]), ['format', format]])}`;
+    `/api/audit/export?${new URLSearchParams([
+      ...Object.entries(query).flatMap(([key, value]) =>
+        [value].flat().map((item): [string, string] => [key, String(item)]),
+      ),
+      ['format', format],
+    ])}`;
 
   return (
     <section className="flex flex-col gap-5">
@@ -131,7 +136,8 @@ function AuditScreen() {
       </header>
       {filters.who !== 'todos' && (
         <p className="text-help text-muted">
-          A exportação leva todos os atores: a API ainda não filtra por tipo de ator.
+          Eventos antigos, sem o tipo de ator gravado, não entram neste filtro.
+          {filters.who !== 'user' && ' A exportação leva todos os atos de plugins.'}
         </p>
       )}
 
@@ -221,10 +227,6 @@ function AuditScreen() {
           {events.isError && (
             <ErrorNotice error={events.error} onRetry={() => void events.fetchNextPage()} />
           )}
-          {/* A API pagina do mais antigo para o mais novo; ordem decrescente é issue 315 do usebridger. */}
-          <p className="text-help text-muted">
-            A lista vai do evento mais antigo para o mais novo no período.
-          </p>
           <div className="flex flex-wrap items-center gap-3">
             <p className="min-w-60 flex-1 text-help text-muted">
               {shown.length} {shown.length === 1 ? 'evento' : 'eventos'}
