@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
-import { act, cleanup, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { navigate, useLeaveGuard } from '#lib/router.tsx';
 import { LOG_READER, OWNER, renderApp } from './test-support.tsx';
 
 afterEach(() => {
@@ -67,6 +68,51 @@ describe('login', () => {
     expect(screen.queryByRole('navigation', { name: 'Principal' })).toBeNull();
     expect(app.stream().closed).toBe(true);
     expect(app.calls.some((c) => c.method === 'POST' && c.path === '/api/auth/logout')).toBe(true);
+  });
+});
+
+describe('guarda de saída', () => {
+  function Pending() {
+    useLeaveGuard(true, 'Descarta?');
+    return null;
+  }
+
+  it('Sair pergunta antes: recusar mantém a sessão, aceitar sai', async () => {
+    const user = userEvent.setup();
+    const app = renderApp();
+    await screen.findByRole('heading', { name: 'Visão geral' });
+    render(<Pending />);
+    const ask = vi.fn(() => false);
+    window.confirm = ask;
+
+    await user.click(screen.getByRole('button', { name: 'Sair' }));
+    expect(ask).toHaveBeenCalledWith('Descarta?');
+    expect(app.calls.some((c) => c.path === '/api/auth/logout')).toBe(false);
+
+    ask.mockReturnValue(true);
+    await user.click(screen.getByRole('button', { name: 'Sair' }));
+    expect(await screen.findByRole('heading', { name: 'Entrar' })).toBeTruthy();
+  });
+});
+
+describe('foco na troca de rota', () => {
+  it('só a tela nova leva o foco; mudar o parâmetro da mesma tela não', async () => {
+    renderApp({ path: '/plugins/a' });
+    const title = await screen.findByRole('heading', { name: 'Plugins' });
+    expect(document.title).toBe('Plugins · Luma');
+    expect(document.activeElement).not.toBe(title);
+
+    act(() => navigate('/plugins/b'));
+    expect(document.activeElement).not.toBe(title);
+
+    act(() => navigate('/'));
+    const overview = await screen.findByRole('heading', { name: 'Visão geral' });
+    await waitFor(() => expect(document.activeElement).toBe(overview));
+    expect(document.title).toBe('Visão geral · Luma');
+
+    act(() => navigate('/plugins/c'));
+    const plugins = await screen.findByRole('heading', { name: 'Plugins' });
+    await waitFor(() => expect(document.activeElement).toBe(plugins));
   });
 });
 

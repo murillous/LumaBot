@@ -12,15 +12,24 @@ export function Segmented<T extends string>({
   options,
   value,
   onChange,
+  describedBy,
+  invalid,
 }: {
   /** Nome do grupo para leitor de tela. */
   label: string;
   options: readonly SegmentedOption<T>[];
   value: T;
   onChange: (value: T) => void;
+  /** Id do texto de ajuda ou erro do grupo. */
+  describedBy?: string;
+  invalid?: boolean;
 }) {
   return (
-    <fieldset className="m-0 inline-flex min-w-0 flex-wrap gap-1 rounded-field border-0 bg-sunken p-1">
+    <fieldset
+      aria-describedby={describedBy}
+      aria-invalid={invalid || undefined}
+      className="m-0 inline-flex min-w-0 flex-wrap gap-1 rounded-field border-0 bg-sunken p-1 aria-[invalid=true]:outline-2 aria-[invalid=true]:outline-danger"
+    >
       <legend className="sr-only">{label}</legend>
       {options.map((option) => (
         <button
