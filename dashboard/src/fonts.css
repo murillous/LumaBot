@@ -1,0 +1,6 @@
+/* Fontes variáveis empacotadas pelo Vite (@fontsource-variable): sem CDN em runtime. Os nomes de
+   família são os que o pacote registra ("Onest Variable"...) e que o @theme de tokens.css usa. O
+   browser só baixa os subconjuntos (unicode-range) que a página precisa. */
+@import "@fontsource-variable/onest/wght.css";
+@import "@fontsource-variable/funnel-display/wght.css";
+@import "@fontsource-variable/martian-mono/wght.css";

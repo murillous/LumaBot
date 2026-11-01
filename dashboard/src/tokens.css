@@ -1,0 +1,102 @@
+/* Tokens do guia (dashboard/DESIGN.md): único arquivo do dashboard com cor literal. Componente
+   nenhum usa cor direta, tudo sai destas variáveis. */
+
+:root {
+  --bg: #f4f4f1;
+  --raised: #ffffff;
+  --sunken: #ebebe7;
+  --ink: #151514;
+  --ink2: #2a2a28;
+  --muted: #5c5c58;
+  --line: #17171614;
+  --line2: #17171624;
+  --plate: #7f7f7f1a;
+  --agent: #0063d1;
+  --agent-soft: #e3eefd;
+  --ok: #1f7a45;
+  --ok-soft: #e2f2e8;
+  --warn: #9a5b00;
+  --warn-soft: #fbeed5;
+  --danger: #b42a20;
+  --danger-soft: #fbe4e1;
+  --e1: 0 1px 1px #1717160a, 0 2px 4px -1px #1717160d, 0 0 0 1px var(--line);
+  --e2: 0 1px 1px #1717160a, 0 6px 16px -4px #1717161a, 0 0 0 1px var(--line);
+  --e3: 0 2px 4px #1717160a, 0 24px 56px -16px #1717164d, 0 0 0 1px var(--line2);
+  --top: inset 0 1px 0 #ffffffe6;
+}
+
+/* Escuro: pelo sistema, salvo escolha manual de claro; ou escolha manual de escuro. O CSS não
+   compartilha bloco: as variáveis do [data-theme="dark"] se repetem aqui. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f0f0e;
+    --raised: #1c1c1b;
+    --sunken: #0a0a09;
+    --ink: #efefec;
+    --ink2: #d6d6d2;
+    --muted: #a3a39e;
+    --line: #ffffff1a;
+    --line2: #ffffff26;
+    --agent: #5aa8ff;
+    --agent-soft: #11253f;
+    --ok: #5fc48a;
+    --ok-soft: #13291c;
+    --warn: #e0a84a;
+    --warn-soft: #33260e;
+    --danger: #f08a80;
+    --danger-soft: #3a1714;
+    --e1: 0 1px 2px #00000080, 0 0 0 1px var(--line);
+    --e2: 0 8px 20px -6px #0009, 0 0 0 1px var(--line);
+    --e3: 0 28px 64px -16px #000c, 0 0 0 1px var(--line2);
+    --top: inset 0 1px 0 #ffffff14;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f0f0e;
+  --raised: #1c1c1b;
+  --sunken: #0a0a09;
+  --ink: #efefec;
+  --ink2: #d6d6d2;
+  --muted: #a3a39e;
+  --line: #ffffff1a;
+  --line2: #ffffff26;
+  --agent: #5aa8ff;
+  --agent-soft: #11253f;
+  --ok: #5fc48a;
+  --ok-soft: #13291c;
+  --warn: #e0a84a;
+  --warn-soft: #33260e;
+  --danger: #f08a80;
+  --danger-soft: #3a1714;
+  --e1: 0 1px 2px #00000080, 0 0 0 1px var(--line);
+  --e2: 0 8px 20px -6px #0009, 0 0 0 1px var(--line);
+  --e3: 0 28px 64px -16px #000c, 0 0 0 1px var(--line2);
+  --top: inset 0 1px 0 #ffffff14;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-raised: var(--raised);
+  --color-sunken: var(--sunken);
+  --color-ink: var(--ink);
+  --color-ink2: var(--ink2);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-line2: var(--line2);
+  --color-plate: var(--plate);
+  --color-agent: var(--agent);
+  --color-agent-soft: var(--agent-soft);
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --shadow-e1: var(--e1);
+  --shadow-e2: var(--e2);
+  --shadow-e3: var(--e3);
+  /* O nome da família é o que o @fontsource-variable registra em fonts.css. */
+  --font-sans: "Onest Variable", system-ui, sans-serif;
+  --font-display: "Funnel Display Variable", "Onest Variable", sans-serif;
+  --font-mono: "Martian Mono Variable", ui-monospace, monospace;
+}
