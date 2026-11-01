@@ -160,7 +160,7 @@ O bot está bem? O que precisa de mim?
    "Nada pendente".
 3. **Hoje**, em linha, sem cards: mensagens, respostas da IA, custo e erros, do `plugin-metrics`
    (`/api/plugins/metrics/query`). Métrica que não existe no catálogo não aparece.
-4. Cadeia de IA resumida e mudanças recentes da auditoria (`GET /api/audit?limit=5`).
+4. Cadeia de IA resumida e mudanças recentes da auditoria (`GET /api/audit?order=desc&limit=5`).
 
 ### IA (`/ia`)
 
@@ -206,7 +206,7 @@ Liga, desliga e ajusta cada plugin.
   | `string` com padrão `#rrggbb` | Seletor de cor com o hex |
   | segredo | Senha com máscara |
   | campo `models` | Não é campo: "Ordem principal" ou a cadeia própria, com link para a tela IA |
-  | origem `env` ou arquivo | Desabilitado, com a variável na ajuda |
+  | origem `env` ou arquivo | Desabilitado, com a variável (`view.env`) na ajuda |
 
   O rótulo e a ajuda vêm do `title` e da `description` do schema. Falta texto bom num campo?
   A correção é no `.describe()` do plugin, não um rótulo fixo no frontend.
@@ -234,8 +234,12 @@ Quem fez o quê, quando e com que resultado.
 
 - Linha de estado da cadeia de hash: "Cadeia íntegra" ou "Cadeia quebrada no #N" com o motivo,
   e "Verificar a cadeia de hash" (`POST /api/audit/verify`, desabilitado enquanto roda).
-- Exportar CSV e JSON (`GET /api/audit/export`, com os filtros da tela).
+- Exportar CSV e JSON (`GET /api/audit/export`, com os filtros e a ordem da tela).
 - Filtros: quem (Painel, WhatsApp, Sistema), resultado, período; vão para a URL e para a query.
+  "Quem" vira `actorKind`; ato de plugin vem nos grupos WhatsApp e Sistema e a tela o separa pelo
+  titular em `details`, então a exportação desses grupos leva todos os atos de plugins. Evento
+  gravado antes do `actorKind` não casa com o filtro.
+- Lista do mais recente para o mais antigo (`order=desc`, "Carregar mais" com o cursor `before`).
 - Tabela: quando, o quê (título legível e a `action` em mono), quem (nome e papel ou origem),
   resultado (palavra colorida). A linha expande: alvo, `details`, seq e hash, "Só esta ação".
 - O título legível de cada `action` sai de um mapa no frontend; ação sem título mostra a própria
