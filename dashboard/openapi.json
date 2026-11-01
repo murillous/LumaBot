@@ -2,7 +2,7 @@
   "openapi": "3.2.0",
   "info": {
     "title": "Bridger API",
-    "version": "0.10.0"
+    "version": "0.11.0"
   },
   "paths": {
     "/api/health": {
@@ -2163,7 +2163,7 @@
     },
     "/api/audit": {
       "get": {
-        "summary": "Eventos da auditoria, por `seq`, com cursor",
+        "summary": "Eventos da auditoria, por `seq` nas duas direções, com cursor",
         "tags": [
           "audit"
         ],
@@ -2210,6 +2210,37 @@
           },
           {
             "in": "query",
+            "name": "actorKind",
+            "schema": {
+              "description": "Tipo do ator; repita o parâmetro para vários. Evento sem `actorKind` não casa",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "user",
+                    "system",
+                    "plugin",
+                    "contact"
+                  ]
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "user",
+                      "system",
+                      "plugin",
+                      "contact"
+                    ]
+                  }
+                }
+              ]
+            },
+            "description": "Tipo do ator; repita o parâmetro para vários. Evento sem `actorKind` não casa"
+          },
+          {
+            "in": "query",
             "name": "action",
             "schema": {
               "type": "string"
@@ -2240,12 +2271,37 @@
             "in": "query",
             "name": "after",
             "schema": {
-              "description": "Cursor: o `next` da página anterior",
+              "description": "Cursor de `order=asc`: o `next` da página anterior",
               "type": "integer",
               "minimum": 0,
               "maximum": 9007199254740991
             },
-            "description": "Cursor: o `next` da página anterior"
+            "description": "Cursor de `order=asc`: o `next` da página anterior"
+          },
+          {
+            "in": "query",
+            "name": "before",
+            "schema": {
+              "description": "Cursor de `order=desc`: o `next` da página anterior",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "description": "Cursor de `order=desc`: o `next` da página anterior"
+          },
+          {
+            "in": "query",
+            "name": "order",
+            "schema": {
+              "default": "asc",
+              "description": "Ordem por `seq`: `asc` do mais antigo, `desc` do mais recente",
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ]
+            },
+            "description": "Ordem por `seq`: `asc` do mais antigo, `desc` do mais recente"
           },
           {
             "in": "query",
@@ -2330,6 +2386,37 @@
           },
           {
             "in": "query",
+            "name": "actorKind",
+            "schema": {
+              "description": "Tipo do ator; repita o parâmetro para vários. Evento sem `actorKind` não casa",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "user",
+                    "system",
+                    "plugin",
+                    "contact"
+                  ]
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "user",
+                      "system",
+                      "plugin",
+                      "contact"
+                    ]
+                  }
+                }
+              ]
+            },
+            "description": "Tipo do ator; repita o parâmetro para vários. Evento sem `actorKind` não casa"
+          },
+          {
+            "in": "query",
             "name": "action",
             "schema": {
               "type": "string"
@@ -2355,6 +2442,20 @@
                 "error"
               ]
             }
+          },
+          {
+            "in": "query",
+            "name": "order",
+            "schema": {
+              "default": "asc",
+              "description": "Ordem por `seq`: `asc` do mais antigo, `desc` do mais recente",
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ]
+            },
+            "description": "Ordem por `seq`: `asc` do mais antigo, `desc` do mais recente"
           },
           {
             "in": "query",
@@ -3575,12 +3676,23 @@
                     "additionalProperties": {
                       "type": "string"
                     }
+                  },
+                  "env": {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string"
+                    },
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "description": "Variável de ambiente de cada campo cuja fonte é `env`"
                   }
                 },
                 "required": [
                   "config",
                   "messages",
-                  "sources"
+                  "sources",
+                  "env"
                 ],
                 "additionalProperties": false
               },
@@ -3833,6 +3945,15 @@
           },
           "actorId": {
             "type": "string"
+          },
+          "actorKind": {
+            "type": "string",
+            "enum": [
+              "user",
+              "system",
+              "plugin",
+              "contact"
+            ]
           },
           "targetId": {
             "type": "string"
