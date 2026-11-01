@@ -50,12 +50,70 @@ describe('Visão geral', () => {
       '/api/plugins/ai/status',
       '/api/plugins',
       '/api/plugins/metrics/catalog',
+      '/api/audit',
     ]) {
       expect(paths).not.toContain(path);
     }
     expect(screen.queryByText('WhatsApp')).toBeNull();
     expect(screen.queryByRole('heading', { name: 'Hoje (UTC)' })).toBeNull();
     expect(screen.queryByRole('heading', { name: 'Cadeia de IA' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Mudanças recentes' })).toBeNull();
+  });
+
+  describe('Mudanças recentes', () => {
+    const section = async () =>
+      (await screen.findByRole('heading', { name: 'Mudanças recentes' })).closest(
+        'section',
+      ) as HTMLElement;
+
+    it('pede as 5 mais recentes e mostra título e quem, com link para a auditoria', async () => {
+      let query: URLSearchParams | undefined;
+      renderApp({
+        routes: {
+          ...HEALTHY,
+          'GET /api/audit': ({ url }) => {
+            query = url.searchParams;
+            return {
+              body: {
+                events: [
+                  {
+                    seq: 9,
+                    at: '2026-10-29T13:58:00.000Z',
+                    action: 'kernel.plugin.disable',
+                    actor: { kind: 'user', id: 'u1', name: 'Murilo' },
+                    outcome: 'success',
+                    hash: 'h',
+                  },
+                ],
+              },
+            };
+          },
+        },
+      });
+      const card = await section();
+      expect(await within(card).findByText('Desligou um plugin')).toBeTruthy();
+      expect(within(card).getByText('Murilo')).toBeTruthy();
+      expect(within(card).getByRole('link', { name: 'Ver auditoria' }).getAttribute('href')).toBe(
+        '/auditoria',
+      );
+      expect(query?.get('order')).toBe('desc');
+      expect(query?.get('limit')).toBe('5');
+    });
+
+    it('sem evento diz que não há mudança; erro fica só na seção', async () => {
+      renderApp({ routes: HEALTHY });
+      expect(await within(await section()).findByText('Nenhuma mudança registrada.')).toBeTruthy();
+      cleanup();
+
+      renderApp({
+        routes: {
+          ...HEALTHY,
+          'GET /api/audit': () => ({ status: 500, body: problem('auditoria fora') }),
+        },
+      });
+      expect(await within(await section()).findByText(/auditoria fora/)).toBeTruthy();
+      expect(await screen.findByText('Nada pendente')).toBeTruthy();
+    });
   });
 
   it('sem nenhuma permissão de leitura, só o título', async () => {

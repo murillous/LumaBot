@@ -53,6 +53,16 @@ export function useRecentProblems(enabled: boolean) {
   });
 }
 
+/** Os 5 atos mais recentes da auditoria. */
+export function useRecentAudit() {
+  const api = useApi();
+  return useQuery({
+    queryKey: ['overview', 'audit-recent'],
+    queryFn: () =>
+      ok(api.client.GET('/api/audit', { params: { query: { order: 'desc', limit: 5 } } })),
+  });
+}
+
 export function useMetricCatalog() {
   const api = useApi();
   return useQuery({
