@@ -3,7 +3,6 @@ import { groupOf, groupPlugins, stateOf } from './groups.ts';
 import {
   buildBody,
   controlOf,
-  envName,
   errorsByPath,
   isColorPattern,
   leavesOf,
@@ -181,11 +180,6 @@ describe('buildBody', () => {
 });
 
 describe('apoio', () => {
-  it('envName segue BRIDGER_<PLUGIN>__<CAMPO>', () => {
-    expect(envName('user-names', 'openai.apiKey')).toBe('BRIDGER_USER_NAMES__OPENAI__API_KEY');
-    expect(envName('ai', 'openAIKey')).toBe('BRIDGER_AI__OPEN_AI_KEY');
-  });
-
   it('errorsByPath indexa a primeira mensagem por caminho', () => {
     expect(
       errorsByPath([

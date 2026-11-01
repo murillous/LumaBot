@@ -3,10 +3,10 @@ import { Segmented } from '#components/Segmented.tsx';
 import { StateWord } from '#components/StateWord.tsx';
 import { ExpandRow, Table } from '#components/Table.tsx';
 import { Field, inputClass } from '#components/ui.tsx';
+import { type EnvNames, envOf } from '#lib/config-env.ts';
 import { type CatalogProvider, ChainEditor } from './ChainEditor.tsx';
 import {
   type ChainItem,
-  keyEnvName,
   lockedSource,
   type ModelStatus,
   type Sources,
@@ -257,6 +257,7 @@ export function KeysTable({
   canWrite,
   secretsWritable,
   sources,
+  env,
   schema,
   errors,
 }: {
@@ -269,6 +270,7 @@ export function KeysTable({
   secretsWritable: boolean;
   /** Fontes da config da IA: env e arquivo valem mais que o catálogo. */
   sources: Sources;
+  env: EnvNames;
   /** JSON Schema da config da IA: só provedor com `keys.properties.<id>` aceita chave aqui. */
   schema: unknown;
   errors: Readonly<Record<string, string>>;
@@ -313,7 +315,9 @@ export function KeysTable({
                   {from === 'env' && (
                     <span className="text-muted">
                       pela variável{' '}
-                      <span className="font-mono text-label">{keyEnvName(provider.id)}</span>
+                      <span className="font-mono text-label">
+                        {envOf(env, `keys.${provider.id}`) ?? 'de ambiente'}
+                      </span>
                     </span>
                   )}
                   {from === 'file' && <span className="text-muted">pelo arquivo de config</span>}

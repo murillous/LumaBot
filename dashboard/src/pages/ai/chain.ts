@@ -1,3 +1,5 @@
+import { type EnvNames, envOf } from '#lib/config-env.ts';
+
 // Lógica pura da tela IA: a cadeia de modelos, o estado em palavra e o corpo do PUT. Sem React,
 // para testar sem montar a tela.
 
@@ -145,32 +147,15 @@ export function stateWord(
   return { tone: 'ok', text: 'pronto' };
 }
 
-/**
- * `apiKey` vira `API_KEY`, `user-names` vira `USER_NAMES`. Cópia do `toEnvSegment` do core até a
- * API devolver o nome da variável (issue 317 do usebridger).
- */
-const envSegment = (name: string): string =>
-  name
-    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
-    .replace(/([A-Z])([A-Z][a-z])/g, '$1_$2')
-    .replaceAll('-', '_')
-    .toUpperCase();
-
-/** Variável de ambiente de um campo: `BRIDGER_<PLUGIN>__<CAMPO>[__<SUBCAMPO>]`. */
-export const envName = (plugin: string, path: readonly string[]): string =>
-  [`BRIDGER_${envSegment(plugin)}`, ...path.map(envSegment)].join('__');
-
-export const keyEnvName = (provider: string): string => envName('ai', ['keys', provider]);
-
 export type Sources = Readonly<Record<string, string>>;
 
 /**
  * Por que o campo não é editável aqui: "definido por <variável>" ou "definido pelo arquivo" quando
  * a fonte dele (ou de um subcampo) é env ou arquivo; `null` quando o override vale.
  */
-export function lockedLabel(plugin: string, sources: Sources, path: string): string | null {
+export function lockedLabel(sources: Sources, env: EnvNames, path: string): string | null {
   const source = lockedSource(sources, path);
-  if (source === 'env') return `definido por ${envName(plugin, path.split('.'))}`;
+  if (source === 'env') return `definido por ${envOf(env, path) ?? 'variável de ambiente'}`;
   if (source === 'file') return 'definido pelo arquivo de config';
   return null;
 }
