@@ -1,0 +1,42 @@
+// Título legível de cada `action` que o kernel e a Luma gravam. O que não está aqui aparece com a
+// própria `action`: plugin novo não precisa de mudança no frontend para ser auditado.
+const TITLES: Readonly<Record<string, string>> = {
+  // Kernel (core/docs/audit.md)
+  'kernel.boot': 'Iniciou o bot',
+  'kernel.stop': 'Parou o bot',
+  'kernel.plugin.enable': 'Ligou um plugin',
+  'kernel.plugin.disable': 'Desligou um plugin',
+  'kernel.plugin.reload': 'Recarregou um plugin',
+  'kernel.config.update': 'Salvou a config de um plugin',
+  'kernel.secret.update': 'Trocou um segredo',
+  'kernel.audit.export': 'Exportou a auditoria',
+  'kernel.audit.purge': 'Expurgou eventos antigos',
+  'kernel.auth.login': 'Entrou no painel',
+  'kernel.auth.login.failed': 'Falhou ao entrar no painel',
+  'kernel.auth.logout': 'Saiu do painel',
+  'kernel.auth.invite.created': 'Criou um convite',
+  'kernel.auth.invite.accepted': 'Aceitou um convite',
+  'kernel.auth.password.changed': 'Trocou a senha',
+  'kernel.auth.sessions.revoked': 'Encerrou sessões',
+  'kernel.auth.denied': 'Teve o acesso recusado',
+  'kernel.user.created': 'Criou um usuário',
+  'kernel.user.updated': 'Alterou um usuário',
+  'kernel.user.disabled': 'Desativou um usuário',
+  'kernel.user.enabled': 'Reativou um usuário',
+  'kernel.key.created': 'Criou uma chave de API',
+  'kernel.key.revoked': 'Revogou uma chave de API',
+  'kernel.connection.pairing-code': 'Pediu um código de pareamento',
+  'kernel.connection.logout': 'Desconectou o WhatsApp',
+  'kernel.pseudonym.resolve': 'Revelou um contato pseudonimizado',
+  // Luma (issue 404)
+  'luma.persona.set': 'Trocou a persona do chat',
+  'luma.persona.create': 'Criou uma persona do chat',
+  'luma.persona.delete': 'Apagou uma persona do chat',
+  'luma.history.clear': 'Limpou o histórico com a Luma',
+  'reminders.delete': 'Apagou o lembrete de outra pessoa',
+  'command.owner': 'Rodou um comando de dono',
+  'pairing.session.paired': 'Pareou o WhatsApp',
+  'pairing.session.lost': 'Perdeu a sessão do WhatsApp',
+};
+
+export const titleOf = (action: string): string => TITLES[action] ?? action;

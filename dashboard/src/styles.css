@@ -1,0 +1,52 @@
+@import "tailwindcss";
+@import "./tokens.css";
+
+/* Escala e raios do guia (DESIGN.md). Nada abaixo de 12. */
+@theme {
+  --text-title: 28px;
+  --text-section: 20px;
+  --text-sub: 17px;
+  --text-body: 14.5px;
+  --text-help: 13px;
+  --text-label: 12px;
+  --radius-sm: 6px;
+  --radius-field: 10px;
+  --radius-btn: 12px;
+  --radius-card: 14px;
+}
+
+@layer base {
+  html {
+    color-scheme: light dark;
+  }
+  :root[data-theme="light"] {
+    color-scheme: light;
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+  }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: var(--text-body);
+    line-height: 1.5;
+  }
+  /* Foco visível em tudo: anel de 2 px na cor da tinta, afastado 2 px. */
+  :focus-visible {
+    outline: 2px solid var(--ink);
+    outline-offset: 2px;
+  }
+}
+
+/* Sem animação para quem pede menos movimento. Fora de @layer, esta regra vence os utilitários do
+   Tailwind (que vivem em camada) sem precisar de !important. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none;
+    transition: none;
+    scroll-behavior: auto;
+  }
+}

@@ -13,10 +13,10 @@
     "#*": "./src/*"
   },
   "scripts": {
-    "build": "tsdown",
+    "build": "tsdown && pnpm --filter @lumabot/dashboard build",
     "start": "node --env-file-if-exists=.env dist/main.mjs",
     "dev": "node --env-file-if-exists=.env src/main.ts",
-    "typecheck": "tsc",
+    "typecheck": "tsc && pnpm --filter @lumabot/dashboard typecheck",
     "lint": "biome check",
     "lint:fix": "biome check --write",
     "test": "vitest run"
@@ -26,11 +26,11 @@
     "@ai-sdk/deepseek": "^3.0.66",
     "@ai-sdk/google": "^4.0.98",
     "@ai-sdk/openai": "^4.0.95",
-    "@usebridger/core": "^0.10.0",
-    "@usebridger/plugin-dashboard": "^0.4.0",
-    "@usebridger/plugin-metrics": "^0.3.0",
-    "@usebridger/storage-sqlite": "^0.3.3",
-    "@usebridger/transport-baileys": "^0.6.0",
+    "@usebridger/core": "^0.11.0",
+    "@usebridger/plugin-dashboard": "^0.4.1",
+    "@usebridger/plugin-metrics": "^0.3.1",
+    "@usebridger/storage-sqlite": "^0.3.4",
+    "@usebridger/transport-baileys": "^0.6.1",
     "ai": "^7.0.142",
     "node-webpmux": "^3.2.1",
     "pdf-lib": "^1.17.1",
@@ -42,7 +42,7 @@
     "@biomejs/biome": "^2.5.15",
     "@types/node": "^24.19.1",
     "@types/qrcode-terminal": "^0.12.2",
-    "@usebridger/testing": "^0.7.0",
+    "@usebridger/testing": "^0.7.1",
     "tsdown": "^0.23.0",
     "typescript": "^7.0.2",
     "vitest": "^5.0.3"
