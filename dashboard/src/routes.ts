@@ -2,6 +2,7 @@ import type { ComponentType } from 'react';
 import { matchPath, type PageProps } from '#lib/router.tsx';
 import { Ai } from '#pages/Ai.tsx';
 import { Audit } from '#pages/Audit.tsx';
+import { Keys } from '#pages/Keys.tsx';
 import { Logs } from '#pages/Logs.tsx';
 import { Metrics } from '#pages/Metrics.tsx';
 import { Overview } from '#pages/Overview.tsx';
@@ -88,7 +89,8 @@ export const ENTRIES: readonly Entry[] = [
     label: 'Chaves de API',
     group: 'Administração',
     permission: 'keys.manage',
-    href: `${GENERIC}#/chaves`,
+    paths: ['/chaves'],
+    page: Keys,
   },
 ];
 

@@ -85,39 +85,57 @@ const isDate = (value: string): boolean =>
 
 const ymd = (ms: number): string => new Date(ms).toISOString().slice(0, 10);
 
+/** Retenção padrão do `plugin-metrics` (`retention.hourDays` e `dayDays`); se a config mudar, muda aqui. */
+export const RETENTION_DAYS = { hora: 7, dia: 90 } as const;
+
 /**
- * Query da API para os filtros; `null` sem métrica ou com datas incompletas, invertidas ou
- * inválidas (nada a consultar ainda). O dia é UTC, o fuso padrão do `plugin-metrics` no app. Na
- * granularidade por hora, `from` e `to` ganham a hora (`T00` e `T23`) para cobrir os dias inteiros.
+ * Intervalo `aaaa-mm-dd` do período; `null` com datas incompletas, invertidas ou inválidas. O dia é
+ * UTC porque o `timeZone` padrão do `plugin-metrics` é UTC: se o plugin mudar o fuso, muda aqui.
+ */
+function rangeOf(filters: Filters, now: Date): { from: string; to: string } | null {
+  const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  switch (filters.period) {
+    case 'hoje':
+      return { from: ymd(today), to: ymd(today) };
+    case '7d':
+      return { from: ymd(today - 6 * DAY_MS), to: ymd(today) };
+    case '30d':
+      return { from: ymd(today - 29 * DAY_MS), to: ymd(today) };
+    case 'datas':
+      if (!isDate(filters.from) || !isDate(filters.to) || filters.from > filters.to) return null;
+      return { from: filters.from, to: filters.to };
+  }
+}
+
+/**
+ * Aviso em PT-BR quando o período começa antes do que o plugin guarda para a granularidade (ele
+ * recusa com 400); `null` quando cabe. Na tela, vira aviso e nenhuma consulta.
+ */
+export function retentionProblem(filters: Filters, now: Date): string | null {
+  const range = rangeOf(filters, now);
+  if (range === null) return null;
+  const days = RETENTION_DAYS[filters.granularity];
+  const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  if (range.from >= ymd(today - days * DAY_MS)) return null;
+  return filters.granularity === 'hora'
+    ? `Por hora, o plugin guarda só os últimos ${days} dias. Use um período menor ou passe para Por dia.`
+    : `Por dia, o plugin guarda só os últimos ${days} dias. Escolha um período mais recente.`;
+}
+
+/**
+ * Query da API para os filtros; `null` sem métrica, com datas inválidas ou fora da retenção (nada a
+ * consultar). Na granularidade por hora, `from` e `to` ganham a hora (`T00` e `T23`) para cobrir os
+ * dias inteiros.
  */
 export function toQuery(filters: Filters, now: Date): Query | null {
   if (filters.metric === '') return null;
-  const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
-  let from: string;
-  let to: string;
-  switch (filters.period) {
-    case 'hoje':
-      from = to = ymd(today);
-      break;
-    case '7d':
-      from = ymd(today - 6 * DAY_MS);
-      to = ymd(today);
-      break;
-    case '30d':
-      from = ymd(today - 29 * DAY_MS);
-      to = ymd(today);
-      break;
-    case 'datas':
-      if (!isDate(filters.from) || !isDate(filters.to) || filters.from > filters.to) return null;
-      from = filters.from;
-      to = filters.to;
-      break;
-  }
+  const range = rangeOf(filters, now);
+  if (range === null || retentionProblem(filters, now) !== null) return null;
   const hourly = filters.granularity === 'hora';
   return {
     name: filters.metric,
-    from: hourly ? `${from}T00` : from,
-    to: hourly ? `${to}T23` : to,
+    from: hourly ? `${range.from}T00` : range.from,
+    to: hourly ? `${range.to}T23` : range.to,
     granularity: hourly ? 'hour' : 'day',
     ...(filters.where.length > 0 && { where: [...filters.where] }),
     // `groupBy=` vazio soma tudo; sem o parâmetro a API agruparia por todos os rótulos.

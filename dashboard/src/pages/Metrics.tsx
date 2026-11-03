@@ -13,6 +13,7 @@ import {
   fromSearch,
   type Granularity,
   type Period,
+  retentionProblem,
   toggleGroup,
   toQuery,
   toSearch,
@@ -46,6 +47,10 @@ const groupOf = (name: string): string =>
   name.startsWith('ai_') ? 'IA' : name.startsWith('luma_') ? 'Luma' : 'Kernel';
 
 const GROUP_ORDER = ['Kernel', 'IA', 'Luma'];
+
+/** 400 do plugin por período fora da retenção: o tentar de novo daria o mesmo erro. */
+const isRetention = (error: unknown): boolean =>
+  error instanceof ApiFailure && error.status === 400 && /reten/i.test(error.message);
 
 /** Sem o plugin `metrics` carregado, as duas rotas respondem 404. */
 const isMissing = (error: unknown): boolean => error instanceof ApiFailure && error.status === 404;
@@ -90,8 +95,7 @@ function MetricsScreen() {
       {catalog.isError &&
         (isMissing(catalog.error) ? (
           <p role="status" className="rounded-field bg-warn-soft p-4 text-warn">
-            O plugin de métricas não está carregado neste bot. Ligue o <code>metrics</code> em
-            Plugins para ver as séries.
+            O plugin metrics não está carregado neste bot.
           </p>
         ) : (
           <ErrorNotice error={catalog.error} onRetry={() => void catalog.refetch()} />
@@ -230,7 +234,7 @@ function Controls({
             <div className="flex flex-wrap gap-3">
               {labels.map((label) => (
                 <WhereInput
-                  key={label}
+                  key={`${metric}:${label}`}
                   label={label}
                   value={whereValue(filters.where, label)}
                   onCommit={(value) => change({ where: withWhere(filters.where, label, value) })}
@@ -297,6 +301,14 @@ function Result({ filters, metric }: { filters: Filters; metric: string }) {
   const rows = result.data?.rows;
   const { series, hidden } = useMemo(() => seriesOf(rows ?? []), [rows]);
 
+  const problem = retentionProblem({ ...filters, metric }, new Date());
+  if (problem !== null) {
+    return (
+      <p role="status" className="rounded-field bg-warn-soft p-4 text-warn">
+        {problem}
+      </p>
+    );
+  }
   if (query === null) {
     return (
       <p role="status" className="text-muted">
@@ -308,7 +320,12 @@ function Result({ filters, metric }: { filters: Filters; metric: string }) {
   if (result.isError) {
     return isMissing(result.error) ? (
       <p role="status" className="rounded-field bg-warn-soft p-4 text-warn">
-        O plugin de métricas não está carregado neste bot.
+        O plugin metrics não está carregado neste bot.
+      </p>
+    ) : isRetention(result.error) ? (
+      <p role="status" className="rounded-field bg-warn-soft p-4 text-warn">
+        Período fora do que o plugin metrics guarda (7 dias por hora, 90 por dia). Escolha um
+        período menor.
       </p>
     ) : (
       <ErrorNotice error={result.error} onRetry={() => void result.refetch()} />
@@ -330,7 +347,7 @@ function Result({ filters, metric }: { filters: Filters; metric: string }) {
   return (
     <div className="flex flex-col gap-4">
       <p className="text-help text-muted">
-        {metric}: {MEASURE[type]}, {filters.granularity === 'hora' ? 'por hora' : 'por dia'}.
+        {metric}: {MEASURE[type]} {filters.granularity === 'hora' ? 'por hora' : 'por dia'}.
       </p>
       <div className="overflow-x-auto rounded-card bg-raised p-4 shadow-[var(--e1),var(--top)]">
         <Chart

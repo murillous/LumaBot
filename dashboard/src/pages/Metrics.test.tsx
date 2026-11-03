@@ -3,7 +3,15 @@ import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/re
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it } from 'vitest';
 import { LOG_READER, renderApp } from '#test-support.tsx';
-import { fromSearch, toggleGroup, toQuery, toSearch, withWhere } from './metrics/filters.ts';
+import { Chart } from './metrics/Chart.tsx';
+import {
+  fromSearch,
+  retentionProblem,
+  toggleGroup,
+  toQuery,
+  toSearch,
+  withWhere,
+} from './metrics/filters.ts';
 import { niceMax, periodLabel, periodsOf, type Row, seriesOf } from './metrics/series.ts';
 
 afterEach(cleanup);
@@ -86,6 +94,24 @@ describe('filtros', () => {
     });
   });
 
+  it('retenção: hora só nos últimos 7 dias, dia 90; fora disso não consulta', () => {
+    const base = fromSearch(new URLSearchParams('metrica=m'));
+    const hourly = { ...base, granularity: 'hora' as const };
+    expect(retentionProblem(hourly, NOW)).toBeNull();
+    expect(retentionProblem({ ...hourly, period: '30d' }, NOW)).toContain('últimos 7 dias');
+    expect(toQuery({ ...hourly, period: '30d' }, NOW)).toBeNull();
+    const old = { ...base, period: 'datas' as const, from: '2026-07-01', to: '2026-07-05' };
+    expect(retentionProblem(old, NOW)).toContain('últimos 90 dias');
+    expect(toQuery(old, NOW)).toBeNull();
+    expect(retentionProblem({ ...old, from: '2026-08-10' }, NOW)).toBeNull();
+    expect(
+      retentionProblem({ ...hourly, period: 'datas', from: '2026-10-26', to: '2026-11-02' }, NOW),
+    ).toBeNull();
+    expect(
+      retentionProblem({ ...hourly, period: 'datas', from: '2026-10-25', to: '2026-11-02' }, NOW),
+    ).not.toBeNull();
+  });
+
   it('toQuery: datas escolhidas; incompletas, invertidas ou sem métrica não consultam', () => {
     const base = fromSearch(new URLSearchParams('metrica=m&periodo=datas'));
     expect(toQuery(base, NOW)).toBeNull();
@@ -152,6 +178,80 @@ describe('séries', () => {
   });
 });
 
+describe('tela Métricas (retenção, rótulos e ponto isolado)', () => {
+  const routes = (query: (url: URL) => { status?: number; body: unknown }) => ({
+    'GET /api/plugins/metrics/catalog': () => CATALOG,
+    'GET /api/plugins/metrics/query': ({ url }: { url: URL }) => query(url),
+  });
+
+  it('Por hora com 30 dias avisa em PT-BR e não consulta', async () => {
+    const urls: URL[] = [];
+    renderApp({
+      path: '/metricas?metrica=ai_attempts_total&periodo=30d&grao=hora',
+      routes: routes((url) => {
+        urls.push(url);
+        return { body: { rows: [] } };
+      }),
+    });
+    expect(await screen.findByText(/guarda só os últimos 7 dias/)).toBeTruthy();
+    expect(urls).toHaveLength(0);
+  });
+
+  it('400 de retenção do plugin vira mensagem sem tentar de novo', async () => {
+    renderApp({
+      path: '/metricas?metrica=ai_attempts_total',
+      routes: routes(() => ({
+        status: 400,
+        body: {
+          type: 'about:blank',
+          title: 'Erro',
+          status: 400,
+          detail: 'from fora da retenção de 7 dias',
+        },
+      })),
+    });
+    expect(await screen.findByText(/Período fora do que o plugin metrics guarda/)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Tentar de novo' })).toBeNull();
+  });
+
+  it('trocar de métrica com o mesmo rótulo limpa o campo de filtro', async () => {
+    const user = userEvent.setup();
+    const catalog = {
+      body: {
+        metrics: [
+          descriptor('ai_a_total', { labelNames: ['status'] }),
+          descriptor('ai_b_total', { labelNames: ['status'] }),
+        ],
+      },
+    };
+    renderApp({
+      path: '/metricas?metrica=ai_a_total&onde=status:ok',
+      routes: {
+        'GET /api/plugins/metrics/catalog': () => catalog,
+        'GET /api/plugins/metrics/query': () => ({ body: { rows: [] } }),
+      },
+    });
+    const input = (await screen.findByLabelText('Filtrar status')) as HTMLInputElement;
+    expect(input.value).toBe('ok');
+    await user.selectOptions(screen.getByLabelText('Métrica'), 'ai_b_total');
+    await waitFor(() =>
+      expect((screen.getByLabelText('Filtrar status') as HTMLInputElement).value).toBe(''),
+    );
+  });
+
+  it('ponto isolado ganha marcador mesmo com muitos períodos', async () => {
+    const { container } = (await import('@testing-library/react')).render(
+      <Chart
+        label="g"
+        periods={Array.from({ length: 50 }, (_, i) => `2026-10-${String(i + 1).padStart(2, '0')}`)}
+        series={seriesOf([counter('2026-10-10', 5)]).series}
+      />,
+    );
+    expect(container.querySelectorAll('circle')).toHaveLength(1);
+    expect(container.querySelector('path')?.getAttribute('d')).toMatch(/^M[\d.]+ [\d.]+$/);
+  });
+});
+
 describe('tela Métricas', () => {
   const routes = (query?: (url: URL) => { status?: number; body: unknown }) => ({
     'GET /api/plugins/metrics/catalog': () => CATALOG,
@@ -215,7 +315,7 @@ describe('tela Métricas', () => {
     });
     await screen.findByRole('table', { name: 'Valores da série' });
 
-    await user.click(screen.getByRole('button', { name: '30 dias' }));
+    await user.click(screen.getByRole('button', { name: 'Hoje' }));
     await user.click(screen.getByRole('button', { name: 'Por hora' }));
     await user.click(screen.getByRole('checkbox', { name: 'outcome' }));
     const input = screen.getByLabelText('Filtrar outcome');
@@ -228,7 +328,7 @@ describe('tela Métricas', () => {
       expect(last?.searchParams.get('groupBy')).toBe('outcome');
     });
     const search = new URLSearchParams(location.search);
-    expect(search.get('periodo')).toBe('30d');
+    expect(search.get('periodo')).toBe('hoje');
     expect(search.get('grao')).toBe('hora');
     expect(search.get('agrupar')).toBe('outcome');
     expect(search.getAll('onde')).toEqual(['outcome:ok']);
@@ -337,7 +437,7 @@ describe('tela Métricas', () => {
 
   it('sem o plugin metrics (404) avisa em linha, sem quebrar', async () => {
     renderApp({ path: '/metricas', routes: {} });
-    expect(await screen.findByText(/plugin de métricas não está carregado/)).toBeTruthy();
+    expect(await screen.findByText(/plugin metrics não está carregado/)).toBeTruthy();
     expect(screen.queryByRole('alert')).toBeNull();
     expect(screen.getByRole('heading', { name: 'Métricas' })).toBeTruthy();
   });

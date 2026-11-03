@@ -25,9 +25,9 @@ export function rowValue(row: Row): number {
 }
 
 export const MEASURE: Record<Row['type'], string> = {
-  counter: 'total do período',
-  gauge: 'último valor do período',
-  histogram: 'p95 do período',
+  counter: 'total',
+  gauge: 'último valor',
+  histogram: 'p95',
 };
 
 /** Nome da série: os valores dos rótulos do agrupamento, ou "Total" quando nada agrupa. */
@@ -48,8 +48,7 @@ export function seriesOf(
   for (const row of rows) {
     const name = nameOf(row.labels);
     const values = byName.get(name) ?? new Map<string, number>();
-    // Dois grupos com o mesmo nome (rótulo ausente na linha) somam: é o mesmo grupo para a pessoa.
-    values.set(row.period, (values.get(row.period) ?? 0) + rowValue(row));
+    values.set(row.period, rowValue(row));
     byName.set(name, values);
   }
   const all = [...byName].map(([name, values]) => ({

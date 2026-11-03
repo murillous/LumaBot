@@ -125,13 +125,17 @@ export function Chart({
         return (
           <g key={s.name} fill="none" strokeWidth="2" className={stroke.className}>
             <path d={path} strokeDasharray={stroke.dash} strokeLinejoin="round" />
-            {markers &&
-              periods.map((period, i) => {
-                const value = s.values.get(period);
-                return value === undefined ? null : (
-                  <circle key={period} cx={x(i)} cy={y(value)} r="3" className="fill-raised" />
-                );
-              })}
+            {periods.map((period, i) => {
+              const value = s.values.get(period);
+              if (value === undefined) return null;
+              // Ponto sem vizinho não forma linha: sem marcador, sumiria.
+              const alone =
+                s.values.get(periods[i - 1] ?? '') === undefined &&
+                s.values.get(periods[i + 1] ?? '') === undefined;
+              return markers || alone ? (
+                <circle key={period} cx={x(i)} cy={y(value)} r="3" className="fill-raised" />
+              ) : null;
+            })}
           </g>
         );
       })}
