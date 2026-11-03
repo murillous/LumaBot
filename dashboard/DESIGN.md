@@ -246,6 +246,25 @@ Quem fez o quê, quando e com que resultado.
   `action`. As ações da Luma (`luma.persona.set|create|delete`, `luma.history.clear`,
   `command.owner`, `reminders.delete`, `pairing.session.paired|lost`) entram com a #404.
 
+### Usuários (`/usuarios`, `/usuarios/:id`)
+
+Quem entra no painel e com que papel. Exige `users.manage`.
+
+- Tabela de `GET /api/users`: nome e e-mail (link para a pessoa), papel, estado em palavra
+  (`ativo`, `desativado`, `convite pendente`) e último acesso. A pessoa aberta
+  (`GET /api/users/{id}`) fica ao lado, em card.
+- **Convidar pessoa** (botão primário da tela, `POST /api/users`): nome, e-mail e papel
+  (segmentado). O link `/convite?token=…` (absoluto, com `location.origin`) aparece **uma única
+  vez**, com "Copiar link" e o aviso de que não volta; a API guarda só o hash do token.
+- **Papel:** segmentado, grava na hora com `PATCH /api/users/{id}`. O admin não vê "Dono" nem
+  mexe em conta de dono (mesma regra do core); o servidor ainda recusa o último dono ativo e o
+  erro aparece na tela.
+- **Desativar** (`disable`, confirma), **Reativar** (`enable`), **Encerrar sessões**
+  (`DELETE .../sessions`, confirma, diz quantas) e **Redefinir senha** (`reset-password`, confirma).
+  A redefinição devolve um convite novo, mostrado uma única vez como o do convite, e vale na
+  mesma rota `/convite`.
+- Ação sobre a própria conta segue o que a API faz; a confirmação avisa que a pessoa sai agora.
+
 ## Responsivo
 
 Funciona de 320 px a 1440 px sem rolagem horizontal da página:
