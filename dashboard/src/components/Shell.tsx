@@ -5,7 +5,7 @@ import { PageTitle } from '#components/PageTitle.tsx';
 import { Button, Forbidden } from '#components/ui.tsx';
 import { confirmLeave, Link, matchPath, usePath } from '#lib/router.tsx';
 import { applyTheme, loadTheme, saveTheme, THEMES, type Theme } from '#lib/theme.ts';
-import { ENTRIES, GROUPS, isExternal, resolveRoute } from '#routes.ts';
+import { ENTRIES, type Entry, GROUPS, isExternal, resolveRoute } from '#routes.ts';
 
 const THEME_LABEL: Record<Theme, string> = { auto: 'Sistema', light: 'Claro', dark: 'Escuro' };
 
@@ -47,12 +47,17 @@ function ThemeButton() {
 const itemClass =
   'flex min-h-11 items-center rounded-field px-3 font-medium text-muted hover:bg-plate hover:text-ink aria-[current=page]:bg-raised aria-[current=page]:text-ink aria-[current=page]:shadow-e1';
 
+/** Tela que só se alcança por outro ponto da interface (`menu: false`). */
+const hiddenFromMenu = (entry: Entry): boolean => !isExternal(entry) && entry.menu === false;
+
 function Menu({ path, onNavigate }: { path: string; onNavigate: () => void }) {
   const { can } = useSession();
   return (
     <nav aria-label="Principal" className="flex flex-col gap-4">
       {GROUPS.map((group) => {
-        const items = ENTRIES.filter((e) => e.group === group && can(e.permission));
+        const items = ENTRIES.filter(
+          (e) => e.group === group && can(e.permission) && !hiddenFromMenu(e),
+        );
         if (items.length === 0) return null;
         return (
           <div key={group} className="flex flex-col gap-1">
@@ -127,6 +132,10 @@ export function Shell() {
   const aside = useRef<HTMLElement>(null);
   const main = useRef<HTMLElement>(null);
   const screen = resolveRoute(path)?.entry ?? null;
+  const onNavigate = () => {
+    setOpenAt(null);
+    setClicks((n) => n + 1);
+  };
   // A tela é a entrada da rota, não o caminho: `/plugins/a` -> `/plugins/b` é a mesma tela.
   const shownScreen = useRef<typeof screen>(undefined);
 
@@ -212,15 +221,19 @@ export function Shell() {
       >
         <p className="px-3 font-display text-section font-semibold">Luma</p>
         <LiveIndicator />
-        <Menu
-          path={path}
-          onNavigate={() => {
-            setOpenAt(null);
-            setClicks((n) => n + 1);
-          }}
-        />
+        <Menu path={path} onNavigate={onNavigate} />
         <div className="mt-auto flex flex-col gap-3 px-3">
-          <p className="text-help text-muted">{me.name}</p>
+          <div className="flex flex-col gap-1">
+            <p className="text-help text-muted">{me.name}</p>
+            <Link
+              to="/conta"
+              className={`${itemClass} -mx-3`}
+              aria-current={matchPath('/conta', path) ? 'page' : undefined}
+              onNavigate={onNavigate}
+            >
+              Minha conta
+            </Link>
+          </div>
           <ThemeButton />
           <Button onClick={() => confirmLeave() && logout()}>Sair</Button>
         </div>

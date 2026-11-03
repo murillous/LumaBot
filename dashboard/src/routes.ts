@@ -2,6 +2,7 @@ import type { ComponentType } from 'react';
 import { matchPath, type PageProps } from '#lib/router.tsx';
 import { Ai } from '#pages/Ai.tsx';
 import { Audit } from '#pages/Audit.tsx';
+import { Conta } from '#pages/Conta.tsx';
 import { Keys } from '#pages/Keys.tsx';
 import { Logs } from '#pages/Logs.tsx';
 import { Overview } from '#pages/Overview.tsx';
@@ -23,6 +24,12 @@ export interface Screen extends Base {
   /** O primeiro é o do menu; os outros também deixam o item ativo (`/plugins/:nome`). */
   readonly paths: readonly [string, ...string[]];
   readonly page: ComponentType<PageProps>;
+  /**
+   * `false` tira a tela dos grupos do menu; `resolveRoute` continua resolvendo o caminho. Quem
+   * leva até ela é outro ponto da interface (Minha conta, no rodapé da sidebar). O `group` fica
+   * só para satisfazer o tipo.
+   */
+  readonly menu?: false;
 }
 
 /** Tela que ainda é o painel genérico do Bridger (via proxy), até o dashboard ganhar a própria. */
@@ -86,6 +93,7 @@ export const ENTRIES: readonly Entry[] = [
     paths: ['/chaves'],
     page: Keys,
   },
+  { label: 'Minha conta', group: 'Administração', menu: false, paths: ['/conta'], page: Conta },
 ];
 
 /** A tela do caminho e os parâmetros dele; `null` quando nenhuma casa. */
