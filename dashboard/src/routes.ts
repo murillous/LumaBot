@@ -2,6 +2,7 @@ import type { ComponentType } from 'react';
 import { matchPath, type PageProps } from '#lib/router.tsx';
 import { Ai } from '#pages/Ai.tsx';
 import { Audit } from '#pages/Audit.tsx';
+import { Connection } from '#pages/Connection.tsx';
 import { Conta } from '#pages/Conta.tsx';
 import { Keys } from '#pages/Keys.tsx';
 import { Logs } from '#pages/Logs.tsx';
@@ -41,8 +42,6 @@ export type Entry = Screen | External;
 
 export const isExternal = (entry: Entry): entry is External => 'href' in entry;
 
-const GENERIC = '/plugins/dashboard/';
-
 /**
  * Tabela única de telas e menu. Cada entrega de tela troca só o arquivo de `pages/`; uma tela
  * nova ou a troca de uma `External` por `Screen` é uma linha aqui.
@@ -77,7 +76,8 @@ export const ENTRIES: readonly Entry[] = [
     label: 'Conexão',
     group: 'Administração',
     permission: 'connection.read',
-    href: `${GENERIC}#/`,
+    paths: ['/conexao'],
+    page: Connection,
   },
   {
     label: 'Usuários',

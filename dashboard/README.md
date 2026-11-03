@@ -11,8 +11,8 @@ Com o bot rodando (`pnpm dev` na raiz; a API HTTP vem ligada, na porta 3000, sal
 pnpm --filter @lumabot/dashboard dev      # http://localhost:5173
 ```
 
-O Vite repassa ao bot `/api`, `/openapi.json` e `/plugins/dashboard` (o painel genérico, usado
-por Conexão até o dashboard cobri-la). Assim o app e a API ficam na
+O Vite repassa ao bot `/api`, `/openapi.json` e `/plugins/dashboard` (o painel genérico do Bridger,
+que nenhuma tela usa mais e sai junto com o plugin). Assim o app e a API ficam na
 mesma origem: o cookie de sessão do core é `Secure; SameSite=Strict` e não há CORS configurado,
 então a API só aceita o app sob a mesma origem. O Host não é reescrito (`changeOrigin` fica
 desligado) porque o core não o confere.
