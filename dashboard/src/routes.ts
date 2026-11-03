@@ -6,6 +6,7 @@ import { Connection } from '#pages/Connection.tsx';
 import { Conta } from '#pages/Conta.tsx';
 import { Keys } from '#pages/Keys.tsx';
 import { Logs } from '#pages/Logs.tsx';
+import { Metrics } from '#pages/Metrics.tsx';
 import { Overview } from '#pages/Overview.tsx';
 import { Plugins } from '#pages/Plugins.tsx';
 import { Users } from '#pages/Users.tsx';
@@ -71,6 +72,13 @@ export const ENTRIES: readonly Entry[] = [
     permission: 'audit.read',
     paths: ['/auditoria'],
     page: Audit,
+  },
+  {
+    label: 'Métricas',
+    group: 'Observabilidade',
+    permission: 'metrics.read',
+    paths: ['/metricas'],
+    page: Metrics,
   },
   {
     label: 'Conexão',
