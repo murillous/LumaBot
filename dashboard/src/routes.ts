@@ -3,6 +3,7 @@ import { matchPath, type PageProps } from '#lib/router.tsx';
 import { Ai } from '#pages/Ai.tsx';
 import { Audit } from '#pages/Audit.tsx';
 import { Conta } from '#pages/Conta.tsx';
+import { Keys } from '#pages/Keys.tsx';
 import { Logs } from '#pages/Logs.tsx';
 import { Overview } from '#pages/Overview.tsx';
 import { Plugins } from '#pages/Plugins.tsx';
@@ -87,7 +88,8 @@ export const ENTRIES: readonly Entry[] = [
     label: 'Chaves de API',
     group: 'Administração',
     permission: 'keys.manage',
-    href: `${GENERIC}#/chaves`,
+    paths: ['/chaves'],
+    page: Keys,
   },
   { label: 'Minha conta', group: 'Administração', menu: false, paths: ['/conta'], page: Conta },
 ];

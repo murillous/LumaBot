@@ -165,6 +165,77 @@ describe('Minha conta', () => {
   });
 });
 
+describe('encerrar sessão: foco, erro e sessão atual', () => {
+  it('leva o foco à confirmação, devolve ao Encerrar ao cancelar e ao título após o sucesso', async () => {
+    let list = SESSIONS;
+    open({
+      routes: {
+        'GET /api/auth/sessions': () => ({ body: list }),
+        'DELETE /api/auth/sessions/s2': () => {
+          list = { sessions: [session('s1', { current: true })] };
+          return { body: {} };
+        },
+      },
+    });
+    const user = userEvent.setup();
+    await screen.findByRole('table');
+    const row = () =>
+      screen.getAllByRole('button', { name: /Encerrar a sessão/ })[1] as HTMLElement;
+    await user.click(row());
+    const confirm = screen.getByRole('button', { name: 'Confirmar encerramento' });
+    expect(document.activeElement).toBe(confirm);
+    await user.click(screen.getByRole('button', { name: 'Cancelar' }));
+    await waitFor(() => expect(document.activeElement).toBe(row()));
+    await user.click(row());
+    await user.click(screen.getByRole('button', { name: 'Confirmar encerramento' }));
+    const title = screen.getByRole('heading', { name: 'Sessões abertas' });
+    await waitFor(() => expect(document.activeElement).toBe(title));
+  });
+
+  it('erro do DELETE aparece, a lista é recarregada e abrir outra confirmação limpa o aviso', async () => {
+    const app = open({
+      routes: {
+        'GET /api/auth/sessions': () => ({ body: SESSIONS }),
+        'DELETE /api/auth/sessions/s2': () => problem(404, 'sessão não encontrada'),
+      },
+    });
+    const user = userEvent.setup();
+    await screen.findByRole('table');
+    const buttons = screen.getAllByRole('button', { name: /Encerrar a sessão/ });
+    await user.click(buttons[1] as HTMLElement);
+    await user.click(screen.getByRole('button', { name: 'Confirmar encerramento' }));
+    expect(await screen.findByText('sessão não encontrada')).toBeTruthy();
+    await waitFor(() =>
+      expect(app.calls.filter((c) => c.path === '/api/auth/sessions')).toHaveLength(2),
+    );
+    await user.click(
+      screen.getAllByRole('button', { name: /Encerrar a sessão/ })[0] as HTMLElement,
+    );
+    expect(screen.queryByText('sessão não encontrada')).toBeNull();
+  });
+
+  it('encerrar a sessão atual leva ao login', async () => {
+    let gone = false;
+    const app = open({
+      routes: {
+        'GET /api/auth/sessions': () =>
+          gone ? problem(401, 'autenticação necessária') : { body: SESSIONS },
+        'DELETE /api/auth/sessions/s1': () => {
+          gone = true;
+          return { body: {} };
+        },
+      },
+    });
+    const user = userEvent.setup();
+    await screen.findByRole('table');
+    app.signIn(null);
+    const buttons = screen.getAllByRole('button', { name: /Encerrar a sessão/ });
+    await user.click(buttons[0] as HTMLElement);
+    await user.click(screen.getByRole('button', { name: 'Confirmar encerramento' }));
+    expect(await screen.findByRole('heading', { name: 'Entrar' })).toBeTruthy();
+  });
+});
+
 describe('entrada no rodapé da sidebar', () => {
   it('"Minha conta" não está nos grupos do menu e sim no rodapé, com o nome ao lado', async () => {
     open({ routes: { 'GET /api/auth/sessions': () => ({ body: SESSIONS }) } });

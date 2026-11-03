@@ -486,3 +486,17 @@ describe('gaveta e largura da janela', () => {
     expect(listeners).toHaveLength(0);
   });
 });
+
+describe('rolagem no desktop', () => {
+  it('a sidebar tem a altura da janela e só o main rola', async () => {
+    renderApp();
+    const aside = await screen.findByRole('complementary');
+    const main = document.querySelector('main');
+    // O happy-dom não calcula layout: o contrato fica nas classes do Tailwind.
+    expect(aside.parentElement?.className).toContain('md:h-dvh');
+    expect(aside.parentElement?.className).toContain('md:overflow-hidden');
+    expect(aside.className).toContain('md:h-dvh');
+    expect(aside.className).not.toContain('min-h-dvh');
+    expect(main?.className).toContain('md:overflow-y-auto');
+  });
+});

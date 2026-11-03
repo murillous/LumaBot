@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { type FormEvent, useState } from 'react';
+import { type FormEvent, useEffect, useRef, useState } from 'react';
 import { useApi } from '#components/context.tsx';
 import { PageTitle } from '#components/PageTitle.tsx';
 import { StateWord } from '#components/StateWord.tsx';
@@ -26,8 +26,8 @@ function errorsOf(error: unknown): { fields: FieldErrors; general?: string } {
       }
       if (Object.keys(fields).length > 0) return { fields };
     }
-    // O core responde 403 "senha atual incorreta"; 401 não chega aqui (volta ao login).
-    if (error.status === 403 || error.status === 401) {
+    // O core responde 403 "senha atual incorreta"; um 401 é sessão vencida e volta ao login.
+    if (error.status === 403) {
       return { fields: { currentPassword: error.problem?.detail ?? 'Senha atual incorreta.' } };
     }
     if (error.status === 400) return { fields: { newPassword: error.message } };
@@ -146,6 +146,20 @@ function Sessions() {
   // O id da sessão que está pedindo confirmação para encerrar.
   const [confirming, setConfirming] = useState<string | null>(null);
   const [failure, setFailure] = useState<unknown>(null);
+  // Foco: a confirmação recebe o foco ao abrir; cancelar devolve ao "Encerrar" da linha; o
+  // sucesso leva ao título da seção (a linha some e o foco se perderia).
+  const confirmButton = useRef<HTMLButtonElement>(null);
+  const rowButtons = useRef(new Map<string, HTMLButtonElement>());
+  const heading = useRef<HTMLHeadingElement>(null);
+  const [refocus, setRefocus] = useState<{ id: string } | null>(null);
+
+  useEffect(() => {
+    if (confirming !== null) confirmButton.current?.focus();
+  }, [confirming]);
+
+  useEffect(() => {
+    if (refocus !== null) rowButtons.current.get(refocus.id)?.focus();
+  }, [refocus]);
 
   const sessions = useQuery({
     queryKey: SESSIONS_KEY,
@@ -158,17 +172,24 @@ function Sessions() {
     onSuccess: () => {
       setConfirming(null);
       setFailure(null);
-      return queryClient.invalidateQueries({ queryKey: SESSIONS_KEY });
+      heading.current?.focus();
     },
     onError: (error) => {
       setConfirming(null);
       setFailure(error);
     },
+    // Também no erro: um 404 é sessão que já tinha acabado, e a lista precisa deixar de mostrá-la.
+    onSettled: () => queryClient.invalidateQueries({ queryKey: SESSIONS_KEY }),
   });
 
   return (
     <section aria-labelledby="sessoes" className="flex flex-col gap-3">
-      <h2 id="sessoes" className="font-display text-section font-semibold">
+      <h2
+        id="sessoes"
+        ref={heading}
+        tabIndex={-1}
+        className="font-display text-section font-semibold"
+      >
         Sessões abertas
       </h2>
       {sessions.isPending && <Loading label="Carregando sessões…" />}
@@ -209,19 +230,35 @@ function Sessions() {
                           {s.current ? 'Encerrar esta sessão vai levar ao login.' : 'Encerrar?'}
                         </span>
                         <Button
+                          ref={confirmButton}
                           variant="danger"
                           disabled={revoke.isPending}
                           onClick={() => revoke.mutate(s.id)}
                         >
                           Confirmar encerramento
                         </Button>
-                        <Button onClick={() => setConfirming(null)}>Cancelar</Button>
+                        <Button
+                          onClick={() => {
+                            setConfirming(null);
+                            setFailure(null);
+                            setRefocus({ id: s.id });
+                          }}
+                        >
+                          Cancelar
+                        </Button>
                       </div>
                     ) : (
                       <Button
+                        ref={(node) => {
+                          if (node) rowButtons.current.set(s.id, node);
+                          else rowButtons.current.delete(s.id);
+                        }}
                         variant="danger"
                         aria-label={`Encerrar a sessão aberta em ${whenOf(s.createdAt)}`}
-                        onClick={() => setConfirming(s.id)}
+                        onClick={() => {
+                          setFailure(null);
+                          setConfirming(s.id);
+                        }}
                       >
                         Encerrar
                       </Button>
