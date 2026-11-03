@@ -139,7 +139,7 @@ Componente nenhum usa cor direta: tudo sai das variáveis.
 | Campo | Rótulo visível acima, ajuda abaixo, erro junto do campo com `aria-invalid` e `aria-describedby`. Segredo é máscara que só se substitui |
 | Tabela | Dentro de caixa com rolagem horizontal; cabeçalho em 12 `--muted`; linhas separadas por `--line`. Linha que expande é um `button` com `aria-expanded` |
 | Card | `--raised`, raio 14, `e1` + `--top`. Para o formulário de um plugin, uma tabela, a lista de "Precisa de atenção" |
-| Menu | Sidebar de 248 px: Bot (Visão geral, IA, Plugins), Observabilidade (Logs, Auditoria), Administração (Conexão, Usuários, Chaves de API). Item ativo em `--raised` com `e1` e `aria-current="page"`. Abaixo de 768 px vira gaveta aberta pelo botão Menu |
+| Menu | Sidebar de 248 px: Bot (Visão geral, IA, Plugins), Observabilidade (Logs, Auditoria, Métricas), Administração (Conexão, Usuários, Chaves de API). Item ativo em `--raised` com `e1` e `aria-current="page"`. Abaixo de 768 px vira gaveta aberta pelo botão Menu |
 
 Foco visível em tudo: anel de 2 px `--ink` com afastamento de 2 px. Alvo de toque com no mínimo
 44 px. `prefers-reduced-motion` desliga qualquer transição.
@@ -245,6 +245,25 @@ Quem fez o quê, quando e com que resultado.
 - O título legível de cada `action` sai de um mapa no frontend; ação sem título mostra a própria
   `action`. As ações da Luma (`luma.persona.set|create|delete`, `luma.history.clear`,
   `command.owner`, `reminders.delete`, `pairing.session.paired|lost`) entram com a #404.
+
+### Métricas (`/metricas`)
+
+Qualquer métrica do catálogo, no tempo.
+
+- Métrica em `select` agrupado (Kernel, IA, Luma) com `GET /api/plugins/metrics/catalog`; tipo e
+  `help` do catálogo aparecem como ajuda do campo. Sem a métrica na URL, abre a primeira do kernel.
+- Série de `GET /api/plugins/metrics/query`: período em segmentado (Hoje, 7 dias, 30 dias, Escolher
+  datas) e granularidade Por dia ou Por hora. Os dias são UTC, o fuso padrão do `plugin-metrics`.
+- Rótulos vêm do catálogo da métrica: "Agrupar por" (`groupBy`) liga rótulos e "Filtrar por
+  rótulo" (`where`, `rótulo:valor`) é um campo por rótulo, aplicado com Enter ou ao sair dele.
+  Trocar de métrica limpa os dois. Todos os filtros vão para a URL (`metrica`, `periodo`, `de`,
+  `ate`, `grao`, `onde`, `agrupar`).
+- Gráfico de linhas em SVG com tokens, sem biblioteca. Série se distingue pelo traço, não pela
+  cor (cor só carrega estado), e a legenda aparece quando há agrupamento. Até 8 séries, as de
+  maior valor; o resto é avisado. Período sem dado quebra a linha em vez de ser ligado.
+- A tabela abaixo traz os mesmos valores e é a fonte para leitor de tela. Contador mostra o total
+  do período, medidor o último valor e histograma o p95.
+- Sem o plugin `metrics` carregado (catálogo ou consulta com 404), a tela avisa em linha.
 
 ## Responsivo
 

@@ -3,6 +3,7 @@ import { matchPath, type PageProps } from '#lib/router.tsx';
 import { Ai } from '#pages/Ai.tsx';
 import { Audit } from '#pages/Audit.tsx';
 import { Logs } from '#pages/Logs.tsx';
+import { Metrics } from '#pages/Metrics.tsx';
 import { Overview } from '#pages/Overview.tsx';
 import { Plugins } from '#pages/Plugins.tsx';
 
@@ -63,6 +64,13 @@ export const ENTRIES: readonly Entry[] = [
     permission: 'audit.read',
     paths: ['/auditoria'],
     page: Audit,
+  },
+  {
+    label: 'Métricas',
+    group: 'Observabilidade',
+    permission: 'metrics.read',
+    paths: ['/metricas'],
+    page: Metrics,
   },
   {
     label: 'Conexão',
