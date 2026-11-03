@@ -246,6 +246,22 @@ Quem fez o quê, quando e com que resultado.
   `action`. As ações da Luma (`luma.persona.set|create|delete`, `luma.history.clear`,
   `command.owner`, `reminders.delete`, `pairing.session.paired|lost`) entram com a #404.
 
+### Chaves de API (`/chaves`)
+
+Quem acessa a API sem o painel, e com o quê. Exige `keys.manage`.
+
+- Tabela de `GET /api/keys`: nome, permissões em mono, criada, último uso ("—" se nunca) e estado
+  em palavra (`ativa`, `revogada`). Nunca traz o segredo.
+- **Nova chave** (botão primário): nome e permissões em caixas de marcar. A spec não tem lista de
+  permissões, então as opções são as da própria pessoa (`GET /api/auth/me`): ninguém dá o que não
+  tem. Cria com `POST /api/keys`, com ao menos uma permissão.
+- **O segredo aparece uma única vez**, na resposta da criação: em mono, com "Copiar" (se o clipboard
+  falhar, avisa e deixa o texto selecionável) e o aviso de que não volta. Vive só no estado da
+  tela: fechar o aviso ou sair da tela o descarta, e a mutação roda com `gcTime: 0` para ele não
+  ficar no cache do react-query.
+- **Revogar** (`DELETE /api/keys/{id}`) é destrutivo: o botão abre a confirmação na própria linha.
+  Chave revogada continua na lista, sem ação.
+
 ## Responsivo
 
 Funciona de 320 px a 1440 px sem rolagem horizontal da página:
