@@ -62,7 +62,12 @@ export function SessionProvider({
   }, [me, logout]);
   return (
     <SessionContext.Provider value={session}>
-      <LiveProvider env={env} enabled={session.can('connection.read')} onClosed={onStreamClosed}>
+      <LiveProvider
+        env={env}
+        enabled={session.can('connection.read')}
+        keepPairing={session.can('connection.manage')}
+        onClosed={onStreamClosed}
+      >
         {children}
       </LiveProvider>
     </SessionContext.Provider>
@@ -83,13 +88,27 @@ export type LiveStatus = 'off' | 'connecting' | 'live' | 'reconnecting';
 
 export type LiveHandler = (data: unknown, event: MessageEvent<string>) => void;
 
+/** Último QR do pareamento; `expiresAt` é o horário (ms) em que o bot o troca. */
+export interface PairingQr {
+  readonly qr: string;
+  readonly expiresAt: number | undefined;
+}
+
 interface Live {
   readonly status: LiveStatus;
+  /** Último QR e último código de pareamento, guardados fora da tela (ver `LiveProvider`). */
+  readonly qr: PairingQr | undefined;
+  readonly code: string | undefined;
   /** Assina os eventos de um tipo do stream; devolve o cancelamento. As telas usam isto. */
   readonly listen: (type: string, handler: LiveHandler) => () => void;
 }
 
-const LiveContext = createContext<Live>({ status: 'off', listen: () => () => undefined });
+const LiveContext = createContext<Live>({
+  status: 'off',
+  qr: undefined,
+  code: undefined,
+  listen: () => () => undefined,
+});
 
 export const useLive = (): Live => useContext(LiveContext);
 
@@ -113,11 +132,14 @@ const CLOSED = 2;
 function LiveProvider({
   env,
   enabled,
+  keepPairing,
   onClosed,
   children,
 }: {
   env: AppEnv;
   enabled: boolean;
+  /** Guarda QR e código mesmo sem tela assinando: o core só reenvia o último na conexão. */
+  keepPairing: boolean;
   onClosed: (() => void) | undefined;
   children: ReactNode;
 }) {
@@ -125,6 +147,8 @@ function LiveProvider({
   const closed = useRef(onClosed);
   closed.current = onClosed;
   const [status, setStatus] = useState<LiveStatus>('connecting');
+  const [qr, setQr] = useState<PairingQr>();
+  const [code, setCode] = useState<string>();
   const handlers = useRef(new Map<string, Set<LiveHandler>>());
   // O `EventSource` atual e os tipos já ligados nele; reconectar por conta nossa recomeça do zero.
   const current = useRef<{ source: EventSourceLike; types: Set<string> } | null>(null);
@@ -186,9 +210,40 @@ function LiveProvider({
     };
   }, [env, enabled, attach]);
 
+  // O core reenvia o último QR/código só a quem abre o stream. Se o listener nascesse com a tela
+  // de Conexão, quem chega por outra rota perderia o replay: por isso a escuta é do provider.
+  // O QR e o código valem enquanto a conexão está `connecting`; outro estado os descarta, como no core.
+  useEffect(() => {
+    if (!enabled || !keepPairing) return;
+    const stops = [
+      listen('connection.qr', (data) => {
+        if (typeof data !== 'object' || data === null || !('qr' in data)) return;
+        if (typeof data.qr !== 'string' || data.qr === '') return;
+        const expiresAt =
+          'expiresAt' in data && typeof data.expiresAt === 'number' ? data.expiresAt : undefined;
+        setQr({ qr: data.qr, expiresAt });
+      }),
+      listen('connection.pairing-code', (data) => {
+        if (typeof data !== 'object' || data === null || !('code' in data)) return;
+        if (typeof data.code === 'string' && data.code !== '') setCode(data.code);
+      }),
+      listen('connection.status', (data) => {
+        if (typeof data !== 'object' || data === null || !('status' in data)) return;
+        if (data.status === 'connecting') return;
+        setQr(undefined);
+        setCode(undefined);
+      }),
+    ];
+    return () => {
+      for (const stop of stops) stop();
+      setQr(undefined);
+      setCode(undefined);
+    };
+  }, [enabled, keepPairing, listen]);
+
   const value = useMemo<Live>(
-    () => ({ status: enabled ? status : 'off', listen }),
-    [enabled, status, listen],
+    () => ({ status: enabled ? status : 'off', qr, code, listen }),
+    [enabled, status, qr, code, listen],
   );
   return <LiveContext.Provider value={value}>{children}</LiveContext.Provider>;
 }

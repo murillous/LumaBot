@@ -9,7 +9,7 @@ import { ApiFailure, createApi, ok } from '#lib/api.ts';
 import type { AppEnv } from '#lib/env.ts';
 import { navigate, usePath } from '#lib/router.tsx';
 
-const ME = ['me'] as const;
+export const ME = ['me'] as const;
 
 /** Esquece tudo o que veio da API e marca "sem sessão": o `Gate` mostra o login. */
 function forget(client: QueryClient): void {

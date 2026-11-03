@@ -23,6 +23,9 @@
   --e2: 0 1px 1px #1717160a, 0 6px 16px -4px #1717161a, 0 0 0 1px var(--line);
   --e3: 0 2px 4px #1717160a, 0 24px 56px -16px #1717164d, 0 0 0 1px var(--line2);
   --top: inset 0 1px 0 #ffffffe6;
+  /* QR: fundo claro e módulos escuros nos dois temas, senão a câmera não lê. Sem par escuro. */
+  --qr-bg: #ffffff;
+  --qr-ink: #000000;
 }
 
 /* Escuro: pelo sistema, salvo escolha manual de claro; ou escolha manual de escuro. O CSS não
@@ -92,6 +95,8 @@
   --color-warn-soft: var(--warn-soft);
   --color-danger: var(--danger);
   --color-danger-soft: var(--danger-soft);
+  --color-qr-bg: var(--qr-bg);
+  --color-qr-ink: var(--qr-ink);
   --shadow-e1: var(--e1);
   --shadow-e2: var(--e2);
   --shadow-e3: var(--e3);

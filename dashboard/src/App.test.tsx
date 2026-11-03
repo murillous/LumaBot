@@ -182,14 +182,14 @@ describe('permissões', () => {
     expect(within(menu).queryByRole('heading', { name: 'Administração' })).toBeNull();
   });
 
-  it('o dono vê os três grupos e o painel genérico na Administração', async () => {
+  it('o dono vê os três grupos e a tela Usuários na Administração', async () => {
     renderApp();
     const menu = await screen.findByRole('navigation', { name: 'Principal' });
     for (const group of ['Bot', 'Observabilidade', 'Administração']) {
       expect(within(menu).getByRole('heading', { name: group })).toBeTruthy();
     }
     expect(within(menu).getByRole('link', { name: 'Usuários' }).getAttribute('href')).toBe(
-      '/plugins/dashboard/#/usuarios',
+      '/usuarios',
     );
   });
 

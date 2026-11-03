@@ -139,7 +139,7 @@ Componente nenhum usa cor direta: tudo sai das variáveis.
 | Campo | Rótulo visível acima, ajuda abaixo, erro junto do campo com `aria-invalid` e `aria-describedby`. Segredo é máscara que só se substitui |
 | Tabela | Dentro de caixa com rolagem horizontal; cabeçalho em 12 `--muted`; linhas separadas por `--line`. Linha que expande é um `button` com `aria-expanded` |
 | Card | `--raised`, raio 14, `e1` + `--top`. Para o formulário de um plugin, uma tabela, a lista de "Precisa de atenção" |
-| Menu | Sidebar de 248 px: Bot (Visão geral, IA, Plugins), Observabilidade (Logs, Auditoria, Métricas), Administração (Conexão, Usuários, Chaves de API). Item ativo em `--raised` com `e1` e `aria-current="page"`. Tem a altura da janela e não rola com a página: só o conteúdo principal rola. Abaixo de 768 px vira gaveta aberta pelo botão Menu |
+| Menu | Sidebar de 248 px: Bot (Visão geral, IA, Plugins), Observabilidade (Logs, Auditoria, Métricas), Administração (Conexão, Usuários, Chaves de API); abaixo do nome, no rodapé da sidebar, fica o link Minha conta. Item ativo em `--raised` com `e1` e `aria-current="page"`. Tem a altura da janela e não rola com a página: só o conteúdo principal rola. Abaixo de 768 px vira gaveta aberta pelo botão Menu |
 
 Foco visível em tudo: anel de 2 px `--ink` com afastamento de 2 px. Alvo de toque com no mínimo
 44 px. `prefers-reduced-motion` desliga qualquer transição.
@@ -153,7 +153,7 @@ Cada tela trata os estados carregando, vazio, erro da API (com a mensagem e "ten
 
 O bot está bem? O que precisa de mim?
 
-1. Conexão do WhatsApp numa linha (`GET /api/connection` e evento `connection`).
+1. Conexão do WhatsApp numa linha (`GET /api/connection` e eventos `connection.*`).
 2. **Precisa de atenção**, primeiro e em card: provider sem chave e modelo em cooldown
    (`/api/plugins/ai/status`, #416), avisos e erros recentes (`GET /api/logs?level=warn`), plugin
    que falhou no boot (`GET /api/plugins`). Cada item com o link que resolve. Sem item, uma linha
@@ -266,7 +266,67 @@ Qualquer métrica do catálogo, no tempo.
   maior valor; o resto é avisado. Período sem dado quebra a linha em vez de ser ligado.
 - A tabela abaixo traz os mesmos valores e é a fonte para leitor de tela. Contador mostra o total
   por dia ou por hora, medidor o último valor e histograma o p95. Ponto sem vizinho ganha marcador.
-- Sem o plugin `metrics` carregado (catálogo ou consulta com 404), a tela avisa em linha ("O plugin metrics não está carregado neste bot.").
+- Sem o plugin `metrics` carregado (catálogo ou consulta com 404), a tela avisa em
+  linha ("O plugin metrics não está carregado neste bot.").
+
+### Conexão (`/conexao`)
+
+Está pareado? Como parear de novo?
+
+- Estado em palavra colorida (conectado, conectando, desconectado) e, fora de "conectado", o
+  motivo em mono. `GET /api/connection` e os eventos `connection.status` (relê), `connection.qr`
+  e `connection.pairing-code` do `EventSource` único.
+- **Conectado:** conta (nome, telefone), desde quando, transporte e reconexões. Com
+  `connection.manage`, "Desvincular o WhatsApp" (`POST /api/connection/logout`), que pede
+  confirmação antes de chamar a API.
+- **Desconectado ou pareando:** o QR do evento `connection.qr`, desenhado no browser (lib
+  `qrcode`) em SVG com fundo claro e módulos escuros nos dois temas (tokens `--qr-bg`/`--qr-ink`,
+  os únicos sem par escuro) e texto alternativo. Some quando vence (`expiresAt`) e quando a
+  conexão abre. A API não devolve o QR na leitura, só pelo stream: aberta a tela entre dois QRs,
+  mostra "Aguardando o QR".
+- **Código de pareamento**, só com `connection.manage`: campo de telefone (8 a 15 dígitos) e
+  `POST /api/connection/pairing-code`; o código aparece em mono, grande. O evento
+  `connection.pairing-code` também o preenche.
+- Sem `connection.manage`, os controles somem e a tela é só leitura.
+
+### Minha conta (`/conta`)
+
+Troca a senha e mostra as sessões da própria pessoa. Vale para qualquer pessoa logada, sem
+permissão. Não está nos grupos do menu: abaixo do nome, no rodapé da sidebar, fica o link
+"Minha conta" (`menu: false` em `routes.ts`).
+
+- **Trocar a senha** (`POST /api/auth/password`): senha atual, nova e confirmação da nova (a
+  confirmação só existe no front e não vai no corpo). Senha atual errada (403) e erros 400 da
+  validação (`errors[].path`) aparecem junto do campo. Trocar a senha encerra as outras sessões,
+  então a lista é recarregada.
+- **Sessões abertas** (`GET /api/auth/sessions`): aberta em, último uso, expira em, e "esta sessão"
+  na atual (campo `current`). "Encerrar" pede confirmação na própria linha
+  (`DELETE /api/auth/sessions/{id}`) e recarrega a lista. Encerrar a sessão atual avisa que leva ao
+  login (o 401 seguinte faz isso).
+
+### Usuários (`/usuarios`, `/usuarios/:id`)
+
+Quem entra no painel e com que papel. Exige `users.manage`.
+
+- Tabela de `GET /api/users`: nome e e-mail (link para a pessoa), papel, estado em palavra
+  (`ativo`, `desativado`, `convite pendente`) e último acesso. A pessoa aberta
+  (`GET /api/users/{id}`) fica ao lado, em card.
+- **Convidar pessoa** (botão primário da tela, `POST /api/users`): nome, e-mail e papel
+  (segmentado). O link `/convite?token=…` (absoluto, com `location.origin`) aparece **uma única
+  vez**, com "Copiar link" e o aviso de que não volta; a API guarda só o hash do token.
+- **Papel:** segmentado, grava na hora com `PATCH /api/users/{id}`. O admin não vê "Dono" nem
+  mexe em conta de dono (mesma regra do core); o servidor ainda recusa o último dono ativo e o
+  erro aparece na tela.
+- **Desativar** (`disable`, confirma), **Reativar** (`enable`), **Encerrar sessões**
+  (`DELETE .../sessions`, confirma, diz quantas) e **Redefinir senha** (`reset-password`, confirma).
+  A redefinição devolve um convite novo, mostrado uma única vez como o do convite, e vale na
+  mesma rota `/convite`.
+- Ação sobre a própria conta segue o que a API faz; a confirmação avisa que a pessoa sai agora.
+  "Redefinir senha" não aparece na própria conta (derrubaria a sessão e o link se perderia; a
+  senha própria se troca em Minha conta) nem em conta desativada (o core não aceita o convite);
+  a tela diz o motivo. Rebaixar o próprio papel pede confirmação e relê `/api/auth/me`; encerrar
+  as próprias sessões também relê, e o app vai ao login. A confirmação recebe o foco e o devolve
+  ao botão de origem.
 
 ### Chaves de API (`/chaves`)
 
