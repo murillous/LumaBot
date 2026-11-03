@@ -530,6 +530,16 @@ describe('IA: estados e permissões', () => {
     expect(screen.getByRole('button', { name: 'Adicionar modelo' })).toBeTruthy();
   });
 
+  it('config inválida mostra os problemas e leva à tela Plugins (ai)', async () => {
+    const invalid = { ...AI_CONFIG(), view: null, issues: [{ path: 'models', message: 'vazio' }] };
+    renderApp({ path: '/ia', routes: routes({ ai: invalid as never }) });
+    expect(await screen.findByText(/config atual da IA é inválida/)).toBeTruthy();
+    expect(screen.getByText(/vazio/)).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Plugins (ai)' }).getAttribute('href')).toBe(
+      '/plugins/ai',
+    );
+  });
+
   it('sem config.read, a tela é "Sem permissão"', async () => {
     renderApp({ me: LOG_READER, path: '/ia', routes: routes() });
     expect(await screen.findByRole('heading', { name: 'Sem permissão' })).toBeTruthy();

@@ -8,10 +8,12 @@ import { cooldownRefetch } from './ai-state.ts';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+export const CONNECTION_KEY = ['overview', 'connection'];
+
 export function useConnection() {
   const api = useApi();
   return useQuery({
-    queryKey: ['overview', 'connection'],
+    queryKey: CONNECTION_KEY,
     queryFn: () => ok(api.client.GET('/api/connection')),
   });
 }

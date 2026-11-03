@@ -2,14 +2,12 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useLiveEvent } from '#components/context.tsx';
 import { StateWord, type Tone } from '#components/StateWord.tsx';
 import type { Schemas } from '#lib/api.ts';
-import { useConnection } from './queries.ts';
+import { CONNECTION_KEY, useConnection } from './queries.ts';
 import { Remote } from './Remote.tsx';
 
 type Connection = Schemas['Connection'];
 
-const KEY = ['overview', 'connection'];
-
-const STATUS: Record<Connection['status'], { tone: Tone; word: string }> = {
+export const STATUS: Record<Connection['status'], { tone: Tone; word: string }> = {
   open: { tone: 'ok', word: 'conectado' },
   connecting: { tone: 'warn', word: 'conectando' },
   closed: { tone: 'danger', word: 'desconectado' },
@@ -33,12 +31,12 @@ export function ConnectionLine() {
   useLiveEvent('connection.status', (data) => {
     if (!isStatusEvent(data)) return;
     // Troca já o estado e o motivo; a releitura traz conta e desde quando, que o evento não carrega.
-    client.setQueryData<Connection>(KEY, (old) => {
+    client.setQueryData<Connection>(CONNECTION_KEY, (old) => {
       if (old === undefined) return old;
       const { reason: _previous, ...rest } = old;
       return { ...rest, status: data.status, ...(data.reason && { reason: data.reason }) };
     });
-    void client.invalidateQueries({ queryKey: KEY });
+    void client.invalidateQueries({ queryKey: CONNECTION_KEY });
   });
 
   return (
