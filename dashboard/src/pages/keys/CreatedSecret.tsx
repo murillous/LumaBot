@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button, Card } from '#components/ui.tsx';
 import type { Schemas } from '#lib/api.ts';
 
@@ -13,6 +13,9 @@ export function CreatedSecret({
   onClose: () => void;
 }) {
   const [copy, setCopy] = useState<Copy>('idle');
+  const card = useRef<HTMLDivElement>(null);
+  // O segredo surge depois de um clique que some da tela; sem levar o foco, nada é anunciado.
+  useEffect(() => card.current?.focus(), []);
 
   const copyIt = async () => {
     try {
@@ -25,7 +28,13 @@ export function CreatedSecret({
   };
 
   return (
-    <Card role="region" aria-label="Chave criada" className="flex flex-col gap-3">
+    <Card
+      ref={card}
+      tabIndex={-1}
+      role="region"
+      aria-label="Chave criada"
+      className="flex flex-col gap-3"
+    >
       <p className="font-medium">Chave "{created.name}" criada</p>
       <p className="text-warn">
         Copie agora: esta chave não aparece de novo. Se perder, revogue e crie outra.

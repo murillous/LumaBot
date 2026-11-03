@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useApi, useSession } from '#components/context.tsx';
 import { PageTitle } from '#components/PageTitle.tsx';
 import { StateWord } from '#components/StateWord.tsx';
@@ -14,6 +14,7 @@ import {
   Loading,
 } from '#components/ui.tsx';
 import { messageOf, ok, type Schemas } from '#lib/api.ts';
+import { useLeaveGuard } from '#lib/router.tsx';
 import { CreatedSecret } from './keys/CreatedSecret.tsx';
 
 type ApiKey = Schemas['ApiKey'];
@@ -39,6 +40,7 @@ function KeysScreen() {
   const [creating, setCreating] = useState(false);
   // O segredo só existe aqui, no estado da tela: sair da tela ou fechar o aviso o descarta.
   const [created, setCreated] = useState<Created | null>(null);
+  useLeaveGuard(created !== null, 'A chave criada não aparece de novo. Sair mesmo assim?');
 
   return (
     <section className="flex flex-col gap-5">
@@ -50,7 +52,7 @@ function KeysScreen() {
             na hora.
           </p>
         </div>
-        {!creating && (
+        {!creating && created === null && (
           <Button variant="primary" onClick={() => setCreating(true)}>
             Nova chave
           </Button>
@@ -182,7 +184,9 @@ function CreateForm({
           >
             Criar chave
           </Button>
-          <Button onClick={onCancel}>Cancelar</Button>
+          <Button disabled={create.isPending} onClick={onCancel}>
+            Cancelar
+          </Button>
         </div>
       </form>
     </Card>
@@ -195,8 +199,23 @@ function KeyRow({ apiKey }: { apiKey: ApiKey }) {
   const [confirming, setConfirming] = useState(false);
   const revoke = useMutation({
     mutationFn: () => ok(client.DELETE('/api/keys/{id}', { params: { path: { id: apiKey.id } } })),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: KEYS }),
+    onSuccess: () => {
+      // Fecha já: se o refetch falhar, a linha não deixa disparar um segundo DELETE.
+      setConfirming(false);
+      return queryClient.invalidateQueries({ queryKey: KEYS });
+    },
   });
+  const confirmButton = useRef<HTMLButtonElement>(null);
+  const revokeButton = useRef<HTMLButtonElement>(null);
+  const settled = useRef(false);
+  // O botão focado some na troca; o foco acompanha. Na 1ª montagem não mexe.
+  useEffect(() => {
+    if (!settled.current) {
+      settled.current = true;
+      return;
+    }
+    (confirming ? confirmButton : revokeButton).current?.focus();
+  }, [confirming]);
   const revoked = apiKey.revokedAt !== null;
 
   return (
@@ -224,6 +243,7 @@ function KeyRow({ apiKey }: { apiKey: ApiKey }) {
               )}
               <div className="flex flex-wrap gap-2">
                 <Button
+                  ref={confirmButton}
                   variant="danger"
                   disabled={revoke.isPending}
                   onClick={() => revoke.mutate()}
@@ -234,7 +254,7 @@ function KeyRow({ apiKey }: { apiKey: ApiKey }) {
               </div>
             </div>
           ) : (
-            <Button variant="danger" onClick={() => setConfirming(true)}>
+            <Button ref={revokeButton} variant="danger" onClick={() => setConfirming(true)}>
               Revogar
               <span className="sr-only"> {apiKey.name}</span>
             </Button>

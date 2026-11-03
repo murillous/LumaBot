@@ -151,7 +151,8 @@ describe('tela Chaves de API', () => {
     await user.click(screen.getByRole('button', { name: 'Criar chave' }));
     expect(await screen.findByText(SECRET)).toBeTruthy();
 
-    // Sem fechar: navegar para outra tela e voltar descarta o aviso.
+    // Sem fechar: navegar para outra tela e voltar descarta o aviso (a guarda de saída é aceita).
+    window.confirm = vi.fn(() => true);
     const menu = screen.getByRole('navigation', { name: 'Principal' });
     await user.click(within(menu).getByRole('link', { name: 'Visão geral' }));
     await screen.findByRole('heading', { name: 'Visão geral' });
@@ -257,5 +258,72 @@ describe('tela Chaves de API', () => {
     await user.click(screen.getByRole('button', { name: 'Revogar Chave k1' }));
     await user.click(screen.getByRole('button', { name: 'Confirmar revogação de Chave k1' }));
     expect((await screen.findByRole('alert')).textContent).toContain('chave não existe');
+  });
+
+  const createOne = async (user: ReturnType<typeof userEvent.setup>) => {
+    await screen.findByText('Nenhuma chave criada.');
+    await user.click(screen.getByRole('button', { name: 'Nova chave' }));
+    await user.type(screen.getByLabelText('Nome'), 'x');
+    await user.click(screen.getByRole('checkbox', { name: 'logs.read' }));
+    await user.click(screen.getByRole('button', { name: 'Criar chave' }));
+    return screen.findByRole('region', { name: 'Chave criada' });
+  };
+  const created = {
+    ...list([]),
+    'POST /api/keys': () => ({ status: 201, body: { ...key('k2'), secret: SECRET } }),
+  };
+
+  it('leva o foco ao aviso do segredo e esconde "Nova chave" enquanto ele está à mostra', async () => {
+    const user = userEvent.setup();
+    renderApp({ path: '/chaves', routes: created });
+    const box = await createOne(user);
+    expect(document.activeElement).toBe(box);
+    expect(screen.queryByRole('button', { name: 'Nova chave' })).toBeNull();
+    await user.click(within(box).getByRole('button', { name: 'Já copiei, fechar' }));
+    expect(screen.getByRole('button', { name: 'Nova chave' })).toBeTruthy();
+  });
+
+  it('pede confirmação ao sair com o segredo à mostra e fica se a pessoa recusar', async () => {
+    const user = userEvent.setup();
+    const confirm = vi.fn(() => false);
+    window.confirm = confirm;
+    renderApp({ path: '/chaves', routes: created });
+    await createOne(user);
+    const menu = screen.getByRole('navigation', { name: 'Principal' });
+    await user.click(within(menu).getByRole('link', { name: 'Visão geral' }));
+    expect(confirm).toHaveBeenCalledWith('A chave criada não aparece de novo. Sair mesmo assim?');
+    expect(location.pathname).toBe('/chaves');
+    expect(screen.getByText(SECRET)).toBeTruthy();
+  });
+
+  it('o foco acompanha a confirmação de revogar e fecha a confirmação ao revogar', async () => {
+    const user = userEvent.setup();
+    let calls = 0;
+    renderApp({
+      path: '/chaves',
+      routes: {
+        // O refetch depois do DELETE falha: a confirmação precisa ter fechado mesmo assim.
+        'GET /api/keys': () =>
+          ++calls === 1
+            ? { body: { keys: [key('k1')] } }
+            : { status: 500, body: { title: 'Erro', status: 500, detail: 'fora' } },
+        'DELETE /api/keys/k1': () => ({
+          body: { id: 'k1', revokedAt: '2026-11-01T10:00:00.000Z' },
+        }),
+      },
+    });
+    await screen.findByRole('table', { name: 'Chaves de API' });
+    await user.click(screen.getByRole('button', { name: 'Revogar Chave k1' }));
+    expect(document.activeElement).toBe(
+      screen.getByRole('button', { name: 'Confirmar revogação de Chave k1' }),
+    );
+    await user.click(screen.getByRole('button', { name: 'Cancelar' }));
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Revogar Chave k1' }));
+
+    await user.click(screen.getByRole('button', { name: 'Revogar Chave k1' }));
+    await user.click(screen.getByRole('button', { name: 'Confirmar revogação de Chave k1' }));
+    await waitFor(() =>
+      expect(screen.queryByRole('button', { name: 'Confirmar revogação de Chave k1' })).toBeNull(),
+    );
   });
 });
