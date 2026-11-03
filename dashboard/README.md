@@ -1,7 +1,8 @@
 # Dashboard da Luma
 
 SPA (Vite, React, TypeScript, Tailwind v4) que fala com a API HTTP do Bridger. É a única interface
-do bot e não é plugin: o bot não serve o build, quem serve é o Vite (`preview`) ou o proxy HTTPS. Regras visuais e telas em [`DESIGN.md`](./DESIGN.md).
+do bot e não é plugin: o bot não serve o build, quem serve é o Vite (`preview`) ou o proxy HTTPS.
+Regras visuais e telas em [`DESIGN.md`](./DESIGN.md).
 
 ## Rodar
 
@@ -11,7 +12,8 @@ Com o bot rodando (`pnpm dev` na raiz; a API HTTP vem ligada, na porta 3000, sal
 pnpm --filter @lumabot/dashboard dev      # http://localhost:5173
 ```
 
-O Vite repassa ao bot `/api` e `/openapi.json`. Assim o app e a API ficam na mesma origem: o cookie de sessão do core é `Secure; SameSite=Strict` e não há CORS configurado,
+O Vite repassa ao bot `/api` e `/openapi.json`. Assim o app e a API ficam na mesma origem: o
+cookie de sessão do core é `Secure; SameSite=Strict` e não há CORS configurado,
 então a API só aceita o app sob a mesma origem. O Host não é reescrito (`changeOrigin` fica
 desligado) porque o core não o confere.
 

@@ -75,7 +75,9 @@ pnpm build
 pnpm start:all   # o bot (dist/main.mjs) e o dashboard em http://localhost:4173
 ```
 
-`pnpm start` sobe só o bot, sem o dashboard (para rodar como serviço).
+`pnpm start` sobe só o bot, sem o dashboard (para rodar como serviço). O `start:all` aponta o
+dashboard para a porta e o host da API (`LUMABOT_DASHBOARD_PORT` e `_HOST`); com
+`LUMABOT_DASHBOARD_PORT=off` não há API e ele se recusa a subir.
 
 Nenhuma variável é obrigatória. No primeiro boot, o terminal mostra:
 

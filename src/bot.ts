@@ -29,10 +29,6 @@ import { userNames } from '#plugins/user-names/user-names.ts';
 import { utils } from '#plugins/utils/utils.ts';
 import { webSearch } from '#plugins/web-search/web-search.ts';
 
-// Portas padrão do Vite (`preview` e `dev`); só para dizer onde abrir o dashboard.
-const PREVIEW_PORT = 4173;
-const DEV_PORT = 5173;
-
 const config = loadConfig();
 // O app cria o logger para registrar também a falha de boot; o mesmo SecretSet vai para o bot,
 // que censura nele os segredos da config de plugin. No terminal, linha legível; redirecionado
@@ -61,11 +57,13 @@ let apiConfig = {};
 if (config.dashboard) {
   const tokenFile = join(dataDir, 'bootstrap-token');
   const token = await localSecret(tokenFile, 24);
+  // 0.0.0.0 é onde o bot escuta, não um endereço para abrir.
+  const host = config.dashboard.hostname === '0.0.0.0' ? '127.0.0.1' : config.dashboard.hostname;
   // Fora do log, como o QR: o logger censuraria o valor. Só no primeiro boot; depois, o arquivo.
   process.stdout.write(
-    `\nAPI: http://${config.dashboard.hostname}:${config.dashboard.port}\n` +
-      `Dashboard: pnpm start:all (http://localhost:${PREVIEW_PORT}); em desenvolvimento, ` +
-      `pnpm --filter @lumabot/dashboard dev (http://localhost:${DEV_PORT})\n` +
+    `\nAPI: http://${host}:${config.dashboard.port}\n` +
+      'Dashboard: o `pnpm start:all` mostra a URL (padrão http://localhost:4173); ' +
+      'em desenvolvimento, `pnpm --filter @lumabot/dashboard dev`\n' +
       (token.created
         ? `Token do primeiro acesso (salvo em ${tokenFile}): ${token.value}\n`
         : `Token do primeiro acesso em ${tokenFile}\n`),

@@ -61,7 +61,7 @@ tire.
 
 ## Tokens
 
-Herdados do design que o Bridger usava no painel genérico (já removido). Componente nenhum usa cor direta: tudo sai das variáveis.
+Componente nenhum usa cor direta: tudo sai das variáveis.
 
 ```css
 @import "tailwindcss";
