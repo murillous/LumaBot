@@ -182,14 +182,14 @@ describe('permissões', () => {
     expect(within(menu).queryByRole('heading', { name: 'Administração' })).toBeNull();
   });
 
-  it('o dono vê os três grupos e o painel genérico na Administração', async () => {
+  it('o dono vê os três grupos e a tela Usuários na Administração', async () => {
     renderApp();
     const menu = await screen.findByRole('navigation', { name: 'Principal' });
     for (const group of ['Bot', 'Observabilidade', 'Administração']) {
       expect(within(menu).getByRole('heading', { name: group })).toBeTruthy();
     }
     expect(within(menu).getByRole('link', { name: 'Usuários' }).getAttribute('href')).toBe(
-      '/plugins/dashboard/#/usuarios',
+      '/usuarios',
     );
   });
 
@@ -484,5 +484,19 @@ describe('gaveta e largura da janela', () => {
     expect(button.getAttribute('aria-expanded')).toBe('false');
     expect(document.querySelector('main')?.hasAttribute('inert')).toBe(false);
     expect(listeners).toHaveLength(0);
+  });
+});
+
+describe('rolagem no desktop', () => {
+  it('a sidebar tem a altura da janela e só o main rola', async () => {
+    renderApp();
+    const aside = await screen.findByRole('complementary');
+    const main = document.querySelector('main');
+    // O happy-dom não calcula layout: o contrato fica nas classes do Tailwind.
+    expect(aside.parentElement?.className).toContain('md:h-dvh');
+    expect(aside.parentElement?.className).toContain('md:overflow-hidden');
+    expect(aside.className).toContain('md:h-dvh');
+    expect(aside.className).not.toContain('min-h-dvh');
+    expect(main?.className).toContain('md:overflow-y-auto');
   });
 });
