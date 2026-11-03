@@ -7,6 +7,7 @@ import { Keys } from '#pages/Keys.tsx';
 import { Logs } from '#pages/Logs.tsx';
 import { Overview } from '#pages/Overview.tsx';
 import { Plugins } from '#pages/Plugins.tsx';
+import { Users } from '#pages/Users.tsx';
 
 export const GROUPS = ['Bot', 'Observabilidade', 'Administração'] as const;
 export type Group = (typeof GROUPS)[number];
@@ -82,7 +83,8 @@ export const ENTRIES: readonly Entry[] = [
     label: 'Usuários',
     group: 'Administração',
     permission: 'users.manage',
-    href: `${GENERIC}#/usuarios`,
+    paths: ['/usuarios', '/usuarios/:id'],
+    page: Users,
   },
   {
     label: 'Chaves de API',

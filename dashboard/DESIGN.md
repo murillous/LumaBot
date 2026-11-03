@@ -249,8 +249,8 @@ Quem fez o quê, quando e com que resultado.
 ### Minha conta (`/conta`)
 
 Troca a senha e mostra as sessões da própria pessoa. Vale para qualquer pessoa logada, sem
-permissão. Não está nos grupos do menu: o nome no rodapé da sidebar é o link "Minha conta"
-(`menu: false` em `routes.ts`).
+permissão. Não está nos grupos do menu: abaixo do nome, no rodapé da sidebar, fica o link
+"Minha conta" (`menu: false` em `routes.ts`).
 
 - **Trocar a senha** (`POST /api/auth/password`): senha atual, nova e confirmação da nova (a
   confirmação só existe no front e não vai no corpo). Senha atual errada (403) e erros 400 da
@@ -260,6 +260,30 @@ permissão. Não está nos grupos do menu: o nome no rodapé da sidebar é o lin
   na atual (campo `current`). "Encerrar" pede confirmação na própria linha
   (`DELETE /api/auth/sessions/{id}`) e recarrega a lista. Encerrar a sessão atual avisa que leva ao
   login (o 401 seguinte faz isso).
+
+### Usuários (`/usuarios`, `/usuarios/:id`)
+
+Quem entra no painel e com que papel. Exige `users.manage`.
+
+- Tabela de `GET /api/users`: nome e e-mail (link para a pessoa), papel, estado em palavra
+  (`ativo`, `desativado`, `convite pendente`) e último acesso. A pessoa aberta
+  (`GET /api/users/{id}`) fica ao lado, em card.
+- **Convidar pessoa** (botão primário da tela, `POST /api/users`): nome, e-mail e papel
+  (segmentado). O link `/convite?token=…` (absoluto, com `location.origin`) aparece **uma única
+  vez**, com "Copiar link" e o aviso de que não volta; a API guarda só o hash do token.
+- **Papel:** segmentado, grava na hora com `PATCH /api/users/{id}`. O admin não vê "Dono" nem
+  mexe em conta de dono (mesma regra do core); o servidor ainda recusa o último dono ativo e o
+  erro aparece na tela.
+- **Desativar** (`disable`, confirma), **Reativar** (`enable`), **Encerrar sessões**
+  (`DELETE .../sessions`, confirma, diz quantas) e **Redefinir senha** (`reset-password`, confirma).
+  A redefinição devolve um convite novo, mostrado uma única vez como o do convite, e vale na
+  mesma rota `/convite`.
+- Ação sobre a própria conta segue o que a API faz; a confirmação avisa que a pessoa sai agora.
+  "Redefinir senha" não aparece na própria conta (derrubaria a sessão e o link se perderia; a
+  senha própria se troca em Minha conta) nem em conta desativada (o core não aceita o convite);
+  a tela diz o motivo. Rebaixar o próprio papel pede confirmação e relê `/api/auth/me`; encerrar
+  as próprias sessões também relê, e o app vai ao login. A confirmação recebe o foco e o devolve
+  ao botão de origem.
 
 ### Chaves de API (`/chaves`)
 
