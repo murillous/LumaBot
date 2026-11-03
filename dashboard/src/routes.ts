@@ -2,6 +2,7 @@ import type { ComponentType } from 'react';
 import { matchPath, type PageProps } from '#lib/router.tsx';
 import { Ai } from '#pages/Ai.tsx';
 import { Audit } from '#pages/Audit.tsx';
+import { Connection } from '#pages/Connection.tsx';
 import { Logs } from '#pages/Logs.tsx';
 import { Overview } from '#pages/Overview.tsx';
 import { Plugins } from '#pages/Plugins.tsx';
@@ -68,7 +69,8 @@ export const ENTRIES: readonly Entry[] = [
     label: 'Conexão',
     group: 'Administração',
     permission: 'connection.read',
-    href: `${GENERIC}#/`,
+    paths: ['/conexao'],
+    page: Connection,
   },
   {
     label: 'Usuários',

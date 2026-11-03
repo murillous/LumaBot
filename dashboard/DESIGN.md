@@ -153,7 +153,7 @@ Cada tela trata os estados carregando, vazio, erro da API (com a mensagem e "ten
 
 O bot está bem? O que precisa de mim?
 
-1. Conexão do WhatsApp numa linha (`GET /api/connection` e evento `connection`).
+1. Conexão do WhatsApp numa linha (`GET /api/connection` e eventos `connection.*`).
 2. **Precisa de atenção**, primeiro e em card: provider sem chave e modelo em cooldown
    (`/api/plugins/ai/status`, #416), avisos e erros recentes (`GET /api/logs?level=warn`), plugin
    que falhou no boot (`GET /api/plugins`). Cada item com o link que resolve. Sem item, uma linha
@@ -245,6 +245,26 @@ Quem fez o quê, quando e com que resultado.
 - O título legível de cada `action` sai de um mapa no frontend; ação sem título mostra a própria
   `action`. As ações da Luma (`luma.persona.set|create|delete`, `luma.history.clear`,
   `command.owner`, `reminders.delete`, `pairing.session.paired|lost`) entram com a #404.
+
+### Conexão (`/conexao`)
+
+Está pareado? Como parear de novo?
+
+- Estado em palavra colorida (conectado, conectando, desconectado) e, fora de "conectado", o
+  motivo em mono. `GET /api/connection` e os eventos `connection.status` (relê), `connection.qr`
+  e `connection.pairing-code` do `EventSource` único.
+- **Conectado:** conta (nome, telefone), desde quando, transporte e reconexões. Com
+  `connection.manage`, "Desvincular o WhatsApp" (`POST /api/connection/logout`), que pede
+  confirmação antes de chamar a API.
+- **Desconectado ou pareando:** o QR do evento `connection.qr`, desenhado no browser (lib
+  `qrcode`) em SVG com fundo claro e módulos escuros nos dois temas (tokens `--qr-bg`/`--qr-ink`,
+  os únicos sem par escuro) e texto alternativo. Some quando vence (`expiresAt`) e quando a
+  conexão abre. A API não devolve o QR na leitura, só pelo stream: aberta a tela entre dois QRs,
+  mostra "Aguardando o QR".
+- **Código de pareamento**, só com `connection.manage`: campo de telefone (8 a 15 dígitos) e
+  `POST /api/connection/pairing-code`; o código aparece em mono, grande. O evento
+  `connection.pairing-code` também o preenche.
+- Sem `connection.manage`, os controles somem e a tela é só leitura.
 
 ## Responsivo
 

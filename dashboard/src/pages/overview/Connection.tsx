@@ -9,7 +9,7 @@ type Connection = Schemas['Connection'];
 
 const KEY = ['overview', 'connection'];
 
-const STATUS: Record<Connection['status'], { tone: Tone; word: string }> = {
+export const STATUS: Record<Connection['status'], { tone: Tone; word: string }> = {
   open: { tone: 'ok', word: 'conectado' },
   connecting: { tone: 'warn', word: 'conectando' },
   closed: { tone: 'danger', word: 'desconectado' },
