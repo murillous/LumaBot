@@ -2,14 +2,14 @@
 import { cleanup, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it } from 'vitest';
-import { type Handler, LOG_READER, OWNER, renderApp } from '#test-support.tsx';
+import { type Handler, LOG_READER, OVERVIEW_ROUTES, OWNER, renderApp } from '#test-support.tsx';
 
 afterEach(cleanup);
 
 const OPEN = {
   status: 'open',
   transport: 'baileys',
-  pairing: false,
+  pairing: true,
   account: { id: '1', name: 'Luma', phone: '5511999990000' },
   connectedSince: 1_760_000_000_000,
   reconnections: 2,
@@ -92,9 +92,12 @@ describe('tela Conexão', () => {
   it('esquece o QR vencido', async () => {
     const app = open({ 'GET /api/connection': conn(CLOSED) });
     await screen.findByText('desconectado');
-    app.stream().emit('connection.qr', { qr: '2@vencido', expiresAt: Date.now() + 30 });
-    await screen.findByRole('img', { name: /QR code/ });
-    await waitFor(() => expect(screen.queryByRole('img', { name: /QR code/ })).toBeNull());
+    // Margem larga: o QR precisa estar na tela antes de vencer, senão o teste oscila.
+    app.stream().emit('connection.qr', { qr: '2@vencido', expiresAt: Date.now() + 600 });
+    expect(await screen.findByRole('img', { name: /QR code/ })).toBeTruthy();
+    await waitFor(() => expect(screen.queryByRole('img', { name: /QR code/ })).toBeNull(), {
+      timeout: 3000,
+    });
   });
 
   it('o evento de status relê a conexão e troca o QR pela conta', async () => {
@@ -166,7 +169,7 @@ describe('tela Conexão', () => {
     expect(app.calls.filter((c) => c.path === '/api/connection/logout')).toHaveLength(1);
   });
 
-  it('sem connection.manage a tela é só leitura', async () => {
+  it('sem connection.manage a tela é só leitura e não oferece pareamento', async () => {
     const app = open({ 'GET /api/connection': conn(OPEN) }, READER);
     await screen.findByText('conectado');
     expect(screen.queryByRole('button', { name: /Desvincular/ })).toBeNull();
@@ -174,9 +177,75 @@ describe('tela Conexão', () => {
     app.routes['GET /api/connection'] = conn(CLOSED);
     app.stream().emit('connection.status', { status: 'closed' });
     await screen.findByText('desconectado');
+    expect(screen.getByText('Parear exige a permissão connection.manage.')).toBeTruthy();
     expect(screen.queryByLabelText('Telefone')).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Gerar código' })).toBeNull();
+    expect(screen.queryByText(/Aguardando o QR/)).toBeNull();
+    app.stream().emit('connection.qr', { qr: '2@qr', expiresAt: Date.now() + 60_000 });
+    expect(screen.queryByRole('img', { name: /QR code/ })).toBeNull();
+  });
+
+  it('o QR que chegou antes de abrir a tela aparece ao entrar nela', async () => {
+    const app = renderApp({
+      routes: { ...OVERVIEW_ROUTES, 'GET /api/connection': conn(CLOSED) },
+      path: '/',
+    });
+    await screen.findByText('desconectado');
+    app.stream().emit('connection.qr', { qr: '2@replay', expiresAt: Date.now() + 60_000 });
+    app.stream().emit('connection.pairing-code', { code: 'REPL-0001' });
+    await userEvent.click(screen.getByRole('link', { name: 'Conexão' }));
+    expect(await screen.findByRole('img', { name: /QR code/ })).toBeTruthy();
+    expect(screen.getByText('REPL-0001')).toBeTruthy();
+  });
+
+  it('status diferente de connecting descarta o QR e o código; connecting os mantém', async () => {
+    const app = open({ 'GET /api/connection': conn(CLOSED) });
+    await screen.findByText('desconectado');
+    app.stream().emit('connection.qr', { qr: '2@qr', expiresAt: Date.now() + 60_000 });
+    app.stream().emit('connection.pairing-code', { code: 'KEEP-0001' });
+    await screen.findByRole('img', { name: /QR code/ });
+    app.stream().emit('connection.status', { status: 'connecting' });
+    expect(screen.getByRole('img', { name: /QR code/ })).toBeTruthy();
+    expect(screen.getByText('KEEP-0001')).toBeTruthy();
+    app.stream().emit('connection.status', { status: 'closed', reason: 'qr-timeout' });
+    await waitFor(() => expect(screen.queryByRole('img', { name: /QR code/ })).toBeNull());
+    expect(screen.queryByText('KEEP-0001')).toBeNull();
+  });
+
+  it('com pairing falso não oferece desvincular nem código', async () => {
+    open({ 'GET /api/connection': conn({ ...OPEN, pairing: false }) });
+    await screen.findByText('conectado');
+    expect(screen.queryByRole('button', { name: /Desvincular/ })).toBeNull();
+  });
+
+  it('desconectado com pairing falso não mostra o campo de código', async () => {
+    open({ 'GET /api/connection': conn({ ...CLOSED, pairing: false }) });
+    await screen.findByText('desconectado');
+    expect(screen.queryByLabelText('Telefone')).toBeNull();
+    expect(screen.getByText(/Aguardando o QR/)).toBeTruthy();
+  });
+
+  it('sessão já pareada reconectando mostra "Reconectando", sem pareamento', async () => {
+    open({ 'GET /api/connection': conn({ ...OPEN, status: 'connecting' }) });
+    expect(await screen.findByText(/Reconectando a sessão/)).toBeTruthy();
+    expect(screen.queryByText(/Aguardando o QR/)).toBeNull();
+  });
+
+  it('connecting com QR em curso mostra o pareamento', async () => {
+    const app = open({
+      'GET /api/connection': conn({ ...CLOSED, status: 'connecting', qrExpiresAt: 1 }),
+    });
+    await screen.findByText('conectando');
     app.stream().emit('connection.qr', { qr: '2@qr', expiresAt: Date.now() + 60_000 });
     expect(await screen.findByRole('img', { name: /QR code/ })).toBeTruthy();
+  });
+
+  it('leva o foco ao Cancelar e o devolve ao gatilho ao fechar a confirmação', async () => {
+    open({ 'GET /api/connection': conn(OPEN) });
+    await userEvent.click(await screen.findByRole('button', { name: 'Desvincular o WhatsApp' }));
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Cancelar' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
+    expect(document.activeElement).toBe(
+      screen.getByRole('button', { name: 'Desvincular o WhatsApp' }),
+    );
   });
 });
