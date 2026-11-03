@@ -139,7 +139,7 @@ Componente nenhum usa cor direta: tudo sai das variáveis.
 | Campo | Rótulo visível acima, ajuda abaixo, erro junto do campo com `aria-invalid` e `aria-describedby`. Segredo é máscara que só se substitui |
 | Tabela | Dentro de caixa com rolagem horizontal; cabeçalho em 12 `--muted`; linhas separadas por `--line`. Linha que expande é um `button` com `aria-expanded` |
 | Card | `--raised`, raio 14, `e1` + `--top`. Para o formulário de um plugin, uma tabela, a lista de "Precisa de atenção" |
-| Menu | Sidebar de 248 px: Bot (Visão geral, IA, Plugins), Observabilidade (Logs, Auditoria), Administração (Conexão, Usuários, Chaves de API). Item ativo em `--raised` com `e1` e `aria-current="page"`. Abaixo de 768 px vira gaveta aberta pelo botão Menu |
+| Menu | Sidebar de 248 px: Bot (Visão geral, IA, Plugins), Observabilidade (Logs, Auditoria), Administração (Conexão, Usuários, Chaves de API). Item ativo em `--raised` com `e1` e `aria-current="page"`. Tem a altura da janela e não rola com a página: só o conteúdo principal rola. Abaixo de 768 px vira gaveta aberta pelo botão Menu |
 
 Foco visível em tudo: anel de 2 px `--ink` com afastamento de 2 px. Alvo de toque com no mínimo
 44 px. `prefers-reduced-motion` desliga qualquer transição.
@@ -269,6 +269,22 @@ Quem entra no painel e com que papel. Exige `users.manage`.
   a tela diz o motivo. Rebaixar o próprio papel pede confirmação e relê `/api/auth/me`; encerrar
   as próprias sessões também relê, e o app vai ao login. A confirmação recebe o foco e o devolve
   ao botão de origem.
+
+### Chaves de API (`/chaves`)
+
+Quem acessa a API sem o painel, e com o quê. Exige `keys.manage`.
+
+- Tabela de `GET /api/keys`: nome, permissões em mono, criada, último uso ("—" se nunca) e estado
+  em palavra (`ativa`, `revogada`). Nunca traz o segredo.
+- **Nova chave** (botão primário): nome e permissões em caixas de marcar. A spec não tem lista de
+  permissões, então as opções são as da própria pessoa (`GET /api/auth/me`): ninguém dá o que não
+  tem. Cria com `POST /api/keys`, com ao menos uma permissão.
+- **O segredo aparece uma única vez**, na resposta da criação: em mono, com "Copiar" (se o clipboard
+  falhar, avisa e deixa o texto selecionável) e o aviso de que não volta. Vive só no estado da
+  tela: fechar o aviso ou sair da tela o descarta, e a mutação roda com `gcTime: 0` para ele não
+  ficar no cache do react-query.
+- **Revogar** (`DELETE /api/keys/{id}`) é destrutivo: o botão abre a confirmação na própria linha.
+  Chave revogada continua na lista, sem ação.
 
 ## Responsivo
 
