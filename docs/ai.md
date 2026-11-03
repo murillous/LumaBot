@@ -127,7 +127,7 @@ Tavily.
 ## API do dashboard
 
 Duas rotas de leitura em `/api/plugins/ai` (entram no `openapi.json`; exigem `config.read`, a mesma
-da tela Config). Sem `http` no bot, o `ai` loga e segue sem elas. Nenhuma devolve o valor de uma
+das telas IA e Plugins). Sem `http` no bot, o `ai` loga e segue sem elas. Nenhuma devolve o valor de uma
 chave.
 
 ### `GET /api/plugins/ai/catalog`

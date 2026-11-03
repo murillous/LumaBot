@@ -181,9 +181,6 @@ importers:
       '@usebridger/core':
         specifier: ^0.11.0
         version: 0.11.0
-      '@usebridger/plugin-dashboard':
-        specifier: ^0.4.1
-        version: 0.4.1
       '@usebridger/plugin-metrics':
         specifier: ^0.3.1
         version: 0.3.1
@@ -1188,9 +1185,6 @@ packages:
   '@usebridger/core@0.11.0':
     resolution: {integrity: sha512-Zb3g9dNTRPSNjkaOerxovKzyzJwYB8WTBZ0w08etzIhn0KXbAVBDZ4TnQIsibpJzAN0ufirtIc3U5atqFROapg==}
     hasBin: true
-
-  '@usebridger/plugin-dashboard@0.4.1':
-    resolution: {integrity: sha512-vHKJfsBpByEJRKnjc2/83DaLG6pLxc3bVvetC9Rwa4IjKswouzrPP9V3QGGMpgwvyrUW5WE3PcgreZXuCx1p5A==}
 
   '@usebridger/plugin-metrics@0.3.1':
     resolution: {integrity: sha512-HXB8x/X6tAEZiZ1P069q5PnhDpQD3Pq9SXcoCEcyl0Hlcxp7VwLqIzph1QWMX9NzJkcXHY1tkZ/3Wl4JLL4Egw==}
@@ -2944,13 +2938,6 @@ snapshots:
       ws: 8.22.0
       zod: 4.6.5
       zod-openapi: 6.0.2(zod@4.6.5)
-    transitivePeerDependencies:
-      - bufferutil
-      - utf-8-validate
-
-  '@usebridger/plugin-dashboard@0.4.1':
-    dependencies:
-      '@usebridger/core': 0.11.0
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate

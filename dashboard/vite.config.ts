@@ -15,9 +15,6 @@ export default defineConfig(({ mode }) => {
   const proxy = {
     '/api': { target },
     '/openapi.json': { target },
-    // O painel genérico do Bridger (Conexão, Usuários, Chaves de API) até o dashboard cobri-los.
-    // Regex para não pegar `/plugins/dashboard-x`; `/plugins/:nome` sem `dashboard` é do SPA.
-    '^/plugins/dashboard(/|$)': { target },
   };
   return {
     plugins: [react(), tailwindcss()],

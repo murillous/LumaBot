@@ -15,6 +15,7 @@
   "scripts": {
     "build": "tsdown && pnpm --filter @lumabot/dashboard build",
     "start": "node --env-file-if-exists=.env dist/main.mjs",
+    "start:all": "node scripts/start-all.ts",
     "dev": "node --env-file-if-exists=.env src/main.ts",
     "typecheck": "tsc && pnpm --filter @lumabot/dashboard typecheck",
     "lint": "biome check",
@@ -27,7 +28,6 @@
     "@ai-sdk/google": "^4.0.98",
     "@ai-sdk/openai": "^4.0.95",
     "@usebridger/core": "^0.11.0",
-    "@usebridger/plugin-dashboard": "^0.4.1",
     "@usebridger/plugin-metrics": "^0.3.1",
     "@usebridger/storage-sqlite": "^0.3.4",
     "@usebridger/transport-baileys": "^0.6.1",

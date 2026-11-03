@@ -2,7 +2,6 @@
 // não vê: conflito de nome de comando ou de serviço, ciclo de dependência, plugin que não carrega.
 
 import { createHttp } from '@usebridger/core';
-import { dashboard } from '@usebridger/plugin-dashboard';
 import { metrics } from '@usebridger/plugin-metrics';
 import { createTestBot, fixtures, type TestBot } from '@usebridger/testing';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -40,7 +39,6 @@ async function start(model = scripted('oi')) {
     http,
     api: { auth: { bootstrapToken: TOKEN } },
     plugins: [
-      dashboard,
       ping,
       metrics,
       ai,
@@ -116,9 +114,8 @@ describe('composição do app', () => {
     expect(JSON.stringify(await (await get('plugins/metrics/catalog')).json())).toMatch(
       /"ai_attempts_total"/,
     );
-    expect((await fetch(`${origin}/plugins/dashboard/`)).headers.get('content-type')).toMatch(
-      /text\/html/,
-    );
+    // O painel genérico saiu: o bot só serve a API, o dashboard é o `dashboard/`.
+    expect((await fetch(`${origin}/plugins/dashboard/`)).status).toBe(404);
   });
 
   it('!help lista os comandos novos agrupados', async () => {

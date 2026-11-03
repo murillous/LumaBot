@@ -34,20 +34,10 @@ export interface Screen extends Base {
   readonly menu?: false;
 }
 
-/** Tela que ainda é o painel genérico do Bridger (via proxy), até o dashboard ganhar a própria. */
-export interface External extends Base {
-  readonly href: string;
-}
-
-export type Entry = Screen | External;
-
-export const isExternal = (entry: Entry): entry is External => 'href' in entry;
-
 /**
- * Tabela única de telas e menu. Cada entrega de tela troca só o arquivo de `pages/`; uma tela
- * nova ou a troca de uma `External` por `Screen` é uma linha aqui.
+ * Tabela única de telas e menu. Tela nova é uma linha aqui e o arquivo em `pages/`.
  */
-export const ENTRIES: readonly Entry[] = [
+export const ENTRIES: readonly Screen[] = [
   // A Visão geral junta várias leituras, cada uma com a permissão própria: a tela abre para
   // qualquer pessoa logada e esconde por seção o que ela não pode ver.
   { label: 'Visão geral', group: 'Bot', paths: ['/'], page: Overview },
@@ -109,7 +99,6 @@ export function resolveRoute(
   path: string,
 ): { entry: Screen; params: Record<string, string> } | null {
   for (const entry of ENTRIES) {
-    if (isExternal(entry)) continue;
     for (const pattern of entry.paths) {
       const params = matchPath(pattern, path);
       if (params !== null) return { entry, params };

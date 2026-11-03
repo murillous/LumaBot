@@ -4,7 +4,7 @@ import { useApi, useSession } from '#components/context.tsx';
 import { PageTitle } from '#components/PageTitle.tsx';
 import { Button, ErrorNotice, Forbidden, Loading } from '#components/ui.tsx';
 import { ApiFailure, messageOf, ok, type Schemas } from '#lib/api.ts';
-import { useLeaveGuard } from '#lib/router.tsx';
+import { Link, useLeaveGuard } from '#lib/router.tsx';
 import { type CatalogProvider, ChainEditor } from './ai/ChainEditor.tsx';
 import {
   type AiDraft,
@@ -316,7 +316,14 @@ function AiForm({
       <section className="flex flex-col gap-4">
         <PageTitle>IA</PageTitle>
         <div role="alert" className="rounded-field bg-danger-soft p-4 text-danger">
-          <p>A config atual da IA é inválida; corrija pelo arquivo ou pelo painel genérico.</p>
+          <p>
+            A config atual da IA é inválida; corrija a variável BRIDGER_AI__* ou substitua a config
+            na tela{' '}
+            <Link to="/plugins/ai" className="underline">
+              Plugins (ai)
+            </Link>
+            .
+          </p>
           <ul className="mt-2 list-disc pl-6">
             {(aiConfig.issues ?? []).map((issue) => (
               <li key={`${issue.path}-${issue.message}`}>

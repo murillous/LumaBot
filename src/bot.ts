@@ -3,7 +3,6 @@
 
 import { dirname, join } from 'node:path';
 import { createBot, createHttp, createLogger, createSecretSet } from '@usebridger/core';
-import { dashboard } from '@usebridger/plugin-dashboard';
 import { sqlite } from '@usebridger/storage-sqlite';
 import { baileys } from '@usebridger/transport-baileys';
 import { plugins as apiPlugins } from '#api-plugins.ts';
@@ -51,15 +50,20 @@ if (!env['BRIDGER_SECRET_KEY']) {
   env['BRIDGER_SECRET_KEY'] = (await localSecret(join(dataDir, 'secret.key'), 32)).value;
 }
 
-// O dashboard é cliente da API do core: login por e-mail e senha, e o `bootstrapToken` cria o
-// primeiro owner. Depois do primeiro usuário, o token não vale mais.
+// O dashboard (`dashboard/`) é cliente da API do core: login por e-mail e senha, e o
+// `bootstrapToken` cria o primeiro owner. Depois do primeiro usuário, o token não vale mais. O bot
+// serve só a API; o build do dashboard quem serve é o Vite (`start:all`) ou o proxy HTTPS.
 let apiConfig = {};
 if (config.dashboard) {
   const tokenFile = join(dataDir, 'bootstrap-token');
   const token = await localSecret(tokenFile, 24);
+  // 0.0.0.0 é onde o bot escuta, não um endereço para abrir.
+  const host = config.dashboard.hostname === '0.0.0.0' ? '127.0.0.1' : config.dashboard.hostname;
   // Fora do log, como o QR: o logger censuraria o valor. Só no primeiro boot; depois, o arquivo.
   process.stdout.write(
-    `\nDashboard: http://${config.dashboard.hostname}:${config.dashboard.port}/plugins/dashboard/\n` +
+    `\nAPI: http://${host}:${config.dashboard.port}\n` +
+      'Dashboard: o `pnpm start:all` mostra a URL (padrão http://localhost:4173); ' +
+      'em desenvolvimento, `pnpm --filter @lumabot/dashboard dev`\n' +
       (token.created
         ? `Token do primeiro acesso (salvo em ${tokenFile}): ${token.value}\n`
         : `Token do primeiro acesso em ${tokenFile}\n`),
@@ -80,7 +84,6 @@ const bot = createBot({
   ...apiConfig,
   plugins: [
     pairing((text) => process.stdout.write(text)),
-    ...(config.dashboard ? [dashboard] : []),
     // O core já logou o motivo; sem `await`, o listener termina e o stop não espera por ele.
     giveUp(() => {
       process.exitCode = 1;
