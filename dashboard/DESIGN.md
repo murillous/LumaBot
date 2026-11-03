@@ -139,7 +139,7 @@ Componente nenhum usa cor direta: tudo sai das variáveis.
 | Campo | Rótulo visível acima, ajuda abaixo, erro junto do campo com `aria-invalid` e `aria-describedby`. Segredo é máscara que só se substitui |
 | Tabela | Dentro de caixa com rolagem horizontal; cabeçalho em 12 `--muted`; linhas separadas por `--line`. Linha que expande é um `button` com `aria-expanded` |
 | Card | `--raised`, raio 14, `e1` + `--top`. Para o formulário de um plugin, uma tabela, a lista de "Precisa de atenção" |
-| Menu | Sidebar de 248 px: Bot (Visão geral, IA, Plugins), Observabilidade (Logs, Auditoria), Administração (Conexão, Usuários, Chaves de API). Item ativo em `--raised` com `e1` e `aria-current="page"`. Abaixo de 768 px vira gaveta aberta pelo botão Menu |
+| Menu | Sidebar de 248 px: Bot (Visão geral, IA, Plugins), Observabilidade (Logs, Auditoria), Administração (Conexão, Usuários, Chaves de API); no rodapé, o nome da pessoa e o link Minha conta. Item ativo em `--raised` com `e1` e `aria-current="page"`. Abaixo de 768 px vira gaveta aberta pelo botão Menu |
 
 Foco visível em tudo: anel de 2 px `--ink` com afastamento de 2 px. Alvo de toque com no mínimo
 44 px. `prefers-reduced-motion` desliga qualquer transição.
@@ -245,6 +245,21 @@ Quem fez o quê, quando e com que resultado.
 - O título legível de cada `action` sai de um mapa no frontend; ação sem título mostra a própria
   `action`. As ações da Luma (`luma.persona.set|create|delete`, `luma.history.clear`,
   `command.owner`, `reminders.delete`, `pairing.session.paired|lost`) entram com a #404.
+
+### Minha conta (`/conta`)
+
+Troca a senha e mostra as sessões da própria pessoa. Vale para qualquer pessoa logada, sem
+permissão. Não está nos grupos do menu: o nome no rodapé da sidebar é o link "Minha conta"
+(`menu: false` em `routes.ts`).
+
+- **Trocar a senha** (`POST /api/auth/password`): senha atual, nova e confirmação da nova (a
+  confirmação só existe no front e não vai no corpo). Senha atual errada (403) e erros 400 da
+  validação (`errors[].path`) aparecem junto do campo. Trocar a senha encerra as outras sessões,
+  então a lista é recarregada.
+- **Sessões abertas** (`GET /api/auth/sessions`): aberta em, último uso, expira em, e "esta sessão"
+  na atual (campo `current`). "Encerrar" pede confirmação na própria linha
+  (`DELETE /api/auth/sessions/{id}`) e recarrega a lista. Encerrar a sessão atual avisa que leva ao
+  login (o 401 seguinte faz isso).
 
 ## Responsivo
 

@@ -44,7 +44,8 @@ spec.
 
 ## Estrutura
 
-- `src/routes.ts`: tabela única de telas e menu, com a permissão de cada uma.
+- `src/routes.ts`: tabela única de telas e menu, com a permissão de cada uma. `menu: false` tira a tela dos grupos do menu
+  sem tirá-la das rotas (Minha conta, `/conta`, que o rodapé da sidebar abre).
 - `src/pages/`: uma tela por arquivo; tela grande pode ter a pasta `src/pages/<tela>/` com as
   seções e as queries dela (a Visão geral usa `pages/overview/`). Todo título de tela é
   `<PageTitle>`: o Shell leva o foco até ele quando a rota troca.
