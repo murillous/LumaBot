@@ -72,16 +72,19 @@ repositório, que é onde ele procura a fonte e o banco.
 corepack enable
 pnpm install
 pnpm build
-pnpm start   # roda dist/main.mjs
+pnpm start:all   # o bot (dist/main.mjs) e o dashboard em http://localhost:4173
 ```
+
+`pnpm start` sobe só o bot, sem o dashboard (para rodar como serviço).
 
 Nenhuma variável é obrigatória. No primeiro boot, o terminal mostra:
 
 1. **O QR do WhatsApp.** No celular: *Aparelhos conectados → Conectar aparelho*. Depois do
    pareamento o servidor pede um restart e o bot reconecta sozinho. Prefere código a QR? Defina
    `LUMABOT_PAIRING_PHONE` ([Config](#config)).
-2. **A URL do [dashboard](#dashboard)** e o caminho do token do primeiro acesso. Entre por ali e
-   configure a IA na tela Config.
+2. **A URL da API, como abrir o [dashboard](#dashboard)** e o token do primeiro acesso (também em
+   `data/bootstrap-token`). Abra o dashboard, crie o primeiro `owner` com esse token e configure a
+   IA na tela IA.
 
 Para testar, mande `!ping` de **outro** número: o bot responde `pong`, citando a mensagem. Do
 próprio número não funciona, porque o middleware `ignore-self` barra as mensagens da sessão.
@@ -96,39 +99,31 @@ reconecta ou pede novo pareamento.
 
 ## Dashboard
 
-São dois painéis sobre a mesma API HTTP do Bridger, com o mesmo login e as mesmas permissões:
+O dashboard da Luma, em [`dashboard/`](dashboard/README.md), é um app à parte (Vite e React) que
+fala com a API HTTP do Bridger. Não é plugin: o bot serve só a API (porta 3000, no loopback) e o
+build do dashboard quem serve é o Vite ou um proxy HTTPS. Telas:
 
-- **O dashboard da Luma**, em [`dashboard/`](dashboard/README.md): Visão geral, IA (a cadeia de
-  modelos, o fallback e as chaves num lugar só), Plugins, Logs e Auditoria. É um app à parte (Vite
-  e React), não um plugin: o bot não serve o build.
-- **O painel genérico** do
-  [`@usebridger/plugin-dashboard`](https://github.com/murillous/usebridger/blob/develop/packages/plugin-dashboard/docs/README.md),
-  ligado por padrão em `http://127.0.0.1:3000/plugins/dashboard/` e composto em `src/bot.ts`. Fica
-  enquanto o dashboard da Luma não cobre Conexão, Usuários e Chaves de API (os itens desse grupo
-  no menu da Luma abrem o genérico).
+- **Visão geral**, **IA** (a cadeia de modelos, o fallback e as chaves num lugar só) e **Plugins**
+  (ligar, desligar, recarregar e a config de cada um, sem reiniciar; as chaves são gravadas
+  cifradas no banco).
+- **Logs** (histórico e ao vivo), **Auditoria** e **Métricas** do `metrics`: as do kernel, as
+  `ai_*` de consumo e custo da IA ([ai-metrics.md](docs/ai-metrics.md)) e as `luma_*` dos plugins
+  ([logs-e-metricas.md](docs/logs-e-metricas.md)).
+- **Conexão** (QR e código de pareamento), **Usuários**, **Chaves de API** e **Minha conta**.
 
-Para rodar o dashboard da Luma com o bot no ar:
+Para abrir:
 
 ```sh
-pnpm --filter @lumabot/dashboard dev      # http://localhost:5173
+pnpm build
+pnpm start:all                            # o bot e o dashboard em http://localhost:4173
+pnpm --filter @lumabot/dashboard dev      # desenvolvendo o dashboard (http://localhost:5173), com o bot no ar
 ```
 
-O Vite repassa `/api` ao bot (`LUMA_BOT_URL`, padrão `http://127.0.0.1:3000`), e assim o app e a
-API ficam na mesma origem, que o cookie de sessão exige. Para buildar, `pnpm --filter
-@lumabot/dashboard build` gera `dashboard/dist`; em produção, sirva essa pasta pelo mesmo proxy
-HTTPS do bot ([Exposição](#exposição)), repassando `/api`, `/openapi.json` e `/plugins/dashboard`
-ao bot e mandando qualquer outro caminho para o `index.html` (o app usa rotas por caminho).
-
-O painel genérico mostra:
-
-- **Conexão:** QR e código de pareamento.
-- **Config:** os campos de cada plugin (modelos e chaves da IA, Luma, busca, estilo da legenda...),
-  editáveis sem reiniciar. As chaves são gravadas cifradas no banco.
-- **Logs** (histórico e ao vivo), **plugins** (ligar, desligar, recarregar) e **auditoria**.
-- **Métricas** do `metrics`: as do kernel, as `ai_*` de consumo e custo da IA
-  ([ai-metrics.md](docs/ai-metrics.md)) e as `luma_*` dos plugins
-  ([logs-e-metricas.md](docs/logs-e-metricas.md)).
-- **Usuários e API keys.**
+O Vite repassa `/api` e `/openapi.json` ao bot (`LUMA_BOT_URL`, padrão `http://127.0.0.1:3000`), e
+assim o app e a API ficam na mesma origem, que o cookie de sessão exige. Em produção, sirva
+`dashboard/dist` pelo mesmo proxy HTTPS do bot ([Exposição](#exposição)), repassando `/api` e
+`/openapi.json` ao bot e mandando qualquer outro caminho para o `index.html` (o app usa rotas por
+caminho).
 
 ### Primeiro acesso
 
@@ -138,7 +133,7 @@ de aceite de convite recebe o token do primeiro acesso (`data/bootstrap-token`) 
 Usuários. Perdeu a senha do único owner? `bridger owner-invite` do core gera um convite novo.
 
 O app gera, com permissão 0600 na pasta do banco, o `data/bootstrap-token` e o `data/secret.key`
-(a chave mestra que cifra os segredos da tela Config; só sem `BRIDGER_SECRET_KEY`).
+(a chave mestra que cifra os segredos salvos pelo dashboard; só sem `BRIDGER_SECRET_KEY`).
 
 - **Não apague nem troque o `secret.key`** com segredos salvos: o boot falha com `undecryptable`.
   Para trocar a chave, siga a
@@ -162,7 +157,8 @@ kernel já audita (plugins, config, segredos, login), a Luma registra:
 
 Contatos (`sender`, `contact`, `actor`, `creator`) e o id de chat privado (`target.id`,
 `details.chat`, que é o número do contato) vão pseudonimizados com `ctx.pseudonym`, nunca o
-JID cru; id de grupo fica cru (não identifica pessoa); quem tem a permissão `pseudonyms.resolve` desfaz pelo dashboard ou pela API. Em
+JID cru; id de grupo fica cru (não identifica pessoa); quem tem a permissão `pseudonyms.resolve` desfaz pela API (`/api/pseudonyms`; nenhuma tela do
+dashboard faz isso). Em
 `command.owner`, `details.status` traz o status cru (`ran`, `rejected`, `failed`; `rejected`
 cobre também recusa por `accepts`).
 
@@ -174,14 +170,14 @@ O padrão é o loopback porque o core não faz TLS: o cookie de sessão sai `Sec
 no corpo do login. Para acessar de fora, ponha um proxy HTTPS (nginx, Caddy) na frente, repassando
 `Host` e `X-Forwarded-Proto`, e só então troque o `LUMABOT_DASHBOARD_HOST` (ou deixe o proxy na
 mesma máquina, no loopback). Um `owner` ou `admin` desliga, recarrega e reconfigura qualquer
-plugin: o override gravado pelo painel vale até alguém removê-lo pela tela.
+plugin: o override gravado pelo dashboard vale até alguém removê-lo pela tela.
 
 ## Config
 
 Há dois tipos de config:
 
 - **Do app:** as variáveis `LUMABOT_*` abaixo, lidas em `src/config.ts`. Só mudam os padrões.
-- **Dos plugins:** pela tela Config do dashboard ou por variável no padrão do core,
+- **Dos plugins:** pelas telas IA e Plugins do dashboard ou por variável no padrão do core,
   `BRIDGER_<PLUGIN>__<CAMPO>`
   ([Config do core](https://github.com/murillous/usebridger/blob/develop/packages/core/docs/config.md)).
   A variável vence o dashboard, que passa a mostrar o campo como `env`, sem edição. Os campos de
@@ -197,9 +193,9 @@ variável vazia vale como ausente. O `.env` fica fora do Git.
 | `LUMABOT_PAIRING_PHONE` | — | Número com DDI, só dígitos (`5511999999999`). Com ele, o bot pede um código de pareamento em vez do QR: digite-o em *Aparelhos conectados → Conectar com número de telefone* |
 | `LUMABOT_YTDLP_COOKIES` | — | Arquivo de cookies (formato Netscape) que o `download` repassa ao yt-dlp ([download.md](docs/download.md#config)) |
 | `LUMABOT_LOG_LEVEL` | `info` | `trace`, `debug`, `info`, `warn`, `error`, `fatal` ou `silent` |
-| `LUMABOT_DASHBOARD_PORT` | `3000` | Porta do HTTP do core (1 a 65535). `off` desliga o dashboard e o HTTP |
+| `LUMABOT_DASHBOARD_PORT` | `3000` | Porta do HTTP do core (1 a 65535). `off` desliga a API HTTP (e, com ela, o dashboard) |
 | `LUMABOT_DASHBOARD_HOST` | `127.0.0.1` | Interface de escuta. `0.0.0.0` expõe a porta para fora da máquina ([Exposição](#exposição)) |
-| `BRIDGER_SECRET_KEY` | gerada | Chave mestra dos segredos salvos pela tela Config. Definida, vence o `data/secret.key` |
+| `BRIDGER_SECRET_KEY` | gerada | Chave mestra dos segredos salvos pelo dashboard. Definida, vence o `data/secret.key` |
 
 Valor inválido, do app ou de plugin (ex.: `BRIDGER_STICKER_TEXT__COLOR=vermelho`), impede o boot
 com a variável na mensagem. Um `BRIDGER_DASHBOARD__TOKEN` que sobrou de versão anterior também
@@ -213,7 +209,7 @@ stdout.
 ## Plugins
 
 Ficam em `src/plugins/` e entram na lista do `createBot` em `src/bot.ts`. Dos oficiais do Bridger,
-o app carrega o `metrics` e, salvo `LUMABOT_DASHBOARD_PORT=off`, o `dashboard`.
+o app carrega o `metrics`.
 
 | Plugin | O que faz |
 | --- | --- |
@@ -249,7 +245,6 @@ exemplo é o `sticker` ([sticker.md](docs/sticker.md#serviço-sticker)).
 | `@usebridger/core` | Kernel: plugins, comandos, filas, config, serviços, API HTTP |
 | `@usebridger/transport-baileys` | Conexão com o WhatsApp (Baileys) |
 | `@usebridger/storage-sqlite` | Banco SQLite: credenciais, dados dos plugins, config salva |
-| `@usebridger/plugin-dashboard` | O [dashboard](#dashboard) |
 | `@usebridger/plugin-metrics` | Métricas do kernel e da IA, agregação diária e `GET /metrics` (Prometheus) |
 | `ai` e `@ai-sdk/*` | AI SDK: os provedores Google, OpenAI, Anthropic e DeepSeek |
 | `sharp` | Imagem da figurinha e a legenda (Pango) |
@@ -263,7 +258,8 @@ exemplo é o `sticker` ([sticker.md](docs/sticker.md#serviço-sticker)).
 | Comando | O que faz |
 | --- | --- |
 | `pnpm dev` | Roda o `.ts` direto, sem build (type stripping do Node) |
-| `pnpm build` / `pnpm start` | `tsdown` para `dist/` e roda o build |
+| `pnpm build` / `pnpm start` | `tsdown` para `dist/` (mais o build do dashboard) e roda o bot do build |
+| `pnpm start:all` | O bot e o dashboard (`vite preview`, porta 4173) juntos |
 | `pnpm lint` / `pnpm lint:fix` | Biome: lint, formatação e organização de imports |
 | `pnpm typecheck` | `tsc`, só checagem de tipos |
 | `pnpm test` | Vitest |

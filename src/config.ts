@@ -48,7 +48,7 @@ export function loadConfig(env: ConfigEnv = process.env): AppConfig {
 }
 
 /**
- * Ambiente da config de plugin (`BRIDGER_*`). O `bot.ts` completa nele o token do dashboard e a
+ * Ambiente da config de plugin (`BRIDGER_*`). O `bot.ts` completa nele o token do primeiro acesso e a
  * chave mestra quando faltam, sem ler o `process.env` por conta própria.
  */
 export function pluginEnv(env: ConfigEnv = process.env): ConfigEnv {

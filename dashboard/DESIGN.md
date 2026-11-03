@@ -18,9 +18,8 @@ Canvas no Claude Design: <https://claude.ai/artifact/1DpDG4M4hWZmNzi27QjorS#page
 
 - `dashboard/` na raiz, pacote próprio do workspace do pnpm: Vite, React, TypeScript strict e
   Tailwind CSS v4.
-- Cliente da API gerado do `openapi.json` do core com `openapi-fetch`
-  ([fazer o próprio frontend](https://github.com/murillous/usebridger/blob/develop/packages/plugin-dashboard/docs/README.md#fazer-o-próprio-frontend)).
-  Nada de tipo de resposta escrito à mão.
+- Cliente da API gerado do `openapi.json` do core com `openapi-fetch`. Nada de tipo de resposta
+  escrito à mão.
 - Mesma origem do bot: login em `POST /api/auth/login`, `fetch` com `credentials: 'same-origin'`.
   Um 401 em qualquer chamada volta para o login.
 - Tempo real: **um** `EventSource` em `/api/events`, com os tipos que a tela usa.
@@ -62,9 +61,7 @@ tire.
 
 ## Tokens
 
-Os mesmos do painel do Bridger
-([design.md do plugin-dashboard](https://github.com/murillous/usebridger/blob/develop/packages/plugin-dashboard/docs/design.md)).
-Componente nenhum usa cor direta: tudo sai das variáveis.
+Herdados do design que o Bridger usava no painel genérico (já removido). Componente nenhum usa cor direta: tudo sai das variáveis.
 
 ```css
 @import "tailwindcss";

@@ -1,7 +1,7 @@
 # Dashboard da Luma
 
-SPA (Vite, React, TypeScript, Tailwind v4) que fala com a API HTTP do Bridger. Não é plugin: o bot
-não serve o build. Regras visuais e telas em [`DESIGN.md`](./DESIGN.md).
+SPA (Vite, React, TypeScript, Tailwind v4) que fala com a API HTTP do Bridger. É a única interface
+do bot e não é plugin: o bot não serve o build, quem serve é o Vite (`preview`) ou o proxy HTTPS. Regras visuais e telas em [`DESIGN.md`](./DESIGN.md).
 
 ## Rodar
 
@@ -11,23 +11,25 @@ Com o bot rodando (`pnpm dev` na raiz; a API HTTP vem ligada, na porta 3000, sal
 pnpm --filter @lumabot/dashboard dev      # http://localhost:5173
 ```
 
-O Vite repassa ao bot `/api`, `/openapi.json` e `/plugins/dashboard` (o painel genérico do Bridger,
-que nenhuma tela usa mais e sai junto com o plugin). Assim o app e a API ficam na
-mesma origem: o cookie de sessão do core é `Secure; SameSite=Strict` e não há CORS configurado,
+O Vite repassa ao bot `/api` e `/openapi.json`. Assim o app e a API ficam na mesma origem: o cookie de sessão do core é `Secure; SameSite=Strict` e não há CORS configurado,
 então a API só aceita o app sob a mesma origem. O Host não é reescrito (`changeOrigin` fica
 desligado) porque o core não o confere.
 
 O bot em outro endereço que `http://127.0.0.1:3000`: defina `LUMA_BOT_URL` (no ambiente ou num
 `dashboard/.env`).
 
-No primeiro acesso, o token de bootstrap está em `bootstrap-token`, ao lado do banco do bot.
+No primeiro acesso, o token de bootstrap está em `bootstrap-token`, ao lado do banco do bot (o bot
+também o imprime no primeiro boot).
 
 ## Build
 
 ```sh
 pnpm --filter @lumabot/dashboard build    # dashboard/dist
-pnpm --filter @lumabot/dashboard preview  # serve o build, com o mesmo proxy
+pnpm --filter @lumabot/dashboard preview  # http://localhost:4173, serve o build com o mesmo proxy
 ```
+
+Na raiz, `pnpm start:all` sobe o bot (`dist/main.mjs`) e esse `preview` juntos, depois do
+`pnpm build`.
 
 ## API tipada
 

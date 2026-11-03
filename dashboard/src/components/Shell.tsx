@@ -5,7 +5,7 @@ import { PageTitle } from '#components/PageTitle.tsx';
 import { Button, Forbidden } from '#components/ui.tsx';
 import { confirmLeave, Link, matchPath, usePath } from '#lib/router.tsx';
 import { applyTheme, loadTheme, saveTheme, THEMES, type Theme } from '#lib/theme.ts';
-import { ENTRIES, type Entry, GROUPS, isExternal, resolveRoute } from '#routes.ts';
+import { ENTRIES, GROUPS, resolveRoute, type Screen } from '#routes.ts';
 
 const THEME_LABEL: Record<Theme, string> = { auto: 'Sistema', light: 'Claro', dark: 'Escuro' };
 
@@ -48,7 +48,7 @@ const itemClass =
   'flex min-h-11 items-center rounded-field px-3 font-medium text-muted hover:bg-plate hover:text-ink aria-[current=page]:bg-raised aria-[current=page]:text-ink aria-[current=page]:shadow-e1';
 
 /** Tela que só se alcança por outro ponto da interface (`menu: false`). */
-const hiddenFromMenu = (entry: Entry): boolean => !isExternal(entry) && entry.menu === false;
+const hiddenFromMenu = (entry: Screen): boolean => entry.menu === false;
 
 function Menu({ path, onNavigate }: { path: string; onNavigate: () => void }) {
   const { can } = useSession();
@@ -65,23 +65,14 @@ function Menu({ path, onNavigate }: { path: string; onNavigate: () => void }) {
             <ul className="flex flex-col gap-1">
               {items.map((entry) => (
                 <li key={entry.label}>
-                  {isExternal(entry) ? (
-                    // Painel genérico do Bridger: outra página, então link comum e não do SPA.
-                    <a href={entry.href} className={itemClass}>
-                      {entry.label}
-                    </a>
-                  ) : (
-                    <Link
-                      to={entry.paths[0]}
-                      className={itemClass}
-                      onNavigate={onNavigate}
-                      aria-current={
-                        entry.paths.some((p) => matchPath(p, path)) ? 'page' : undefined
-                      }
-                    >
-                      {entry.label}
-                    </Link>
-                  )}
+                  <Link
+                    to={entry.paths[0]}
+                    className={itemClass}
+                    onNavigate={onNavigate}
+                    aria-current={entry.paths.some((p) => matchPath(p, path)) ? 'page' : undefined}
+                  >
+                    {entry.label}
+                  </Link>
                 </li>
               ))}
             </ul>
