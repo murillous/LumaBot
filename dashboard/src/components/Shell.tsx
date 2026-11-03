@@ -108,7 +108,10 @@ function Content({ path }: { path: string }) {
   return <Page params={found.params} />;
 }
 
-/** Sidebar de 248 px; abaixo de 768 px vira gaveta aberta pelo botão Menu. */
+/**
+ * Sidebar de 248 px com a altura da janela; só o conteúdo rola. Abaixo de 768 px vira gaveta
+ * aberta pelo botão Menu.
+ */
 export function Shell() {
   const { me, logout } = useSession();
   const path = usePath();
@@ -179,7 +182,9 @@ export function Shell() {
   }, [open]);
 
   return (
-    <div className="min-h-dvh md:grid md:grid-cols-[248px_1fr]">
+    // No desktop o shell ocupa a altura da janela e só o `main` rola: a sidebar fica do mesmo
+    // tamanho em qualquer tela, com o rodapé (nome, tema, sair) sempre no fim da janela.
+    <div className="min-h-dvh md:grid md:h-dvh md:grid-cols-[248px_1fr] md:overflow-hidden">
       <header inert={open} className="flex min-h-14 items-center gap-3 px-4 md:hidden">
         <Button
           ref={trigger}
@@ -203,7 +208,7 @@ export function Shell() {
       <aside
         id="menu-lateral"
         ref={aside}
-        className={`${open ? 'flex' : 'hidden'} fixed inset-y-0 left-0 z-30 w-[248px] flex-col gap-4 overflow-y-auto bg-bg p-4 shadow-e3 md:static md:z-auto md:flex md:min-h-dvh md:shadow-[inset_-1px_0_0_var(--line)]`}
+        className={`${open ? 'flex' : 'hidden'} fixed inset-y-0 left-0 z-30 w-[248px] flex-col gap-4 overflow-y-auto bg-bg p-4 shadow-e3 md:static md:z-auto md:flex md:h-dvh md:shadow-[inset_-1px_0_0_var(--line)]`}
       >
         <p className="px-3 font-display text-section font-semibold">Luma</p>
         <LiveIndicator />
@@ -224,11 +229,14 @@ export function Shell() {
         ref={main}
         tabIndex={-1}
         inert={open}
-        className="mx-auto w-full min-w-0 max-w-[1100px] px-4 py-6 focus:outline-none md:px-8 md:py-8"
+        className="min-w-0 focus:outline-none md:overflow-y-auto"
       >
-        <ErrorBoundary key={screen?.paths[0] ?? 'nao-encontrada'} resetKey={path}>
-          <Content path={path} />
-        </ErrorBoundary>
+        {/* O `main` é a área que rola (barra na borda da janela); a largura de leitura fica aqui. */}
+        <div className="mx-auto w-full max-w-[1100px] px-4 py-6 md:px-8 md:py-8">
+          <ErrorBoundary key={screen?.paths[0] ?? 'nao-encontrada'} resetKey={path}>
+            <Content path={path} />
+          </ErrorBoundary>
+        </div>
       </main>
     </div>
   );

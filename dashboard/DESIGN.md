@@ -139,7 +139,7 @@ Componente nenhum usa cor direta: tudo sai das variáveis.
 | Campo | Rótulo visível acima, ajuda abaixo, erro junto do campo com `aria-invalid` e `aria-describedby`. Segredo é máscara que só se substitui |
 | Tabela | Dentro de caixa com rolagem horizontal; cabeçalho em 12 `--muted`; linhas separadas por `--line`. Linha que expande é um `button` com `aria-expanded` |
 | Card | `--raised`, raio 14, `e1` + `--top`. Para o formulário de um plugin, uma tabela, a lista de "Precisa de atenção" |
-| Menu | Sidebar de 248 px: Bot (Visão geral, IA, Plugins), Observabilidade (Logs, Auditoria), Administração (Conexão, Usuários, Chaves de API). Item ativo em `--raised` com `e1` e `aria-current="page"`. Abaixo de 768 px vira gaveta aberta pelo botão Menu |
+| Menu | Sidebar de 248 px: Bot (Visão geral, IA, Plugins), Observabilidade (Logs, Auditoria), Administração (Conexão, Usuários, Chaves de API). Item ativo em `--raised` com `e1` e `aria-current="page"`. Tem a altura da janela e não rola com a página: só o conteúdo principal rola. Abaixo de 768 px vira gaveta aberta pelo botão Menu |
 
 Foco visível em tudo: anel de 2 px `--ink` com afastamento de 2 px. Alvo de toque com no mínimo
 44 px. `prefers-reduced-motion` desliga qualquer transição.
