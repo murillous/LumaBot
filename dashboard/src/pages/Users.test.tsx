@@ -147,6 +147,8 @@ describe('Usuários', () => {
     await u.click(screen.getByRole('button', { name: 'Copiar link' }));
     expect(writeText).toHaveBeenCalledWith(link.value);
     expect(await screen.findByText('Link copiado.')).toBeTruthy();
+    // A lista foi relida depois do convite.
+    expect(await screen.findByText('Pessoa u9')).toBeTruthy();
 
     await u.click(screen.getByRole('button', { name: 'Já copiei, fechar' }));
     expect(screen.queryByLabelText('Link do convite')).toBeNull();
@@ -361,5 +363,160 @@ describe('Usuários', () => {
     });
     await u.click(await screen.findByRole('button', { name: 'Desativar' }));
     expect(within(screen.getByRole('alert')).getByText(/você sai agora/)).toBeTruthy();
+  });
+
+  it('não oferece redefinir a própria senha', async () => {
+    renderApp({
+      path: '/usuarios/u1',
+      routes: {
+        'GET /api/users': list(user('u1', { role: 'owner' })),
+        'GET /api/users/u1': one(user('u1', { role: 'owner' })),
+      },
+    });
+    await screen.findByRole('button', { name: 'Desativar' });
+    expect(screen.queryByRole('button', { name: 'Redefinir senha' })).toBeNull();
+    expect(screen.getByText(/troque a senha em Minha conta/)).toBeTruthy();
+  });
+
+  it('não oferece redefinir senha de conta desativada, com a razão', async () => {
+    renderApp({
+      path: '/usuarios/u2',
+      routes: {
+        'GET /api/users': list(user('u2', { status: 'disabled' })),
+        'GET /api/users/u2': one(user('u2', { status: 'disabled' })),
+      },
+    });
+    await screen.findByRole('button', { name: 'Reativar' });
+    expect(screen.queryByRole('button', { name: 'Redefinir senha' })).toBeNull();
+    expect(screen.getByText(/só vale para conta ativa/)).toBeTruthy();
+  });
+
+  it('rebaixar o próprio papel pede confirmação e relê a sessão (me)', async () => {
+    const u = userEvent.setup();
+    const app = renderApp({
+      path: '/usuarios/u1',
+      routes: {
+        'GET /api/users': list(user('u1', { role: 'owner' })),
+        'GET /api/users/u1': one(user('u1', { role: 'owner' })),
+        'PATCH /api/users/u1': () => ({ body: user('u1', { role: 'admin' }) }),
+      },
+    });
+    const meCalls = () => app.calls.filter((c) => c.path === '/api/auth/me').length;
+    const group = await screen.findByRole('group', { name: 'Papel' });
+    await u.click(within(group).getByRole('button', { name: 'Administrador' }));
+    expect(app.calls.some((c) => c.method === 'PATCH')).toBe(false);
+    const confirm = within(screen.getByRole('alert')).getByRole('button', {
+      name: 'Mudar o meu papel',
+    });
+    expect(document.activeElement).toBe(confirm);
+    const before = meCalls();
+    await u.click(confirm);
+    await waitFor(() => expect(app.calls.some((c) => c.method === 'PATCH')).toBe(true));
+    await waitFor(() => expect(meCalls()).toBeGreaterThan(before));
+  });
+
+  it('encerrar as próprias sessões relê a sessão (me)', async () => {
+    const u = userEvent.setup();
+    const app = renderApp({
+      path: '/usuarios/u1',
+      routes: {
+        'GET /api/users': list(user('u1', { role: 'owner' })),
+        'GET /api/users/u1': one(user('u1', { role: 'owner' })),
+        'DELETE /api/users/u1/sessions': () => ({ body: { revoked: 1 } }),
+      },
+    });
+    await u.click(await screen.findByRole('button', { name: 'Encerrar sessões' }));
+    const before = app.calls.filter((c) => c.path === '/api/auth/me').length;
+    await u.click(
+      within(screen.getByRole('alert')).getByRole('button', { name: 'Encerrar sessões' }),
+    );
+    await waitFor(() =>
+      expect(app.calls.filter((c) => c.path === '/api/auth/me').length).toBeGreaterThan(before),
+    );
+  });
+
+  it('o token de convite e de redefinição não ficam no cache de mutations', async () => {
+    const u = userEvent.setup();
+    const app = renderApp({
+      path: '/usuarios/u2',
+      routes: {
+        'GET /api/users': list(user('u2')),
+        'GET /api/users/u2': one(user('u2')),
+        'POST /api/users/u2/reset-password': () => ({
+          body: { token: 'segredo-reset', expiresAt: '2026-11-05T10:00:00.000Z' },
+        }),
+        'POST /api/users': () => ({
+          status: 201,
+          body: {
+            user: user('u9'),
+            invite: { token: 'segredo-convite', expiresAt: '2026-11-05T10:00:00.000Z' },
+          },
+        }),
+      },
+    });
+    await u.click(await screen.findByRole('button', { name: 'Redefinir senha' }));
+    await u.click(
+      within(screen.getByRole('alert')).getByRole('button', { name: 'Redefinir senha' }),
+    );
+    await screen.findByLabelText('Link do convite');
+    await u.click(screen.getByRole('button', { name: 'Já copiei, fechar' }));
+    await u.click(screen.getByRole('button', { name: 'Convidar pessoa' }));
+    await u.type(screen.getByLabelText('Nome'), 'Ana');
+    await u.type(screen.getByLabelText('E-mail'), 'ana@exemplo.com');
+    await u.click(screen.getByRole('button', { name: 'Criar convite' }));
+    await screen.findByLabelText('Link do convite');
+    await waitFor(() => {
+      const cached = JSON.stringify(
+        app.client
+          .getMutationCache()
+          .getAll()
+          .map((m) => m.state.data),
+      );
+      expect(cached).not.toContain('segredo-');
+    });
+  });
+
+  it('uma nova ação limpa o erro da anterior', async () => {
+    const u = userEvent.setup();
+    renderApp({
+      path: '/usuarios/u2',
+      routes: {
+        'GET /api/users': list(user('u2')),
+        'GET /api/users/u2': one(user('u2')),
+        'DELETE /api/users/u2/sessions': () => ({
+          status: 500,
+          body: { status: 500, title: 'Erro', detail: 'falha nas sessões' },
+        }),
+        'PATCH /api/users/u2': () => ({ body: user('u2', { role: 'admin' }) }),
+      },
+    });
+    await u.click(await screen.findByRole('button', { name: 'Encerrar sessões' }));
+    await u.click(
+      within(screen.getByRole('alert')).getByRole('button', { name: 'Encerrar sessões' }),
+    );
+    expect(await screen.findByText('falha nas sessões')).toBeTruthy();
+    await u.click(
+      within(screen.getByRole('group', { name: 'Papel' })).getByRole('button', {
+        name: 'Administrador',
+      }),
+    );
+    await waitFor(() => expect(screen.queryByText('falha nas sessões')).toBeNull());
+  });
+
+  it('foco vai ao botão de confirmar e volta ao de origem ao cancelar', async () => {
+    const u = userEvent.setup();
+    renderApp({
+      path: '/usuarios/u2',
+      routes: {
+        'GET /api/users': list(user('u2')),
+        'GET /api/users/u2': one(user('u2')),
+      },
+    });
+    const origin = await screen.findByRole('button', { name: 'Desativar' });
+    await u.click(origin);
+    const confirm = within(screen.getByRole('alert')).getByRole('button', { name: 'Desativar' });
+    expect(document.activeElement).toBe(confirm);
+    await u.click(screen.getByRole('button', { name: 'Cancelar' }));
+    expect(document.activeElement).toBe(origin);
   });
 });

@@ -41,6 +41,8 @@ function InviteForm({
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<Role>('viewer');
   const create = useMutation({
+    // O token do convite não pode ficar no cache de mutations depois de mostrado.
+    gcTime: 0,
     mutationFn: () =>
       ok(client.POST('/api/users', { body: { name: name.trim(), email: email.trim(), role } })),
     onSuccess: (data) => {

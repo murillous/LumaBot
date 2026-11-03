@@ -264,6 +264,11 @@ Quem entra no painel e com que papel. Exige `users.manage`.
   A redefinição devolve um convite novo, mostrado uma única vez como o do convite, e vale na
   mesma rota `/convite`.
 - Ação sobre a própria conta segue o que a API faz; a confirmação avisa que a pessoa sai agora.
+  "Redefinir senha" não aparece na própria conta (derrubaria a sessão e o link se perderia; a
+  senha própria se troca em Minha conta) nem em conta desativada (o core não aceita o convite);
+  a tela diz o motivo. Rebaixar o próprio papel pede confirmação e relê `/api/auth/me`; encerrar
+  as próprias sessões também relê, e o app vai ao login. A confirmação recebe o foco e o devolve
+  ao botão de origem.
 
 ## Responsivo
 
