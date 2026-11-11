@@ -179,8 +179,8 @@ importers:
         specifier: ^4.0.95
         version: 4.0.95(zod@4.6.5)
       '@usebridger/core':
-        specifier: ^0.11.0
-        version: 0.11.0
+        specifier: ^0.11.1
+        version: 0.11.1
       '@usebridger/plugin-metrics':
         specifier: ^0.3.1
         version: 0.3.1
@@ -188,8 +188,8 @@ importers:
         specifier: ^0.3.4
         version: 0.3.4
       '@usebridger/transport-baileys':
-        specifier: ^0.6.1
-        version: 0.6.1(sharp@0.35.5(@types/node@24.19.1))
+        specifier: ^0.6.2
+        version: 0.6.2(sharp@0.35.5(@types/node@24.19.1))
       ai:
         specifier: ^7.0.142
         version: 7.0.142(zod@4.6.5)
@@ -271,7 +271,7 @@ importers:
         version: 19.3.0(@types/react@19.3.0)
       '@usebridger/core':
         specifier: ^0.11.0
-        version: 0.11.0
+        version: 0.11.1
       '@vitejs/plugin-react':
         specifier: ^6.1.2
         version: 6.1.2(vite@8.3.5(@types/node@24.19.1)(jiti@2.7.0)(yaml@2.9.1))
@@ -1182,8 +1182,8 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@usebridger/core@0.11.0':
-    resolution: {integrity: sha512-Zb3g9dNTRPSNjkaOerxovKzyzJwYB8WTBZ0w08etzIhn0KXbAVBDZ4TnQIsibpJzAN0ufirtIc3U5atqFROapg==}
+  '@usebridger/core@0.11.1':
+    resolution: {integrity: sha512-D0NTGbyB3LWL/+NTn0uhOl4B6rUUM0WcKCY4TEyA5kIy6jsBs9jQ8Mg1kCN+2kiIhU8qtgGWon7BIcvoc9uMaA==}
     hasBin: true
 
   '@usebridger/plugin-metrics@0.3.1':
@@ -1197,8 +1197,8 @@ packages:
     peerDependencies:
       vitest: ^5.0.0
 
-  '@usebridger/transport-baileys@0.6.1':
-    resolution: {integrity: sha512-3mUb8DQ7ctcYoCH2AWfG7ijILnK2ATejOqNDbxrswUCRzKaY8Y/o7iLMM9DPpsFEOVaT5gLcrOr8y50WR5E9tg==}
+  '@usebridger/transport-baileys@0.6.2':
+    resolution: {integrity: sha512-AHDUVz5monelTk+244YZI5GuzB9Z6LYwEU5xGSt4kEzEl1SQL//4GsUa/qHpaIAx7ZMzeeRTs+gQjA3NdZtB5g==}
 
   '@vercel/oidc@3.2.0':
     resolution: {integrity: sha512-UycprH3T6n3jH0k44NHMa7pnFHGu/N05MjojYr+Mc6I7obkoLIJujSWwin1pCvdy/eOxrI/l3uDLQsmcrOb4ug==}
@@ -2930,7 +2930,7 @@ snapshots:
   '@typescript/typescript-win32-x64@7.0.2':
     optional: true
 
-  '@usebridger/core@0.11.0':
+  '@usebridger/core@0.11.1':
     dependencies:
       '@hono/node-server': 2.1.4(hono@4.13.13)
       hono: 4.13.13
@@ -2944,7 +2944,7 @@ snapshots:
 
   '@usebridger/plugin-metrics@0.3.1':
     dependencies:
-      '@usebridger/core': 0.11.0
+      '@usebridger/core': 0.11.1
       prom-client: 15.1.3
     transitivePeerDependencies:
       - bufferutil
@@ -2952,22 +2952,22 @@ snapshots:
 
   '@usebridger/storage-sqlite@0.3.4':
     dependencies:
-      '@usebridger/core': 0.11.0
+      '@usebridger/core': 0.11.1
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
 
   '@usebridger/testing@0.7.1(vitest@5.0.3(@opentelemetry/api@1.10.0)(@types/node@24.19.1)(happy-dom@21.0.4)(vite@8.3.5(@types/node@24.19.1)(jiti@2.7.0)(yaml@2.9.1)))':
     dependencies:
-      '@usebridger/core': 0.11.0
+      '@usebridger/core': 0.11.1
       vitest: 5.0.3(@opentelemetry/api@1.10.0)(@types/node@24.19.1)(happy-dom@21.0.4)(vite@8.3.5(@types/node@24.19.1)(jiti@2.7.0)(yaml@2.9.1))
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
 
-  '@usebridger/transport-baileys@0.6.1(sharp@0.35.5(@types/node@24.19.1))':
+  '@usebridger/transport-baileys@0.6.2(sharp@0.35.5(@types/node@24.19.1))':
     dependencies:
-      '@usebridger/core': 0.11.0
+      '@usebridger/core': 0.11.1
       baileys: 7.0.0-rc14(sharp@0.35.5(@types/node@24.19.1))
     transitivePeerDependencies:
       - audio-decode
