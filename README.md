@@ -8,7 +8,7 @@
 [![Licença](https://img.shields.io/github/license/murillous/LumaBot)](LICENSE)
 
 Bot de WhatsApp com a **Luma**, assistente virtual com personalidade: conversa por IA (Gemini,
-OpenAI, Claude, DeepSeek), faz figurinhas, transcreve áudio, resume a conversa, agenda lembretes e
+OpenAI, Claude, DeepSeek), faz e edita figurinhas, transcreve áudio, resume a conversa, agenda lembretes e
 baixa vídeos de links.
 
 O LumaBot é escrito sobre o [Bridger](https://github.com/murillous/usebridger) (`@usebridger/*` no
@@ -35,6 +35,7 @@ e o roadmap vivem no `usebridger`: bug ou feature do Bridger vai para lá.
 | Conversa | Responde em PV e, nos grupos, quando citada, chamada ou mencionada. Troca de persona com `!persona` |
 | `!sticker` (`!s`) | Figurinha de imagem, vídeo, GIF ou link, com legenda opcional |
 | `!image` / `!gif` | Figurinha de volta a imagem ou vídeo |
+| `!editar` (`!edit`) | Edita uma figurinha com IA (grátis, pelo Cloudflare) |
 | `!transcribe` (`!t`) | Transcreve o áudio |
 | `!resumo [n]` | Resume as últimas mensagens do chat |
 | `!lembrete` | Agenda um lembrete, único ou recorrente |
@@ -228,6 +229,8 @@ o app carrega o `metrics`.
 | [`sticker`](docs/sticker.md) | Figurinha de imagem, vídeo ou link: `!sticker`. Oferece o serviço `sticker` |
 | [`sticker-text`](docs/sticker.md#legenda-sticker-text) | Texto do `!sticker` como legenda; estende o serviço `sticker` |
 | [`sticker-convert`](docs/sticker-convert.md) | Figurinha de volta a imagem ou vídeo: `!image`, `!gif` |
+| [`sticker-edit`](docs/sticker-edit.md) | Edição de figurinha por IA, com cadeia própria de modelos de imagem: `!editar`. Oferece o serviço `stickerEdit` |
+| [`cloudflare-ai`](docs/cloudflare-ai.md) | Provider `cloudflare` no ponto `ai.providers`: os modelos de imagem grátis do Workers AI que o `sticker-edit` usa |
 | [`pdf`](docs/pdf.md) | Imagem → PDF e junção de PDFs: `!pdf`, `!mergepdf` |
 | [`reminders`](docs/reminders.md) | Lembretes agendados: `!lembrete`, `!lembretes`, `!cancelarlembrete`. Oferece o serviço `reminders` e o ponto `reminders.parsers` |
 | [`user-names`](docs/user-names.md) | Apelidos e nome de exibição: `!nick`, serviço `userNames` |
