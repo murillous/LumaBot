@@ -7,6 +7,7 @@ import {
   APICallError,
   type FinishReason,
   generateText,
+  type ImageModel,
   isStepCount,
   jsonSchema,
   type LanguageModel,
@@ -48,6 +49,11 @@ export interface AiProvider {
   /** Prefixo do item da cadeia: `google` em `google:gemini-2.5-flash`. */
   readonly name: string;
   languageModel(modelId: string): LanguageModel;
+  /**
+   * Modelo que gera e edita imagem (`google:gemini-2.5-flash-image`), se o provider tiver. Quem
+   * edita imagem (`image-edit`) percorre a própria cadeia por aqui, com a chave já guardada no `ai`.
+   */
+  imageModel?(modelId: string): ImageModel;
   /** Nome para exibição no catálogo; sem ele, vale o `name`. */
   readonly label?: string;
   /** Modelos conhecidos, só para o catálogo: um `provider:modelo` fora da lista continua valendo. */
@@ -161,6 +167,20 @@ export interface AiService {
 /** Nenhum modelo da cadeia está disponível (o último erro transitório vai no `cause`). */
 export class AiUnavailableError extends Error {
   override readonly name = 'AiUnavailableError';
+}
+
+/**
+ * O filtro de conteúdo do provider recusou a entrada ou o que o modelo gerou. Convenção do ponto
+ * `ai.providers` para modelos de imagem: o provider lança `APICallError` com `data.flagged`, e
+ * quem chama separa a recusa da falha (tentar de novo não muda nada; o usuário precisa saber).
+ */
+export function isContentFlagged(err: unknown): boolean {
+  return (
+    APICallError.isInstance(err) &&
+    typeof err.data === 'object' &&
+    err.data !== null &&
+    (err.data as { flagged?: unknown }).flagged === true
+  );
 }
 
 declare module '@usebridger/core' {
@@ -294,6 +314,11 @@ export const ai: PluginDefinition = definePlugin({
           name,
           ...BUILT_IN_INFO[name],
           languageModel: (id) => provider.languageModel(id),
+          // Só Gemini e OpenAI editam imagem pelo SDK; Claude e DeepSeek só leem.
+          ...((name === 'google' || name === 'openai') && {
+            imageModel: (id: string) =>
+              (provider as ReturnType<typeof createGoogle | typeof createOpenAI>).image(id),
+          }),
           // Só o Gemini traz a busca pronta; os outros providers entram sem ela.
           ...(name === 'google' && {
             nativeSearch: () => ({

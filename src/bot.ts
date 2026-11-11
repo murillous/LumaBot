@@ -10,6 +10,7 @@ import { AUDIT_RETENTION_DAYS, loadConfig, pluginEnv } from '#config.ts';
 import { localSecret } from '#local-secret.ts';
 import { ownerAudit } from '#owner-audit.ts';
 import { aiMetrics } from '#plugins/ai-metrics/ai-metrics.ts';
+import { cloudflareAi } from '#plugins/cloudflare-ai/cloudflare-ai.ts';
 import { download } from '#plugins/download/download.ts';
 import { giveUp } from '#plugins/give-up.ts';
 import { help } from '#plugins/help/help.ts';
@@ -23,6 +24,7 @@ import { resumo } from '#plugins/resumo/resumo.ts';
 import { spontaneous } from '#plugins/spontaneous/spontaneous.ts';
 import { sticker } from '#plugins/sticker/sticker.ts';
 import { stickerConvert } from '#plugins/sticker-convert/sticker-convert.ts';
+import { stickerEdit } from '#plugins/sticker-edit/sticker-edit.ts';
 import { stickerText } from '#plugins/sticker-text/sticker-text.ts';
 import { transcribe } from '#plugins/transcribe/transcribe.ts';
 import { userNames } from '#plugins/user-names/user-names.ts';
@@ -94,6 +96,7 @@ const bot = createBot({
     // `metrics` e `ai`, os que registram rotas na API (a lista também gera a spec do dashboard).
     ...apiPlugins,
     aiMetrics,
+    cloudflareAi,
     luma,
     spontaneous,
     resumo,
@@ -103,6 +106,7 @@ const bot = createBot({
     sticker,
     stickerText,
     stickerConvert,
+    stickerEdit,
     pdf(),
     reminders,
     download({ cookies: config.ytdlpCookies }),
