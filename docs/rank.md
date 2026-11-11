@@ -28,15 +28,16 @@ cada vez que responde a alguém (uso opcional, `services.has('rank')`, sem `depe
 
 ## Identidade da pessoa
 
-A chave é `personId(contact)`: `${phone}@s.whatsapp.net` quando o transport sabe o `phone`, senão
-o `id` cru. No WhatsApp a mesma pessoa chega como LID (`...@lid`) num chat e como número em outro;
-sem isso viraria duas linhas. A chave é um JID para o `userNames.displayName` resolvê-la (a
-`luma` lembra o nome sob ela).
+A chave é `personId(contact)` (`src/plugins/person-id.ts`): `${phone}@s.whatsapp.net` quando o
+transport sabe o `phone`, senão o `id` cru. No WhatsApp a mesma pessoa chega como LID
+(`...@lid`) num chat e como número em outro; sem isso viraria duas linhas. A chave é um JID
+para o `userNames.displayName` resolvê-la: o `user-names` guarda nome e apelido sob o `id` cru
+e sob o `personId`.
 
-Migração do histórico: `record(chatId, id, oldId)` soma as contagens antigas de `oldId` (em
-`perChat` e `totals`) em `id` e apaga as linhas antigas. Roda quando a pessoa interage de novo
-(o `user-names` guarda o mapeamento LID -> telefone no storage dele, que o rank não lê), e é
-idempotente: sem linha antiga, não faz nada. LID de quem nunca mais falar fica como está.
+**Histórico zerado:** na troca de chave o rank foi zerado uma vez (marca `identityV2` no kv do
+plugin; nos boots seguintes não zera de novo). Misturar as chaves antigas (id cru) com as novas
+contaria a mesma pessoa em dobro, e o dono preferiu zerar a migrar: o storage do `user-names`,
+onde está o mapeamento LID -> telefone, não é legível pelo rank.
 
 As coleções ficam no storage da sessão: com um segundo transport, o global se divide por bot.
 Migração: `ctx.storage.shared` com id composto por `ctx.transportName`.
@@ -51,7 +52,7 @@ do `run` citaria.
 ## Serviço `rank` (contrato estável)
 
 ```ts
-record(chatId, senderId, oldId?): Promise<void>
+record(chatId, senderId): Promise<void>
 top(scope: { chatId } | 'global', limit): Promise<{ id: string; count: number }[]>
 ```
 

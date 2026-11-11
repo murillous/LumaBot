@@ -11,7 +11,7 @@ import { AiUnavailableError, chainItem } from '#plugins/ai/ai.ts';
 import { cleanResponse, splitIntoParts } from '#plugins/ai-response.ts';
 import { aiTool, fail, mediaMessage, ok } from '#plugins/ai-tools.ts';
 import { createChatWindow } from '#plugins/chat-window.ts';
-import { personId } from '#plugins/rank/rank.ts';
+import { personId } from '#plugins/person-id.ts';
 import { createHistory, historyKey } from './history.ts';
 import {
   AI_METRICS_FAILED,
@@ -374,12 +374,7 @@ export const luma: PluginDefinition = definePlugin({
     const recordInteraction = async (m: Message) => {
       if (!ctx.services.has('rank')) return;
       try {
-        const id = personId(m.sender);
-        await ctx.services.get('rank').record(m.chat.id, id, m.sender.id);
-        // O nome da pessoa foi lembrado sob o id cru; a chave do rank precisa resolver o mesmo nome.
-        if (id !== m.sender.id && ctx.services.has('userNames')) {
-          await ctx.services.get('userNames').remember({ ...m.sender, id });
-        }
+        await ctx.services.get('rank').record(m.chat.id, personId(m.sender));
       } catch (err) {
         ctx.log.event(STATS_FAILED, { err });
       }
