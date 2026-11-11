@@ -26,6 +26,18 @@ IA (`LumaPlugin`, `incrementInteraction`), e continua sendo: a [`luma`](luma.md)
 cada vez que responde a alguém (uso opcional, `services.has('rank')`, sem `dependsOn`). Sem a
 `luma`, o `!rank` responde "Ninguém interagiu comigo ainda".
 
+## Identidade da pessoa
+
+A chave é `personId(contact)`: `${phone}@s.whatsapp.net` quando o transport sabe o `phone`, senão
+o `id` cru. No WhatsApp a mesma pessoa chega como LID (`...@lid`) num chat e como número em outro;
+sem isso viraria duas linhas. A chave é um JID para o `userNames.displayName` resolvê-la (a
+`luma` lembra o nome sob ela).
+
+Migração do histórico: `record(chatId, id, oldId)` soma as contagens antigas de `oldId` (em
+`perChat` e `totals`) em `id` e apaga as linhas antigas. Roda quando a pessoa interage de novo
+(o `user-names` guarda o mapeamento LID -> telefone no storage dele, que o rank não lê), e é
+idempotente: sem linha antiga, não faz nada. LID de quem nunca mais falar fica como está.
+
 As coleções ficam no storage da sessão: com um segundo transport, o global se divide por bot.
 Migração: `ctx.storage.shared` com id composto por `ctx.transportName`.
 
@@ -39,7 +51,7 @@ do `run` citaria.
 ## Serviço `rank` (contrato estável)
 
 ```ts
-record(chatId, senderId): Promise<void>
+record(chatId, senderId, oldId?): Promise<void>
 top(scope: { chatId } | 'global', limit): Promise<{ id: string; count: number }[]>
 ```
 

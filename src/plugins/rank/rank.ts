@@ -1,4 +1,4 @@
-import { definePlugin, type PluginDefinition } from '@usebridger/core';
+import { type Contact, definePlugin, type PluginDefinition } from '@usebridger/core';
 import { z } from 'zod';
 import { aiTool, ok } from '#plugins/ai-tools.ts';
 
@@ -6,12 +6,24 @@ export type RankScope = { chatId: string } | 'global';
 export type RankEntry = { id: string; count: number };
 
 /**
+ * Id estável da pessoa: o JID de telefone quando o transport sabe o telefone, senão o `id` cru.
+ * No WhatsApp a mesma pessoa chega como LID num chat e como número em outro; o telefone é o que
+ * os dois têm em comum. Em JID (e não só dígitos) para o `userNames.displayName` continuar
+ * resolvendo a chave, já que ele guarda o que viu em privado sob o JID de telefone.
+ */
+export const personId = (c: Pick<Contact, 'id' | 'phone'>): string =>
+  c.phone ? `${c.phone}@s.whatsapp.net` : c.id;
+
+/**
  * Serviço `rank`: quantas vezes cada pessoa interagiu com a Luma. Contrato estável; mudança
  * incompatível sobe a `version` do plugin.
  */
 export interface RankService {
-  /** Soma uma interação de `senderId` em `chatId` (e no total geral). */
-  record(chatId: string, senderId: string): Promise<void>;
+  /**
+   * Soma uma interação de `senderId` em `chatId` (e no total geral). `oldId` é o id cru do mesmo
+   * contato: se há contagem antiga sob ele (de antes do `personId`), ela é somada em `senderId`.
+   */
+  record(chatId: string, senderId: string, oldId?: string): Promise<void>;
   /** Os `limit` que mais interagiram, do maior para o menor; empate segue quem chegou primeiro. */
   top(scope: RankScope, limit: number): Promise<RankEntry[]>;
 }
@@ -51,10 +63,32 @@ export const rank: PluginDefinition = definePlugin({
     // Total separado: o `!rank global` lê N linhas em vez de somar todos os chats.
     const totals = ctx.storage.collection<TotalCount>('totals', { indexes: ['userId', 'count'] });
 
+    // Migração do histórico, feita quando o mapeamento id cru -> telefone aparece (cada mensagem
+    // do contato o traz): o `user-names` guarda isso no storage dele, que o rank não lê. Idempotente:
+    // sem linha antiga não faz nada. shortcut: uma queda entre o `increment` e o `delete` de uma
+    // linha a soma duas vezes na próxima tentativa; aceito, é uma contagem de brincadeira.
+    const merge = async (from: string, to: string) => {
+      if (!(await totals.find({ where: { userId: from }, limit: 1 })).length) return;
+      for (const row of await perChat.find({ where: { userId: from } })) {
+        await perChat.increment({ chatId: row.chatId, userId: to }, 'count', row.count, {
+          insert: { chatId: row.chatId, userId: to, count: 0 },
+        });
+        await perChat.delete(row.id);
+      }
+      // Por último: enquanto o total antigo existe, a migração é retomada.
+      for (const row of await totals.find({ where: { userId: from } })) {
+        await totals.increment({ userId: to }, 'count', row.count, {
+          insert: { userId: to, count: 0 },
+        });
+        await totals.delete(row.id);
+      }
+    };
+
     const service: RankService = {
       // `increment` com `insert` é atômico (entre chamadas e processos): sem linha, insere com 0
       // e o incremento soma o 1.
-      record: async (chatId, senderId) => {
+      record: async (chatId, senderId, oldId) => {
+        if (oldId && oldId !== senderId) await merge(oldId, senderId);
         await perChat.increment({ chatId, userId: senderId }, 'count', 1, {
           insert: { chatId, userId: senderId, count: 0 },
         });
