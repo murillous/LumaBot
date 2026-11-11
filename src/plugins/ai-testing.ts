@@ -4,7 +4,7 @@
 
 import { definePlugin, type PluginDefinition } from '@usebridger/core';
 import { jsonSchema, type ToolSet, tool } from 'ai';
-import { MockLanguageModelV4 } from 'ai/test';
+import { MockImageModelV4, MockLanguageModelV4 } from 'ai/test';
 
 interface Usage {
   inputTokens: { total: number; noCache: number; cacheRead: undefined; cacheWrite: undefined };
@@ -83,7 +83,7 @@ export const fakeSearchTools = (): ToolSet => ({
  */
 export function fakeProvider(
   models: Record<string, MockLanguageModelV4>,
-  options: { nativeSearch?: boolean } = {},
+  options: { nativeSearch?: boolean; images?: Record<string, MockImageModelV4> } = {},
 ): PluginDefinition {
   return definePlugin({
     name: 'fake-provider',
@@ -99,6 +99,13 @@ export function fakeProvider(
           return model;
         },
         ...(options.nativeSearch && { nativeSearch: fakeSearchTools }),
+        ...(options.images && {
+          imageModel: (id: string) => {
+            const model = options.images?.[id];
+            if (!model) throw new Error(`modelo de imagem falso ausente: ${id}`);
+            return model;
+          },
+        }),
       });
     },
   });
@@ -107,4 +114,31 @@ export function fakeProvider(
 /** O texto de cada mensagem do prompt de uma chamada, para o teste conferir o que o modelo leu. */
 export function promptText(model: MockLanguageModelV4, call = 0): string {
   return JSON.stringify(model.doGenerateCalls[call]?.prompt ?? []);
+}
+
+/** Modelo de imagem falso que guarda as chamadas, para o teste conferir o que ele recebeu. */
+export interface PaintedModel extends MockImageModelV4 {
+  readonly calls: Parameters<MockImageModelV4['doGenerate']>[0][];
+}
+
+/**
+ * Modelo de imagem falso que devolve, em ordem, uma imagem por chamada; o último passo se repete.
+ * `Uint8Array` é a imagem gerada e `Error` é lançado.
+ */
+export function painted(...steps: (Uint8Array | Error)[]): PaintedModel {
+  let i = 0;
+  const calls: PaintedModel['calls'] = [];
+  const model = new MockImageModelV4({
+    doGenerate: async (options) => {
+      calls.push(options);
+      const step = steps[Math.min(i++, steps.length - 1)];
+      if (step instanceof Error) throw step;
+      return {
+        images: step ? [step] : [],
+        warnings: [],
+        response: { timestamp: new Date(0), modelId: 'fake', headers: undefined },
+      };
+    },
+  });
+  return Object.assign(model, { calls });
 }

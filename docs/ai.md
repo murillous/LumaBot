@@ -189,7 +189,12 @@ setup(ctx) {
 ```
 
 Depois disso, `ollama:llama3` passa a valer na cadeia. O provider pode declarar também
-`nativeSearch(): ToolSet` (a busca nativa dele); o embutido do Gemini já o faz. Os quatro embutidos entram pelo mesmo
+`nativeSearch(): ToolSet` (a busca nativa dele); o embutido do Gemini já o faz. E pode declarar
+`imageModel(id): ImageModel`, que a cadeia de imagem do [`sticker-edit`](sticker-edit.md) usa; os
+embutidos Google e OpenAI o têm, e o [`cloudflare-ai`](cloudflare-ai.md) contribui um provider só
+de imagem. Quando o filtro de conteúdo do provider recusa, o modelo de imagem lança
+`APICallError` com `data: { flagged: true }`, e `isContentFlagged(err)` (exportado pelo `ai`)
+separa a recusa da falha comum. Os quatro embutidos entram pelo mesmo
 ponto, contribuídos pelo `ai`, só os que têm `keys.<nome>`. Com dois providers de mesmo nome,
 vale o primeiro na ordem de carga.
 

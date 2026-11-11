@@ -66,6 +66,7 @@ expect(toolResult(bot)).toEqual({ ok: true });
 | [`help`](help.md#tools-da-ia) | `list_commands` |
 | [`sticker`](sticker.md#tools-da-ia) | `create_sticker` |
 | [`sticker-convert`](sticker-convert.md#tools-da-ia) | `sticker_to_image`, `sticker_to_video` |
+| [`sticker-edit`](sticker-edit.md#tool-da-ia) | `edit_sticker` |
 | [`pdf`](pdf.md#tools-da-ia) | `image_to_pdf`, `merge_pdfs` |
 | [`download`](download.md#tools-da-ia) | `download_media`, `download_audio`, `download_sticker` |
 | [`utils`](utils.md#tools-da-ia) | `chat_info` |
