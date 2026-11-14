@@ -9,6 +9,7 @@ import { aiMetrics } from '#plugins/ai-metrics/ai-metrics.ts';
 import { fakeProvider, promptText, scripted, textAnswer, toolAnswer } from '#plugins/ai-testing.ts';
 import { rank } from '#plugins/rank/rank.ts';
 import { transcribe } from '#plugins/transcribe/transcribe.ts';
+import { userNames } from '#plugins/user-names/user-names.ts';
 import { luma } from './luma.ts';
 import { PERSONAS } from './personas.ts';
 
@@ -556,6 +557,33 @@ describe('outros plugins', () => {
 
     expect(bot.sent).toContainText(/Ana|@/);
     expect(bot.sent).toContainText(/— 1/);
+  });
+
+  it('a mesma pessoa no grupo (LID) e no privado é uma linha só no rank, com o apelido', async () => {
+    bot = await createTestBot({
+      plugins: [ai, fakeProvider({ a: scripted('oi') }), luma, rank, userNames],
+      pluginConfig: { ai: { models: [{ model: 'fake:a' }] }, luma: FAST },
+    });
+    const phone = '5511999990001';
+
+    await bot.receive({
+      text: '!nick Aninha',
+      sender: { id: '123@lid', name: 'Ana', phone },
+      chat: group,
+    });
+    await bot.receive({
+      text: 'luma oi',
+      sender: { id: '123@lid', name: 'Ana', phone },
+      chat: group,
+    });
+    await bot.receive({
+      text: 'oi',
+      sender: { id: `${phone}@s.whatsapp.net`, name: 'Ana', phone },
+    });
+    await bot.receive({ text: '!rank global', sender: { id: 'outro@x', name: 'Bia' } });
+
+    expect(bot.sent).toContainText(/Aninha — 2/);
+    expect(bot.sent).not.toContainText(/— 1/);
   });
 
   it('funciona sem o rank nem o user-names', async () => {

@@ -1,7 +1,7 @@
 # user-names
 
 Apelidos e nome de exibição por `Contact.id` (opaco: serve a qualquer plataforma). Dados no
-storage do próprio plugin (KV: `nick:<id>` e `seen:<id>`).
+storage do próprio plugin (KV: `nick:<id>` e `seen:<id>`). `remember` e o `!nick` gravam também sob o `personId` do contato (telefone em JID), a chave do `rank`, onde o `id` do grupo é um LID.
 
 ## Comandos
 

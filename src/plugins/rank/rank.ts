@@ -10,7 +10,7 @@ export type RankEntry = { id: string; count: number };
  * incompatível sobe a `version` do plugin.
  */
 export interface RankService {
-  /** Soma uma interação de `senderId` em `chatId` (e no total geral). */
+  /** Soma uma interação de `senderId` (ver `personId`) em `chatId` e no total geral. */
   record(chatId: string, senderId: string): Promise<void>;
   /** Os `limit` que mais interagiram, do maior para o menor; empate segue quem chegou primeiro. */
   top(scope: RankScope, limit: number): Promise<RankEntry[]>;
@@ -44,12 +44,23 @@ export const rank: PluginDefinition = definePlugin({
   version: '1.0.0',
   engine: '<1.0.0',
   messages: MESSAGES,
-  setup: (ctx) => {
+  setup: async (ctx) => {
     const perChat = ctx.storage.collection<ChatCount>('perChat', {
       indexes: ['chatId', 'userId', 'count'],
     });
     // Total separado: o `!rank global` lê N linhas em vez de somar todos os chats.
     const totals = ctx.storage.collection<TotalCount>('totals', { indexes: ['userId', 'count'] });
+
+    // A chave passou de id cru (LID ou telefone, conforme o chat) para `personId`. Misturar as duas
+    // contaria a mesma pessoa em dobro, e o dono preferiu zerar a migrar. Roda uma vez: a marca no
+    // kv impede de zerar de novo nos boots seguintes.
+    const reset = async () => {
+      if (await ctx.storage.kv.get('identityV2')) return;
+      await perChat.delete({});
+      await totals.delete({});
+      await ctx.storage.kv.set('identityV2', true);
+    };
+    await reset();
 
     const service: RankService = {
       // `increment` com `insert` é atômico (entre chamadas e processos): sem linha, insere com 0
