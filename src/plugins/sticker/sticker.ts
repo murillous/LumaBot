@@ -122,10 +122,14 @@ export const sticker: PluginDefinition = definePlugin({
           };
           if (url) {
             try {
-              await track(t.log.child({ host: hostOf(url) }), 'url', async (step) => {
-                const bytes = await fetchUrl(url, t.signal);
-                step.note(await send(bytes, isAnimatedBytes(bytes)));
-              });
+              await track(
+                { log: t.log.child({ host: hostOf(url) }), message: t.message },
+                'url',
+                async (step) => {
+                  const bytes = await fetchUrl(url, t.signal);
+                  step.note(await send(bytes, isAnimatedBytes(bytes)));
+                },
+              );
             } catch (err) {
               if (err instanceof UrlFetchError) return fail('url-failed');
               throw err;
@@ -135,7 +139,7 @@ export const sticker: PluginDefinition = definePlugin({
           const source = mediaMessage(t.message, ['image', 'video', 'sticker']);
           if (!source) return fail('no-media');
           if (source.isViewOnce) return fail('view-once');
-          await track(t.log, 'media', async (step) => {
+          await track(t, 'media', async (step) => {
             const bytes = await source.media.download();
             step.note(await send(bytes, isAnimatedMime(source.media.mimetype)));
           });
@@ -181,7 +185,8 @@ export const sticker: PluginDefinition = definePlugin({
         if (url) {
           return attempt(
             ctx,
-            (log, kind, work) => track(log.child({ host: hostOf(url) }), kind, work),
+            (at, kind, work) =>
+              track({ ...at, log: at.log.child({ host: hostOf(url) }) }, kind, work),
             'url',
             async (step) => {
               const bytes = await fetchUrl(url, ctx.signal);

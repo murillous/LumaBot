@@ -9,6 +9,8 @@ import { aiMetrics } from '#plugins/ai-metrics/ai-metrics.ts';
 import { fakeProvider, promptText, scripted, textAnswer, toolAnswer } from '#plugins/ai-testing.ts';
 import { rank } from '#plugins/rank/rank.ts';
 import { transcribe } from '#plugins/transcribe/transcribe.ts';
+import { usage } from '#plugins/usage/usage.ts';
+import { usageProbe } from '#plugins/usage/usage-testing.ts';
 import { userNames } from '#plugins/user-names/user-names.ts';
 import { luma } from './luma.ts';
 import { PERSONAS } from './personas.ts';
@@ -557,6 +559,26 @@ describe('outros plugins', () => {
 
     expect(bot.sent).toContainText(/Ana|@/);
     expect(bot.sent).toContainText(/— 1/);
+  });
+
+  it('a resposta conta no usage de quem pediu, pelo personId, sem custo', async () => {
+    const probe = usageProbe();
+    bot = await createTestBot({
+      plugins: [ai, fakeProvider({ a: scripted('oi') }), luma, usage, probe.plugin],
+      pluginConfig: { ai: { models: [{ model: 'fake:a' }] }, luma: FAST },
+    });
+
+    await bot.receive({ text: 'oi', sender: { id: '123@lid', phone: '5511999' } });
+
+    expect(probe.entries).toEqual([
+      expect.objectContaining({
+        actor: '5511999@s.whatsapp.net',
+        action: 'luma',
+        kind: 'reply',
+        outcome: 'ok',
+      }),
+    ]);
+    expect(probe.entries[0]).not.toHaveProperty('cost');
   });
 
   it('a mesma pessoa no grupo (LID) e no privado é uma linha só no rank, com o apelido', async () => {

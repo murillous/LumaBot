@@ -1,4 +1,11 @@
-import { definePlugin, fmt, italic, type Media, type PluginDefinition } from '@usebridger/core';
+import {
+  definePlugin,
+  fmt,
+  italic,
+  type Media,
+  type Message,
+  type PluginDefinition,
+} from '@usebridger/core';
 import { z } from 'zod';
 import { type ActionSpec, trackerFor } from '#plugins/action-metrics.ts';
 import { AiUnavailableError, chainItem } from '#plugins/ai/ai.ts';
@@ -20,7 +27,14 @@ export interface TranscriptionService {
    * Transcreve o áudio (`voice` ou `audio`) e devolve o texto, ou {@link UNINTELLIGIBLE} /
    * {@link SILENT} quando não há fala. Lança `AudioTooLargeError` e `AiUnavailableError`.
    */
-  transcribe(media: Media, options?: { signal?: AbortSignal }): Promise<string>;
+  transcribe(
+    media: Media,
+    options?: {
+      signal?: AbortSignal;
+      /** Mensagem de quem pediu: a transcrição conta no `usage` dessa pessoa. */
+      by?: Pick<Message, 'sender' | 'chat'>;
+    },
+  ): Promise<string>;
 }
 
 declare module '@usebridger/core' {
@@ -111,7 +125,7 @@ export const transcribe: PluginDefinition = definePlugin({
 
     const service: TranscriptionService = {
       transcribe: (media, options) =>
-        track(ctx.log, 'audio', async (step) => {
+        track({ log: ctx.log, message: options?.by }, 'audio', async (step) => {
           if (media.size !== null && media.size > maxBytes) throw new AudioTooLargeError();
           const data = await media.download();
           if (data.length > maxBytes) throw new AudioTooLargeError();
@@ -148,7 +162,9 @@ export const transcribe: PluginDefinition = definePlugin({
           const source = mediaMessage(t.message, ['voice', 'audio']);
           if (!source) return fail('no-audio');
           try {
-            return ok({ text: await service.transcribe(source.media, { signal: t.signal }) });
+            return ok({
+              text: await service.transcribe(source.media, { signal: t.signal, by: t.message }),
+            });
           } catch (err) {
             if (err instanceof AudioTooLargeError) return fail('too-large');
             if (err instanceof AiUnavailableError) return fail('unavailable');
@@ -172,7 +188,7 @@ export const transcribe: PluginDefinition = definePlugin({
         try {
           text = await plugin.services
             .get('transcription')
-            .transcribe(mediaOf(c), { signal: c.signal });
+            .transcribe(mediaOf(c), { signal: c.signal, by: c.message });
         } catch (err) {
           // O serviço já registrou a falha.
           await c.react('❌');

@@ -278,7 +278,7 @@ export const stickerEdit: PluginDefinition = definePlugin({
             return fail('view-once');
           }
           try {
-            const model = await track(t.log, 'sticker', async (step) => {
+            const model = await track(t, 'sticker', async (step) => {
               const { sticker, references } = await download(sources);
               const edited = await service.edit(sticker, request, { signal: t.signal, references });
               await t.reply.sticker(edited.sticker);

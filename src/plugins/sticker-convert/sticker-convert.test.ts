@@ -10,6 +10,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { aiToolsProbe, toolResult } from '#plugins/ai-tools-probe.ts';
 import { checkBinary } from '#plugins/binary.ts';
 import { observedBot } from '#plugins/observe-probe.ts';
+import { usage } from '#plugins/usage/usage.ts';
+import { usageProbe } from '#plugins/usage/usage-testing.ts';
 import { stickerConvert } from './sticker-convert.ts';
 
 // A checagem do FFmpeg é a de verdade (o CI o instala); um teste a faz falhar.
@@ -142,4 +144,15 @@ describe('log e métricas', () => {
     ]);
     expect(await o.rows('luma_sticker_convert_seconds')).toEqual([]);
   });
+});
+
+it('a conversão conta no usage de quem pediu', async () => {
+  const probe = usageProbe();
+  bot = await createTestBot({ plugins: [stickerConvert, usage, probe.plugin] });
+
+  await bot.receive({ text: '!i', quoted: { sticker: fixtures.sticker() } });
+
+  expect(probe.entries).toEqual([
+    expect.objectContaining({ action: 'sticker_convert', kind: 'image', outcome: 'ok' }),
+  ]);
 });

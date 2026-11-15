@@ -5,6 +5,8 @@ import { ai } from '#plugins/ai/ai.ts';
 import { fakeProvider, promptText, scripted } from '#plugins/ai-testing.ts';
 import { aiToolsProbe, toolResult } from '#plugins/ai-tools-probe.ts';
 import { ping } from '#plugins/ping.ts';
+import { usage } from '#plugins/usage/usage.ts';
+import { usageProbe } from '#plugins/usage/usage-testing.ts';
 import { userNames } from '#plugins/user-names/user-names.ts';
 import { resumo } from './resumo.ts';
 
@@ -206,4 +208,19 @@ describe('tool summarize_chat', () => {
 
     expect(toolResult(b)).toEqual({ ok: false, error: 'no-history' });
   });
+});
+
+it('o resumo conta no usage de quem pediu', async () => {
+  const probe = usageProbe();
+  bot = await createTestBot({
+    plugins: [ai, fakeProvider({ a: scripted('pizza') }), resumo, usage, probe.plugin],
+    pluginConfig: { ai: { models: [{ model: 'fake:a' }] } },
+  });
+  await say(bot, 'vamos de pizza?', 'Ana');
+
+  await bot.receive({ text: '!resumo', chat: group });
+
+  expect(probe.entries).toEqual([
+    expect.objectContaining({ action: 'resumo', kind: 'chat', outcome: 'ok' }),
+  ]);
 });

@@ -36,5 +36,5 @@ esperar. O `ai` é opcional (`optionalDependsOn`): sem ele, só o Tavily.
 ## Serviço `webSearch`
 
 ```ts
-search(query: string, signal?: AbortSignal): Promise<string>  // lança SearchUnavailableError
+search(query: string, signal?: AbortSignal, by?: Message): Promise<string>  // lança SearchUnavailableError; by conta no usage
 ```

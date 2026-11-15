@@ -4,6 +4,8 @@ import { ai } from '#plugins/ai/ai.ts';
 import { fakeProvider, scripted } from '#plugins/ai-testing.ts';
 import { aiToolsProbe, toolResult } from '#plugins/ai-tools-probe.ts';
 import { observedBot } from '#plugins/observe-probe.ts';
+import { usage } from '#plugins/usage/usage.ts';
+import { usageProbe } from '#plugins/usage/usage-testing.ts';
 import { formatTavily, TavilyError } from './tavily.ts';
 import { webSearch } from './web-search.ts';
 
@@ -295,4 +297,23 @@ describe('log e métricas', () => {
       { labels: { kind: 'tavily', outcome: 'error' }, value: 1 },
     ]);
   });
+});
+
+it('a busca conta no usage de quem pediu à IA', async () => {
+  const probe = usageProbe();
+  bot = await createTestBot({
+    plugins: [
+      webSearch({ fetch: vi.fn(async () => json(tavilyOk)) as never }),
+      aiToolsProbe,
+      usage,
+      probe.plugin,
+    ],
+    pluginConfig: { 'web-search': { tavily: { apiKey: 'tvly-secreta' } } },
+  });
+
+  await search(bot);
+
+  expect(probe.entries).toEqual([
+    expect.objectContaining({ action: 'web_search', kind: 'tavily', outcome: 'ok' }),
+  ]);
 });

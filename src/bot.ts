@@ -27,6 +27,7 @@ import { stickerConvert } from '#plugins/sticker-convert/sticker-convert.ts';
 import { stickerEdit } from '#plugins/sticker-edit/sticker-edit.ts';
 import { stickerText } from '#plugins/sticker-text/sticker-text.ts';
 import { transcribe } from '#plugins/transcribe/transcribe.ts';
+import { usage } from '#plugins/usage/usage.ts';
 import { userNames } from '#plugins/user-names/user-names.ts';
 import { utils } from '#plugins/utils/utils.ts';
 import { webSearch } from '#plugins/web-search/web-search.ts';
@@ -112,6 +113,7 @@ const bot = createBot({
     download({ cookies: config.ytdlpCookies }),
     userNames,
     rank,
+    usage,
     utils,
   ],
 });

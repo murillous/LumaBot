@@ -236,9 +236,10 @@ o app carrega o `metrics`.
 | [`user-names`](docs/user-names.md) | Apelidos e nome de exibição: `!nick`, serviço `userNames` |
 | [`download`](docs/download.md) | Vídeo, foto, áudio e figurinha de links pelo yt-dlp: `!download`, `!audio`, `!downloadsticker` |
 | [`rank`](docs/rank.md) | Ranking de interações: `!rank`, serviço `rank` |
+| [`usage`](docs/usage.md) | Uso por pessoa em todas as ações, por dia, só no storage. Oferece o serviço `usage` e o ponto `usage.observers` |
 | [`utils`](docs/utils.md) | `!meunumero`/`!meuid` (número e ID do chat) e `!prefixo` (prefixo por chat, só admin). Ponto de extensão `utils.info` |
 
-Cada plugin (menos `pairing`, `ping`, `ai`, `ai-metrics`, `spontaneous` e `sticker-text`) também
+Cada plugin (menos `pairing`, `ping`, `ai`, `ai-metrics`, `spontaneous`, `sticker-text` e `usage`) também
 contribui tools que a IA chama por function calling ([ai-tools.md](docs/ai-tools.md)). Um plugin
 estende outro ou o usa pelos serviços do kernel (`ctx.services`), sem importar o código dele; o
 exemplo é o `sticker` ([sticker.md](docs/sticker.md#serviço-sticker)).

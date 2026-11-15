@@ -6,6 +6,8 @@ import { ai } from '#plugins/ai/ai.ts';
 import { fakeProvider, type PaintedModel, painted, scripted } from '#plugins/ai-testing.ts';
 import { aiToolsProbe, toolResult } from '#plugins/ai-tools-probe.ts';
 import { sticker } from '#plugins/sticker/sticker.ts';
+import { usage } from '#plugins/usage/usage.ts';
+import { usageProbe } from '#plugins/usage/usage-testing.ts';
 import { stickerEdit } from './sticker-edit.ts';
 
 let bot: TestBot | undefined;
@@ -244,4 +246,28 @@ describe('config', () => {
       }),
     ).rejects.toThrow(/provider:modelo/);
   });
+});
+
+it('a edição conta no usage de quem pediu', async () => {
+  const probe = usageProbe();
+  bot = await createTestBot({
+    plugins: [
+      ai,
+      fakeProvider({ a: scripted('ok') }, { images: { x: painted(edited) } }),
+      sticker,
+      stickerEdit,
+      usage,
+      probe.plugin,
+    ],
+    pluginConfig: {
+      ai: { models: [{ model: 'fake:a' }] },
+      'sticker-edit': { models: ['fake:x'] },
+    },
+  });
+
+  await bot.receive({ text: '!editar coloca um chapéu', quoted: { sticker: fixtures.sticker() } });
+
+  expect(probe.entries).toEqual([
+    expect.objectContaining({ action: 'sticker_edit', kind: 'sticker', outcome: 'ok' }),
+  ]);
 });
