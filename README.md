@@ -41,7 +41,7 @@ e o roadmap vivem no `usebridger`: bug ou feature do Bridger vai para lá.
 | `!lembrete` | Agenda um lembrete, único ou recorrente |
 | `!download` / `!audio` | Vídeo, foto ou áudio de um link (yt-dlp) |
 | `!pdf` / `!mergepdf` | Imagem para PDF e junção de PDFs |
-| `!rank` | Ranking de interações do grupo |
+| `!rank` | Ranking de quem mais usa a Luma no grupo |
 | `!help` | Menu com todos os comandos |
 
 Boa parte disso também está ao alcance da IA: pedir "faz uma figurinha disso" na conversa funciona
@@ -235,7 +235,7 @@ o app carrega o `metrics`.
 | [`reminders`](docs/reminders.md) | Lembretes agendados: `!lembrete`, `!lembretes`, `!cancelarlembrete`. Oferece o serviço `reminders` e o ponto `reminders.parsers` |
 | [`user-names`](docs/user-names.md) | Apelidos e nome de exibição: `!nick`, serviço `userNames` |
 | [`download`](docs/download.md) | Vídeo, foto, áudio e figurinha de links pelo yt-dlp: `!download`, `!audio`, `!downloadsticker` |
-| [`rank`](docs/rank.md) | Ranking de interações: `!rank`, serviço `rank` |
+| [`rank`](docs/rank.md) | Ranking de quem mais usa a Luma, contado pelo `usage`: `!rank`, serviço `rank` |
 | [`usage`](docs/usage.md) | Uso por pessoa em todas as ações, por dia, só no storage. Oferece o serviço `usage` e o ponto `usage.observers` |
 | [`utils`](docs/utils.md) | `!meunumero`/`!meuid` (número e ID do chat) e `!prefixo` (prefixo por chat, só admin). Ponto de extensão `utils.info` |
 

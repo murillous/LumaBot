@@ -1,7 +1,7 @@
 # rank
 
-Ranking de quem mais interage com a Luma. Dados no storage do próprio plugin (coleções
-`perChat` e `totals`; o total é separado para o `!rank global` não somar todos os chats).
+Ranking de quem mais usa a Luma. Dados no storage do próprio plugin (coleções
+`usesPerChat` e `usesTotal`; o total é separado para o `!rank global` não somar todos os chats).
 
 ## Comandos
 
@@ -21,14 +21,31 @@ o que o usuário recebe sai como resposta no chat.
 
 ## Quem conta
 
-Só o serviço `rank.record(chatId, senderId)` conta. No legacy, o único chamador era o fluxo da
-IA (`LumaPlugin`, `incrementInteraction`), e continua sendo: a [`luma`](luma.md) chama `record` a
-cada vez que responde a alguém (uso opcional, `services.has('rank')`, sem `dependsOn`). Sem a
-`luma`, o `!rank` responde "Ninguém interagiu comigo ainda".
+Toda ação feita a pedido de alguém: figurinha, download, PDF, transcrição, busca, lembrete,
+resumo, resposta da IA. O `rank` contribui um observer ao ponto `usage.observers` do
+[`usage`](usage.md) e chama `record` em cada registro com `outcome: ok`; recusa e falha não
+somam. A lista do que conta e do que não conta (consultas como `!help`) está no `usage`. Sem o
+`usage`, o `!rank` responde "Ninguém me usou ainda".
 
-O `senderId` é o `personId(sender)` (`src/plugins/person.ts`), não o `sender.id`: no WhatsApp a
-mesma pessoa chega pelo LID num chat e pelo número em outro. Com o telefone que o transport
-resolve, a chave é `<telefone>@s.whatsapp.net`; sem ele, o id nativo.
+A pessoa é o `actor` do `usage`, o `personId` (veja abaixo): no WhatsApp a mesma pessoa chega
+pelo LID num chat e pelo número em outro, e conta como uma só.
+
+O ranking antigo (coleções `perChat` e `totals`) contava só as respostas da IA, pelo `sender.id`.
+Ele recomeça do zero: o `setup` apaga essas coleções a cada boot (ficam vazias depois do
+primeiro).
+
+## Identidade da pessoa
+
+A chave é `personId(contact)` (`src/plugins/person-id.ts`): `${phone}@s.whatsapp.net` quando o
+transport sabe o `phone`, senão o `id` cru. No WhatsApp a mesma pessoa chega como LID
+(`...@lid`) num chat e como número em outro; sem isso viraria duas linhas. A chave é um JID
+para o `userNames.displayName` resolvê-la: o `user-names` guarda nome e apelido sob o `id` cru
+e sob o `personId`.
+
+**Histórico zerado:** na troca de chave o rank foi zerado uma vez (marca `identityV2` no kv do
+plugin; nos boots seguintes não zera de novo). Misturar as chaves antigas (id cru) com as novas
+contaria a mesma pessoa em dobro, e o dono preferiu zerar a migrar: o storage do `user-names`,
+onde está o mapeamento LID -> telefone, não é legível pelo rank.
 
 As coleções ficam no storage da sessão: com um segundo transport, o global se divide por bot.
 Migração: `ctx.storage.shared` com id composto por `ctx.transportName`.

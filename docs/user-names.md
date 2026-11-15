@@ -1,7 +1,7 @@
 # user-names
 
 Apelidos e nome de exibição por `Contact.id` (opaco: serve a qualquer plataforma). Dados no
-storage do próprio plugin (KV: `nick:<id>` e `seen:<id>`).
+storage do próprio plugin (KV: `nick:<id>` e `seen:<id>`). `remember` e o `!nick` gravam também sob o `personId` do contato (telefone em JID), a chave do `rank`, onde o `id` do grupo é um LID.
 
 ## Comandos
 
@@ -28,9 +28,7 @@ o que o usuário recebe sai como resposta no chat.
 
 `remember` roda sozinho em: remetente e mencionados de toda mensagem (inclusive comandos, via
 evento `command`), `group.participants` e `contact.updated`. Guarda o último nome e telefone
-não vazios; só grava se mudou. Com telefone, grava também na chave do `personId`
-(`<telefone>@s.whatsapp.net`), para o `rank` achar o nome de quem só apareceu pelo LID. O apelido
-continua por `Contact.id`.
+não vazios; só grava se mudou.
 
 Não enriquece por `groups.metadata`. A resposta a um passo de conversa
 (`expectReply`) não passa por `message` nem por `command`, então também não enriquece.

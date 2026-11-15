@@ -6,7 +6,7 @@ import {
   type ServiceAccess,
 } from '@usebridger/core';
 import { z } from 'zod';
-import { personId } from '#plugins/person.ts';
+import { personId } from '#plugins/person-id.ts';
 import { OBSERVER_FAILED, RECORD_FAILED } from './log-events.ts';
 
 export type UsageOutcome = 'ok' | 'refused' | 'error';

@@ -1,7 +1,7 @@
 import { type Contact, definePlugin, type PluginDefinition } from '@usebridger/core';
 import { z } from 'zod';
 import { type AiToolContext, aiTool, fail, ok } from '#plugins/ai-tools.ts';
-import { personId } from '#plugins/person.ts';
+import { personId } from '#plugins/person-id.ts';
 import { REMEMBER_FAILED, SOURCE_FAILED } from './log-events.ts';
 import { cleanName, NICK_MAX, nickFromArgs } from './nick-args.ts';
 
@@ -90,12 +90,16 @@ export const userNames: PluginDefinition = definePlugin({
       },
       // shortcut: get+set sem transação; duas mensagens simultâneas do mesmo contato podem
       // perder uma atualização (a próxima mensagem corrige). Trocar se o storage ganhar CAS.
-      remember: async ({ id, name, phone }) => {
-        const prev = (await seen(id)) ?? {};
+      remember: async (contact) => {
+        const { name, phone } = contact;
         const clean = [...cleanName(name ?? '')].slice(0, NICK_MAX).join('');
-        const next: Seen = { name: clean || prev.name, phone: phone || prev.phone };
-        if (next.name === prev.name && next.phone === prev.phone) return;
-        await kv.set(`seen:${id}`, next);
+        // Também sob o `personId`: é a chave do rank, e no grupo o `id` é um LID.
+        for (const id of new Set([contact.id, personId(contact)])) {
+          const prev = (await seen(id)) ?? {};
+          const next: Seen = { name: clean || prev.name, phone: phone || prev.phone };
+          if (next.name === prev.name && next.phone === prev.phone) continue;
+          await kv.set(`seen:${id}`, next);
+        }
       },
       displayName: async (id) => {
         for (const source of sources.list()) {
@@ -117,17 +121,16 @@ export const userNames: PluginDefinition = definePlugin({
     ctx.services.contribute('userNames.sources', nick);
     ctx.services.contribute('userNames.sources', async (id) => (await seen(id))?.name ?? null);
 
-    // Falha ao lembrar nunca atrapalha a mensagem: vai para o log e segue.
-    const remember = async (contact: KnownContact) => {
-      // Também na chave estável (`personId`): quem lista por pessoa, como o `rank`, acha o nome
-      // de quem só foi visto pelo LID.
-      const ids = new Set([contact.id, personId(contact)]);
-      for (const id of ids) {
-        await service.remember({ ...contact, id }).catch((err: unknown) => {
-          ctx.log.event(REMEMBER_FAILED, { err });
-        });
-      }
+    // Apelido sob o `id` cru e sob o `personId`: `displayName(personId)` acha o que foi dado no grupo.
+    const setNickFor = async (contact: KnownContact, value: string) => {
+      for (const id of new Set([contact.id, personId(contact)])) await service.setNick(id, value);
     };
+
+    // Falha ao lembrar nunca atrapalha a mensagem: vai para o log e segue.
+    const remember = (contact: KnownContact) =>
+      service.remember(contact).catch((err: unknown) => {
+        ctx.log.event(REMEMBER_FAILED, { err });
+      });
     const fromMessage = async (m: { sender: Contact; mentions: readonly Contact[] }) => {
       for (const c of [m.sender, ...m.mentions]) await remember(c);
     };
@@ -158,7 +161,7 @@ export const userNames: PluginDefinition = definePlugin({
           const contact = await contactOf(who, t);
           if (!contact) return fail('no-mention');
           try {
-            await service.setNick(contact.id, nickname);
+            await setNickFor(contact, nickname);
           } catch (err) {
             if (err instanceof NickTooLongError) return fail('too-long');
             if (err instanceof NickEmptyError) return fail('empty');
@@ -203,9 +206,9 @@ export const userNames: PluginDefinition = definePlugin({
         );
         // `@x` sem menção resolvida (transport sem `mentions`) não vira apelido de si mesmo.
         if (!nickname || (!target && /(?:^|\s)@\S/.test(c.rawArgs))) return c.t('nickUsage');
-        const save = async (id: string): Promise<string | null> => {
+        const save = async (person: KnownContact): Promise<string | null> => {
           try {
-            await service.setNick(id, nickname);
+            await setNickFor(person, nickname);
             return null;
           } catch (err) {
             if (err instanceof NickTooLongError) return c.t('nickTooLong');
@@ -214,12 +217,12 @@ export const userNames: PluginDefinition = definePlugin({
           }
         };
         if (!target) {
-          return (await save(c.message.sender.id)) ?? c.t('nickSet', { nick: nickname });
+          return (await save(c.message.sender)) ?? c.t('nickSet', { nick: nickname });
         }
         // O evento `command` só chega depois; sem isto, a resposta não traria o nome da pessoa.
         await remember(target);
         const who = await service.displayName(target.id);
-        return (await save(target.id)) ?? c.t('nickSetOther', { who, nick: nickname });
+        return (await save(target)) ?? c.t('nickSetOther', { who, nick: nickname });
       },
     });
   },
