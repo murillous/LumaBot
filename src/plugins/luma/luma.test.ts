@@ -548,9 +548,9 @@ describe('quando falha', () => {
 });
 
 describe('outros plugins', () => {
-  it('conta a interação no rank, se ele existe', async () => {
+  it('a resposta conta no rank pelo usage', async () => {
     bot = await createTestBot({
-      plugins: [ai, fakeProvider({ a: scripted('oi') }), luma, rank],
+      plugins: [ai, fakeProvider({ a: scripted('oi') }), luma, usage, rank],
       pluginConfig: { ai: { models: [{ model: 'fake:a' }] }, luma: FAST },
     });
 
@@ -583,7 +583,7 @@ describe('outros plugins', () => {
 
   it('a mesma pessoa no grupo (LID) e no privado é uma linha só no rank, com o apelido', async () => {
     bot = await createTestBot({
-      plugins: [ai, fakeProvider({ a: scripted('oi') }), luma, rank, userNames],
+      plugins: [ai, fakeProvider({ a: scripted('oi') }), luma, usage, rank, userNames],
       pluginConfig: { ai: { models: [{ model: 'fake:a' }] }, luma: FAST },
     });
     const phone = '5511999990001';

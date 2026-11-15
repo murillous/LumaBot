@@ -6,12 +6,6 @@ export const NAME_FAILED = defineLogEvent({
   message: 'falha ao resolver o nome',
 });
 
-export const STATS_FAILED = defineLogEvent({
-  name: 'luma.stats.failed',
-  level: 'warn',
-  message: 'falha ao contar a interação',
-});
-
 export const TYPING_FAILED = defineLogEvent({
   name: 'luma.typing.failed',
   level: 'debug',

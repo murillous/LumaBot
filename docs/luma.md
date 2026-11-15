@@ -128,6 +128,6 @@ Uso opcional de outros plugins: `ctx.services.has('luma')`.
 
 ## Uso opcional de outros plugins
 
-Sem `dependsOn`, na hora do uso: o [`rank`](rank.md) conta a interação
-(`record`), o `user-names` dá o nome de quem fala, e o [`ai-metrics`](ai-metrics.md) alimenta o
+Sem `dependsOn`, na hora do uso: o [`usage`](usage.md) registra a resposta (o
+[`rank`](rank.md) conta por ele), o `user-names` dá o nome de quem fala, e o [`ai-metrics`](ai-metrics.md) alimenta o
 `!luma stats`.
