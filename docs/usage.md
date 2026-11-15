@@ -9,7 +9,7 @@ transcrição, busca, lembrete, resumo, resposta da IA. Dados no storage do pró
 Um agregado por dia (UTC), pessoa, chat, ação, variante e resultado: `count` e `cost` (soma dos
 custos informados, em US$; 0 se nenhum foi). Nunca texto do usuário.
 
-A pessoa é o `personId` (`src/plugins/person.ts`): `<telefone>@s.whatsapp.net` quando o transport
+A pessoa é o `personId` (`src/plugins/person-id.ts`): `<telefone>@s.whatsapp.net` quando o transport
 sabe o telefone, senão o id nativo. Assim a mesma pessoa é uma só no grupo e no privado.
 
 ## Quem registra
