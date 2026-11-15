@@ -56,8 +56,12 @@ const { text, model, usage } = await ctx.services.get('ai').generate({
   instructions: 'Você é a Luma.',          // opcional
   messages: [{ role: 'user', content: 'oi' }], // ModelMessage do pacote `ai`
   signal,                                   // opcional
+  actor: { id: personId(sender), chatId },  // opcional: quem pediu
 });
 ```
+
+Com `actor`, cada tentativa leva quem pediu, e o `ai-metrics` grava a resposta no `usage` dessa
+pessoa, com o custo (veja [ai-metrics](ai-metrics.md#uso-por-pessoa)). Hoje só a `luma` informa.
 
 Quem depende declara `dependsOn: { ai: '^0.1.0' }`.
 
@@ -220,6 +224,8 @@ ctx.services.contribute('ai.observers', (attempt) => {
 | `usage` | Só com `ok`: tokens de entrada, saída, cache e reasoning, somados entre os passos |
 | `finishReason` | Só com `ok`: `length` indica resposta cortada e `content-filter` indica recusa |
 | `statusCode` | HTTP do provider, quando a falha veio dele |
+| `actor` | O `actor` do `generate` (`{ id, chatId }`), quando quem chamou informou |
+| `last` | Última tentativa da chamada: depois dela, o `generate` devolveu ou lançou |
 
 Vazão é `outputTokens / latencyMs`, calculada por quem agrega. Cooldown não gera tentativa
 própria: o modelo só aparece mais tarde na ordem (`position` maior).

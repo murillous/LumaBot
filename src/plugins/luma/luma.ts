@@ -12,7 +12,6 @@ import { cleanResponse, splitIntoParts } from '#plugins/ai-response.ts';
 import { aiTool, fail, mediaMessage, ok } from '#plugins/ai-tools.ts';
 import { createChatWindow } from '#plugins/chat-window.ts';
 import { personId } from '#plugins/person.ts';
-import { recordUsage, type UsageOutcome } from '#plugins/usage/usage.ts';
 import { createHistory, historyKey } from './history.ts';
 import {
   AI_METRICS_FAILED,
@@ -384,9 +383,6 @@ export const luma: PluginDefinition = definePlugin({
     const converse = async (i: Incoming): Promise<void> => {
       const { message, signal } = i;
       const chat = message.chat;
-      // Resposta da IA conta no `usage` de quem pediu (sem custo; a #450 acrescenta o custo).
-      const used = (outcome: UsageOutcome) =>
-        recordUsage(ctx.services, i.log, message, { action: 'luma', kind: 'reply', outcome });
       try {
         await recordInteraction(message);
 
@@ -442,6 +438,8 @@ export const luma: PluginDefinition = definePlugin({
           messages,
           signal,
           toolContext: { message, reply: i.reply, signal, log: i.log },
+          // A resposta entra no `usage` de quem pediu, com o custo, pelo observer do `ai-metrics`.
+          actor: { id: personId(message.sender), chatId: chat.id },
           ...(models.length > 0 && { models }),
         });
 
@@ -466,11 +464,9 @@ export const luma: PluginDefinition = definePlugin({
         if (parts.length === 0 && result.toolCalls.length === 0) {
           await i.reply(pick(cfg.errorReplies));
         }
-        await used('ok');
       } catch (err) {
         if (signal.aborted) throw err;
         i.log.event(REPLY_FAILED, { err });
-        await used('error');
         const text =
           err instanceof AiUnavailableError
             ? ctx.plugin.messages.unavailable

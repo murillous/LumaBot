@@ -78,6 +78,8 @@ export const ATTEMPT_OUTCOMES = [
 ] as const;
 export type AttemptOutcome = (typeof ATTEMPT_OUTCOMES)[number];
 
+const PASS_ON: ReadonlySet<AttemptOutcome> = new Set(['transient', 'unregistered', 'unsupported']);
+
 /** Uma tentativa num item da cadeia, para quem mede (`ai.observers`). */
 export interface AiAttempt {
   /** Item da cadeia, como `google:gemini-2.5-flash`. */
@@ -99,6 +101,16 @@ export interface AiAttempt {
   readonly finishReason?: FinishReason;
   /** HTTP do provider, quando a falha veio dele. */
   readonly statusCode?: number;
+  /** O `actor` do `generate`, quando quem chamou informou. */
+  readonly actor?: AiActor;
+  /** Última tentativa desta chamada: depois dela, o `generate` devolveu ou lançou. */
+  readonly last: boolean;
+}
+
+/** Quem pediu a resposta: o `personId` e o chat. Vai para o `usage`, nunca para rótulo. */
+export interface AiActor {
+  readonly id: string;
+  readonly chatId: string;
 }
 
 /**
@@ -138,6 +150,8 @@ export interface GenerateRequest {
    * transcrição, resumo e persona não oferecem tool.
    */
   readonly toolContext?: AiToolContext;
+  /** Quem pediu a resposta, repassado em cada `AiAttempt` para o custo entrar no uso dela. */
+  readonly actor?: AiActor;
 }
 
 /** Uma tool que o modelo chamou, com o que ela devolveu a ele. */
@@ -505,6 +519,9 @@ export const ai: PluginDefinition = definePlugin({
               startedAt: started,
               latencyMs: Date.now() - started,
               ...extra,
+              ...(request.actor && { actor: request.actor }),
+              // Só `transient`, `unregistered` e `unsupported` seguem para o próximo item.
+              last: !PASS_ON.has(outcome) || position === order.length - 1,
             });
           if (!provider) {
             // Erro de config, não do modelo: os outros itens ainda podem responder.
