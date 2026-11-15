@@ -3,7 +3,7 @@ import { metrics } from '@usebridger/plugin-metrics';
 import { createTestBot, DEFAULT_SELF, fixtures, type TestBot } from '@usebridger/testing';
 import { APICallError } from 'ai';
 import type { MockLanguageModelV4 } from 'ai/test';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ai } from '#plugins/ai/ai.ts';
 import { aiMetrics } from '#plugins/ai-metrics/ai-metrics.ts';
 import { fakeProvider, promptText, scripted, textAnswer, toolAnswer } from '#plugins/ai-testing.ts';
@@ -550,7 +550,7 @@ describe('quando falha', () => {
 describe('outros plugins', () => {
   it('a resposta conta no rank pelo usage', async () => {
     bot = await createTestBot({
-      plugins: [ai, fakeProvider({ a: scripted('oi') }), luma, usage, rank],
+      plugins: [metrics, ai, fakeProvider({ a: scripted('oi') }), aiMetrics, luma, usage, rank],
       pluginConfig: { ai: { models: [{ model: 'fake:a' }] }, luma: FAST },
     });
 
@@ -561,29 +561,55 @@ describe('outros plugins', () => {
     expect(bot.sent).toContainText(/— 1/);
   });
 
-  it('a resposta conta no usage de quem pediu, pelo personId, sem custo', async () => {
+  it('a resposta entra no usage de quem pediu em uma linha só, com o custo', async () => {
     const probe = usageProbe();
     bot = await createTestBot({
-      plugins: [ai, fakeProvider({ a: scripted('oi') }), luma, usage, probe.plugin],
-      pluginConfig: { ai: { models: [{ model: 'fake:a' }] }, luma: FAST },
+      plugins: [
+        metrics,
+        ai,
+        fakeProvider({ a: scripted('oi') }),
+        aiMetrics,
+        luma,
+        usage,
+        probe.plugin,
+      ],
+      pluginConfig: {
+        ai: { models: [{ model: 'fake:a' }] },
+        luma: FAST,
+        // US$ 1 por token: as 3 de entrada e as 2 de saída do modelo falso custam 5.
+        'ai-metrics': {
+          prices: { 'fake:a': { inputPerMillion: 1_000_000, outputPerMillion: 1_000_000 } },
+        },
+      },
     });
 
     await bot.receive({ text: 'oi', sender: { id: '123@lid', phone: '5511999' } });
 
+    // O observer do `ai-metrics` roda sem ser esperado pelo `generate`.
+    await vi.waitFor(() => expect(probe.entries).toHaveLength(1));
     expect(probe.entries).toEqual([
       expect.objectContaining({
         actor: '5511999@s.whatsapp.net',
         action: 'luma',
         kind: 'reply',
         outcome: 'ok',
+        cost: 5,
       }),
     ]);
-    expect(probe.entries[0]).not.toHaveProperty('cost');
   });
 
   it('a mesma pessoa no grupo (LID) e no privado é uma linha só no rank, com o apelido', async () => {
     bot = await createTestBot({
-      plugins: [ai, fakeProvider({ a: scripted('oi') }), luma, usage, rank, userNames],
+      plugins: [
+        metrics,
+        ai,
+        fakeProvider({ a: scripted('oi') }),
+        aiMetrics,
+        luma,
+        usage,
+        rank,
+        userNames,
+      ],
       pluginConfig: { ai: { models: [{ model: 'fake:a' }] }, luma: FAST },
     });
     const phone = '5511999990001';

@@ -26,7 +26,7 @@ sabe o telefone, senão o id nativo. Assim a mesma pessoa é uma só no grupo e 
 | `reminders` | `reminders` | `create`, `cancel` | `recordUsage` |
 | `resumo` | `resumo` | `chat` | `recordUsage` |
 | `utils` | `utils` | `prefix` (só a troca de prefixo) | `recordUsage` |
-| `luma` | `luma` | `reply` (sem custo) | `recordUsage` |
+| `luma` | `luma` | `reply`, com o custo da IA | observer do `ai-metrics`, com o `actor` do `generate` |
 
 O `outcome` é `ok`, `refused` (recusa esperada: arquivo grande, lembrete inválido, cancelar o que
 não existe) ou `error`. As tools da IA registram com quem mandou a mensagem que disparou a resposta.

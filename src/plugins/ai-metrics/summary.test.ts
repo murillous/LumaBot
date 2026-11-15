@@ -1,6 +1,7 @@
 import type { CounterQueryRow, HistogramQueryRow } from '@usebridger/plugin-metrics';
+import type { LanguageModelUsage } from 'ai';
 import { describe, expect, it } from 'vitest';
-import { type Rows, stats, summarize } from './summary.ts';
+import { attemptCost, type Rows, stats, summarize } from './summary.ts';
 
 const counter = (
   labels: Record<string, string>,
@@ -200,6 +201,32 @@ describe('custo', () => {
     const s = stats(rows, { 'g:a': { inputPerMillion: 0, outputPerMillion: 0 } });
 
     expect(s.costUsd).toBe(0);
+  });
+});
+
+describe('attemptCost', () => {
+  const usage = {
+    inputTokens: 1_000_000,
+    outputTokens: 500_000,
+    inputTokenDetails: { cacheReadTokens: 400_000 },
+  } as LanguageModelUsage;
+
+  it('usa a mesma conta do summary, com o cache a preço próprio', () => {
+    const prices = {
+      'g:a': { inputPerMillion: 2, outputPerMillion: 10, cachedInputPerMillion: 0.5 },
+    };
+
+    expect(attemptCost(prices, 'g:a', usage)).toBeCloseTo(1.2 + 0.2 + 5);
+  });
+
+  it('sem preço do cache, o cache vale como entrada comum', () => {
+    const prices = { 'g:a': { inputPerMillion: 2, outputPerMillion: 10 } };
+
+    expect(attemptCost(prices, 'g:a', usage)).toBeCloseTo(2 + 5);
+  });
+
+  it('modelo sem preço fica sem custo (null), não com zero', () => {
+    expect(attemptCost({}, 'g:a', usage)).toBeNull();
   });
 });
 

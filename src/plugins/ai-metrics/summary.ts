@@ -3,6 +3,7 @@
 // gravado, então mudar a tabela vale também para o histórico.
 
 import type { CounterQueryRow, HistogramQueryRow } from '@usebridger/plugin-metrics';
+import type { LanguageModelUsage } from 'ai';
 
 /** US$ por 1 milhão de tokens. */
 export interface Price {
@@ -115,6 +116,24 @@ function costOf(
       tokens.output * price.outputPerMillion) /
     1_000_000
   );
+}
+
+/**
+ * Custo em US$ de uma resposta de `model` com `usage`. Sem preço na tabela, `null`: modelo sem
+ * preço fica sem custo, nunca com zero.
+ */
+export function attemptCost(
+  prices: Readonly<Record<string, Price>>,
+  model: string,
+  usage: LanguageModelUsage,
+): number | null {
+  const price = prices[model];
+  if (!price) return null;
+  return costOf(price, {
+    input: usage.inputTokens ?? 0,
+    output: usage.outputTokens ?? 0,
+    cacheRead: usage.inputTokenDetails.cacheReadTokens ?? 0,
+  });
 }
 
 /** Estatísticas de um recorte das linhas (um modelo, uma finalidade, tudo). */
