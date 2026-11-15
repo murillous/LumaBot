@@ -26,8 +26,10 @@ Grafana sem ler texto livre. As métricas da IA ficam no [`ai-metrics`](ai-metri
 - O `metrics` é opcional (`optionalDependsOn`): sem ele, o plugin funciona e só registra o log.
 
 **Como medir uma ação.** O `trackerFor(spec, services)` de `src/plugins/action-metrics.ts`
-declara as métricas e devolve o `track(log, kind, work)`. Ele registra o fim da ação: o evento,
-o contador e a duração. Dentro do `work`, `step.refuse(motivo)` termina como recusa e
+declara as métricas e devolve o `track({ log, message }, kind, work)`. Ele registra o fim da
+ação: o evento, o contador e a duração. Com `message` (a ação foi a pedido de alguém) e o plugin
+[`usage`](usage.md) carregado, registra também o uso dessa pessoa, com `action` = `spec.metric`,
+o `kind` e o `outcome`. O `CommandContext` e o contexto das tools já têm `log` e `message`. Dentro do `work`, `step.refuse(motivo)` termina como recusa e
 `step.note(campos)` acrescenta campos à linha do fim. Um erro que o `spec.refusal` reconhece
 conta como recusa; os outros contam como falha e são relançados. Os comandos de mídia passam o
 `track` ao `attempt` (`src/plugins/media-command.ts`).
@@ -73,6 +75,7 @@ mídia até 60 s, cada um até o prazo do comando.
 | `ai` | `ai.model.failed` (tenta o próximo), `ai.search.unsupported`, `ai.models.empty`, `ai.keys.unreadable` | `warn` |
 | `ai` | `ai.provider.unregistered`, `ai.observer.failed`, `ai.tool.failed` (tool que lançou, em `ai-tools.ts`) | `error` |
 | `ai` | `ai.http.disabled` | `info` |
+| `usage` | `usage.record.failed`, `usage.observer.failed` | `error` |
 | `luma` | `luma.reply.failed`, `luma.persona-create.failed` | `error` |
 | `luma` | `luma.name.failed`, `luma.stats.failed`, `luma.error-notice.failed`, `luma.ai-metrics.failed` | `warn` |
 | `luma` | `luma.typing.failed` | `debug` |

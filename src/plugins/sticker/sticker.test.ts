@@ -8,6 +8,8 @@ import { aiToolsProbe } from '#plugins/ai-tools-probe.ts';
 import { checkBinary } from '#plugins/binary.ts';
 import { observedBot } from '#plugins/observe-probe.ts';
 import { stickerConvert } from '#plugins/sticker-convert/sticker-convert.ts';
+import { usage } from '#plugins/usage/usage.ts';
+import { usageProbe } from '#plugins/usage/usage-testing.ts';
 import { type StickerStep, sticker as stickerPlugin } from './sticker.ts';
 
 // A checagem do FFmpeg é a de verdade (o CI o instala); um teste a faz falhar.
@@ -298,4 +300,15 @@ describe('log e métricas', () => {
       { labels: { kind: 'media', outcome: 'error' }, value: 1 },
     ]);
   });
+});
+
+it('a figurinha conta no usage de quem pediu', async () => {
+  const probe = usageProbe();
+  bot = await createTestBot({ plugins: [stickerPlugin, usage, probe.plugin] });
+
+  await bot.receive({ text: '!s', image: fixtures.image() });
+
+  expect(probe.entries).toEqual([
+    expect.objectContaining({ action: 'sticker', kind: 'media', outcome: 'ok' }),
+  ]);
 });

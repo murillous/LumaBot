@@ -9,6 +9,8 @@ import { PDFDocument } from 'pdf-lib';
 import { afterEach, describe, expect, it } from 'vitest';
 import { aiToolsProbe, toolResult } from '#plugins/ai-tools-probe.ts';
 import { observedBot } from '#plugins/observe-probe.ts';
+import { usage } from '#plugins/usage/usage.ts';
+import { usageProbe } from '#plugins/usage/usage-testing.ts';
 import { pdf as pdfPlugin } from './pdf.ts';
 
 let bot: TestBot;
@@ -204,4 +206,15 @@ describe('log e métricas', () => {
       { labels: { kind: 'image', outcome: 'error' }, value: 1 },
     ]);
   });
+});
+
+it('o PDF conta no usage de quem pediu', async () => {
+  const probe = usageProbe();
+  bot = await createTestBot({ plugins: [pdfPlugin(), usage, probe.plugin] });
+
+  await bot.receive({ text: '!pdf', image: fixtures.image() });
+
+  expect(probe.entries).toEqual([
+    expect.objectContaining({ action: 'pdf', kind: 'image', outcome: 'ok' }),
+  ]);
 });

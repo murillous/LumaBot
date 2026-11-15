@@ -7,6 +7,7 @@ import {
 } from '@usebridger/core';
 import { z } from 'zod';
 import { aiTool, ok } from '#plugins/ai-tools.ts';
+import { recordUsage } from '#plugins/usage/usage.ts';
 import { INFO_LINE_FAILED } from './log-events.ts';
 
 /** Linha de `!meunumero`; `null` omite a linha. Contribuída ao ponto `utils.info`. */
@@ -105,8 +106,16 @@ export const utils: PluginDefinition = definePlugin({
         onReject: (c) => c.t('prefixDenied'),
         run: async (c) => {
           const chat = c.message.chat;
+          // Só a troca conta no `usage`; o `!meunumero` é consulta, como o `!help`.
+          const used = () =>
+            recordUsage(ctx.services, c.log, c.message, {
+              action: 'utils',
+              kind: 'prefix',
+              outcome: 'ok',
+            });
           if (c.args.length === 0) {
             await ctx.prefixes.reset(chat.id);
+            await used();
             return c.t('prefixReset', { value: ctx.prefixes.get(chat) });
           }
           const [novo] = c.args;
@@ -117,6 +126,7 @@ export const utils: PluginDefinition = definePlugin({
             if (err instanceof TypeError) return c.t('prefixInvalid');
             throw err;
           }
+          await used();
           // O kernel pode normalizar (minúsculo): mostra o que ficou valendo, não o digitado.
           return c.t('prefixSet', { value: ctx.prefixes.get(chat) });
         },

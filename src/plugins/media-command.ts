@@ -32,7 +32,7 @@ export async function attempt(
 ): Promise<string | undefined> {
   await ctx.react('⏳');
   try {
-    await track(ctx.log, kind, work);
+    await track(ctx, kind, work);
   } catch (err) {
     // O `track` já registrou a falha.
     await ctx.react('❌');

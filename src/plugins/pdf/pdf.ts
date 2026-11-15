@@ -69,7 +69,7 @@ export function pdf(): PluginDefinition {
           run: async ({ fileName = '' }, t) => {
             const source = mediaMessage(t.message, ['image']);
             if (!source) return fail('no-image');
-            await track(t.log, 'image', async (step) => {
+            await track(t, 'image', async (step) => {
               const pdf = await imageToPdf(await source.media.download());
               await t.reply.document(pdf, {
                 fileName: pdfFileName(fileName, 'imagem.pdf'),
@@ -97,7 +97,7 @@ export function pdf(): PluginDefinition {
             if (pdfs.reduce((sum, a) => sum + (a.size ?? 0), 0) > MERGE_MAX_BYTES) {
               return fail('too-large');
             }
-            const sent = await track(t.log, 'merge', async (step) => {
+            const sent = await track(t, 'merge', async (step) => {
               const files = await Promise.all(pdfs.map((a) => a.download()));
               if (files.reduce((sum, f) => sum + f.length, 0) > MERGE_MAX_BYTES) {
                 step.refuse('too-large');

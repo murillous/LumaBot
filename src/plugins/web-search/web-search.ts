@@ -1,4 +1,4 @@
-import { definePlugin, type PluginDefinition, secret } from '@usebridger/core';
+import { definePlugin, type Message, type PluginDefinition, secret } from '@usebridger/core';
 import { z } from 'zod';
 import { type ActionSpec, trackerFor } from '#plugins/action-metrics.ts';
 import { AiUnavailableError, chainItem } from '#plugins/ai/ai.ts';
@@ -12,8 +12,15 @@ export class SearchUnavailableError extends Error {
 }
 
 export interface WebSearchService {
-  /** Busca na internet e devolve o resultado como texto para o modelo ler. */
-  search(query: string, signal?: AbortSignal): Promise<string>;
+  /**
+   * Busca na internet e devolve o resultado como texto para o modelo ler. `by`, a mensagem de quem
+   * pediu, faz a busca contar no `usage` dessa pessoa.
+   */
+  search(
+    query: string,
+    signal?: AbortSignal,
+    by?: Pick<Message, 'sender' | 'chat'>,
+  ): Promise<string>;
 }
 
 declare module '@usebridger/core' {
@@ -78,11 +85,11 @@ export function webSearch({ fetch: fetchFn = fetch }: WebSearchDeps = {}): Plugi
       const track = trackerFor(ACTION, ctx.services);
 
       const service: WebSearchService = {
-        search: async (query, signal) => {
+        search: async (query, signal, by) => {
           if (tavily.apiKey && Date.now() >= quotaUntil) {
             try {
               const apiKey = tavily.apiKey;
-              return await track(ctx.log, 'tavily', () =>
+              return await track({ log: ctx.log, message: by }, 'tavily', () =>
                 searchTavily(
                   query,
                   {
@@ -105,7 +112,7 @@ export function webSearch({ fetch: fetchFn = fetch }: WebSearchDeps = {}): Plugi
           if (ctx.services.has('ai')) {
             try {
               const ai = ctx.services.get('ai');
-              const { text } = await track(ctx.log, 'native', () =>
+              const { text } = await track({ log: ctx.log, message: by }, 'native', () =>
                 ai.generate({
                   purpose: 'web-search',
                   nativeSearch: true,
@@ -149,7 +156,7 @@ export function webSearch({ fetch: fetchFn = fetch }: WebSearchDeps = {}): Plugi
           }),
           run: async ({ query }, t) => {
             try {
-              return ok({ results: await service.search(query, t.signal) });
+              return ok({ results: await service.search(query, t.signal, t.message) });
             } catch (err) {
               if (err instanceof SearchUnavailableError) return fail('unavailable');
               throw err;

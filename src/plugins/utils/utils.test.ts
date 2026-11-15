@@ -2,6 +2,8 @@ import { definePlugin } from '@usebridger/core';
 import { createTestBot, DEFAULT_SENDER, FakeTransport, type TestBot } from '@usebridger/testing';
 import { afterEach, describe, expect, it } from 'vitest';
 import { aiToolsProbe, toolResult } from '#plugins/ai-tools-probe.ts';
+import { usage } from '#plugins/usage/usage.ts';
+import { usageProbe } from '#plugins/usage/usage-testing.ts';
 import { utils } from './utils.ts';
 
 let bot: TestBot;
@@ -189,4 +191,27 @@ it('tool chat_info devolve as linhas do !meunumero, com as contribuídas', async
       '🏷️ Apelido: Ana',
     ],
   });
+});
+
+it('trocar o prefixo conta no usage; o !meunumero não', async () => {
+  const group = { id: 'grupo@fake', isGroup: true };
+  const transport = new FakeTransport();
+  transport.setGroup({
+    id: group.id,
+    title: 'Grupo',
+    description: null,
+    ownerId: null,
+    participants: [
+      { id: DEFAULT_SENDER.id, name: null, phone: null, isAdmin: true, isSuperAdmin: false },
+    ],
+  });
+  const probe = usageProbe();
+  bot = await createTestBot({ transport, plugins: [utils, usage, probe.plugin] });
+
+  await bot.receive({ text: '!meunumero', chat: group });
+  await bot.receive({ text: '!prefixo ?', chat: group });
+
+  expect(probe.entries).toEqual([
+    expect.objectContaining({ action: 'utils', kind: 'prefix', outcome: 'ok' }),
+  ]);
 });

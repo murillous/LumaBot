@@ -23,7 +23,7 @@ log; a causa não vai ao chat. Prazo: 90 s.
 ## Serviço `transcription`
 
 ```ts
-transcribe(media: Media, options?: { signal }): Promise<string>
+transcribe(media: Media, options?: { signal; by }): Promise<string>  // by: mensagem de quem pediu, conta no usage
 ```
 
 É a única implementação, usada pelo comando e pela tool. Outros plugins transcrevem por ele, sem

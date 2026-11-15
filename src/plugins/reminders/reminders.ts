@@ -3,11 +3,15 @@ import {
   definePlugin,
   fmt,
   type JsonValue,
+  type Logger,
+  type Message,
   mention,
   type PluginDefinition,
+  type ServiceAccess,
 } from '@usebridger/core';
 import { z } from 'zod';
 import { aiTool, fail, ok } from '#plugins/ai-tools.ts';
+import { recordUsage, type UsageOutcome } from '#plugins/usage/usage.ts';
 import { formatRecurrence, formatWhen, remaining, stats } from './format.ts';
 import {
   FIRED_DELETE_FAILED,
@@ -226,6 +230,29 @@ function cleanText(raw: string): string {
  * é um job (único) ou série (recorrente) do scheduler do kernel, que sobrevive a restart; a
  * lista vem do storage. O tipo de disparo é aberto: cada `kind` entra em `reminders.kinds`.
  */
+/**
+ * Cria ou cancela a pedido de alguém e registra no `usage` dessa pessoa. `ReminderError` conta
+ * como recusa; `outcomeOf` decide pelo resultado (cancelar o que não existe também é recusa).
+ */
+async function withUsage<T>(
+  services: ServiceAccess,
+  by: { log: Logger; message: Message },
+  kind: 'create' | 'cancel',
+  work: () => Promise<T>,
+  outcomeOf: (result: T) => UsageOutcome = () => 'ok',
+): Promise<T> {
+  const used = (outcome: UsageOutcome) =>
+    recordUsage(services, by.log, by.message, { action: 'reminders', kind, outcome });
+  try {
+    const result = await work();
+    await used(outcomeOf(result));
+    return result;
+  } catch (err) {
+    await used(err instanceof ReminderError ? 'refused' : 'error');
+    throw err;
+  }
+}
+
 export const reminders: PluginDefinition = definePlugin({
   name: 'reminders',
   version: '2.0.0',
@@ -471,14 +498,16 @@ export const reminders: PluginDefinition = definePlugin({
               ? { everyMs: repeat.everyMinutes * 60_000 }
               : { time: repeat.time, ...(repeat.days && { days: repeat.days }) };
           try {
-            const reminder = await service.create({
-              chatId: chat.id,
-              creatorId: sender.id,
-              mentionIds: mentions.map((m) => m.id),
-              text,
-              ...(when !== undefined && { fireAt: Date.parse(when) }),
-              ...(recurrence && { recurrence }),
-            });
+            const reminder = await withUsage(ctx.services, t, 'create', () =>
+              service.create({
+                chatId: chat.id,
+                creatorId: sender.id,
+                mentionIds: mentions.map((m) => m.id),
+                text,
+                ...(when !== undefined && { fireAt: Date.parse(when) }),
+                ...(recurrence && { recurrence }),
+              }),
+            );
             return ok(view(reminder));
           } catch (err) {
             if (err instanceof ReminderError) return fail(err.code);
@@ -503,7 +532,14 @@ export const reminders: PluginDefinition = definePlugin({
         description: 'Cancela um lembrete deste chat pelo `id` que o `list_reminders` devolve.',
         args: z.object({ id: z.string() }),
         run: async ({ id }, t) =>
-          (await service.cancel(t.message.chat.id, id, t.message.sender.id, t.message.chat.isGroup))
+          (await withUsage(
+            ctx.services,
+            t,
+            'cancel',
+            () =>
+              service.cancel(t.message.chat.id, id, t.message.sender.id, t.message.chat.isGroup),
+            (done) => (done ? 'ok' : 'refused'),
+          ))
             ? ok()
             : fail('not-found'),
       }),
@@ -535,15 +571,17 @@ export const reminders: PluginDefinition = definePlugin({
 
         const { sender, mentions, chat } = c.message;
         try {
-          const reminder = await plugin.services.get('reminders').create({
-            chatId: chat.id,
-            creatorId: sender.id,
-            mentionIds: mentions.map((m) => m.id),
-            text: parsed.text,
-            ...('recurrence' in parsed
-              ? { recurrence: parsed.recurrence }
-              : { fireAt: parsed.fireAt }),
-          });
+          const reminder = await withUsage(plugin.services, c, 'create', () =>
+            plugin.services.get('reminders').create({
+              chatId: chat.id,
+              creatorId: sender.id,
+              mentionIds: mentions.map((m) => m.id),
+              text: parsed.text,
+              ...('recurrence' in parsed
+                ? { recurrence: parsed.recurrence }
+                : { fireAt: parsed.fireAt }),
+            }),
+          );
           const when = formatWhen(reminder.fireAt, plugin.config.timeZone);
           return reminder.recurrence
             ? c.t('createdRecurring', {
@@ -608,11 +646,13 @@ export const reminders: PluginDefinition = definePlugin({
         const target = (await service.list(c.message.chat.id))[Number(arg) - 1];
         if (
           !target ||
-          !(await service.cancel(
-            target.chatId,
-            target.id,
-            c.message.sender.id,
-            c.message.chat.isGroup,
+          !(await withUsage(
+            plugin.services,
+            c,
+            'cancel',
+            () =>
+              service.cancel(target.chatId, target.id, c.message.sender.id, c.message.chat.isGroup),
+            (done) => (done ? 'ok' : 'refused'),
           ))
         ) {
           return c.t('cancelNotFound');
