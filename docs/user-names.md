@@ -28,7 +28,9 @@ o que o usuário recebe sai como resposta no chat.
 
 `remember` roda sozinho em: remetente e mencionados de toda mensagem (inclusive comandos, via
 evento `command`), `group.participants` e `contact.updated`. Guarda o último nome e telefone
-não vazios; só grava se mudou.
+não vazios; só grava se mudou. Com telefone, grava também na chave do `personId`
+(`<telefone>@s.whatsapp.net`), para o `rank` achar o nome de quem só apareceu pelo LID. O apelido
+continua por `Contact.id`.
 
 Não enriquece por `groups.metadata`. A resposta a um passo de conversa
 (`expectReply`) não passa por `message` nem por `command`, então também não enriquece.

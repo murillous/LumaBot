@@ -1,6 +1,7 @@
 import { type Contact, definePlugin, type PluginDefinition } from '@usebridger/core';
 import { z } from 'zod';
 import { type AiToolContext, aiTool, fail, ok } from '#plugins/ai-tools.ts';
+import { personId } from '#plugins/person.ts';
 import { REMEMBER_FAILED, SOURCE_FAILED } from './log-events.ts';
 import { cleanName, NICK_MAX, nickFromArgs } from './nick-args.ts';
 
@@ -117,10 +118,16 @@ export const userNames: PluginDefinition = definePlugin({
     ctx.services.contribute('userNames.sources', async (id) => (await seen(id))?.name ?? null);
 
     // Falha ao lembrar nunca atrapalha a mensagem: vai para o log e segue.
-    const remember = (contact: KnownContact) =>
-      service.remember(contact).catch((err: unknown) => {
-        ctx.log.event(REMEMBER_FAILED, { err });
-      });
+    const remember = async (contact: KnownContact) => {
+      // Também na chave estável (`personId`): quem lista por pessoa, como o `rank`, acha o nome
+      // de quem só foi visto pelo LID.
+      const ids = new Set([contact.id, personId(contact)]);
+      for (const id of ids) {
+        await service.remember({ ...contact, id }).catch((err: unknown) => {
+          ctx.log.event(REMEMBER_FAILED, { err });
+        });
+      }
+    };
     const fromMessage = async (m: { sender: Contact; mentions: readonly Contact[] }) => {
       for (const c of [m.sender, ...m.mentions]) await remember(c);
     };

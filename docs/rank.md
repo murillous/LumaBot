@@ -26,6 +26,10 @@ IA (`LumaPlugin`, `incrementInteraction`), e continua sendo: a [`luma`](luma.md)
 cada vez que responde a alguém (uso opcional, `services.has('rank')`, sem `dependsOn`). Sem a
 `luma`, o `!rank` responde "Ninguém interagiu comigo ainda".
 
+O `senderId` é o `personId(sender)` (`src/plugins/person.ts`), não o `sender.id`: no WhatsApp a
+mesma pessoa chega pelo LID num chat e pelo número em outro. Com o telefone que o transport
+resolve, a chave é `<telefone>@s.whatsapp.net`; sem ele, o id nativo.
+
 As coleções ficam no storage da sessão: com um segundo transport, o global se divide por bot.
 Migração: `ctx.storage.shared` com id composto por `ctx.transportName`.
 

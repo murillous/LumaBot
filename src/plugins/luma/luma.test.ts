@@ -558,6 +558,24 @@ describe('outros plugins', () => {
     expect(bot.sent).toContainText(/— 1/);
   });
 
+  it('a mesma pessoa pelo LID no grupo e pelo número no privado é uma linha só no rank', async () => {
+    bot = await createTestBot({
+      plugins: [ai, fakeProvider({ a: scripted('oi', 'oi') }), luma, rank],
+      pluginConfig: { ai: { models: [{ model: 'fake:a' }] }, luma: FAST },
+    });
+
+    await bot.receive({
+      text: 'Ei Luma, oi',
+      chat: group,
+      sender: { id: '123@lid', name: 'Ana', phone: '5511999' },
+    });
+    await bot.receive({ text: 'oi', sender: { id: '5511999@s.whatsapp.net', phone: '5511999' } });
+    await bot.receive({ text: '!rank global' });
+
+    expect(bot.sent).toContainText(/— 2/);
+    expect(bot.sent).not.toContainText(/— 1/);
+  });
+
   it('funciona sem o rank nem o user-names', async () => {
     const b = await start(scripted('oi'));
 

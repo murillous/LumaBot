@@ -103,6 +103,14 @@ it('lembra participantes de grupo e contact.updated; nome vazio não apaga', asy
   expect(await names().displayName('e@fake')).toBe('Eva');
 });
 
+it('quem chega pelo LID com telefone também tem nome na chave do número', async () => {
+  await start();
+  await bot.receive({ text: 'oi', sender: { id: '123@lid', name: 'Ana', phone: '5511999' } });
+
+  expect(await names().displayName('123@lid')).toBe('Ana');
+  expect(await names().displayName('5511999@s.whatsapp.net')).toBe('Ana');
+});
+
 it('o apelido vence o nome observado', async () => {
   await start();
   await names().remember({ id: 'a@fake', name: 'Ana', phone: null });
