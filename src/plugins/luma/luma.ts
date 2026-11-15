@@ -11,7 +11,7 @@ import { AiUnavailableError, chainItem } from '#plugins/ai/ai.ts';
 import { cleanResponse, splitIntoParts } from '#plugins/ai-response.ts';
 import { aiTool, fail, mediaMessage, ok } from '#plugins/ai-tools.ts';
 import { createChatWindow } from '#plugins/chat-window.ts';
-import { personId } from '#plugins/person.ts';
+import { personId } from '#plugins/person-id.ts';
 import { recordUsage, type UsageOutcome } from '#plugins/usage/usage.ts';
 import { createHistory, historyKey } from './history.ts';
 import {
