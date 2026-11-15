@@ -309,8 +309,8 @@ export const luma: PluginDefinition = definePlugin({
       window.clear(message.chat.id);
     };
     // Só o pedido explícito de esquecer é auditado (comando e tool); limpar ao trocar de persona
-    // já está coberto pela ação da persona. O ator é o titular: o kernel só põe o contato no
-    // escopo de request, então aqui ele vai em `details`.
+    // já está coberto pela ação da persona. O ator é o titular: o kernel não põe o contato
+    // como ator no fluxo de mensagem (murillous/usebridger#339), então aqui ele vai em `details`.
     const auditClear = (message: Pick<Message, 'chat' | 'sender'>) => {
       clearHistory(message);
       ctx.audit.record({
