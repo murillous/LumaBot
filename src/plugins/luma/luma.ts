@@ -11,7 +11,6 @@ import { AiUnavailableError, chainItem } from '#plugins/ai/ai.ts';
 import { cleanResponse, splitIntoParts } from '#plugins/ai-response.ts';
 import { aiTool, fail, mediaMessage, ok } from '#plugins/ai-tools.ts';
 import { createChatWindow } from '#plugins/chat-window.ts';
-import { personId } from '#plugins/person.ts';
 import { recordUsage, type UsageOutcome } from '#plugins/usage/usage.ts';
 import { createHistory, historyKey } from './history.ts';
 import {
@@ -20,7 +19,6 @@ import {
   NAME_FAILED,
   PERSONA_CREATE_FAILED,
   REPLY_FAILED,
-  STATS_FAILED,
   TYPING_FAILED,
 } from './log-events.ts';
 import { PersonaParseError, parsePersona, personaPrompt, slugify } from './persona-generator.ts';
@@ -372,15 +370,6 @@ export const luma: PluginDefinition = definePlugin({
       }
     };
 
-    const recordInteraction = async (m: Message) => {
-      if (!ctx.services.has('rank')) return;
-      try {
-        await ctx.services.get('rank').record(m.chat.id, personId(m.sender));
-      } catch (err) {
-        ctx.log.event(STATS_FAILED, { err });
-      }
-    };
-
     const converse = async (i: Incoming): Promise<void> => {
       const { message, signal } = i;
       const chat = message.chat;
@@ -388,8 +377,6 @@ export const luma: PluginDefinition = definePlugin({
       const used = (outcome: UsageOutcome) =>
         recordUsage(ctx.services, i.log, message, { action: 'luma', kind: 'reply', outcome });
       try {
-        await recordInteraction(message);
-
         const senderName = await nameOf(message.sender);
         const key = historyKey(message);
         const image = await imageOf(message, i.log);

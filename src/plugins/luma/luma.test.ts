@@ -547,9 +547,9 @@ describe('quando falha', () => {
 });
 
 describe('outros plugins', () => {
-  it('conta a interação no rank, se ele existe', async () => {
+  it('a resposta conta no rank pelo usage', async () => {
     bot = await createTestBot({
-      plugins: [ai, fakeProvider({ a: scripted('oi') }), luma, rank],
+      plugins: [ai, fakeProvider({ a: scripted('oi') }), luma, usage, rank],
       pluginConfig: { ai: { models: [{ model: 'fake:a' }] }, luma: FAST },
     });
 
@@ -562,7 +562,7 @@ describe('outros plugins', () => {
 
   it('a mesma pessoa pelo LID no grupo e pelo número no privado é uma linha só no rank', async () => {
     bot = await createTestBot({
-      plugins: [ai, fakeProvider({ a: scripted('oi', 'oi') }), luma, rank],
+      plugins: [ai, fakeProvider({ a: scripted('oi', 'oi') }), luma, usage, rank],
       pluginConfig: { ai: { models: [{ model: 'fake:a' }] }, luma: FAST },
     });
 

@@ -6,6 +6,7 @@ import { sqlite } from '@usebridger/storage-sqlite';
 import { createTestBot, type TestBot } from '@usebridger/testing';
 import { afterEach, expect, it } from 'vitest';
 import { aiToolsProbe, toolResult } from '#plugins/ai-tools-probe.ts';
+import { type UsageOutcome, type UsageService, usage } from '#plugins/usage/usage.ts';
 import { userNames } from '#plugins/user-names/user-names.ts';
 import { type RankService, rank } from './rank.ts';
 
@@ -58,7 +59,7 @@ it('!rank no grupo lista o ranking do grupo, com medalhas e fallback de nome', a
   await bot.receive({ text: '!rank', chat: group });
 
   expect(bot.sent).toContainText(
-    '🏆 *Ranking do Grupo* — quem mais fala comigo\n\n🥇 @990002 — 2\n🥈 @990001 — 1',
+    '🏆 *Ranking do Grupo* — quem mais me usa\n\n🥇 @990002 — 2\n🥈 @990001 — 1',
   );
 });
 
@@ -72,15 +73,15 @@ it('!rank global e conversa privada usam o total', async () => {
 
   expect(bot.sent).toHaveLength(2);
   expect(bot.sent[0]?.quoted).toBeFalsy(); // como o sendText do legacy: sem citar
-  expect(bot.sent).toContainText('🏆 *Ranking Global* — quem mais fala comigo\n\n🥇 @990001 — 2');
+  expect(bot.sent).toContainText('🏆 *Ranking Global* — quem mais me usa\n\n🥇 @990001 — 2');
 });
 
-it('sem dados, responde que ninguém interagiu', async () => {
+it('sem dados, responde que ninguém usou', async () => {
   await start();
 
   await bot.receive({ text: '!rank', chat: group });
 
-  expect(bot.sent).toHaveReplied('🤷 Ninguém interagiu comigo ainda por aqui.');
+  expect(bot.sent).toHaveReplied('🤷 Ninguém me usou ainda por aqui.');
 });
 
 it('com user-names, usa o nome de exibição (apelido)', async () => {
@@ -90,7 +91,7 @@ it('com user-names, usa o nome de exibição (apelido)', async () => {
 
   await bot.receive({ text: '!rank', chat: group });
 
-  expect(bot.sent).toContainText('🏆 *Ranking do Grupo* — quem mais fala comigo\n\n🥇 Zé — 1');
+  expect(bot.sent).toContainText('🏆 *Ranking do Grupo* — quem mais me usa\n\n🥇 Zé — 1');
 });
 
 it('record simultâneo não duplica linha nem perde contagem', async () => {
@@ -181,4 +182,65 @@ it('tool ranking devolve nomes e contagens do grupo, ou o geral', async () => {
     scope: 'global',
     ranking: [{ count: 2 }, { name: 'Ana' }],
   });
+});
+
+it('conta as ações feitas que o usage registra; recusa e falha não somam', async () => {
+  let usageService: UsageService | undefined;
+  const actions = definePlugin({
+    name: 'actions',
+    version: '0.0.0',
+    engine: '<1.0.0',
+    dependsOn: { usage: '*' },
+    setup: (ctx) => {
+      usageService = ctx.services.get('usage');
+    },
+  });
+  const record = (outcome: UsageOutcome, action: string) =>
+    usageService?.record({
+      actor: '5511999990001@s.whatsapp.net',
+      chatId: 'g1@fake',
+      action,
+      kind: 'x',
+      outcome,
+    });
+  await start(usage, actions);
+  await record('ok', 'sticker');
+  await record('ok', 'download');
+  await record('refused', 'download');
+  await record('error', 'pdf');
+
+  expect(await service.top({ chatId: 'g1@fake' }, 10)).toEqual([
+    { id: '5511999990001@s.whatsapp.net', count: 2 },
+  ]);
+});
+
+it('recomeça do zero: apaga o ranking antigo, que contava só a IA', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'rank-'));
+  const path = join(dir, 'db.sqlite');
+  // Plugin com o nome `rank` enxerga o namespace dele: grava como a versão antiga e depois lê.
+  let legacyRows = -1;
+  const legacy = (write: boolean) =>
+    definePlugin({
+      name: 'rank',
+      version: '0.9.0',
+      engine: '<1.0.0',
+      setup: async (ctx) => {
+        const totals = ctx.storage.collection('totals');
+        if (write) await totals.insert({ userId: 'a@lid', count: 5 });
+        else legacyRows = (await totals.find()).length;
+      },
+    });
+  try {
+    bot = await createTestBot({ storage: sqlite({ path }), plugins: [legacy(true)] });
+    await bot.stop();
+    bot = await createTestBot({ storage: sqlite({ path }), plugins: [rank, probe] });
+    expect(await service.top('global', 10)).toEqual([]);
+    await bot.stop();
+    bot = await createTestBot({ storage: sqlite({ path }), plugins: [legacy(false)] });
+
+    expect(legacyRows).toBe(0);
+  } finally {
+    await bot.stop();
+    await rm(dir, { recursive: true, force: true });
+  }
 });
