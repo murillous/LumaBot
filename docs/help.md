@@ -9,9 +9,9 @@ Menu de comandos gerado de `ctx.commands.list()`: comando novo aparece sozinho. 
 | --- | --- |
 | `!help` / `!menu` / `!ajuda` | Comandos em blocos (`• *!nome* (!alias) - descrição`), com o prefixo do chat, e depois as seções do ponto `help.sections` |
 
-Só entram comandos com `description` e papel `everyone`, ou `group-admin` quando o chat é um grupo. O kernel não entrega o
-remetente ao serviço, então `owner` e papéis custom ficam sempre de fora, mesmo para quem os pode
-rodar.
+Só entram comandos com `description` e papel `everyone`, ou `group-admin` quando o chat é um grupo. O serviço
+`help.render` recebe só o chat, sem o remetente, então `owner` e papéis custom ficam sempre de fora,
+mesmo para quem os pode rodar.
 
 Os blocos e a ordem deles ficam em `GROUPS` (`help.ts`): 🎨 Mídia, 🧠 Inteligência artificial, 🏆 Social e 🛠️ Utilitários,
 cada um com os nomes dos plugins que agrupa. Plugin fora da lista cai em 📦 Outros, no fim. Dentro
