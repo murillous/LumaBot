@@ -3,7 +3,7 @@
 A personagem: responde em conversa privada, quando citada, chamada pelo nome ou mencionada, com
 histórico, persona por chat e as ferramentas do ponto `ai.tools`. A IA em si (cadeia de
 modelos, fallback, métricas) é do [`ai`](ai.md); a `luma` depende dele. Código em
-`src/plugins/luma/`: `luma.ts` (plugin), `history.ts`, `trigger.ts`, `prompt.ts`, `personas.ts`,
+`src/plugins/luma/`: `luma.ts` (plugin), `transcript.ts`, `trigger.ts`, `prompt.ts`, `personas.ts`,
 `persona-generator.ts` e `stats.ts`, todos puros menos o primeiro.
 
 ## Quando responde
@@ -17,20 +17,28 @@ Para toda mensagem que nenhum comando consumiu e que não veio de outro bot:
 
 Ao decidir responder, a Luma **reivindica** a mensagem (`claim()`) antes de qualquer `await`, para
 o [`spontaneous`](spontaneous.md) não reagir à mesma mensagem. Mensagem de grupo que não é com ela
-entra na janela de contexto e fica por isso.
+entra na transcrição do chat e fica por isso.
 
 A fala que chamou a Luma perde o nome do começo (`Ei Luma, que horas são?` vira `que horas são?`).
 Chamada sem dizer nada responde uma frase de `boredReplies`, sem gastar a IA.
 
 ## Memória
 
-- **Histórico**: os últimos `history.maxMessages` turnos (padrão 80, fala e resposta contam dois)
-  de uma conversa, que dura `history.maxAgeMs` (2 h) sem falas. A conversa é o chat privado ou, em
-  grupo, **uma pessoa naquele grupo**: o que a Ana disse não entra na memória da Bia.
-- **Clima do grupo**: as últimas `groupContextSize` (15) falas do grupo, **antes** da que chamou a
-  Luma, vão na instrução de sistema como contexto ambiente que não foi endereçado a ela.
-- Tudo em **memória**, sem timer: a expiração é feita na leitura. Um restart esquece as conversas,
-  como o legacy.
+A Luma lê uma **transcrição por chat**: tudo o que se disse nele, inclusive as falas dela. Em grupo,
+a conversa é uma só, para ela saber quem disse o quê e o que ela mesma respondeu a cada pessoa. O
+privado continua isolado: um chat, uma conversa.
+
+- Cada fala ganha um **ID curto** (`#m12`) e vai ao modelo como `[#m12 16:30] Ana: fala`. As falas
+  seguidas das pessoas viram um turno `user`; as dela, um turno `assistant` só com o texto.
+- A fala que chamou a Luma é a última, marcada com `➜`.
+- A **mídia** aparece como marca (`[figurinha]`, `[imagem]`, `[áudio]`, `[vídeo]`,
+  `[documento]`). Só a imagem da fala de agora (ou da citada) vai ao modelo de fato.
+- A **citação** de uma fala que ainda está na transcrição vira o ID (`(respondendo #m9)`). Citar
+  uma fala dela mostra um trecho do que ela disse (`(respondendo à sua fala "...")`). Citar a
+  última fala dela não acrescenta nada, porque é continuação.
+- Guarda as últimas `history.maxMessages` (80) falas do chat, e cada fala sai depois de
+  `history.maxAgeMs` (2 h).
+- Tudo em **memória**, sem timer: a expiração é feita na leitura. Um restart esquece as conversas.
 
 ## Persona
 
@@ -61,7 +69,7 @@ Registra no log de auditoria do kernel (`ctx.audit`) só o ato administrativo, n
 
 | Comando | O que faz |
 | --- | --- |
-| `!luma clear` (`!lc`, `!clear`) | Esquece a conversa de quem pediu e a janela do chat |
+| `!luma clear` (`!lc`, `!clear`) | Esquece a transcrição do chat (em grupo, para todos) |
 | `!luma stats` (`!ls`) | Conversas ativas e, se o [`ai-metrics`](ai-metrics.md) está carregado, respostas, taxa de sucesso, fallbacks, tokens, latência e custo dos últimos 7 dias |
 
 ## Tools da IA
@@ -70,7 +78,7 @@ Contribuídas ao ponto `ai.tools` ([ai-tools.md](ai-tools.md)).
 
 | Tool | Argumentos | O que faz | Recusas (`error`) |
 | --- | --- | --- | --- |
-| `clear_history` | — | Apaga a memória da conversa de quem está falando | — |
+| `clear_history` | — | Apaga a transcrição do chat (em grupo, a de todos) | — |
 | `create_persona` | `description` | Cria e ativa a persona; confirma no chat | `empty`, `limit`, `invalid-persona`, `unavailable` |
 
 Trocar de persona ou limpar a memória por tool é recomeçar: a troca em curso **não** é guardada no
@@ -84,8 +92,7 @@ histórico, para a fala da persona anterior não vazar para a nova.
 - **Áudio**: a Luma sabe que ouve pela tool `transcribe_audio` do plugin
   [`transcribe`](transcribe.md); a transcrição vai só ao modelo. Sem esse plugin, ela sabe que não
   consegue ouvir.
-- A mensagem **citada** entra na fala (`[citando Ana: "..."]`); citar a última fala dela, que já
-  está no histórico, não acrescenta nada.
+- A mensagem **citada** que já saiu da transcrição entra na fala pelo texto (`[citando Ana: "..."]`).
 
 ## Config
 
@@ -96,8 +103,7 @@ histórico, para a fala da persona anterior não vazar para a nova.
 | `visionModels` | `[]` | Cadeia para mensagem com imagem. Vazio usa `models` |
 | `defaultPersona` | `pensadora` | Persona de um chat que nunca escolheu |
 | `maxCustomPersonas` | `10` | Personas criadas por chat |
-| `history.maxMessages` / `history.maxAgeMs` | `80` / `7200000` | Tamanho e validade da conversa |
-| `groupContextSize` | `15` | Falas do grupo lidas como clima |
+| `history.maxMessages` / `history.maxAgeMs` | `80` / `7200000` | Falas guardadas por chat e por quanto tempo cada uma fica |
 | `maxPartLength` / `maxParts` | `300` / `2` | Tamanho de cada balão e quantos no máximo |
 | `thinkingDelayMs` | `{ min: 2000, max: 5000 }` | Espera "digitando" antes de gerar; `0` desliga |
 | `replyTimeoutMs` | `180000` | Prazo da resposta inteira |

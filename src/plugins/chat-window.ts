@@ -1,5 +1,5 @@
 // Janela das últimas mensagens de texto de cada chat, em memória. Comum a quem precisa de contexto
-// ambiente (`luma`, `resumo`, `spontaneous`); cada plugin tem a sua, com o próprio tamanho, porque
+// ambiente (`resumo`, `spontaneous`); cada plugin tem a sua, com o próprio tamanho, porque
 // a janela de um não pode depender do que o outro guarda.
 
 export interface WindowEntry {

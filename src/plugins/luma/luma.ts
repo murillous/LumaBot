@@ -10,9 +10,7 @@ import { z } from 'zod';
 import { AiUnavailableError, chainItem } from '#plugins/ai/ai.ts';
 import { cleanResponse, splitIntoParts } from '#plugins/ai-response.ts';
 import { aiTool, fail, mediaMessage, ok } from '#plugins/ai-tools.ts';
-import { createChatWindow } from '#plugins/chat-window.ts';
 import { personId } from '#plugins/person-id.ts';
-import { createHistory, historyKey } from './history.ts';
 import {
   AI_METRICS_FAILED,
   ERROR_NOTICE_FAILED,
@@ -25,6 +23,15 @@ import { PersonaParseError, parsePersona, personaPrompt, slugify } from './perso
 import { DEFAULT_PERSONA, PERSONAS, type Persona } from './personas.ts';
 import { buildPrompt, type QuotedInfo, quotedContext } from './prompt.ts';
 import { renderStats } from './stats.ts';
+import {
+  createTranscript,
+  type Entry,
+  header,
+  mediaKind,
+  replyNote,
+  stripHeader,
+  toTurns,
+} from './transcript.ts';
 import { isTriggered, stripTrigger } from './trigger.ts';
 
 /** A chat já tem as personas que a Luma deixa criar. */
@@ -59,7 +66,7 @@ export interface PersonasService {
 
 export interface LumaService {
   readonly personas: PersonasService;
-  /** Esquece a conversa de quem falou (em grupo, só dessa pessoa) e a janela ambiente do chat. */
+  /** Esquece a transcrição do chat da mensagem (em grupo, a de todos). */
   clearHistory(message: Pick<Message, 'chat' | 'sender'>): void;
 }
 
@@ -118,7 +125,7 @@ const config = z.object({
   defaultPersona: z.string().default(DEFAULT_PERSONA),
   /** Personas que cada chat pode criar. */
   maxCustomPersonas: z.number().int().min(0).default(10),
-  /** Turnos guardados por conversa e quanto tempo parada ela dura. */
+  /** Falas guardadas na transcrição de cada chat (todas, inclusive as dela) e por quanto tempo. */
   history: z
     .object({
       maxMessages: z.number().int().min(2).default(80),
@@ -129,8 +136,6 @@ const config = z.object({
         .default(2 * 60 * 60_000),
     })
     .default({ maxMessages: 80, maxAgeMs: 2 * 60 * 60_000 }),
-  /** Últimas falas do grupo que a Luma lê como clima, sem serem dirigidas a ela. */
-  groupContextSize: z.number().int().min(0).default(15),
   /** Balões da resposta: tamanho de cada um e quantos no máximo. */
   maxPartLength: z.number().int().min(20).default(300),
   maxParts: z.number().int().min(1).default(2),
@@ -198,8 +203,10 @@ interface Incoming {
   readonly reply: Reply;
   readonly signal: AbortSignal;
   readonly log: Logger;
-  /** Últimas falas do grupo, antes desta; vazio em conversa privada. */
-  readonly groupContext: string;
+  /** A transcrição do chat antes desta fala. */
+  readonly prior: readonly Entry[];
+  /** Esta fala na transcrição; ausente se ela não tem texto nem mídia (uma localização). */
+  readonly current: Entry | undefined;
 }
 
 /**
@@ -218,8 +225,7 @@ export const luma: PluginDefinition = definePlugin({
     const cfg = ctx.config;
     const ai = ctx.services.get('ai');
     const tools = ctx.services.extensionPoint('ai.tools');
-    const history = createHistory(cfg.history);
-    const window = createChatWindow(Math.max(cfg.groupContextSize, 1));
+    const transcript = createTranscript(cfg.history);
     const docs = ctx.storage.collection<PersonaDoc>('personas', { indexes: ['chatId'] });
     const kv = ctx.storage.kv;
     const factory = new Map(PERSONAS.map((p) => [p.key, p]));
@@ -305,8 +311,7 @@ export const luma: PluginDefinition = definePlugin({
     };
 
     const clearHistory = (message: Pick<Message, 'chat' | 'sender'>) => {
-      history.clear(historyKey(message));
-      window.clear(message.chat.id);
+      transcript.clear(message.chat.id);
     };
     // Só o pedido explícito de esquecer é auditado (comando e tool); limpar ao trocar de persona
     // já está coberto pela ação da persona. Quem pediu sai como ator `contact` pelo kernel.
@@ -352,6 +357,19 @@ export const luma: PluginDefinition = definePlugin({
       };
     };
 
+    /**
+     * A citação na fala de agora: pela transcrição, se a citada ainda está nela (só o ID); senão,
+     * pelo texto dela, como antes.
+     */
+    const quoteNote = async (i: Incoming): Promise<string> => {
+      const lastLuma = i.prior.findLast((e) => e.fromLuma);
+      const replyTo = i.current?.replyTo;
+      const cited = replyTo ? i.prior.find((e) => e.ref === replyTo) : undefined;
+      // Citar a última fala dela é só continuação: ela já está logo antes, na transcrição.
+      if (cited) return cited === lastLuma ? '' : replyNote(cited);
+      return quotedContext(await quotedOf(i.message), lastLuma?.text ?? undefined);
+    };
+
     /** Imagem ou figurinha da mensagem (ou da citada) para o modelo ver; sem ela, `undefined`. */
     const imageOf = async (m: Message, log: Logger) => {
       const source = mediaMessage(m, ['image', 'sticker']);
@@ -372,8 +390,7 @@ export const luma: PluginDefinition = definePlugin({
       const { message, signal } = i;
       const chat = message.chat;
       try {
-        const senderName = await nameOf(message.sender);
-        const key = historyKey(message);
+        const senderName = i.current?.name ?? (await nameOf(message.sender));
         const image = await imageOf(message, i.log);
         const hasAudio = mediaMessage(message, ['voice', 'audio']) !== null;
 
@@ -390,9 +407,10 @@ export const luma: PluginDefinition = definePlugin({
             : '[O usuário mandou um áudio que você não consegue ouvir]';
         }
 
-        const lastAssistant = history.turns(key).findLast((t) => t.role === 'assistant')?.text;
-        const quoted = quotedContext(await quotedOf(message), lastAssistant);
+        const quoted = await quoteNote(i);
         if (quoted) userText = userText ? `${quoted} ${userText}` : quoted;
+        // Mídia sem imagem anexada (vídeo, documento) só aparece como marca, como na transcrição.
+        if (i.current?.media && !image && userText) userText = `[${i.current.media}] ${userText}`;
 
         if (!userText) {
           await i.reply(pick(cfg.boredReplies));
@@ -413,8 +431,8 @@ export const luma: PluginDefinition = definePlugin({
           timeZone: cfg.timeZone,
           senderName,
           userText,
-          groupContext: i.groupContext,
-          history: history.turns(key),
+          history: toTurns(i.prior, cfg.timeZone),
+          ...(i.current && { header: header(i.current, cfg.timeZone) }),
           ...(image && { image }),
         });
         const models = image && cfg.visionModels.length > 0 ? cfg.visionModels : cfg.models;
@@ -429,7 +447,7 @@ export const luma: PluginDefinition = definePlugin({
           ...(models.length > 0 && { models }),
         });
 
-        const text = cleanResponse(result.text);
+        const text = stripHeader(cleanResponse(result.text));
         const parts = splitIntoParts(text, {
           maxLength: cfg.maxPartLength,
           maxParts: cfg.maxParts,
@@ -439,14 +457,17 @@ export const luma: PluginDefinition = definePlugin({
         const restarted = result.toolCalls.some(
           (c) => (c.name === 'create_persona' || c.name === 'clear_history') && isOk(c.result),
         );
-        if (text && !restarted) {
-          history.add(
-            key,
-            `${senderName}: ${userText}`,
-            text.replaceAll('[PARTE]', ' ').replace(/ {2,}/g, ' '),
+        const ids: string[] = [];
+        for (const part of parts) ids.push((await i.reply(part)).id);
+        // A fala dela entra na transcrição como foi ao chat, com o ID de cada balão: quem citar
+        // qualquer um deles cita esta fala.
+        if (parts.length > 0 && !restarted) {
+          transcript.add(
+            chat.id,
+            { at: Date.now(), fromLuma: true, name: 'Luma', text: parts.join(' ') },
+            ids,
           );
         }
-        for (const part of parts) await i.reply(part);
         if (parts.length === 0 && result.toolCalls.length === 0) {
           await i.reply(pick(cfg.errorReplies));
         }
@@ -469,13 +490,6 @@ export const luma: PluginDefinition = definePlugin({
       const chat = m.chat;
       const text = e.text ?? '';
 
-      // O clima do grupo é o que veio antes desta fala; a fala entra na janela depois de lido.
-      const groupContext = chat.isGroup
-        ? window
-            .recent(chat.id)
-            .map((entry) => `${entry.name}: ${entry.text}`)
-            .join('\n')
-        : '';
       const wanted =
         !e.claimed &&
         (!chat.isGroup ||
@@ -486,9 +500,25 @@ export const luma: PluginDefinition = definePlugin({
       // começam na mesma volta e só veem o que já foi reivindicado.
       if (wanted) e.claim();
 
-      // Toda fala de grupo entra na janela, chamem a Luma ou não.
-      if (chat.isGroup && cfg.groupContextSize > 0 && text) {
-        window.push(chat.id, { name: await nameOf(m.sender), text });
+      // Toda fala entra na transcrição, chamem a Luma ou não; o que veio antes dela é o contexto.
+      const prior = transcript.entries(chat.id);
+      const media = mediaKind(m.type);
+      let current: Entry | undefined;
+      if (text || media) {
+        const replyTo = m.quoted ? transcript.find(chat.id, m.quoted.id)?.ref : undefined;
+        current = transcript.add(
+          chat.id,
+          {
+            // O relógio do bot, não o da mensagem: é por ele que a fala expira.
+            at: Date.now(),
+            fromLuma: false,
+            name: await nameOf(m.sender),
+            text: text || null,
+            ...(media && { media }),
+            ...(replyTo && { replyTo }),
+          },
+          [m.id],
+        );
       }
       if (!wanted) return;
 
@@ -498,7 +528,8 @@ export const luma: PluginDefinition = definePlugin({
         reply: e.reply,
         signal: e.signal,
         log: e.log,
-        groupContext,
+        prior,
+        current,
       });
     });
 
@@ -515,7 +546,7 @@ export const luma: PluginDefinition = definePlugin({
           ctx.log.event(AI_METRICS_FAILED, { err });
         }
       }
-      return renderStats(history.size(), summary, STATS_DAYS, t);
+      return renderStats(transcript.size(), summary, STATS_DAYS, t);
     };
 
     ctx.commands.add({
@@ -634,7 +665,7 @@ export const luma: PluginDefinition = definePlugin({
       aiTool({
         name: 'clear_history',
         description:
-          'Apaga a memória que a Luma tem da conversa com quem está falando. Use quando pedirem para esquecer, limpar a memória ou recomeçar a conversa.',
+          'Apaga a memória que a Luma tem da conversa deste chat (em grupo, a de todos). Use quando pedirem para esquecer, limpar a memória ou recomeçar a conversa.',
         args: z.object({}),
         run: async (_, t) => {
           auditClear(t.message);
