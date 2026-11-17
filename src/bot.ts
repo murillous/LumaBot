@@ -8,7 +8,6 @@ import { baileys } from '@usebridger/transport-baileys';
 import { plugins as apiPlugins } from '#api-plugins.ts';
 import { AUDIT_RETENTION_DAYS, loadConfig, pluginEnv } from '#config.ts';
 import { localSecret } from '#local-secret.ts';
-import { ownerAudit } from '#owner-audit.ts';
 import { aiMetrics } from '#plugins/ai-metrics/ai-metrics.ts';
 import { cloudflareAi } from '#plugins/cloudflare-ai/cloudflare-ai.ts';
 import { download } from '#plugins/download/download.ts';
@@ -92,7 +91,6 @@ const bot = createBot({
       process.exitCode = 1;
       bot.stop().catch((err: unknown) => log.error('falha ao encerrar', { err }));
     }),
-    ownerAudit,
     ping,
     // `metrics` e `ai`, os que registram rotas na API (a lista também gera a spec do dashboard).
     ...apiPlugins,
