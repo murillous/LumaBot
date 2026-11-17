@@ -47,7 +47,8 @@ describe('mapa de títulos', () => {
       'reminders.delete',
       'pairing.session.paired',
       'pairing.session.lost',
-      'command.owner',
+      'kernel.command.run',
+      'kernel.command.denied',
     ]) {
       expect(titleOf(action)).not.toBe(action);
     }
@@ -158,13 +159,18 @@ describe('tela Auditoria', () => {
     expect(screen.getByRole('button', { name: 'Erro' }).getAttribute('aria-pressed')).toBe('true');
   });
 
-  it('"Quem" filtra no cliente: WhatsApp só mostra contatos', async () => {
+  it('"Quem" mostra o que a API devolve para o tipo de ator: WhatsApp só contatos', async () => {
     const user = userEvent.setup();
+    const contact = event(2, { actor: CONTACT, action: 'luma.history.clear' });
     renderApp({
       path: '/auditoria',
       routes: {
-        'GET /api/audit': () =>
-          page([event(2, { actor: CONTACT, action: 'luma.history.clear' }), event(1)]),
+        'GET /api/audit': ({ url }) =>
+          page(
+            url.searchParams.getAll('actorKind').includes('contact')
+              ? [contact]
+              : [contact, event(1)],
+          ),
       },
     });
     await screen.findByRole('table', { name: 'Eventos' });
@@ -294,38 +300,52 @@ describe('tela Auditoria', () => {
     expect(screen.getByText(/101 eventos./)).toBeTruthy();
   });
 
-  it('comando de dono pelo WhatsApp (ator plugin) conta como WhatsApp e mostra o pseudônimo', async () => {
-    const user = userEvent.setup();
+  it('ato pelo WhatsApp mostra o pseudônimo do contato e o plugin por onde passou', async () => {
     renderApp({
       path: '/auditoria',
       routes: {
         'GET /api/audit': () =>
           page([
             event(2, {
-              actor: { kind: 'plugin', name: 'command' },
-              action: 'command.owner',
-              target: { type: 'chat', id: 'p_ab12' },
-              details: { plugin: 'rank', command: 'reset', status: 'ran', sender: 'p_9f3a' },
+              actor: { kind: 'contact', transport: 'whatsapp', id: 'u_9f3a' },
+              via: 'luma',
+              action: 'luma.persona.set',
+              target: { type: 'chat', id: 'grupo@g.us' },
+              details: { key: 'agressiva' },
             }),
-            event(1, { actor: { kind: 'plugin', name: 'kernel-x' }, action: 'kernel.boot' }),
+            event(1, {
+              actor: { kind: 'contact', transport: 'whatsapp', id: 'u_7c1d' },
+              action: 'kernel.command.denied',
+              target: { type: 'chat', id: 'u_ab12' },
+              outcome: 'denied',
+              details: { plugin: 'rank', command: 'reset', invokedAs: 'reset', role: 'owner' },
+            }),
           ]),
       },
     });
     const table = await screen.findByRole('table', { name: 'Eventos' });
-    expect(within(table).getByText('p_9f3a')).toBeTruthy();
-    expect(within(table).getByText('WhatsApp, via command')).toBeTruthy();
-    expect(within(table).getByText('Rodou um comando de dono')).toBeTruthy();
+    expect(within(table).getByText('u_9f3a')).toBeTruthy();
+    expect(within(table).getByText('contato, whatsapp, via luma')).toBeTruthy();
+    expect(within(table).getByText('Tentou um comando restrito sem permissão')).toBeTruthy();
+    expect(within(table).getByText('contato, whatsapp')).toBeTruthy();
+  });
 
-    await user.click(screen.getByRole('button', { name: 'WhatsApp' }));
-    expect(
-      within(screen.getByRole('table', { name: 'Eventos' })).queryByText('Iniciou o bot'),
-    ).toBeNull();
-    expect(screen.getByText(/exportação leva todos os atos de plugins/)).toBeTruthy();
-    await user.click(screen.getByRole('button', { name: 'Sistema' }));
-    expect(
-      within(screen.getByRole('table', { name: 'Eventos' })).getByText('Iniciou o bot'),
-    ).toBeTruthy();
-    expect(within(screen.getByRole('table', { name: 'Eventos' })).queryByText('p_9f3a')).toBeNull();
+  it('plugin sem titular (boot, job agendado) aparece pelo nome do plugin', async () => {
+    renderApp({
+      path: '/auditoria',
+      routes: {
+        'GET /api/audit': () =>
+          page([
+            event(1, {
+              actor: { kind: 'plugin', name: 'pairing' },
+              action: 'pairing.session.paired',
+            }),
+          ]),
+      },
+    });
+    const table = await screen.findByRole('table', { name: 'Eventos' });
+    expect(within(table).getByText('pairing')).toBeTruthy();
+    expect(within(table).getByText('plugin')).toBeTruthy();
   });
 
   it('"Quem" vai para a consulta e para a exportação pelo tipo de ator', async () => {
@@ -355,9 +375,10 @@ describe('tela Auditoria', () => {
     expect(screen.getByText(/Eventos antigos/)).toBeTruthy();
     expect(screen.queryByText(/exportação leva/)).toBeNull();
 
-    // Plugin vem nos dois grupos: quem separa é o titular, na tela.
+    // Ato do chat sai com ator `contact`; plugin sem titular age pelo bot e fica em Sistema.
     await user.click(screen.getByRole('button', { name: 'WhatsApp' }));
-    await waitFor(() => expect(kinds.at(-1)).toEqual(['contact', 'plugin']));
+    await waitFor(() => expect(kinds.at(-1)).toEqual(['contact']));
+    expect(exported().getAll('actorKind')).toEqual(['contact']);
     await user.click(screen.getByRole('button', { name: 'Sistema' }));
     await waitFor(() => expect(kinds.at(-1)).toEqual(['system', 'plugin']));
     expect(exported().getAll('actorKind')).toEqual(['system', 'plugin']);

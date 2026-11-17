@@ -18,15 +18,7 @@ import {
   toSearch,
   type Who,
 } from './audit/filters.ts';
-import {
-  type AuditEvent,
-  actorOf,
-  detailsOf,
-  OUTCOME,
-  targetOf,
-  whenOf,
-  whoOf,
-} from './audit/format.ts';
+import { type AuditEvent, actorOf, detailsOf, OUTCOME, targetOf, whenOf } from './audit/format.ts';
 import { titleOf } from './audit/titles.ts';
 
 const PAGE_SIZE = 100;
@@ -97,9 +89,8 @@ function AuditScreen() {
   const change = (patch: Partial<Filters>) =>
     setSearch(toSearch({ ...filters, ...patch }), { replace: true });
 
-  // A API já filtrou pelo tipo de ator; falta separar os eventos de plugin pelo titular (`whoOf`).
-  const all = events.data?.pages.flatMap((page) => page.events) ?? [];
-  const shown = filters.who === 'todos' ? all : all.filter((event) => whoOf(event) === filters.who);
+  // O "Quem" vai inteiro para a API (`actorKind`): a tela mostra o que ela devolve.
+  const shown = events.data?.pages.flatMap((page) => page.events) ?? [];
 
   // Mesma origem do bot: o cookie vai no download, sem fetch.
   const exportHref = (format: 'csv' | 'json') =>
@@ -137,7 +128,6 @@ function AuditScreen() {
       {filters.who !== 'todos' && (
         <p className="text-help text-muted">
           Eventos antigos, sem o tipo de ator gravado, não entram neste filtro.
-          {filters.who !== 'user' && ' A exportação leva todos os atos de plugins.'}
         </p>
       )}
 

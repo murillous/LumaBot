@@ -41,6 +41,24 @@ it('luma.persona.set audita a troca, com o chat como alvo', async () => {
   expect(event?.details).toEqual({ key: 'agressiva' });
 });
 
+it('a troca de persona pelo chat tem como ator o contato que pediu', async () => {
+  const { b, reader } = await start();
+  await b.receive({
+    text: '!persona 2',
+    chat: { id: 'grupo@fake', isGroup: true },
+    sender: { id: 'quem-trocou@fake' },
+  });
+
+  const [event] = await reader.events('luma.persona.set');
+  expect(event?.actor).toEqual({
+    kind: 'contact',
+    transport: expect.any(String),
+    id: expect.stringMatching(/^u_/),
+  });
+  expect(event?.via).toBe('luma');
+  expect(JSON.stringify(event)).not.toContain('quem-trocou@fake');
+});
+
 it('em conversa privada o alvo é o chat pseudonimizado, sem o número cru', async () => {
   const { b, reader } = await start();
   await b.receive({ text: '!persona 2', chat: 'privado@fake' });
@@ -62,12 +80,17 @@ it('luma.persona.create e .delete não levam o texto da persona', async () => {
   expect(JSON.stringify([created, deleted])).not.toContain('super secreta');
 });
 
-it('luma.history.clear registra o contato que pediu', async () => {
+it('luma.history.clear tem como ator o contato que pediu', async () => {
   const { b, reader } = await start();
   await b.receive({ text: '!luma clear', sender: { id: 'titular@fake' } });
 
   const [event] = await reader.events('luma.history.clear');
-  expect(event?.details?.['contact']).toEqual(expect.stringMatching(/^u_/));
+  expect(event?.actor).toEqual({
+    kind: 'contact',
+    transport: expect.any(String),
+    id: expect.stringMatching(/^u_/),
+  });
+  expect(event?.via).toBe('luma');
   expect(JSON.stringify(event)).not.toContain('titular@fake');
   expect(event?.target?.id).toMatch(/^u_/);
   expect(JSON.stringify(event)).not.toContain('chat@fake');

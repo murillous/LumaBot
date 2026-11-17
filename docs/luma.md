@@ -55,7 +55,7 @@ Registra no log de auditoria do kernel (`ctx.audit`) só o ato administrativo, n
 | Ação | Quando | `details` |
 | --- | --- | --- |
 | `luma.persona.set` / `.create` / `.delete` | Troca, criação ou remoção de persona (comando ou tool); alvo = chat | `key` (e `wasActive` no delete), nunca o texto da persona |
-| `luma.history.clear` | `!luma clear` ou a tool `clear_history`; alvo = chat | `contact`: quem pediu (o kernel não põe o contato como ator no fluxo de mensagem, murillous/usebridger#339, então aqui vai em `details`) |
+| `luma.history.clear` | `!luma clear` ou a tool `clear_history`; alvo = chat | — (quem pediu é o ator `contact` do evento) |
 
 ## Comandos
 

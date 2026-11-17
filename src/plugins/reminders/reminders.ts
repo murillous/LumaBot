@@ -439,7 +439,7 @@ export const reminders: PluginDefinition = definePlugin({
             details: {
               // Conversa privada: o id do chat é o número do contato.
               chat: isGroup ? chatId : ctx.pseudonym(chatId),
-              actor: ctx.pseudonym(actorId),
+              // Quem cancelou é o ator `contact` do evento, posto pelo kernel.
               creator: ctx.pseudonym(doc.creatorId),
             },
           });

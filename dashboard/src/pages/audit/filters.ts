@@ -53,12 +53,12 @@ export function toSearch(filters: Filters): URLSearchParams {
 }
 
 /**
- * Tipos de ator de cada grupo do "Quem". Plugin entra nos dois grupos porque o que decide é o titular
- * em `details` (`whoOf`), que a API não filtra: ela reduz pelo tipo e a tela refina esses eventos.
+ * Tipos de ator de cada grupo do "Quem". Ato vindo do chat sai com ator `contact` (o kernel põe o
+ * remetente); plugin sem titular age pelo bot (boot, job agendado), então conta como Sistema.
  */
 const ACTOR_KINDS: Record<Exclude<Who, 'todos'>, NonNullable<Query['actorKind']>> = {
   user: ['user'],
-  contact: ['contact', 'plugin'],
+  contact: ['contact'],
   system: ['system', 'plugin'],
 };
 

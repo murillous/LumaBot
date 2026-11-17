@@ -30,9 +30,16 @@ it('reminders.delete audita quando quem cancela não é o dono, com pseudônimos
   await b.receive({ text: '!cancelarlembrete 1', sender: { id: 'outro@fake' } });
 
   const [event] = await reader.events('reminders.delete');
-  expect(event?.details?.['actor']).toEqual(expect.stringMatching(/^u_/));
+  // Quem cancelou é o ator `contact` (pseudônimo), posto pelo kernel; o dono vai em `creator`.
+  expect(event?.actor).toEqual({
+    kind: 'contact',
+    transport: expect.any(String),
+    id: expect.stringMatching(/^u_/),
+  });
+  expect(event?.via).toBe('reminders');
   expect(event?.details?.['creator']).toEqual(expect.stringMatching(/^u_/));
-  expect(event?.details?.['actor']).not.toBe(event?.details?.['creator']);
+  expect(event?.actor.kind === 'contact' && event.actor.id).not.toBe(event?.details?.['creator']);
+  expect(event?.details).not.toHaveProperty('actor');
   expect(JSON.stringify(event)).not.toMatch(/dona@|outro@|chat@fake|reunião/);
   expect(event?.details?.['chat']).toMatch(/^u_/);
 });

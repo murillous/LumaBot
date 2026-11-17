@@ -149,21 +149,23 @@ O app gera, com permissão 0600 na pasta do banco, o `data/bootstrap-token` e o 
 
 O log de auditoria do kernel (tela **Auditoria**) guarda **1 ano** (`AUDIT_RETENTION_DAYS` em
 `src/config.ts`, repassado como `audit.retentionDays`; o padrão do core é 5 anos). Além do que o
-kernel já audita (plugins, config, segredos, login), a Luma registra:
+kernel já audita (plugins, config, segredos, login e, desde o core 0.12, `kernel.command.run` /
+`kernel.command.denied` para comando `owner` ou de papel custom, sem os argumentos), a Luma registra:
 
-- `command.owner`: toda execução de comando `role: 'owner'` (plugin `command` em `src/owner-audit.ts`),
-  sem os argumentos; recusa vira `denied`.
 - `luma.persona.set|create|delete` e `luma.history.clear` ([luma.md](docs/luma.md#auditoria)).
 - `reminders.delete`, só quando quem cancela não é o dono ([reminders.md](docs/reminders.md#auditoria)).
 - `pairing.session.paired` (conectou depois de QR ou código) e `pairing.session.lost`
   (`logged-out` ou `auth-failed`).
 
-Contatos (`sender`, `contact`, `actor`, `creator`) e o id de chat privado (`target.id`,
+O que nasce de uma mensagem do chat sai com o remetente como ator `contact` (pseudônimo, posto pelo
+kernel) e o plugin em `via`; boot e jobs agendados saem com o ator `plugin`. Eventos gravados antes
+do core 0.12 têm ator `plugin` e o titular em `details` (`sender`, `contact`, `actor`); o filtro
+**Quem: WhatsApp** do dashboard não os pega.
+
+Contatos em `details` (`creator`) e o id de chat privado (`target.id`,
 `details.chat`, que é o número do contato) vão pseudonimizados com `ctx.pseudonym`, nunca o
 JID cru; id de grupo fica cru (não identifica pessoa); quem tem a permissão `pseudonyms.resolve` desfaz pela API (`/api/pseudonyms`; nenhuma tela do
-dashboard faz isso). Em
-`command.owner`, `details.status` traz o status cru (`ran`, `rejected`, `failed`; `rejected`
-cobre também recusa por `accepts`).
+dashboard faz isso).
 
 Mensagem comum e resposta da IA não são auditadas.
 
