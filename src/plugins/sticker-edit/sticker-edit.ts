@@ -1,10 +1,17 @@
-import { definePlugin, type Media, type Message, type PluginDefinition } from '@usebridger/core';
+import {
+  definePlugin,
+  type Media,
+  MediaExpiredError,
+  type Message,
+  type PluginDefinition,
+} from '@usebridger/core';
 import { APICallError, generateImage } from 'ai';
 import sharp from 'sharp';
 import { z } from 'zod';
 import { type ActionSpec, trackerFor } from '#plugins/action-metrics.ts';
 import { isContentFlagged } from '#plugins/ai/ai.ts';
 import { aiTool, fail, ok } from '#plugins/ai-tools.ts';
+import type { ChatMediaLookup } from '#plugins/luma/media.ts';
 import { attempt, usage } from '#plugins/media-command.ts';
 import { clearBackground, hasTransparency, onWhite } from './background.ts';
 import {
@@ -141,6 +148,69 @@ export function editSources(message: Message): { target: Source; references: Sou
   return own && message.type === 'sticker' ? { target: own, references: [] } : null;
 }
 
+/** Por que um ID da conversa não serve para a edição; vai ao modelo como `error`, com o ID. */
+type IdRefusal =
+  | 'no-history'
+  | 'no-sticker'
+  | 'unknown'
+  | 'no-media'
+  | 'view-once'
+  | 'not-sticker'
+  | 'not-image';
+
+/**
+ * Figurinha e referências escolhidas pela Luma por ID da transcrição (`#m12`), para usar mídias
+ * anteriores do chat. Sem `target`, vale a da mensagem (ou da citada); sem `references`, a foto ou
+ * figurinha da própria mensagem, se houver. Precisa do serviço `luma`, que guarda a transcrição.
+ */
+export function sourcesById(
+  message: Message,
+  ids: {
+    readonly target?: string | undefined;
+    readonly references?: readonly string[] | undefined;
+  },
+  lookup: ((chatId: string, id: string) => ChatMediaLookup) | undefined,
+): { target: Source; references: Source[] } | { refused: IdRefusal; id?: string } {
+  if (!lookup) return { refused: 'no-history' };
+  const resolve = (
+    id: string,
+    types: readonly string[],
+  ): Source | { refused: IdRefusal; id: string } => {
+    const found = lookup(message.chat.id, id);
+    if (!found.found) return { refused: found.reason, id };
+    if (!types.includes(found.type)) {
+      return { refused: types.length === 1 ? 'not-sticker' : 'not-image', id };
+    }
+    return { media: found.media, isViewOnce: false };
+  };
+
+  const base = editSources(message);
+  let target = base?.target;
+  if (ids.target) {
+    const r = resolve(ids.target, ['sticker']);
+    if ('refused' in r) return r;
+    target = r;
+  }
+  if (!target) return { refused: 'no-sticker' };
+
+  let references: Source[];
+  if (ids.references) {
+    references = [];
+    for (const id of ids.references) {
+      const r = resolve(id, ['image', 'sticker']);
+      if ('refused' in r) return r;
+      references.push(r);
+    }
+  } else if (ids.target) {
+    // Alvo por ID: a mídia da própria mensagem (a foto do rosto, por exemplo) é a referência.
+    const own = mediaIn(message, ['image', 'sticker']);
+    references = own ? [own] : [];
+  } else {
+    references = base?.references ?? [];
+  }
+  return { target, references };
+}
+
 /** Baixa as mídias de `editSources` para o serviço. */
 async function download(sources: { target: Source; references: Source[] }) {
   const [sticker, ...references] = await Promise.all(
@@ -264,15 +334,36 @@ export const stickerEdit: PluginDefinition = definePlugin({
       aiTool({
         name: 'edit_sticker',
         description:
-          'Edita com IA a figurinha da mensagem do usuário ou da que ele respondeu e envia a figurinha editada no chat. Use quando pedirem para mudar, adicionar ou tirar algo de uma figurinha. Se o usuário respondeu à figurinha mandando uma foto ou outra figurinha, ela vai junto como referência (o rosto de alguém, um objeto, um estilo): no `request`, chame a figurinha de "the sticker" e a foto de "the reference image". `request` é o pedido, detalhado e em inglês. Só edita figurinha, não foto. Com `error: flagged`, o filtro de conteúdo do modelo recusou (personagem famoso, pessoa real): conte isso ao usuário e sugira outra figurinha ou outro pedido.',
+          'Edita com IA uma figurinha e envia a figurinha editada no chat. Use quando pedirem para mudar, adicionar ou tirar algo de uma figurinha, ou para juntar figurinhas. Sem IDs, edita a figurinha da mensagem do usuário ou da que ele respondeu; se ele respondeu à figurinha mandando uma foto ou outra figurinha, ela vai junto como referência (o rosto de alguém, um objeto, um estilo). Para usar figurinhas ou fotos mandadas antes no chat, passe os IDs da conversa: `target` é a figurinha que vai ser editada (a base) e `references` são as que dão o que usar. Ex.: "a cabeça do cara da primeira figurinha no corpo do cara da segunda" → `target` = a segunda, `references` = [a primeira]. No `request`, chame a base de "the sticker" e as referências de "the reference image" (ou "the first/second reference image"). `request` é o pedido, detalhado e em inglês. Só edita figurinha, não foto. Com `error: flagged`, o filtro de conteúdo do modelo recusou (personagem famoso, pessoa real): conte isso ao usuário e sugira outra figurinha ou outro pedido. Com `error: expired`, a mídia não está mais disponível no WhatsApp.',
         args: z.object({
           request: z
             .string()
             .min(1)
             .describe('O que mudar, detalhado e em inglês (ex.: "add a red party hat")'),
+          target: z
+            .string()
+            .optional()
+            .describe(
+              'ID da conversa (#m12) da figurinha a editar, se não for a da mensagem nem a citada',
+            ),
+          references: z
+            .array(z.string())
+            .max(MAX_REFERENCES)
+            .optional()
+            .describe(
+              'IDs da conversa (#m12) das imagens ou figurinhas de referência, na ordem do pedido',
+            ),
         }),
-        run: async ({ request }, t) => {
-          const sources = editSources(t.message);
+        run: async ({ request, target, references: referenceIds }, t) => {
+          let sources: { target: Source; references: Source[] } | null;
+          if (target || referenceIds) {
+            const lookup = ctx.services.has('luma') ? ctx.services.get('luma').media : undefined;
+            const byId = sourcesById(t.message, { target, references: referenceIds }, lookup);
+            if ('refused' in byId) return fail(byId.refused, byId.id);
+            sources = byId;
+          } else {
+            sources = editSources(t.message);
+          }
           if (!sources) return fail('no-sticker');
           if ([sources.target, ...sources.references].some((s) => s.isViewOnce)) {
             return fail('view-once');
@@ -294,6 +385,8 @@ export const stickerEdit: PluginDefinition = definePlugin({
             if (err instanceof StickerTooLargeError) return fail('too-large');
             if (err instanceof StickerEditUnavailableError) return fail('unavailable');
             if (err instanceof StickerEditFlaggedError) return fail('flagged');
+            // Mídia anterior que saiu da plataforma: o download pela referência não tem volta.
+            if (err instanceof MediaExpiredError) return fail('expired');
             throw err;
           }
         },

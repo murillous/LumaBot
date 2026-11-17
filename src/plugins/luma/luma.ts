@@ -19,6 +19,7 @@ import {
   REPLY_FAILED,
   TYPING_FAILED,
 } from './log-events.ts';
+import { type ChatMediaLookup, fileOf, lookupMedia, viewMediaTool } from './media.ts';
 import { PersonaParseError, parsePersona, personaPrompt, slugify } from './persona-generator.ts';
 import { DEFAULT_PERSONA, PERSONAS, type Persona } from './personas.ts';
 import { buildPrompt, type QuotedInfo, quotedContext } from './prompt.ts';
@@ -68,6 +69,11 @@ export interface LumaService {
   readonly personas: PersonasService;
   /** Esquece a transcrição do chat da mensagem (em grupo, a de todos). */
   clearHistory(message: Pick<Message, 'chat' | 'sender'>): void;
+  /**
+   * A mídia da fala `id` (`#m12`) do chat, para uma tool usar uma figurinha ou foto anterior sem
+   * a mensagem. O `download()` rejeita com `MediaExpiredError` se ela saiu da plataforma.
+   */
+  media(chatId: string, id: string): ChatMediaLookup;
 }
 
 declare module '@usebridger/core' {
@@ -322,7 +328,11 @@ export const luma: PluginDefinition = definePlugin({
         target: { type: 'chat', id: auditChat(message.chat.id, message.chat.isGroup) },
       });
     };
-    ctx.services.provide('luma', { personas, clearHistory });
+    ctx.services.provide('luma', {
+      personas,
+      clearHistory,
+      media: (chatId, id) => lookupMedia(transcript, ctx.media, chatId, id),
+    });
 
     // ---- a conversa -----------------------------------------------------------------------
 
@@ -506,6 +516,7 @@ export const luma: PluginDefinition = definePlugin({
       let current: Entry | undefined;
       if (text || media) {
         const replyTo = m.quoted ? transcript.find(chat.id, m.quoted.id)?.ref : undefined;
+        const file = fileOf(m, ctx.media, ctx.capabilities);
         current = transcript.add(
           chat.id,
           {
@@ -515,6 +526,7 @@ export const luma: PluginDefinition = definePlugin({
             name: await nameOf(m.sender),
             text: text || null,
             ...(media && { media }),
+            ...(file && { file }),
             ...(replyTo && { replyTo }),
           },
           [m.id],
@@ -660,6 +672,15 @@ export const luma: PluginDefinition = definePlugin({
 
     // ---- ferramentas da IA ----------------------------------------------------------------
 
+    ctx.services.contribute(
+      'ai.tools',
+      viewMediaTool({
+        transcript,
+        refs: ctx.media,
+        ai,
+        models: cfg.visionModels.length > 0 ? cfg.visionModels : cfg.models,
+      }),
+    );
     ctx.services.contribute(
       'ai.tools',
       aiTool({

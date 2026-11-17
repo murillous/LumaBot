@@ -73,7 +73,7 @@ expect(toolResult(bot)).toEqual({ ok: true });
 | [`user-names`](user-names.md#tools-da-ia) | `set_nickname`, `get_name` |
 | [`reminders`](reminders.md#tools-da-ia) | `create_reminder`, `list_reminders`, `cancel_reminder` |
 | [`rank`](rank.md#tools-da-ia) | `ranking` |
-| [`luma`](luma.md#tools-da-ia) | `clear_history`, `create_persona` |
+| [`luma`](luma.md#tools-da-ia) | `clear_history`, `create_persona`, `view_media` |
 | [`web-search`](web-search.md#tool-da-ia) | `search_web` |
 | [`transcribe`](transcribe.md#tool-da-ia) | `transcribe_audio` |
 | [`resumo`](resumo.md#tool-da-ia) | `summarize_chat` |

@@ -47,6 +47,16 @@ describe('createTranscript', () => {
     expect(t.find('outro', 'p1')).toBeUndefined();
   });
 
+  it('acha a fala pelo ID curto, com ou sem #, só no próprio chat', () => {
+    const t = createTranscript({ maxMessages: 10, maxAgeMs: 1000, now: () => 0 });
+    t.add('c', said('Ana', 'oi'), ['w1']);
+
+    expect(t.get('c', 'm1')?.text).toBe('oi');
+    expect(t.get('c', ' #M1 ')?.text).toBe('oi');
+    expect(t.get('c', 'm2')).toBeUndefined();
+    expect(t.get('outro', 'm1')).toBeUndefined();
+  });
+
   it('cada fala expira sozinha depois de maxAgeMs, sem timer', () => {
     const c = clock();
     const t = createTranscript({ maxMessages: 10, maxAgeMs: 1000, now: c.now });
