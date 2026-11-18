@@ -20,7 +20,8 @@
     "typecheck": "tsc && pnpm --filter @lumabot/dashboard typecheck",
     "lint": "biome check",
     "lint:fix": "biome check --write",
-    "test": "vitest run"
+    "test": "vitest run",
+    "evals:luma": "node --env-file-if-exists=.env scripts/luma-evals.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.81",
