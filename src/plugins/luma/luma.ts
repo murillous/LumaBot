@@ -12,7 +12,19 @@ import { cleanResponse, splitIntoParts } from '#plugins/ai-response.ts';
 import { aiTool, fail, mediaMessage, ok } from '#plugins/ai-tools.ts';
 import { personId } from '#plugins/person-id.ts';
 import {
+  COMPACT_INSTRUCTIONS,
+  compactInput,
+  estimateTokens,
+  overflow,
+  readMessagesTool,
+  SUMMARY_MAX_CHARS,
+  shorten,
+  transcriptTokens,
+  unsummarized,
+} from './context.ts';
+import {
   AI_METRICS_FAILED,
+  COMPACT_FAILED,
   ERROR_NOTICE_FAILED,
   NAME_FAILED,
   PERSONA_CREATE_FAILED,
@@ -30,7 +42,10 @@ import {
   header,
   mediaKind,
   replyNote,
+  type Summary,
   stripHeader,
+  type Turn,
+  today,
   toTurns,
 } from './transcript.ts';
 import { isTriggered, stripTrigger } from './trigger.ts';
@@ -107,6 +122,7 @@ const MESSAGES = {
   statsResponses: '💬 Respostas: {count} ({rate} de sucesso)',
   statsFallback: '↪️ Salvas pelo fallback: {count}',
   statsTokens: '🔤 Tokens: {input} de entrada, {output} de saída',
+  statsCache: '♻️ Cache: {rate} da entrada',
   statsLatency: '⚡ Latência: p50 {p50}, p95 {p95}',
   statsCost: '💵 Custo estimado: {cost}',
   statsUnpriced: '⚠️ Sem preço na tabela: {models}',
@@ -131,7 +147,10 @@ const config = z.object({
   defaultPersona: z.string().default(DEFAULT_PERSONA),
   /** Personas que cada chat pode criar. */
   maxCustomPersonas: z.number().int().min(0).default(10),
-  /** Falas guardadas na transcrição de cada chat (todas, inclusive as dela) e por quanto tempo. */
+  /**
+   * Falas guardadas na transcrição de cada chat (todas, inclusive as dela), por quanto tempo, e
+   * quantos tokens (estimados) dela vão ao modelo: passando disso, as mais velhas viram resumo.
+   */
   history: z
     .object({
       maxMessages: z.number().int().min(2).default(80),
@@ -140,8 +159,9 @@ const config = z.object({
         .int()
         .positive()
         .default(2 * 60 * 60_000),
+      maxTokens: z.number().int().min(200).default(3000),
     })
-    .default({ maxMessages: 80, maxAgeMs: 2 * 60 * 60_000 }),
+    .default({ maxMessages: 80, maxAgeMs: 2 * 60 * 60_000, maxTokens: 3000 }),
   /** Balões da resposta: tamanho de cada um e quantos no máximo. */
   maxPartLength: z.number().int().min(20).default(300),
   maxParts: z.number().int().min(1).default(2),
@@ -232,6 +252,8 @@ export const luma: PluginDefinition = definePlugin({
     const ai = ctx.services.get('ai');
     const tools = ctx.services.extensionPoint('ai.tools');
     const transcript = createTranscript(cfg.history);
+    /** Compactação em andamento por chat: duas respostas seguidas no grupo esperam a mesma. */
+    const compacting = new Map<string, Promise<Summary | undefined>>();
     const docs = ctx.storage.collection<PersonaDoc>('personas', { indexes: ['chatId'] });
     const kv = ctx.storage.kv;
     const factory = new Map(PERSONAS.map((p) => [p.key, p]));
@@ -396,6 +418,74 @@ export const luma: PluginDefinition = definePlugin({
       }
     };
 
+    /**
+     * Nível 2: dobra no resumo do chat as falas mais velhas, até o resto ocupar metade do
+     * orçamento (folga para a compactação não rodar a cada turno). Falha devolve o resumo que já
+     * havia: a resposta segue com a transcrição cortada no orçamento.
+     */
+    const compact = async (
+      i: Incoming,
+      summary: Summary | undefined,
+      pending: readonly Entry[],
+    ): Promise<Summary | undefined> => {
+      const chatId = i.message.chat.id;
+      const folded = pending.slice(0, overflow(pending, cfg.timeZone, cfg.history.maxTokens / 2));
+      const last = folded.at(-1);
+      if (!last) return summary;
+      try {
+        const { text } = await ai.generate({
+          purpose: 'luma.compact',
+          instructions: COMPACT_INSTRUCTIONS,
+          messages: [{ role: 'user', content: compactInput(summary?.text, folded, cfg.timeZone) }],
+          signal: i.signal,
+          // O custo entra no uso de quem fez a Luma responder, como a resposta.
+          actor: { id: personId(i.message.sender), chatId },
+          ...(cfg.models.length > 0 && { models: cfg.models }),
+        });
+        const trimmed = text.trim().slice(0, SUMMARY_MAX_CHARS);
+        if (!trimmed) return summary;
+        const next: Summary = { text: trimmed, through: last.ref, at: last.at };
+        transcript.setSummary(chatId, next);
+        return next;
+      } catch (err) {
+        if (i.signal.aborted) throw err;
+        i.log.event(COMPACT_FAILED, { err });
+        return summary;
+      }
+    };
+
+    /**
+     * A transcrição que vai ao modelo, dentro de `history.maxTokens`: o resumo, se houver, e as
+     * falas depois dele, com o nível 1 (texto antigo longo vira trecho). Passou do orçamento,
+     * compacta; o que ainda sobrar (a compactação falhou) fica fora do prompt, mais velho primeiro.
+     */
+    const contextOf = async (i: Incoming): Promise<{ turns: Turn[]; summary?: string }> => {
+      const chatId = i.message.chat.id;
+      const budget = cfg.history.maxTokens;
+      let summary = transcript.summary(chatId);
+      let pending = unsummarized(i.prior, summary);
+      if (transcriptTokens(pending, cfg.timeZone) > budget) {
+        let running = compacting.get(chatId);
+        if (!running) {
+          running = compact(i, summary, pending).finally(() => compacting.delete(chatId));
+          compacting.set(chatId, running);
+        }
+        // A compactação pode ser de outra resposta, que foi cancelada: esta segue sem o resumo novo.
+        const previous = summary;
+        summary = await running.catch((err: unknown) => {
+          if (i.signal.aborted) throw err;
+          return previous;
+        });
+        pending = unsummarized(i.prior, summary);
+      }
+      const room = budget - (summary ? estimateTokens(summary.text) : 0);
+      const visible = pending.slice(overflow(pending, cfg.timeZone, room));
+      return {
+        turns: toTurns(shorten(visible), cfg.timeZone),
+        ...(summary && { summary: summary.text }),
+      };
+    };
+
     const converse = async (i: Incoming): Promise<void> => {
       const { message, signal } = i;
       const chat = message.chat;
@@ -433,16 +523,21 @@ export const luma: PluginDefinition = definePlugin({
           });
         }
         const { min, max } = cfg.thinkingDelayMs;
-        await sleep(min + Math.random() * (max - min), signal);
+        // A compactação, quando precisa, roda durante o "digitando": não soma à espera.
+        const [, context] = await Promise.all([
+          sleep(min + Math.random() * (max - min), signal),
+          contextOf(i),
+        ]);
 
         const { instructions, messages } = buildPrompt({
           persona: await personas.active(chat.id),
-          now: new Date(),
           timeZone: cfg.timeZone,
           senderName,
           userText,
-          history: toTurns(i.prior, cfg.timeZone),
+          history: context.turns,
+          ...(context.summary && { summary: context.summary }),
           ...(i.current && { header: header(i.current, cfg.timeZone) }),
+          today: today(i.current?.at ?? Date.now(), cfg.timeZone),
           ...(image && { image }),
         });
         const models = image && cfg.visionModels.length > 0 ? cfg.visionModels : cfg.models;
@@ -681,6 +776,7 @@ export const luma: PluginDefinition = definePlugin({
         models: cfg.visionModels.length > 0 ? cfg.visionModels : cfg.models,
       }),
     );
+    ctx.services.contribute('ai.tools', readMessagesTool(transcript));
     ctx.services.contribute(
       'ai.tools',
       aiTool({

@@ -11,6 +11,7 @@ export type StatsKey =
   | 'statsResponses'
   | 'statsFallback'
   | 'statsTokens'
+  | 'statsCache'
   | 'statsLatency'
   | 'statsCost'
   | 'statsUnpriced'
@@ -59,8 +60,10 @@ export function renderStats(
       input: compact.format(total.tokens.input),
       output: compact.format(total.tokens.output),
     }),
-    t('statsLatency', { p50: secs(total.latencyMs.p50), p95: secs(total.latencyMs.p95) }),
   );
+  // Só com cache: provider sem cache (ou sem relatar) não ganha uma linha de 0%.
+  if (total.cacheHitRate) lines.push(t('statsCache', { rate: percent.format(total.cacheHitRate) }));
+  lines.push(t('statsLatency', { p50: secs(total.latencyMs.p50), p95: secs(total.latencyMs.p95) }));
   if (total.costUsd !== null) lines.push(t('statsCost', { cost: usd.format(total.costUsd) }));
   if (total.unpricedModels.length > 0) {
     lines.push(t('statsUnpriced', { models: total.unpricedModels.join(', ') }));

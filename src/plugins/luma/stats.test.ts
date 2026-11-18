@@ -64,6 +64,13 @@ describe('renderStats', () => {
     expect(text).not.toContain('statsCost');
   });
 
+  it('mostra a parte da entrada que veio do cache, só quando houve', () => {
+    expect(renderStats(2, summary({ ...base, cacheHitRate: 0.62 }), 7, t)).toContain(
+      'statsCache {"rate":"62%"}',
+    );
+    expect(renderStats(2, summary(base), 7, t)).not.toContain('statsCache');
+  });
+
   it('avisa os modelos sem preço', () => {
     const text = renderStats(2, summary({ ...base, unpricedModels: ['x:a', 'x:b'] }), 7, t);
 

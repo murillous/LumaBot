@@ -15,15 +15,23 @@ const base = {
 };
 
 describe('buildPrompt', () => {
-  it('põe a persona, a data no fuso e o formato na instrução de sistema', () => {
-    const { instructions } = buildPrompt(base);
+  it('põe a persona e o formato no sistema; o dia de hoje vai na fala de agora', () => {
+    const { instructions, messages } = buildPrompt({
+      ...base,
+      header: '[#m3 16:30]',
+      today: 'domingo, 18/10/2026',
+    });
 
     expect(instructions).toContain(persona.context);
     expect(instructions).toContain(persona.style);
     for (const trait of persona.traits) expect(instructions).toContain(`- ${trait}`);
-    // 19:30 UTC é 16:30 em Brasília.
-    expect(instructions).toMatch(/domingo, 18 de outubro de 2026.*16:30/);
     expect(instructions).toContain('[PARTE]');
+    expect(instructions).toContain('America/Sao_Paulo');
+    expect(instructions).not.toMatch(/2026|domingo/);
+    expect(messages.at(-1)).toEqual({
+      role: 'user',
+      content: '[hoje é domingo, 18/10/2026]\n[#m3 16:30] ➜ Ana: oi',
+    });
   });
 
   it('a fala de agora é o último turno do usuário, com o rótulo de quem falou', () => {
@@ -89,14 +97,14 @@ describe('buildPrompt', () => {
     expect(instructions).toContain('[figurinha]');
   });
 
-  it('a imagem vai como parte da última mensagem e muda a instrução', () => {
+  it('a imagem vai como parte da última mensagem, sem mudar o sistema', () => {
     const data = new Uint8Array([1, 2, 3]);
     const { instructions, messages } = buildPrompt({
       ...base,
       image: { data, mediaType: 'image/webp' },
     });
 
-    expect(instructions).toContain('[IMAGEM]');
+    expect(instructions).toBe(buildPrompt(base).instructions);
     expect(messages.at(-1)).toEqual({
       role: 'user',
       content: [
@@ -104,6 +112,59 @@ describe('buildPrompt', () => {
         { type: 'file', data, mediaType: 'image/webp' },
       ],
     });
+  });
+
+  it('o sistema é idêntico entre turnos seguidos do mesmo chat', () => {
+    const first = buildPrompt({ ...base, header: '[#m1 16:30]', today: 'domingo, 18/10/2026' });
+    const next = buildPrompt({
+      ...base,
+      senderName: 'Bia',
+      userText: 'e agora?',
+      header: '[#m9 23:59]',
+      today: 'segunda-feira, 19/10/2026',
+      summary: 'Ana pediu pizza (#m1).',
+      image: { data: new Uint8Array([1]), mediaType: 'image/png' },
+      history: [
+        { role: 'user', text: '[#m1 16:30] Ana: oi' },
+        { role: 'assistant', text: 'oi!' },
+      ],
+    });
+
+    expect(next.instructions).toBe(first.instructions);
+  });
+
+  it('o sistema fala sem caixa alta e sem "override"', () => {
+    const plain = { ...persona, context: 'contexto', style: 'estilo', traits: ['traço'] };
+    const { instructions } = buildPrompt({ ...base, persona: plain });
+
+    expect(instructions).not.toMatch(/override/i);
+    // `[PARTE]` é o separador dos balões, não ênfase.
+    expect(instructions.replaceAll('[PARTE]', '')).not.toMatch(/\b[A-ZÁÉÍÓÚÂÊÔÃÕÇ]{3,}\b/);
+  });
+
+  it('o resumo abre a conversa como fala do usuário, junto da primeira se ela também é', () => {
+    const withUser = buildPrompt({
+      ...base,
+      summary: 'Ana e Bia falavam do jogo (#m2).',
+      history: [
+        { role: 'user', text: '[#m5 16:29] Bia: e aí?' },
+        { role: 'assistant', text: 'opa' },
+      ],
+    });
+    const withLuma = buildPrompt({
+      ...base,
+      summary: 'resumo',
+      history: [{ role: 'assistant', text: 'falei antes' }],
+    });
+
+    expect(withUser.messages[0]).toEqual({
+      role: 'user',
+      content:
+        '[resumo da conversa até aqui]\nAna e Bia falavam do jogo (#m2).\n[#m5 16:29] Bia: e aí?',
+    });
+    expect(withUser.messages).toHaveLength(3);
+    // A fala dela depois do resumo não é órfã: fica.
+    expect(withLuma.messages.map((m) => m.role)).toEqual(['user', 'assistant', 'user']);
   });
 
   it('não lista ferramentas pelo nome: elas chegam pelo ai.tools', () => {

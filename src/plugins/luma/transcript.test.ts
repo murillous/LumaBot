@@ -114,6 +114,34 @@ describe('createTranscript', () => {
     expect(t.size()).toBe(0);
   });
 
+  it('guarda o resumo do chat enquanto a fala mais nova que ele cobre viveria', () => {
+    const c = clock();
+    const t = createTranscript({ maxMessages: 10, maxAgeMs: 1000, now: c.now });
+    t.add('c', said('Ana', 'oi', { at: 1_000 }), ['w1']);
+    t.add('c', said('Bia', 'olá', { at: 1_500 }), ['w2']);
+
+    t.setSummary('c', { text: 'Ana e Bia se cumprimentaram', through: 'm1', at: 1_000 });
+    expect(t.summary('c')?.text).toBe('Ana e Bia se cumprimentaram');
+
+    // m1 (o fim do resumo) expira, m2 fica.
+    c.advance(1200);
+    expect(t.summary('c')).toBeUndefined();
+    expect(t.entries('c').map((e) => e.ref)).toEqual(['m2']);
+  });
+
+  it('ignora o resumo de falas que não estão mais lá, e o clear o esquece', () => {
+    const t = createTranscript({ maxMessages: 10, maxAgeMs: 1000, now: () => 0 });
+    t.add('c', said('Ana', 'oi'), ['w1']);
+
+    t.setSummary('c', { text: 'velho', through: 'm7', at: 0 });
+    expect(t.summary('c')).toBeUndefined();
+
+    t.setSummary('c', { text: 'ok', through: 'm1', at: 0 });
+    t.clear('c');
+    t.add('c', said('Ana', 'de novo'), ['w2']);
+    expect(t.summary('c')).toBeUndefined();
+  });
+
   it('entries devolve cópia', () => {
     const t = createTranscript({ maxMessages: 5, maxAgeMs: 1000, now: () => 0 });
     t.add('c', said('Ana', 'a'), ['w1']);

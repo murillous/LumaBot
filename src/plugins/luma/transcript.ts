@@ -50,6 +50,21 @@ export type MediaFile =
 
 export type NewEntry = Omit<Entry, 'ref'>;
 
+/**
+ * Resumo rolante das falas mais velhas do chat, até `through` inclusive (a compactação). Vive
+ * enquanto a fala mais nova que ele cobre viveria: a retenção de 2 h vale também para ele.
+ */
+export interface Summary {
+  readonly text: string;
+  /** `ref` da última fala que o resumo cobre. */
+  readonly through: string;
+  /** `at` dessa fala: é por ele que o resumo expira. */
+  readonly at: number;
+}
+
+/** Posição de uma fala no chat, pelo `ref` (`m12` → 12): os `ref` só crescem. */
+export const seq = (ref: string): number => Number(ref.slice(1));
+
 export interface Transcript {
   /**
    * Registra a fala com os IDs que ela tem na plataforma: a resposta da Luma em vários balões tem
@@ -62,7 +77,14 @@ export interface Transcript {
   get(chatId: string, ref: string): Entry | undefined;
   /** Falas vivas, da mais antiga à mais nova. Cópia. */
   entries(chatId: string): Entry[];
-  /** Esquece o chat. `true` se havia algo. */
+  /** O resumo das falas mais velhas, se o chat tem um vivo. */
+  summary(chatId: string): Summary | undefined;
+  /**
+   * Guarda o resumo do chat. Ignorado se a fala `through` não está mais na transcrição: a memória
+   * foi limpa (ou a persona trocou) enquanto o resumo era gerado, e ele falaria da conversa velha.
+   */
+  setSummary(chatId: string, summary: Summary): void;
+  /** Esquece o chat, resumo incluído. `true` se havia algo. */
   clear(chatId: string): boolean;
   /** Chats com fala viva, para o `!luma stats`. */
   size(): number;
@@ -85,6 +107,7 @@ interface ChatState {
   ids: Map<string, string>;
   /** Contador dos `ref`; não volta atrás enquanto o chat vive, para um ID nunca mudar de dono. */
   next: number;
+  summary?: Summary | undefined;
 }
 
 /**
@@ -112,6 +135,7 @@ export function createTranscript({
     const cutoff = now() - maxAgeMs;
     const expired = state.entries.findIndex((e) => e.at >= cutoff);
     drop(state, expired === -1 ? state.entries.length : expired);
+    if (state.summary && state.summary.at < cutoff) state.summary = undefined;
     if (state.entries.length === 0) {
       chats.delete(chatId);
       return undefined;
@@ -145,6 +169,11 @@ export function createTranscript({
       return alive(chatId)?.entries.find((e) => e.ref === wanted);
     },
     entries: (chatId) => [...(alive(chatId)?.entries ?? [])],
+    summary: (chatId) => alive(chatId)?.summary,
+    setSummary(chatId, summary) {
+      const state = alive(chatId);
+      if (state?.entries.some((e) => e.ref === summary.through)) state.summary = summary;
+    },
     clear: (chatId) => chats.delete(chatId),
     size() {
       for (const id of [...chats.keys()]) alive(id);
@@ -162,6 +191,19 @@ const clock = (at: number, timeZone: string) =>
 /** Cabeçalho de uma fala: `[#m12 16:30]`. */
 export const header = (entry: Pick<Entry, 'ref' | 'at'>, timeZone: string) =>
   `[#${entry.ref} ${clock(entry.at, timeZone)}]`;
+
+/**
+ * O dia de hoje para a fala de agora (`terça-feira, 17/11/2026`): a hora já está no cabeçalho dela.
+ * A data fica fora do sistema para o prefixo do prompt não mudar e o cache do provider valer.
+ */
+export const today = (at: number, timeZone: string) =>
+  new Date(at).toLocaleDateString('pt-BR', {
+    timeZone,
+    weekday: 'long',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
 
 /** A citação como a Luma a lê, ou `''` se a fala não cita nada que ainda esteja na transcrição. */
 export function replyNote(replyTo: Entry | undefined): string {
