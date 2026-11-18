@@ -26,12 +26,21 @@ import {
   AI_METRICS_FAILED,
   COMPACT_FAILED,
   ERROR_NOTICE_FAILED,
+  MEMORY_FAILED,
   NAME_FAILED,
   PERSONA_CREATE_FAILED,
   REPLY_FAILED,
   TYPING_FAILED,
 } from './log-events.ts';
 import { type ChatMediaLookup, fileOf, lookupMedia, viewMediaTool } from './media.ts';
+import {
+  createMemory,
+  type MemoryAudit,
+  type MemoryDoc,
+  memoryTools,
+  peopleOf,
+  renderMemory,
+} from './memory.ts';
 import { PersonaParseError, parsePersona, personaPrompt, slugify } from './persona-generator.ts';
 import { DEFAULT_PERSONA, PERSONAS, type Persona } from './personas.ts';
 import { buildPrompt, type QuotedInfo, quotedContext } from './prompt.ts';
@@ -162,6 +171,16 @@ const config = z.object({
       maxTokens: z.number().int().min(200).default(3000),
     })
     .default({ maxMessages: 80, maxAgeMs: 2 * 60 * 60_000, maxTokens: 3000 }),
+  /**
+   * Memória longa, por chat: caracteres de cada bloco (o do chat e o de cada pessoa) e quantos
+   * dias um fato fica sem ser lembrado de novo.
+   */
+  memory: z
+    .object({
+      blockChars: z.number().int().min(50).default(500),
+      maxAgeDays: z.number().int().positive().default(180),
+    })
+    .default({ blockChars: 500, maxAgeDays: 180 }),
   /** Balões da resposta: tamanho de cada um e quantos no máximo. */
   maxPartLength: z.number().int().min(20).default(300),
   maxParts: z.number().int().min(1).default(2),
@@ -252,6 +271,10 @@ export const luma: PluginDefinition = definePlugin({
     const ai = ctx.services.get('ai');
     const tools = ctx.services.extensionPoint('ai.tools');
     const transcript = createTranscript(cfg.history);
+    const memory = createMemory(
+      ctx.storage.collection<MemoryDoc>('memory', { indexes: ['chatId'] }),
+      { blockChars: cfg.memory.blockChars, maxAgeMs: cfg.memory.maxAgeDays * 86_400_000 },
+    );
     /** Compactação em andamento por chat: duas respostas seguidas no grupo esperam a mesma. */
     const compacting = new Map<string, Promise<Summary | undefined>>();
     const docs = ctx.storage.collection<PersonaDoc>('personas', { indexes: ['chatId'] });
@@ -342,9 +365,11 @@ export const luma: PluginDefinition = definePlugin({
       transcript.clear(message.chat.id);
     };
     // Só o pedido explícito de esquecer é auditado (comando e tool); limpar ao trocar de persona
-    // já está coberto pela ação da persona. Quem pediu sai como ator `contact` pelo kernel.
-    const auditClear = (message: Pick<Message, 'chat' | 'sender'>) => {
+    // já está coberto pela ação da persona. Quem pediu sai como ator `contact` pelo kernel. O
+    // pedido explícito apaga também a memória longa do chat; trocar de persona, não.
+    const auditClear = async (message: Pick<Message, 'chat' | 'sender'>) => {
       clearHistory(message);
+      await memory.clear(message.chat.id);
       ctx.audit.record({
         action: 'luma.history.clear',
         target: { type: 'chat', id: auditChat(message.chat.id, message.chat.isGroup) },
@@ -486,6 +511,20 @@ export const luma: PluginDefinition = definePlugin({
       };
     };
 
+    /**
+     * A memória longa que vai ao sistema: o bloco do chat e os de quem está na conversa. Sem o
+     * storage, a Luma responde sem ela.
+     */
+    const memoryOf = async (i: Incoming): Promise<string> => {
+      const people = peopleOf(i.current ? [...i.prior, i.current] : i.prior);
+      try {
+        return renderMemory(await memory.blocks(i.message.chat.id, people));
+      } catch (err) {
+        i.log.event(MEMORY_FAILED, { err });
+        return '';
+      }
+    };
+
     const converse = async (i: Incoming): Promise<void> => {
       const { message, signal } = i;
       const chat = message.chat;
@@ -524,9 +563,10 @@ export const luma: PluginDefinition = definePlugin({
         }
         const { min, max } = cfg.thinkingDelayMs;
         // A compactação, quando precisa, roda durante o "digitando": não soma à espera.
-        const [, context] = await Promise.all([
+        const [, context, remembered] = await Promise.all([
           sleep(min + Math.random() * (max - min), signal),
           contextOf(i),
+          memoryOf(i),
         ]);
 
         const { instructions, messages } = buildPrompt({
@@ -536,6 +576,7 @@ export const luma: PluginDefinition = definePlugin({
           userText,
           history: context.turns,
           ...(context.summary && { summary: context.summary }),
+          ...(remembered && { memory: remembered }),
           ...(i.current && { header: header(i.current, cfg.timeZone) }),
           today: today(i.current?.at ?? Date.now(), cfg.timeZone),
           ...(image && { image }),
@@ -619,6 +660,7 @@ export const luma: PluginDefinition = definePlugin({
             at: Date.now(),
             fromLuma: false,
             name: await nameOf(m.sender),
+            person: personId(m.sender),
             text: text || null,
             ...(media && { media }),
             ...(file && { file }),
@@ -669,7 +711,7 @@ export const luma: PluginDefinition = definePlugin({
               ? 'stats'
               : (c.args[0] ?? '').toLowerCase();
         if (sub === 'clear') {
-          auditClear(c.message);
+          await auditClear(c.message);
           return c.t('historyCleared');
         }
         if (sub === 'stats') return stats(c.t);
@@ -777,15 +819,29 @@ export const luma: PluginDefinition = definePlugin({
       }),
     );
     ctx.services.contribute('ai.tools', readMessagesTool(transcript));
+    // Só o ato e o bloco (chat ou pessoa) vão para a auditoria: nunca o fato nem de quem é.
+    const auditMemory: MemoryAudit = (action, { chatId, isGroup, block }) =>
+      ctx.audit.record({
+        action,
+        target: { type: 'chat', id: auditChat(chatId, isGroup) },
+        details: { block },
+      });
+    for (const tool of memoryTools({
+      memory,
+      entries: (chatId) => transcript.entries(chatId),
+      audit: auditMemory,
+    })) {
+      ctx.services.contribute('ai.tools', tool);
+    }
     ctx.services.contribute(
       'ai.tools',
       aiTool({
         name: 'clear_history',
         description:
-          'Apaga a memória que a Luma tem da conversa deste chat (em grupo, a de todos). Use quando pedirem para esquecer, limpar a memória ou recomeçar a conversa.',
+          'Apaga toda a memória que a Luma tem deste chat (em grupo, a de todos): a conversa e os fatos guardados. Use quando pedirem para esquecer tudo, limpar a memória ou recomeçar do zero. Para esquecer só um fato, use a ferramenta de esquecer.',
         args: z.object({}),
         run: async (_, t) => {
-          auditClear(t.message);
+          await auditClear(t.message);
           return ok();
         },
       }),

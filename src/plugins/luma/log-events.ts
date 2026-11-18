@@ -41,3 +41,9 @@ export const COMPACT_FAILED = defineLogEvent({
   level: 'warn',
   message: 'falha ao resumir a conversa; segue com a transcrição cortada',
 });
+
+export const MEMORY_FAILED = defineLogEvent({
+  name: 'luma.memory.failed',
+  level: 'warn',
+  message: 'falha ao ler a memória longa; responde sem ela',
+});

@@ -1,7 +1,7 @@
 import { createTestBot, type TestBot } from '@usebridger/testing';
 import { afterEach, expect, it } from 'vitest';
 import { ai } from '#plugins/ai/ai.ts';
-import { fakeProvider, scripted } from '#plugins/ai-testing.ts';
+import { fakeProvider, scripted, toolAnswer } from '#plugins/ai-testing.ts';
 import { auditReader } from '#plugins/audit-reader.ts';
 import { luma } from './luma.ts';
 
@@ -94,4 +94,40 @@ it('luma.history.clear tem como ator o contato que pediu', async () => {
   expect(JSON.stringify(event)).not.toContain('titular@fake');
   expect(event?.target?.id).toMatch(/^u_/);
   expect(JSON.stringify(event)).not.toContain('chat@fake');
+});
+
+it('lembrar e esquecer auditam só o ato e o bloco, nunca o fato nem de quem é', async () => {
+  const reader = auditReader();
+  bot = await createTestBot({
+    plugins: [
+      ai,
+      fakeProvider({
+        a: scripted(
+          toolAnswer('remember', { fact: 'segredo do Caio', person: 'Caio' }),
+          'ok',
+          toolAnswer('forget', { person: 'Caio' }),
+          'ok',
+        ),
+      }),
+      luma,
+      reader.plugin,
+    ],
+    adminPlugins: [reader.plugin.name],
+    pluginConfig: {
+      ai: { models: [{ model: 'fake:a' }] },
+      luma: { thinkingDelayMs: { min: 0, max: 0 } },
+    },
+  });
+  const group = { id: 'grupo@fake', isGroup: true };
+  const caio = { id: 'caio@fake', name: 'Caio' };
+
+  await bot.receive({ text: 'luma, guarda isso', chat: group, sender: caio });
+  await bot.receive({ text: 'luma, esquece', chat: group, sender: caio });
+
+  const [remembered] = await reader.events('luma.memory.remember');
+  const [forgot] = await reader.events('luma.memory.forget');
+  expect(remembered?.target).toEqual({ type: 'chat', id: 'grupo@fake' });
+  expect(remembered?.details).toEqual({ block: 'person' });
+  expect(forgot?.details).toEqual({ block: 'person' });
+  expect(JSON.stringify([remembered, forgot])).not.toMatch(/segredo|caio@fake/);
 });
