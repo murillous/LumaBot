@@ -2,7 +2,7 @@
 // por fala (`m12`). Em grupo a conversa é uma só, para a Luma saber quem disse o quê e o que ela
 // mesma respondeu a cada um; o ID deixa ela (e, adiante, as tools) apontar para uma fala ou mídia.
 
-import type { MessageType } from '@usebridger/core';
+import type { Media, MediaRef, MessageType } from '@usebridger/core';
 
 /** Um turno da conversa como vai ao modelo. */
 export interface Turn {
@@ -33,9 +33,20 @@ export interface Entry {
   readonly name: string;
   readonly text: string | null;
   readonly media?: MediaKind;
+  /** De onde baixar a mídia depois; ausente na de visualização única, que a Luma não guarda. */
+  readonly file?: MediaFile;
   /** `ref` da fala citada, se ela ainda está na transcrição. */
   readonly replyTo?: string;
 }
+
+/**
+ * A mídia de uma fala para baixar depois, sem a mensagem: a referência do kernel (`media.ref`),
+ * que o transport baixa de novo mesmo depois do CDN, ou, sem ela, a própria `Media`, que é lazy.
+ * A referência pode conter a chave que decifra o arquivo: nunca vai para log nem para o modelo.
+ */
+export type MediaFile =
+  | { readonly type: MessageType; readonly ref: MediaRef }
+  | { readonly type: MessageType; readonly live: Media };
 
 export type NewEntry = Omit<Entry, 'ref'>;
 
@@ -47,6 +58,8 @@ export interface Transcript {
   add(chatId: string, entry: NewEntry, platformIds: readonly string[]): Entry;
   /** A fala com esse ID da plataforma, se ainda está na transcrição. */
   find(chatId: string, platformId: string): Entry | undefined;
+  /** A fala pelo ID curto, com ou sem o `#` (`m12`, `#m12`), se ainda está na transcrição. */
+  get(chatId: string, ref: string): Entry | undefined;
   /** Falas vivas, da mais antiga à mais nova. Cópia. */
   entries(chatId: string): Entry[];
   /** Esquece o chat. `true` se havia algo. */
@@ -126,6 +139,10 @@ export function createTranscript({
       const state = alive(chatId);
       const ref = state?.ids.get(platformId);
       return ref ? state?.entries.find((e) => e.ref === ref) : undefined;
+    },
+    get(chatId, ref) {
+      const wanted = ref.trim().replace(/^#/, '').toLowerCase();
+      return alive(chatId)?.entries.find((e) => e.ref === wanted);
     },
     entries: (chatId) => [...(alive(chatId)?.entries ?? [])],
     clear: (chatId) => chats.delete(chatId),

@@ -40,7 +40,21 @@ cota do dia acabou, por exemplo), responde uma frase curta e a causa vai só par
 
 | Tool | Argumentos | O que faz | Recusas (`error`) |
 | --- | --- | --- | --- |
-| `edit_sticker` | `request` | Edita a figurinha da mensagem ou da citada e envia no chat, com a foto ou figurinha da própria mensagem como referência quando a figurinha é a citada; devolve o `model` que editou | `no-sticker`, `view-once`, `too-large`, `flagged`, `unavailable` |
+| `edit_sticker` | `request`, `target?`, `references?` | Edita a figurinha da mensagem ou da citada e envia no chat, com a foto ou figurinha da própria mensagem como referência quando a figurinha é a citada; devolve o `model` que editou | `no-sticker`, `view-once`, `too-large`, `flagged`, `unavailable`, `expired` e, por ID, `no-history`, `unknown`, `no-media`, `not-sticker`, `not-image` (com o ID em `detail`) |
+
+### Mídias anteriores, por ID
+
+Com o plugin [`luma`](luma.md#mídia) carregado, a tool usa figurinhas e fotos mandadas antes no
+chat pelo ID da conversa (`#m12`), sem precisar citar:
+
+- `target` é a figurinha que vai ser editada (a base). Sem ele, vale a da mensagem ou a citada.
+- `references` (até 3) são as imagens ou figurinhas de referência, na ordem do pedido. Sem elas,
+  e com `target` por ID, a foto ou figurinha da própria mensagem vira a referência.
+
+"Junta a cabeça do cara da primeira figurinha no corpo do cara da segunda" vira
+`target: "#m2", references: ["#m1"]`. A mídia vem do serviço `luma` (`media(chatId, id)`); sem a
+`luma`, ID recusa com `no-history`. Mídia que saiu da plataforma recusa com `expired`. O comando
+`!editar` não muda.
 
 ## Serviço `stickerEdit`
 

@@ -4,7 +4,7 @@ A personagem: responde em conversa privada, quando citada, chamada pelo nome ou 
 histórico, persona por chat e as ferramentas do ponto `ai.tools`. A IA em si (cadeia de
 modelos, fallback, métricas) é do [`ai`](ai.md); a `luma` depende dele. Código em
 `src/plugins/luma/`: `luma.ts` (plugin), `transcript.ts`, `trigger.ts`, `prompt.ts`, `personas.ts`,
-`persona-generator.ts` e `stats.ts`, todos puros menos o primeiro.
+`persona-generator.ts`, `stats.ts` e `media.ts` (mídia pelo ID e a tool `view_media`), todos puros menos o primeiro e o último.
 
 ## Quando responde
 
@@ -80,6 +80,7 @@ Contribuídas ao ponto `ai.tools` ([ai-tools.md](ai-tools.md)).
 | --- | --- | --- | --- |
 | `clear_history` | — | Apaga a transcrição do chat (em grupo, a de todos) | — |
 | `create_persona` | `description` | Cria e ativa a persona; confirma no chat | `empty`, `limit`, `invalid-persona`, `unavailable` |
+| `view_media` | `ids` (1 a 4, `#m12`), `question?` | Olha imagens ou figurinhas anteriores do chat pelo ID e devolve a descrição. Só leitura | `unknown`, `no-media`, `view-once`, `not-image`, `too-large`, `expired` (com o ID em `detail`) |
 
 Trocar de persona ou limpar a memória por tool é recomeçar: a troca em curso **não** é guardada no
 histórico, para a fala da persona anterior não vazar para a nova.
@@ -93,6 +94,17 @@ histórico, para a fala da persona anterior não vazar para a nova.
   [`transcribe`](transcribe.md); a transcrição vai só ao modelo. Sem esse plugin, ela sabe que não
   consegue ouvir.
 - A mensagem **citada** que já saiu da transcrição entra na fala pelo texto (`[citando Ana: "..."]`).
+- **Mídia anterior, pelo ID.** Cada mídia da transcrição guarda de onde baixar depois, sem a
+  mensagem: com a capability `media.ref`, a referência do kernel (`ctx.media.ref`), que o
+  transport baixa de novo pelo `ctx.media.fromRef`; sem ela, a própria `Media`, em memória, pelas
+  mesmas 2 h. Mídia de visualização única não é guardada. A referência pode conter a chave do
+  arquivo: nunca vai para log nem para o modelo.
+- `view_media` manda as imagens à cadeia de visão (`visionModels`, ou `models`) numa chamada à
+  parte (`purpose: luma.view`, no uso de quem pediu) e devolve só o texto. O modelo da conversa
+  pode não ter visão, e a imagem não pesa nos passos seguintes. Mídia que saiu da plataforma
+  (`MediaExpiredError`) volta como `expired`.
+- Outras tools usam a mídia pelo serviço (`media(chatId, id)`): o
+  [`edit_sticker`](sticker-edit.md#tool-da-ia) junta figurinhas anteriores por ID.
 
 ## Config
 
@@ -128,6 +140,7 @@ outro erro responde uma frase de `errorReplies` e vai para o log. A causa nunca 
 ```ts
 personas.list(chatId) / active(chatId) / select(chatId, key) / create(chatId, description, signal?) / remove(chatId, key)
 clearHistory(message)
+media(chatId, id)   // { found: true, type, media } | { found: false, reason: 'unknown' | 'no-media' | 'view-once' }
 ```
 
 Uso opcional de outros plugins: `ctx.services.has('luma')`.
