@@ -21,6 +21,7 @@ import { sticker } from '#plugins/sticker/sticker.ts';
 import { stickerConvert } from '#plugins/sticker-convert/sticker-convert.ts';
 import { stickerText } from '#plugins/sticker-text/sticker-text.ts';
 import { transcribe } from '#plugins/transcribe/transcribe.ts';
+import { usage } from '#plugins/usage/usage.ts';
 import { userNames } from '#plugins/user-names/user-names.ts';
 import { utils } from '#plugins/utils/utils.ts';
 import { webSearch } from '#plugins/web-search/web-search.ts';
@@ -58,6 +59,7 @@ async function start(model = scripted('oi')) {
       download({}),
       userNames,
       rank,
+      usage,
       utils,
     ],
     pluginConfig: {
@@ -82,6 +84,7 @@ describe('composição do app', () => {
         'resumo',
         'transcribe',
         'web-search',
+        'usage',
       ]),
     );
     expect(b.bot.plugins().filter((p) => p.status !== 'loaded')).toEqual([]);

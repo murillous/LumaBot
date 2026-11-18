@@ -56,8 +56,12 @@ const { text, model, usage } = await ctx.services.get('ai').generate({
   instructions: 'Você é a Luma.',          // opcional
   messages: [{ role: 'user', content: 'oi' }], // ModelMessage do pacote `ai`
   signal,                                   // opcional
+  actor: { id: personId(sender), chatId },  // opcional: quem pediu
 });
 ```
+
+Com `actor`, cada tentativa leva quem pediu, e o `ai-metrics` grava a resposta no `usage` dessa
+pessoa, com o custo (veja [ai-metrics](ai-metrics.md#uso-por-pessoa)). Hoje só a `luma` informa.
 
 Quem depende declara `dependsOn: { ai: '^0.1.0' }`.
 
@@ -112,7 +116,8 @@ const { text, toolCalls } = await ai.generate({
   acabar (o `timeoutMs` pode ser ultrapassado pela duração dela) e a tool não é interrompida pelo
   timeout; a marcação antes do `await` é defensiva, caso o SDK passe a lançar com a tool ainda
   rodando. Tool só de leitura declara `sideEffects: false` (`search_web`,
-  `transcribe_audio`, `summarize_chat`, `list_commands`, `get_name`, `ranking`, `chat_info`) e
+  `transcribe_audio`, `summarize_chat`, `list_commands`, `get_name`, `ranking`, `chat_info`,
+  `view_media`) e
   não bloqueia; ausente, assume-se que tem efeito.
   Antes de qualquer tool, o fallback é o de sempre.
 
@@ -220,6 +225,8 @@ ctx.services.contribute('ai.observers', (attempt) => {
 | `usage` | Só com `ok`: tokens de entrada, saída, cache e reasoning, somados entre os passos |
 | `finishReason` | Só com `ok`: `length` indica resposta cortada e `content-filter` indica recusa |
 | `statusCode` | HTTP do provider, quando a falha veio dele |
+| `actor` | O `actor` do `generate` (`{ id, chatId }`), quando quem chamou informou |
+| `last` | Última tentativa da chamada: depois dela, o `generate` devolveu ou lançou |
 
 Vazão é `outputTokens / latencyMs`, calculada por quem agrega. Cooldown não gera tentativa
 própria: o modelo só aparece mais tarde na ordem (`position` maior).

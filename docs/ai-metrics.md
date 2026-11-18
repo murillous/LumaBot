@@ -20,7 +20,7 @@ latência em ms. O histórico gravado antes do `plugin-metrics` 0.3 (nomes `ai.*
 | --- | --- | --- | --- |
 | `ai_attempts_total` | contador | `model`, `provider`, `purpose`, `outcome`, `position`, `statusCode?` | Toda tentativa da cadeia |
 | `ai_latency_seconds` | histograma (0,25 s a 60 s) | `model`, `purpose` | Tentativa que respondeu |
-| `ai_tokens_total` | contador | `model`, `purpose`, `kind` (`input`, `output`, `cache_read`, `reasoning`) | Tentativa que respondeu |
+| `ai_tokens_total` | contador | `model`, `purpose`, `kind` (`input`, `output`, `cache_read`, `cache_write`, `reasoning`) | Tentativa que respondeu |
 | `ai_finish_total` | contador | `model`, `purpose`, `reason` | Tentativa que respondeu |
 
 ## Serviço `aiMetrics`
@@ -49,8 +49,9 @@ pela memória do `metrics`.
 
 ## Custo
 
-Em **US$ por 1 milhão de tokens**, calculado na consulta e nunca gravado: mudar a tabela vale
-também para o histórico. A tabela é mantida à mão na config (não há fonte confiável para puxar):
+Em **US$ por 1 milhão de tokens**. No `summary`, calculado na consulta e nunca gravado: mudar a
+tabela vale também para o histórico. No uso por pessoa (abaixo), o custo é gravado na hora da
+resposta e fica com o preço daquele momento. A tabela é mantida à mão na config (não há fonte confiável para puxar):
 
 ```sh
 BRIDGER_AI_METRICS__PRICES='{"google:gemini-2.5-flash":{"inputPerMillion":0.3,"outputPerMillion":2.5,"cachedInputPerMillion":0.075}}'
@@ -60,6 +61,18 @@ Entrada sem cache custa `inputPerMillion`; a lida do cache, `cachedInputPerMilli
 como entrada comum); a saída, `outputPerMillion` (o reasoning já está na saída). **Modelo sem preço
 aparece sem custo** (`costUsd: null` por modelo; no total, fica de fora da soma e é listado em
 `unpricedModels`), nunca como zero. Preço `0` é preço.
+
+A conta é a função pura `attemptCost(prices, model, usage)` de `summary.ts`, a mesma do
+`summary` e do uso por pessoa.
+
+## Uso por pessoa
+
+Um segundo observer grava no [`usage`](usage.md) cada resposta pedida por alguém (com `actor` no
+`generate`): **uma linha por resposta**, na última tentativa da chamada, com `action` = `purpose`,
+`kind: 'reply'`, `outcome` `ok` ou `error` e o `cost` em US$ pela tabela acima. As tentativas que
+falharam antes não têm `usage`, então não somam custo. Modelo sem preço grava **sem** `cost`.
+Abort de quem chamou não grava. Sem o `usage` carregado, nada acontece. O `actor` nunca vira
+rótulo das métricas.
 
 ## Config
 

@@ -1,11 +1,15 @@
+import { MediaExpiredError } from '@usebridger/core';
 import { createTestBot, fixtures, type TestBot } from '@usebridger/testing';
 import { APICallError } from 'ai';
 import sharp from 'sharp';
-import { afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { ai } from '#plugins/ai/ai.ts';
 import { fakeProvider, type PaintedModel, painted, scripted } from '#plugins/ai-testing.ts';
 import { aiToolsProbe, toolResult } from '#plugins/ai-tools-probe.ts';
+import { luma } from '#plugins/luma/luma.ts';
 import { sticker } from '#plugins/sticker/sticker.ts';
+import { usage } from '#plugins/usage/usage.ts';
+import { usageProbe } from '#plugins/usage/usage-testing.ts';
 import { stickerEdit } from './sticker-edit.ts';
 
 let bot: TestBot | undefined;
@@ -243,5 +247,154 @@ describe('config', () => {
         pluginConfig: { 'sticker-edit': { models: ['flux'] } },
       }),
     ).rejects.toThrow(/provider:modelo/);
+  });
+});
+
+it('a edição conta no usage de quem pediu', async () => {
+  const probe = usageProbe();
+  bot = await createTestBot({
+    plugins: [
+      ai,
+      fakeProvider({ a: scripted('ok') }, { images: { x: painted(edited) } }),
+      sticker,
+      stickerEdit,
+      usage,
+      probe.plugin,
+    ],
+    pluginConfig: {
+      ai: { models: [{ model: 'fake:a' }] },
+      'sticker-edit': { models: ['fake:x'] },
+    },
+  });
+
+  await bot.receive({ text: '!editar coloca um chapéu', quoted: { sticker: fixtures.sticker() } });
+
+  expect(probe.entries).toEqual([
+    expect.objectContaining({ action: 'sticker_edit', kind: 'sticker', outcome: 'ok' }),
+  ]);
+});
+
+describe('tool edit_sticker por ID da conversa', () => {
+  const group = { id: 'grupo@fake', isGroup: true };
+  const colored = async (background: string) => ({
+    data: await sharp({ create: { width: 64, height: 64, channels: 4, background } })
+      .webp()
+      .toBuffer(),
+    mimetype: 'image/webp',
+  });
+  /** Cor do pixel do meio da imagem que o modelo recebeu. */
+  const centerColor = async (file: unknown) => {
+    const data = (file as { data: Uint8Array }).data;
+    const { data: px, info } = await sharp(data).raw().toBuffer({ resolveWithObject: true });
+    const at =
+      (Math.floor(info.height / 2) * info.width + Math.floor(info.width / 2)) * info.channels;
+    return { r: px[at] ?? 0, g: px[at + 1] ?? 0, b: px[at + 2] ?? 0 };
+  };
+
+  async function startWithLuma(model: PaintedModel, withLuma = true) {
+    bot = await createTestBot({
+      plugins: [
+        ai,
+        fakeProvider({ a: scripted('ok') }, { images: { x: model } }),
+        sticker,
+        stickerEdit,
+        ...(withLuma ? [luma] : []),
+        aiToolsProbe,
+      ],
+      pluginConfig: {
+        ai: { models: [{ model: 'fake:a' }] },
+        'sticker-edit': { models: ['fake:x'] },
+        luma: { thinkingDelayMs: { min: 0, max: 0 } },
+      },
+    });
+    return bot;
+  }
+
+  it('junta mídias anteriores: target é a base, references vão depois, na ordem', async () => {
+    const model = painted(edited);
+    const b = await startWithLuma(model);
+    await b.receive({ sticker: await colored('#00ff00'), chat: group, sender: { name: 'Ana' } });
+    await b.receive({ sticker: await colored('#0000ff'), chat: group, sender: { name: 'Bia' } });
+
+    await b.receive({
+      text: '!tool edit_sticker {"request":"put the head from the reference image on the sticker","target":"#m2","references":["m1"]}',
+      chat: group,
+    });
+
+    expect(toolResult(b)).toEqual({ ok: true, model: 'fake:x' });
+    const files = model.calls[0]?.files ?? [];
+    expect(files).toHaveLength(2);
+    const base = await centerColor(files[0]);
+    const reference = await centerColor(files[1]);
+    expect(base.b).toBeGreaterThan(200);
+    expect(base.g).toBeLessThan(60);
+    expect(reference.g).toBeGreaterThan(200);
+    expect(reference.b).toBeLessThan(60);
+    expect(model.calls[0]?.prompt).toMatch(/first image is the sticker/);
+  });
+
+  it('alvo por ID leva a foto da própria mensagem como referência', async () => {
+    const model = painted(edited);
+    const b = await startWithLuma(model);
+    await b.receive({ sticker: fixtures.sticker(), chat: group });
+
+    await b.receive({
+      text: '!tool edit_sticker {"request":"x","target":"m1"}',
+      image: fixtures.image(),
+      chat: group,
+    });
+
+    expect(toolResult(b)).toEqual({ ok: true, model: 'fake:x' });
+    expect(model.calls[0]?.files).toHaveLength(2);
+  });
+
+  it('recusa ID desconhecido, alvo que não é figurinha e fala sem mídia, dizendo qual', async () => {
+    const model = painted(edited);
+    const b = await startWithLuma(model);
+    await b.receive({ image: fixtures.image(), chat: group });
+    await b.receive({ text: 'só texto', chat: group });
+
+    await b.receive({ text: '!tool edit_sticker {"request":"x","target":"m9"}', chat: group });
+    expect(toolResult(b)).toEqual({ ok: false, error: 'unknown', detail: 'm9' });
+
+    await b.receive({ text: '!tool edit_sticker {"request":"x","target":"m1"}', chat: group });
+    expect(toolResult(b)).toEqual({ ok: false, error: 'not-sticker', detail: 'm1' });
+
+    await b.receive({
+      text: '!tool edit_sticker {"request":"x","target":"m1","references":["m2"]}',
+      chat: group,
+    });
+    expect(toolResult(b)).toEqual({ ok: false, error: 'not-sticker', detail: 'm1' });
+
+    await b.receive({
+      text: '!tool edit_sticker {"request":"x","references":["m2"]}',
+      sticker: fixtures.sticker(),
+      chat: group,
+    });
+    expect(toolResult(b)).toEqual({ ok: false, error: 'no-media', detail: 'm2' });
+    expect(model.calls).toHaveLength(0);
+  });
+
+  it('mídia que saiu da plataforma volta como expired', async () => {
+    const model = painted(edited);
+    const b = await startWithLuma(model);
+    await b.receive({ sticker: fixtures.sticker(), chat: group });
+    vi.spyOn(b.transport, 'mediaFromRef').mockReturnValue({
+      download: () => Promise.reject(new MediaExpiredError('sumiu')),
+      stream: () => Promise.reject(new MediaExpiredError('sumiu')),
+    });
+
+    await b.receive({ text: '!tool edit_sticker {"request":"x","target":"m1"}', chat: group });
+
+    expect(toolResult(b)).toEqual({ ok: false, error: 'expired' });
+    expect(model.calls).toHaveLength(0);
+  });
+
+  it('sem a luma, que guarda a conversa, ID não tem como valer', async () => {
+    const b = await startWithLuma(painted(edited), false);
+
+    await b.receive({ text: '!tool edit_sticker {"request":"x","target":"m1"}', chat: group });
+
+    expect(toolResult(b)).toEqual({ ok: false, error: 'no-history' });
   });
 });

@@ -55,8 +55,9 @@ Fuso IANA. A conversão não depende do `TZ` do processo.
 
 ## Auditoria
 
-`cancel(chatId, id, actorId?)` grava `reminders.delete` (alvo = lembrete; `details`: `chat`, `actor`,
-`creator`, sem o texto) quando `actorId` existe e é diferente do `creatorId`. Cancelar o próprio
+`cancel(chatId, id, actorId?)` grava `reminders.delete` (alvo = lembrete; `details`: `chat` e
+`creator`, sem o texto) quando `actorId` existe e é diferente do `creatorId`. Quem cancelou é o
+ator `contact` do evento, que o kernel preenche com o remetente. Cancelar o próprio
 lembrete não é auditado. `!cancelarlembrete` e a tool `cancel_reminder` passam o remetente.
 
 ## Persistência e entrega

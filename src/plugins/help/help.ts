@@ -67,7 +67,8 @@ export const help: PluginDefinition = definePlugin({
         return formatMenu({
           title: ctx.plugin.messages.title,
           prefix,
-          // O kernel não diz quem é o remetente aqui: owner e papel custom ficam sempre de fora.
+          // `render` recebe só o chat, sem a mensagem, então não dá para usar `list({ for })`:
+          // owner e papel custom ficam sempre de fora.
           commands: ctx.commands
             .list()
             .flatMap(({ role, description, plugin, ...c }) =>

@@ -121,24 +121,27 @@ export function download(options: DownloadOptions = {}): PluginDefinition {
           requires: ['send.video'],
           run: ({ url }, t) =>
             guarded(async () => {
-              const sent = await track(t.log.child({ host: hostOf(url) }), 'media', (step) =>
-                inTempDir(async (dir) => {
-                  const post = await fetchPost(url, dir, { ...options, signal: t.signal });
-                  if (post.kind === 'image') {
-                    if (!ctx.capabilities.has('send.image')) {
-                      step.refuse('image-unsupported');
-                      return false;
+              const sent = await track(
+                { log: t.log.child({ host: hostOf(url) }), message: t.message },
+                'media',
+                (step) =>
+                  inTempDir(async (dir) => {
+                    const post = await fetchPost(url, dir, { ...options, signal: t.signal });
+                    if (post.kind === 'image') {
+                      if (!ctx.capabilities.has('send.image')) {
+                        step.refuse('image-unsupported');
+                        return false;
+                      }
+                      await t.reply.image(post.bytes, { caption: ctx.plugin.messages.imageSent });
+                    } else {
+                      await t.reply.video(post.bytes, {
+                        caption: ctx.plugin.messages.videoSent,
+                        mimetype: 'video/mp4',
+                      });
                     }
-                    await t.reply.image(post.bytes, { caption: ctx.plugin.messages.imageSent });
-                  } else {
-                    await t.reply.video(post.bytes, {
-                      caption: ctx.plugin.messages.videoSent,
-                      mimetype: 'video/mp4',
-                    });
-                  }
-                  step.note({ bytes: post.bytes.length });
-                  return true;
-                }),
+                    step.note({ bytes: post.bytes.length });
+                    return true;
+                  }),
               );
               return sent ? ok() : fail('image-unsupported');
             }),
@@ -153,13 +156,16 @@ export function download(options: DownloadOptions = {}): PluginDefinition {
           requires: ['send.audio'],
           run: ({ url }, t) =>
             guarded(async () => {
-              await track(t.log.child({ host: hostOf(url) }), 'audio', (step) =>
-                inTempDir(async (dir) => {
-                  const mp3 = await downloadAudio(url, dir, { ...options, signal: t.signal });
-                  const bytes = await readFile(mp3);
-                  await t.reply.audio(bytes, { mimetype: 'audio/mpeg' });
-                  step.note({ bytes: bytes.length });
-                }),
+              await track(
+                { log: t.log.child({ host: hostOf(url) }), message: t.message },
+                'audio',
+                (step) =>
+                  inTempDir(async (dir) => {
+                    const mp3 = await downloadAudio(url, dir, { ...options, signal: t.signal });
+                    const bytes = await readFile(mp3);
+                    await t.reply.audio(bytes, { mimetype: 'audio/mpeg' });
+                    step.note({ bytes: bytes.length });
+                  }),
               );
               return ok();
             }),
@@ -178,17 +184,20 @@ export function download(options: DownloadOptions = {}): PluginDefinition {
               // Opcional como no `!downloadsticker`: consultado a cada uso.
               if (!ctx.services.has('sticker')) return fail('sticker-unavailable');
               const stickers = ctx.services.get('sticker');
-              await track(t.log.child({ host: hostOf(url) }), 'sticker', (step) =>
-                inTempDir(async (dir) => {
-                  const file = await downloadVideo(url, dir, { ...options, signal: t.signal });
-                  const sticker = await stickers.create(await readFile(file), {
-                    animated: !IMAGE_EXTENSIONS.has(extname(file).toLowerCase()),
-                    text: caption.replace(/\s+/g, ' ').trim(),
-                    signal: t.signal,
-                  });
-                  await t.reply.sticker(sticker);
-                  step.note({ bytes: sticker.length });
-                }),
+              await track(
+                { log: t.log.child({ host: hostOf(url) }), message: t.message },
+                'sticker',
+                (step) =>
+                  inTempDir(async (dir) => {
+                    const file = await downloadVideo(url, dir, { ...options, signal: t.signal });
+                    const sticker = await stickers.create(await readFile(file), {
+                      animated: !IMAGE_EXTENSIONS.has(extname(file).toLowerCase()),
+                      text: caption.replace(/\s+/g, ' ').trim(),
+                      signal: t.signal,
+                    });
+                    await t.reply.sticker(sticker);
+                    step.note({ bytes: sticker.length });
+                  }),
               );
               return ok();
             }),
@@ -213,7 +222,7 @@ export function download(options: DownloadOptions = {}): PluginDefinition {
             await ctx.react('⏳');
             try {
               const sent = await track(
-                ctx.log.child({ host: hostOf(url) }),
+                { log: ctx.log.child({ host: hostOf(url) }), message: ctx.message },
                 'media',
                 async (step) => {
                   const post = await fetchPost(url, dir, { ...options, signal: ctx.signal });
@@ -268,17 +277,21 @@ export function download(options: DownloadOptions = {}): PluginDefinition {
             await ctx.react('⏳');
             let downloaded = false;
             try {
-              await track(ctx.log.child({ host: hostOf(url) }), 'sticker', async (step) => {
-                const file = await downloadVideo(url, dir, { ...options, signal: ctx.signal });
-                downloaded = true;
-                const sticker = await stickers.create(await readFile(file), {
-                  animated: !IMAGE_EXTENSIONS.has(extname(file).toLowerCase()),
-                  text,
-                  signal: ctx.signal,
-                });
-                await ctx.reply.sticker(sticker);
-                step.note({ bytes: sticker.length });
-              });
+              await track(
+                { log: ctx.log.child({ host: hostOf(url) }), message: ctx.message },
+                'sticker',
+                async (step) => {
+                  const file = await downloadVideo(url, dir, { ...options, signal: ctx.signal });
+                  downloaded = true;
+                  const sticker = await stickers.create(await readFile(file), {
+                    animated: !IMAGE_EXTENSIONS.has(extname(file).toLowerCase()),
+                    text,
+                    signal: ctx.signal,
+                  });
+                  await ctx.reply.sticker(sticker);
+                  step.note({ bytes: sticker.length });
+                },
+              );
             } catch (err) {
               // O `track` já registrou a falha.
               await ctx.react('❌');
@@ -305,12 +318,16 @@ export function download(options: DownloadOptions = {}): PluginDefinition {
           return inTempDir(async (dir) => {
             await ctx.react('⏳');
             try {
-              await track(ctx.log.child({ host: hostOf(url) }), 'audio', async (step) => {
-                const mp3 = await downloadAudio(url, dir, { ...options, signal: ctx.signal });
-                const bytes = await readFile(mp3);
-                await ctx.reply.audio(bytes, { mimetype: 'audio/mpeg' });
-                step.note({ bytes: bytes.length });
-              });
+              await track(
+                { log: ctx.log.child({ host: hostOf(url) }), message: ctx.message },
+                'audio',
+                async (step) => {
+                  const mp3 = await downloadAudio(url, dir, { ...options, signal: ctx.signal });
+                  const bytes = await readFile(mp3);
+                  await ctx.reply.audio(bytes, { mimetype: 'audio/mpeg' });
+                  step.note({ bytes: bytes.length });
+                },
+              );
             } catch (err) {
               // O `track` já registrou a falha.
               await ctx.react('❌');

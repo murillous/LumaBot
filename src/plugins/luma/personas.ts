@@ -16,7 +16,7 @@ export interface Persona {
 
 /** O formato de balões é do sistema, não do modelo: vai em toda persona, de fábrica ou criada. */
 export const FORMAT_TRAIT =
-  'MENSAGENS CURTAS: Máximo 200 caracteres por bloco. Se precisar falar mais, separe a mensagem usando [PARTE] (máx 1 a 2 blocos bem curtos).';
+  'mensagens curtas: no máximo 200 caracteres por balão; para falar mais, separe com [PARTE] (1 ou 2 balões curtos)';
 
 export const DEFAULT_PERSONA = 'pensadora';
 

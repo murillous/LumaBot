@@ -3,12 +3,15 @@ import { metrics } from '@usebridger/plugin-metrics';
 import { createTestBot, DEFAULT_SELF, fixtures, type TestBot } from '@usebridger/testing';
 import { APICallError } from 'ai';
 import type { MockLanguageModelV4 } from 'ai/test';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ai } from '#plugins/ai/ai.ts';
 import { aiMetrics } from '#plugins/ai-metrics/ai-metrics.ts';
 import { fakeProvider, promptText, scripted, textAnswer, toolAnswer } from '#plugins/ai-testing.ts';
 import { rank } from '#plugins/rank/rank.ts';
 import { transcribe } from '#plugins/transcribe/transcribe.ts';
+import { usage } from '#plugins/usage/usage.ts';
+import { usageProbe } from '#plugins/usage/usage-testing.ts';
+import { userNames } from '#plugins/user-names/user-names.ts';
 import { luma } from './luma.ts';
 import { PERSONAS } from './personas.ts';
 
@@ -152,34 +155,80 @@ describe('memória', () => {
     expect(second).toContain('Ana: qual meu nome?');
   });
 
-  it('em grupo, cada pessoa tem a sua conversa', async () => {
-    const model = scripted('ok');
+  it('em grupo, a conversa é uma só: ela sabe o que respondeu a outra pessoa', async () => {
+    const model = scripted('pizza de calabresa', 'falei que era calabresa');
     const b = await start(model);
 
     await b.receive({
-      text: 'luma, segredo da Ana',
+      text: 'luma, qual a melhor pizza?',
       chat: group,
       sender: { id: 'ana@x', name: 'Ana' },
     });
-    await b.receive({ text: 'luma, oi', chat: group, sender: { id: 'bia@x', name: 'Bia' } });
+    await b.receive({
+      text: 'luma, o que você disse pra Ana?',
+      chat: group,
+      sender: { id: 'bia@x', name: 'Bia' },
+    });
 
-    // O que a Ana disse chega à Bia só como clima do grupo, nunca como memória dela.
-    expect(conversation(model, 1)).not.toContain('segredo da Ana');
-    expect(promptText(model, 1)).toContain('CONTEXTO AMBIENTE');
+    const second = conversation(model, 1);
+    expect(second).toContain('Ana: luma, qual a melhor pizza?');
+    expect(second).toContain('"role":"assistant"');
+    expect(second).toContain('pizza de calabresa');
+    expect(second).toContain('➜ Bia: o que você disse pra Ana?');
   });
 
-  it('em grupo, a conversa do grupo vira clima ambiente, sem a fala de agora', async () => {
+  it('em grupo, o que se disse antes entra na conversa, em ordem e sem repetir a fala de agora', async () => {
     const model = scripted('ok');
     const b = await start(model);
 
     await b.receive({ text: 'alguém viu o jogo?', chat: group, sender: { name: 'Caio' } });
+    await b.receive({ sticker: fixtures.sticker(), chat: group, sender: { name: 'Bia' } });
     await b.receive({ text: 'luma, quem ganhou?', chat: group, sender: { name: 'Ana' } });
 
-    const prompt = promptText(model);
-    expect(prompt).toContain('CONTEXTO AMBIENTE');
-    expect(prompt).toContain('Caio: alguém viu o jogo?');
-    expect(prompt).not.toMatch(/Ana: luma, quem ganhou[\s\S]*CONTEXTO AMBIENTE/);
+    const prompt = conversation(model, 0);
+    expect(prompt).toMatch(/#m1 \d\d:\d\d\] Caio: alguém viu o jogo\?/);
+    expect(prompt).toMatch(/#m2 \d\d:\d\d\] Bia: \[figurinha\]/);
+    expect(prompt).toMatch(/#m3 \d\d:\d\d\] ➜ Ana: quem ganhou\?/);
     expect(prompt.match(/quem ganhou/g)).toHaveLength(1);
+    expect(promptText(model)).not.toContain('CONTEXTO AMBIENTE');
+  });
+
+  it('citar uma fala do grupo que está na transcrição vira o ID dela', async () => {
+    const model = scripted('ok');
+    const b = await start(model);
+
+    const first = await b.receive({
+      text: 'o jogo foi 2 a 1',
+      chat: group,
+      sender: { name: 'Caio' },
+    });
+    await b.receive({
+      text: 'luma, é verdade?',
+      chat: group,
+      sender: { name: 'Ana' },
+      quoted: first,
+    });
+
+    expect(conversation(model, 0)).toContain('Ana: (respondendo #m1) é verdade?');
+  });
+
+  it('citar uma fala antiga dela, para outra pessoa, lembra o que ela disse', async () => {
+    const model = scripted('pizza de calabresa', 'banana', 'sim, calabresa');
+    const b = await start(model);
+
+    await b.receive({ text: 'luma, pizza?', chat: group, sender: { id: 'ana@x', name: 'Ana' } });
+    const pizza = b.sent.at(-1)?.key.id ?? '';
+    await b.receive({ text: 'luma, fruta?', chat: group, sender: { id: 'bia@x', name: 'Bia' } });
+    await b.receive({
+      text: 'sério?',
+      chat: group,
+      sender: { id: 'caio@x', name: 'Caio' },
+      quoted: { id: pizza, text: 'pizza de calabresa', fromMe: true, chat: group },
+    });
+
+    expect(conversation(model, 2)).toContain(
+      'Caio: (respondendo à sua fala \\"pizza de calabresa\\") sério?',
+    );
   });
 
   it('!luma clear esquece, e !lc e !clear são o mesmo comando', async () => {
@@ -210,6 +259,168 @@ describe('memória', () => {
     await b.receive({ text: '!ls' });
 
     expect(b.sent).toContainText(/Conversas ativas: 1/);
+  });
+});
+
+describe('contexto no orçamento', () => {
+  /** A Luma com o orçamento da transcrição apertado, para poucas falas já passarem dele. */
+  async function tight(model: ReturnType<typeof scripted>, maxTokens = 200) {
+    bot = await createTestBot({
+      plugins: [ai, fakeProvider({ a: model }), luma],
+      pluginConfig: {
+        ai: { models: [{ model: 'fake:a' }] },
+        luma: { ...FAST, history: { maxTokens } },
+      },
+    });
+    return bot;
+  }
+
+  const system = (model: MockLanguageModelV4, call: number) =>
+    JSON.stringify(model.doGenerateCalls[call]?.prompt.filter((m) => m.role === 'system'));
+
+  /** Um grupo movimentado: falas que não chamam a Luma. */
+  async function chatter(b: TestBot, count: number) {
+    for (let n = 1; n <= count; n += 1) {
+      await b.receive({
+        text: `mensagem ${n} sobre o jogo de ontem, que foi muito disputado`,
+        chat: group,
+        sender: { id: `p${n % 3}@x`, name: ['Ana', 'Bia', 'Caio'][n % 3] },
+      });
+    }
+  }
+
+  it('o prefixo do sistema é idêntico entre turnos seguidos do mesmo chat', async () => {
+    const model = scripted('opa', 'de novo');
+    const b = await start(model);
+
+    await b.receive({ text: 'luma, oi', chat: group, sender: { name: 'Ana' } });
+    await b.receive({ text: 'luma, e aí?', chat: group, sender: { name: 'Bia' } });
+
+    expect(system(model, 1)).toBe(system(model, 0));
+    expect(conversation(model, 1)).toMatch(/\[hoje é [^\]]+, \d\d\/\d\d\/\d{4}\]/);
+  });
+
+  it('um grupo movimentado não passa do orçamento: as falas velhas viram resumo', async () => {
+    const model = scripted('Ana, Bia e Caio discutem o jogo (#m2).', 'foi 2 a 1', 'isso');
+    const b = await tight(model);
+
+    await chatter(b, 30);
+    await b.receive({ text: 'luma, quem ganhou?', chat: group, sender: { name: 'Ana' } });
+    await b.receive({ text: 'luma, certeza?', chat: group, sender: { name: 'Bia' } });
+
+    // A primeira chamada é a compactação, e a resposta já sai com o resumo.
+    expect(system(model, 0)).toContain('resumo de uma conversa');
+    expect(promptText(model, 0)).toMatch(/\[#m1 \d\d:\d\d\] Bia: mensagem 1 /);
+    const reply = conversation(model, 1);
+    expect(reply).toContain('[resumo da conversa até aqui]');
+    expect(reply).toContain('Ana, Bia e Caio discutem o jogo (#m2).');
+    expect(reply).not.toContain('mensagem 1 ');
+    expect(reply).toContain('mensagem 30 ');
+    // A transcrição ocupa só o orçamento (mais a fala de agora e o JSON das mensagens).
+    expect(reply.length / 3).toBeLessThan(200 + 60);
+    // Depois de compactar há folga: a resposta seguinte não compacta de novo.
+    expect(model.doGenerateCalls).toHaveLength(3);
+    expect(b.sent).toHaveReplied('foi 2 a 1');
+  });
+
+  it('se o resumo falhar, responde mesmo assim, só com as falas que cabem', async () => {
+    const model = scripted(new Error('resumo quebrou'), 'foi 2 a 1');
+    const b = await tight(model);
+
+    await chatter(b, 30);
+    await b.receive({ text: 'luma, quem ganhou?', chat: group, sender: { name: 'Ana' } });
+
+    expect(b.sent).toHaveReplied('foi 2 a 1');
+    const reply = conversation(model, 1);
+    expect(reply).not.toContain('[resumo da conversa até aqui]');
+    expect(reply).not.toContain('mensagem 1 ');
+    expect(reply).toContain('mensagem 30 ');
+    expect(reply.length / 3).toBeLessThan(200 + 60);
+  });
+
+  it('read_messages devolve o texto inteiro de uma fala pelo ID', async () => {
+    const long = `começo ${'texto colado '.repeat(60)}fim do textão`;
+    const model = scripted(toolAnswer('read_messages', { ids: ['#m1'] }), 'li tudo');
+    const b = await start(model);
+
+    await b.receive({ text: long, chat: group, sender: { name: 'Caio' } });
+    await b.receive({ text: 'luma, lê o que o Caio mandou', chat: group, sender: { name: 'Ana' } });
+
+    expect(b.sent).toHaveReplied('li tudo');
+    expect(promptText(model, 1)).toContain('fim do textão');
+  });
+});
+
+describe('memória longa', () => {
+  const systemOf = (model: MockLanguageModelV4, call: number) =>
+    JSON.stringify(model.doGenerateCalls[call]?.prompt.filter((m) => m.role === 'system'));
+  const joao = { id: 'joao@x', name: 'João' };
+
+  it('um fato pedido para lembrar sobrevive a restart e à expiração da transcrição', async () => {
+    const model = scripted(
+      toolAnswer('remember', { fact: 'é corintiano', person: 'João' }),
+      'anotado',
+      'corinthians, claro',
+    );
+    const b = await start(model);
+
+    await b.receive({ text: 'lembra que eu sou corintiano', sender: joao });
+    // O restart esquece a transcrição (ela é só memória); o fato está no storage.
+    const after = await b.restart();
+    bot = after;
+    await after.receive({ text: 'qual meu time?', sender: joao });
+
+    const system = systemOf(model, 2);
+    expect(system).toContain('Sobre João:\\n- é corintiano');
+    expect(conversation(model, 2)).not.toContain('lembra que eu sou corintiano');
+  });
+
+  it('pedir para esquecer apaga o fato', async () => {
+    const model = scripted(
+      toolAnswer('remember', { fact: 'não gosta de ser chamada de Bianca', person: 'Bia' }),
+      'ok',
+      toolAnswer('forget', { fact: 'Bianca', person: 'Bia' }),
+      'esqueci',
+      'oi Bia',
+    );
+    const b = await start(model);
+    const bia = { id: 'bia@x', name: 'Bia' };
+
+    await b.receive({ text: 'luma, não me chama de Bianca', chat: group, sender: bia });
+    await b.receive({ text: 'luma, esquece aquilo do Bianca', chat: group, sender: bia });
+    expect(systemOf(model, 2)).toContain('não gosta de ser chamada de Bianca');
+    await b.receive({ text: 'luma, oi', chat: group, sender: bia });
+
+    expect(systemOf(model, 4)).not.toContain('Bianca');
+    expect(systemOf(model, 4)).not.toContain('O que você lembra');
+  });
+
+  it('o fato de um chat não aparece em outro, e o !luma clear o apaga', async () => {
+    const model = scripted(toolAnswer('remember', { fact: 'o grupo joga sexta' }), 'ok', 'oi');
+    const b = await start(model);
+
+    await b.receive({ text: 'luma, lembra que a gente joga sexta', chat: group, sender: joao });
+    await b.receive({ text: 'qual o plano de sexta?', sender: joao });
+    expect(systemOf(model, 2)).not.toContain('joga sexta');
+
+    await b.receive({ text: 'luma, oi', chat: group, sender: joao });
+    expect(systemOf(model, 3)).toContain('Deste chat:\\n- o grupo joga sexta');
+
+    await b.receive({ text: '!luma clear', chat: group, sender: joao });
+    await b.receive({ text: 'luma, oi de novo', chat: group, sender: joao });
+    expect(systemOf(model, 4)).not.toContain('joga sexta');
+  });
+
+  it('pessoa que não está na conversa nem tem bloco é recusada', async () => {
+    const model = scripted(
+      toolAnswer('remember', { fact: 'é flamenguista', person: 'Zé' }),
+      'quem?',
+    );
+    const b = await start(model);
+
+    await b.receive({ text: 'lembra que o Zé é flamenguista', sender: joao });
+
+    expect(promptText(model, 1)).toContain('unknown-person');
   });
 });
 
@@ -545,9 +756,9 @@ describe('quando falha', () => {
 });
 
 describe('outros plugins', () => {
-  it('conta a interação no rank, se ele existe', async () => {
+  it('a resposta conta no rank pelo usage', async () => {
     bot = await createTestBot({
-      plugins: [ai, fakeProvider({ a: scripted('oi') }), luma, rank],
+      plugins: [metrics, ai, fakeProvider({ a: scripted('oi') }), aiMetrics, luma, usage, rank],
       pluginConfig: { ai: { models: [{ model: 'fake:a' }] }, luma: FAST },
     });
 
@@ -556,6 +767,79 @@ describe('outros plugins', () => {
 
     expect(bot.sent).toContainText(/Ana|@/);
     expect(bot.sent).toContainText(/— 1/);
+  });
+
+  it('a resposta entra no usage de quem pediu em uma linha só, com o custo', async () => {
+    const probe = usageProbe();
+    bot = await createTestBot({
+      plugins: [
+        metrics,
+        ai,
+        fakeProvider({ a: scripted('oi') }),
+        aiMetrics,
+        luma,
+        usage,
+        probe.plugin,
+      ],
+      pluginConfig: {
+        ai: { models: [{ model: 'fake:a' }] },
+        luma: FAST,
+        // US$ 1 por token: as 3 de entrada e as 2 de saída do modelo falso custam 5.
+        'ai-metrics': {
+          prices: { 'fake:a': { inputPerMillion: 1_000_000, outputPerMillion: 1_000_000 } },
+        },
+      },
+    });
+
+    await bot.receive({ text: 'oi', sender: { id: '123@lid', phone: '5511999' } });
+
+    // O observer do `ai-metrics` roda sem ser esperado pelo `generate`.
+    await vi.waitFor(() => expect(probe.entries).toHaveLength(1));
+    expect(probe.entries).toEqual([
+      expect.objectContaining({
+        actor: '5511999@s.whatsapp.net',
+        action: 'luma',
+        kind: 'reply',
+        outcome: 'ok',
+        cost: 5,
+      }),
+    ]);
+  });
+
+  it('a mesma pessoa no grupo (LID) e no privado é uma linha só no rank, com o apelido', async () => {
+    bot = await createTestBot({
+      plugins: [
+        metrics,
+        ai,
+        fakeProvider({ a: scripted('oi') }),
+        aiMetrics,
+        luma,
+        usage,
+        rank,
+        userNames,
+      ],
+      pluginConfig: { ai: { models: [{ model: 'fake:a' }] }, luma: FAST },
+    });
+    const phone = '5511999990001';
+
+    await bot.receive({
+      text: '!nick Aninha',
+      sender: { id: '123@lid', name: 'Ana', phone },
+      chat: group,
+    });
+    await bot.receive({
+      text: 'luma oi',
+      sender: { id: '123@lid', name: 'Ana', phone },
+      chat: group,
+    });
+    await bot.receive({
+      text: 'oi',
+      sender: { id: `${phone}@s.whatsapp.net`, name: 'Ana', phone },
+    });
+    await bot.receive({ text: '!rank global', sender: { id: 'outro@x', name: 'Bia' } });
+
+    expect(bot.sent).toContainText(/Aninha — 2/);
+    expect(bot.sent).not.toContainText(/— 1/);
   });
 
   it('funciona sem o rank nem o user-names', async () => {

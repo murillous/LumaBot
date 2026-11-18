@@ -8,7 +8,6 @@ import { baileys } from '@usebridger/transport-baileys';
 import { plugins as apiPlugins } from '#api-plugins.ts';
 import { AUDIT_RETENTION_DAYS, loadConfig, pluginEnv } from '#config.ts';
 import { localSecret } from '#local-secret.ts';
-import { ownerAudit } from '#owner-audit.ts';
 import { aiMetrics } from '#plugins/ai-metrics/ai-metrics.ts';
 import { cloudflareAi } from '#plugins/cloudflare-ai/cloudflare-ai.ts';
 import { download } from '#plugins/download/download.ts';
@@ -27,6 +26,7 @@ import { stickerConvert } from '#plugins/sticker-convert/sticker-convert.ts';
 import { stickerEdit } from '#plugins/sticker-edit/sticker-edit.ts';
 import { stickerText } from '#plugins/sticker-text/sticker-text.ts';
 import { transcribe } from '#plugins/transcribe/transcribe.ts';
+import { usage } from '#plugins/usage/usage.ts';
 import { userNames } from '#plugins/user-names/user-names.ts';
 import { utils } from '#plugins/utils/utils.ts';
 import { webSearch } from '#plugins/web-search/web-search.ts';
@@ -91,7 +91,6 @@ const bot = createBot({
       process.exitCode = 1;
       bot.stop().catch((err: unknown) => log.error('falha ao encerrar', { err }));
     }),
-    ownerAudit,
     ping,
     // `metrics` e `ai`, os que registram rotas na API (a lista também gera a spec do dashboard).
     ...apiPlugins,
@@ -112,6 +111,7 @@ const bot = createBot({
     download({ cookies: config.ytdlpCookies }),
     userNames,
     rank,
+    usage,
     utils,
   ],
 });

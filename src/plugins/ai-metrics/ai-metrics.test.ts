@@ -3,9 +3,11 @@ import { type MetricsService, metrics } from '@usebridger/plugin-metrics';
 import { createTestBot, type TestBot } from '@usebridger/testing';
 import { APICallError } from 'ai';
 import { MockLanguageModelV4 } from 'ai/test';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { type AiService, ai } from '#plugins/ai/ai.ts';
 import { fakeProvider, scripted, textAnswer } from '#plugins/ai-testing.ts';
+import { usage } from '#plugins/usage/usage.ts';
+import { usageProbe } from '#plugins/usage/usage-testing.ts';
 import { type AiMetricsService, aiMetrics } from './ai-metrics.ts';
 
 let bot: TestBot | undefined;
@@ -158,6 +160,47 @@ describe('observer do ai', () => {
     expect(total.tokens).toEqual({ input: 10, output: 8, cacheRead: 6, reasoning: 3 });
     expect(total.cacheHitRate).toBeCloseTo(0.6);
   });
+
+  it('a escrita no cache vira o tipo cache_write, para ver se o prefixo é reaproveitado', async () => {
+    let metricsService: MetricsService | undefined;
+    let aiService: AiService | undefined;
+    const grab = definePlugin({
+      name: 'grab',
+      version: '0.0.0',
+      engine: '<1.0.0',
+      dependsOn: { ai: '*', metrics: '*', 'ai-metrics': '*' },
+      setup: (ctx) => {
+        aiService = ctx.services.get('ai');
+        metricsService = ctx.services.get('metrics');
+      },
+    });
+    const writes = new MockLanguageModelV4({
+      doGenerate: async () => ({
+        ...textAnswer('ok'),
+        usage: {
+          inputTokens: { total: 10, noCache: 2, cacheRead: undefined, cacheWrite: 8 },
+          outputTokens: { total: 1, text: 1, reasoning: undefined },
+        },
+      }),
+    });
+    bot = await createTestBot({
+      plugins: [metrics, ai, fakeProvider({ a: writes }), aiMetrics, grab],
+      pluginConfig: { ai: { models: [{ model: 'fake:a' }] } },
+    });
+
+    await aiService?.generate(hi());
+
+    const today = new Date().toISOString().slice(0, 10);
+    const rows =
+      (await metricsService?.query({
+        name: 'ai_tokens_total',
+        from: today,
+        to: today,
+        granularity: 'day',
+        where: { kind: 'cache_write' },
+      })) ?? [];
+    expect(rows.map((r) => (r.type === 'counter' ? r.value : null))).toEqual([8]);
+  });
 });
 
 describe('custo', () => {
@@ -242,6 +285,94 @@ describe('privacidade', () => {
       ['kind', 'model', 'outcome', 'position', 'provider', 'purpose', 'reason'].sort(),
     );
     expect(JSON.stringify(rows)).not.toMatch(/segredo|Ana|5511999999999/);
+  });
+});
+
+describe('uso por pessoa', () => {
+  const actor = { id: '5511999@s.whatsapp.net', chatId: 'g@g.us' };
+  // US$ 1 por token: as 3 de entrada e as 2 de saída do modelo falso custam 5.
+  const perToken = { inputPerMillion: 1_000_000, outputPerMillion: 1_000_000 };
+
+  /** Bot com o `usage` e uma sonda das linhas gravadas nele. */
+  async function withUsage(
+    models: Record<string, MockLanguageModelV4>,
+    chain: string[],
+    prices: Record<string, typeof perToken>,
+  ) {
+    const probe = usageProbe();
+    let service: AiService | undefined;
+    const consumer = definePlugin({
+      name: 'consumidor',
+      version: '0.0.0',
+      engine: '<1.0.0',
+      dependsOn: { ai: '^0.1.0' },
+      setup: (ctx) => {
+        service = ctx.services.get('ai');
+      },
+    });
+    bot = await createTestBot({
+      plugins: [metrics, ai, fakeProvider(models), aiMetrics, usage, probe.plugin, consumer],
+      pluginConfig: {
+        ai: { models: chain.map((model) => ({ model })) },
+        'ai-metrics': { prices },
+      },
+    });
+    if (!service) throw new Error('serviço não capturado');
+    return { ai: service, entries: probe.entries };
+  }
+
+  it('com fallback, a resposta é uma linha só, com o custo do modelo que respondeu', async () => {
+    const h = await withUsage(
+      { a: scripted(apiError(503)), b: scripted('de b') },
+      ['fake:a', 'fake:b'],
+      { 'fake:a': perToken, 'fake:b': perToken },
+    );
+
+    await h.ai.generate({ ...hi('resumo'), actor });
+
+    // O observer roda sem ser esperado pelo `generate`.
+    await vi.waitFor(() => expect(h.entries).toHaveLength(1));
+    expect(h.entries).toEqual([
+      {
+        actor: actor.id,
+        chatId: actor.chatId,
+        action: 'resumo',
+        kind: 'reply',
+        outcome: 'ok',
+        cost: 5,
+      },
+    ]);
+  });
+
+  it('modelo sem preço grava a resposta sem custo', async () => {
+    const h = await withUsage({ a: scripted('oi') }, ['fake:a'], {});
+
+    await h.ai.generate({ ...hi(), actor });
+
+    await vi.waitFor(() => expect(h.entries).toHaveLength(1));
+    expect(h.entries[0]).not.toHaveProperty('cost');
+  });
+
+  it('a cadeia toda em falha grava um erro, sem custo', async () => {
+    const h = await withUsage(
+      { a: scripted(apiError(503)), b: scripted(apiError(503)) },
+      ['fake:a', 'fake:b'],
+      { 'fake:a': perToken, 'fake:b': perToken },
+    );
+
+    await expect(h.ai.generate({ ...hi(), actor })).rejects.toThrow();
+
+    await vi.waitFor(() => expect(h.entries).toHaveLength(1));
+    expect(h.entries).toEqual([expect.objectContaining({ outcome: 'error' })]);
+    expect(h.entries[0]).not.toHaveProperty('cost');
+  });
+
+  it('sem actor, nada vai para o usage', async () => {
+    const h = await withUsage({ a: scripted('oi') }, ['fake:a'], { 'fake:a': perToken });
+
+    await h.ai.generate(hi());
+
+    expect(h.entries).toEqual([]);
   });
 });
 

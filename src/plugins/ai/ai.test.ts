@@ -231,6 +231,38 @@ describe('ai.observers', () => {
     expect(seen[1]?.usage).toBeUndefined();
   });
 
+  it('repassa o actor e marca só a última tentativa da chamada', async () => {
+    const seen: AiAttempt[] = [];
+    const ai = await start(
+      [{ model: 'fake:a' }, { model: 'fake:b' }],
+      [fake('fake', { a: model(apiError(503)), b: model('de b') })],
+      [(a) => void seen.push(a)],
+    );
+    const actor = { id: '5511@s.whatsapp.net', chatId: 'g@g.us' };
+
+    await ai.generate({ ...hi, actor });
+    await ai.generate(hi).catch(() => undefined);
+
+    expect(seen.slice(0, 2)).toMatchObject([
+      { outcome: 'transient', actor, last: false },
+      { outcome: 'ok', actor, last: true },
+    ]);
+    expect(seen[2]).not.toHaveProperty('actor');
+  });
+
+  it('com a cadeia toda em falha transitória, a última tentativa vem marcada', async () => {
+    const seen: AiAttempt[] = [];
+    const ai = await start(
+      [{ model: 'fake:a' }, { model: 'fake:b' }],
+      [fake('fake', { a: model(apiError(503)), b: model(apiError(503)) })],
+      [(a) => void seen.push(a)],
+    );
+
+    await expect(ai.generate(hi)).rejects.toBeInstanceOf(AiUnavailableError);
+
+    expect(seen.map((a) => a.last)).toEqual([false, true]);
+  });
+
   it('registra o erro que relança e o abort de quem chamou', async () => {
     const seen: AiAttempt['outcome'][] = [];
     const controller = new AbortController();

@@ -6,12 +6,6 @@ export const NAME_FAILED = defineLogEvent({
   message: 'falha ao resolver o nome',
 });
 
-export const STATS_FAILED = defineLogEvent({
-  name: 'luma.stats.failed',
-  level: 'warn',
-  message: 'falha ao contar a interação',
-});
-
 export const TYPING_FAILED = defineLogEvent({
   name: 'luma.typing.failed',
   level: 'debug',
@@ -40,4 +34,16 @@ export const PERSONA_CREATE_FAILED = defineLogEvent({
   name: 'luma.persona-create.failed',
   level: 'error',
   message: 'falha ao criar a persona',
+});
+
+export const COMPACT_FAILED = defineLogEvent({
+  name: 'luma.compact.failed',
+  level: 'warn',
+  message: 'falha ao resumir a conversa; segue com a transcrição cortada',
+});
+
+export const MEMORY_FAILED = defineLogEvent({
+  name: 'luma.memory.failed',
+  level: 'warn',
+  message: 'falha ao ler a memória longa; responde sem ela',
 });

@@ -2,7 +2,7 @@ import { definePlugin, type PluginDefinition } from '@usebridger/core';
 import type { CounterQueryRow, HistogramQueryRow, QueryRow } from '@usebridger/plugin-metrics';
 import { z } from 'zod';
 import type { AiAttempt } from '#plugins/ai/ai.ts';
-import { type AiSummary, type Price, summarize } from './summary.ts';
+import { type AiSummary, attemptCost, type Price, summarize } from './summary.ts';
 
 export type { AiSummary, Price, Stats } from './summary.ts';
 
@@ -107,6 +107,8 @@ export const aiMetrics: PluginDefinition = definePlugin({
           ['input', usage.inputTokens],
           ['output', usage.outputTokens],
           ['cache_read', usage.inputTokenDetails.cacheReadTokens],
+          // Escrita no cache (o Claude cobra à parte): mostra se o prefixo está sendo reaproveitado.
+          ['cache_write', usage.inputTokenDetails.cacheWriteTokens],
           ['reasoning', usage.outputTokenDetails.reasoningTokens],
         ];
         for (const [kind, value] of kinds) {
@@ -114,6 +116,23 @@ export const aiMetrics: PluginDefinition = definePlugin({
         }
       }
       if (a.finishReason) finish.inc({ ...base, reason: a.finishReason });
+    });
+
+    // A resposta pedida por alguém vira uma linha no `usage` dessa pessoa, com o custo. Só a
+    // última tentativa grava: as anteriores falharam sem `usage`, então não têm custo a somar.
+    // O abort é de quem chamou (a conversa foi cancelada), não uma resposta.
+    ctx.services.contribute('ai.observers', (a: AiAttempt) => {
+      if (!a.actor || !a.last || a.outcome === 'aborted' || !ctx.services.has('usage')) return;
+      const cost = a.usage ? attemptCost(prices, a.model, a.usage) : null;
+      // Rejeição volta para o `ai`, que registra a falha do observer no log.
+      return ctx.services.get('usage').record({
+        actor: a.actor.id,
+        chatId: a.actor.chatId,
+        action: a.purpose,
+        kind: 'reply',
+        outcome: a.outcome === 'ok' ? 'ok' : 'error',
+        ...(cost !== null && { cost }),
+      });
     });
 
     ctx.services.provide('aiMetrics', {

@@ -20,17 +20,18 @@
     "typecheck": "tsc && pnpm --filter @lumabot/dashboard typecheck",
     "lint": "biome check",
     "lint:fix": "biome check --write",
-    "test": "vitest run"
+    "test": "vitest run",
+    "evals:luma": "node --env-file-if-exists=.env scripts/luma-evals.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.81",
     "@ai-sdk/deepseek": "^3.0.66",
     "@ai-sdk/google": "^4.0.98",
     "@ai-sdk/openai": "^4.0.95",
-    "@usebridger/core": "^0.11.0",
-    "@usebridger/plugin-metrics": "^0.3.1",
-    "@usebridger/storage-sqlite": "^0.3.4",
-    "@usebridger/transport-baileys": "^0.6.1",
+    "@usebridger/core": "^0.12.0",
+    "@usebridger/plugin-metrics": "^0.3.2",
+    "@usebridger/storage-sqlite": "^0.3.5",
+    "@usebridger/transport-baileys": "^0.6.3",
     "ai": "^7.0.142",
     "node-webpmux": "^3.2.1",
     "pdf-lib": "^1.17.1",
@@ -42,7 +43,7 @@
     "@biomejs/biome": "^2.5.15",
     "@types/node": "^24.19.1",
     "@types/qrcode-terminal": "^0.12.2",
-    "@usebridger/testing": "^0.7.1",
+    "@usebridger/testing": "^0.7.2",
     "tsdown": "^0.23.0",
     "typescript": "^7.0.2",
     "vitest": "^5.0.3"

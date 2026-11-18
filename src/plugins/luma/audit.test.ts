@@ -1,7 +1,7 @@
 import { createTestBot, type TestBot } from '@usebridger/testing';
 import { afterEach, expect, it } from 'vitest';
 import { ai } from '#plugins/ai/ai.ts';
-import { fakeProvider, scripted } from '#plugins/ai-testing.ts';
+import { fakeProvider, scripted, toolAnswer } from '#plugins/ai-testing.ts';
 import { auditReader } from '#plugins/audit-reader.ts';
 import { luma } from './luma.ts';
 
@@ -41,6 +41,24 @@ it('luma.persona.set audita a troca, com o chat como alvo', async () => {
   expect(event?.details).toEqual({ key: 'agressiva' });
 });
 
+it('a troca de persona pelo chat tem como ator o contato que pediu', async () => {
+  const { b, reader } = await start();
+  await b.receive({
+    text: '!persona 2',
+    chat: { id: 'grupo@fake', isGroup: true },
+    sender: { id: 'quem-trocou@fake' },
+  });
+
+  const [event] = await reader.events('luma.persona.set');
+  expect(event?.actor).toEqual({
+    kind: 'contact',
+    transport: expect.any(String),
+    id: expect.stringMatching(/^u_/),
+  });
+  expect(event?.via).toBe('luma');
+  expect(JSON.stringify(event)).not.toContain('quem-trocou@fake');
+});
+
 it('em conversa privada o alvo é o chat pseudonimizado, sem o número cru', async () => {
   const { b, reader } = await start();
   await b.receive({ text: '!persona 2', chat: 'privado@fake' });
@@ -62,13 +80,54 @@ it('luma.persona.create e .delete não levam o texto da persona', async () => {
   expect(JSON.stringify([created, deleted])).not.toContain('super secreta');
 });
 
-it('luma.history.clear registra o contato que pediu', async () => {
+it('luma.history.clear tem como ator o contato que pediu', async () => {
   const { b, reader } = await start();
   await b.receive({ text: '!luma clear', sender: { id: 'titular@fake' } });
 
   const [event] = await reader.events('luma.history.clear');
-  expect(event?.details?.['contact']).toEqual(expect.stringMatching(/^u_/));
+  expect(event?.actor).toEqual({
+    kind: 'contact',
+    transport: expect.any(String),
+    id: expect.stringMatching(/^u_/),
+  });
+  expect(event?.via).toBe('luma');
   expect(JSON.stringify(event)).not.toContain('titular@fake');
   expect(event?.target?.id).toMatch(/^u_/);
   expect(JSON.stringify(event)).not.toContain('chat@fake');
+});
+
+it('lembrar e esquecer auditam só o ato e o bloco, nunca o fato nem de quem é', async () => {
+  const reader = auditReader();
+  bot = await createTestBot({
+    plugins: [
+      ai,
+      fakeProvider({
+        a: scripted(
+          toolAnswer('remember', { fact: 'segredo do Caio', person: 'Caio' }),
+          'ok',
+          toolAnswer('forget', { person: 'Caio' }),
+          'ok',
+        ),
+      }),
+      luma,
+      reader.plugin,
+    ],
+    adminPlugins: [reader.plugin.name],
+    pluginConfig: {
+      ai: { models: [{ model: 'fake:a' }] },
+      luma: { thinkingDelayMs: { min: 0, max: 0 } },
+    },
+  });
+  const group = { id: 'grupo@fake', isGroup: true };
+  const caio = { id: 'caio@fake', name: 'Caio' };
+
+  await bot.receive({ text: 'luma, guarda isso', chat: group, sender: caio });
+  await bot.receive({ text: 'luma, esquece', chat: group, sender: caio });
+
+  const [remembered] = await reader.events('luma.memory.remember');
+  const [forgot] = await reader.events('luma.memory.forget');
+  expect(remembered?.target).toEqual({ type: 'chat', id: 'grupo@fake' });
+  expect(remembered?.details).toEqual({ block: 'person' });
+  expect(forgot?.details).toEqual({ block: 'person' });
+  expect(JSON.stringify([remembered, forgot])).not.toMatch(/segredo|caio@fake/);
 });

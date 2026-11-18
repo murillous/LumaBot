@@ -5,6 +5,8 @@ import { ai } from '#plugins/ai/ai.ts';
 import { fakeProvider, scripted } from '#plugins/ai-testing.ts';
 import { aiToolsProbe, toolResult } from '#plugins/ai-tools-probe.ts';
 import { observedBot } from '#plugins/observe-probe.ts';
+import { usage } from '#plugins/usage/usage.ts';
+import { usageProbe } from '#plugins/usage/usage-testing.ts';
 import { audioMediaType, SILENT, transcribe, UNINTELLIGIBLE } from './transcribe.ts';
 
 let bot: TestBot | undefined;
@@ -217,4 +219,18 @@ describe('log e métricas', () => {
       { labels: { kind: 'audio', outcome: 'refused' }, value: 1 },
     ]);
   });
+});
+
+it('a transcrição conta no usage de quem pediu', async () => {
+  const probe = usageProbe();
+  bot = await createTestBot({
+    plugins: [ai, fakeProvider({ a: scripted('oi') }), transcribe, usage, probe.plugin],
+    pluginConfig: { ai: { models: [{ model: 'fake:a' }] } },
+  });
+
+  await bot.receive({ text: '!transcribe', voice: fixtures.voice() });
+
+  expect(probe.entries).toEqual([
+    expect.objectContaining({ action: 'transcribe', kind: 'audio', outcome: 'ok' }),
+  ]);
 });

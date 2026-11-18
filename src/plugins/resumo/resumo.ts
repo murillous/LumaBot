@@ -1,9 +1,10 @@
-import { definePlugin, type PluginDefinition } from '@usebridger/core';
+import { definePlugin, type Logger, type Message, type PluginDefinition } from '@usebridger/core';
 import { z } from 'zod';
 import { chainItem } from '#plugins/ai/ai.ts';
 import { cleanResponse } from '#plugins/ai-response.ts';
 import { aiTool, fail, ok } from '#plugins/ai-tools.ts';
 import { createChatWindow } from '#plugins/chat-window.ts';
+import { recordUsage, type UsageOutcome } from '#plugins/usage/usage.ts';
 import { NAME_FAILED, SUMMARY_FAILED, TYPING_FAILED } from './log-events.ts';
 
 export interface ResumoService {
@@ -106,6 +107,23 @@ export const resumo: PluginDefinition = definePlugin({
     };
     ctx.services.provide('resumo', service);
 
+    // Resumo pedido por alguém (tool ou comando) conta no `usage` dessa pessoa.
+    const summarizeFor = async (
+      by: { message: Message; log: Logger; signal: AbortSignal },
+      limit: number | undefined,
+    ) => {
+      const used = (outcome: UsageOutcome) =>
+        recordUsage(ctx.services, by.log, by.message, { action: 'resumo', kind: 'chat', outcome });
+      try {
+        const summary = await service.summarize(by.message.chat.id, limit, by.signal);
+        await used(summary ? 'ok' : 'refused');
+        return summary;
+      } catch (err) {
+        await used('error');
+        throw err;
+      }
+    };
+
     ctx.services.contribute(
       'ai.tools',
       aiTool({
@@ -124,7 +142,7 @@ export const resumo: PluginDefinition = definePlugin({
             ),
         }),
         run: async ({ limit }, t) => {
-          const summary = await service.summarize(t.message.chat.id, limit, t.signal);
+          const summary = await summarizeFor(t, limit);
           if (summary === null) return fail('no-history');
           return summary ? ok({ summary }) : fail('empty');
         },
@@ -147,7 +165,7 @@ export const resumo: PluginDefinition = definePlugin({
           });
         }
         try {
-          const summary = await service.summarize(c.message.chat.id, limit, c.signal);
+          const summary = await summarizeFor(c, limit);
           if (summary === null) return c.t('empty');
           if (!summary) return c.t('failed');
           return c.t('summary', { text: summary });

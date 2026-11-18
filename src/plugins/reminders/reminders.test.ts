@@ -8,6 +8,8 @@ import {
 } from '@usebridger/testing';
 import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest';
 import { aiToolsProbe, toolResult } from '#plugins/ai-tools-probe.ts';
+import { usage } from '#plugins/usage/usage.ts';
+import { usageProbe } from '#plugins/usage/usage-testing.ts';
 import { ReminderError, type RemindersService, reminders } from './reminders.ts';
 
 let bot: TestBot;
@@ -753,4 +755,16 @@ describe('tools com repeat', () => {
     await bot.receive({ text: '!tool create_reminder {"repeat":{"everyMinutes":5},"text":"x"}' });
     expect(toolResult(bot)).toEqual({ ok: false, error: 'interval-too-short' });
   });
+});
+
+it('criar lembrete conta no usage de quem pediu; listar não', async () => {
+  const probe = usageProbe();
+  bot = await createTestBot({ plugins: [reminders, usage, probe.plugin] });
+
+  await bot.receive({ text: '!lembrete 16/10 10:00 reunião' });
+  await bot.receive({ text: '!lembretes' });
+
+  expect(probe.entries).toEqual([
+    expect.objectContaining({ action: 'reminders', kind: 'create', outcome: 'ok' }),
+  ]);
 });

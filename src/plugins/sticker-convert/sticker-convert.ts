@@ -60,7 +60,7 @@ export const stickerConvert: PluginDefinition = definePlugin({
         run: async (_, t) => {
           const media = stickerOf(t);
           if (!media) return fail('no-sticker');
-          await track(t.log, 'image', async (step) => {
+          await track(t, 'image', async (step) => {
             const png = await stickerToPng(await media.download());
             await t.reply.image(png, { caption: messages.imageDone, mimetype: 'image/png' });
             step.note({ bytes: png.length });
@@ -80,7 +80,7 @@ export const stickerConvert: PluginDefinition = definePlugin({
         run: async (_, t) => {
           const media = stickerOf(t);
           if (!media) return fail('no-sticker');
-          const sent = await track(t.log, 'gif', async (step) => {
+          const sent = await track(t, 'gif', async (step) => {
             const sticker = await media.download();
             if (!(await isAnimated(sticker))) {
               step.refuse('not-animated');

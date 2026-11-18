@@ -9,6 +9,8 @@ import { checkBinary } from '#plugins/binary.ts';
 import { type ObservedBot, observedBot } from '#plugins/observe-probe.ts';
 import { sticker } from '#plugins/sticker/sticker.ts';
 import { stickerText } from '#plugins/sticker-text/sticker-text.ts';
+import { usage } from '#plugins/usage/usage.ts';
+import { usageProbe } from '#plugins/usage/usage-testing.ts';
 import { download } from './download.ts';
 import { downloadAudio, downloadVideo, TooLargeError } from './yt-dlp.ts';
 
@@ -397,4 +399,16 @@ describe('log e métricas', () => {
 
     expect(o.event('download.binaries.missing')).toMatchObject({ level: 'warn' });
   });
+});
+
+it('a falha do download conta no usage de quem pediu, como erro', async () => {
+  vi.mocked(downloadVideo).mockRejectedValue(new Error('yt-dlp falhou'));
+  const probe = usageProbe();
+  bot = await createTestBot({ plugins: [download(), usage, probe.plugin] });
+
+  await bot.receive({ text: `!d ${URL}` });
+
+  expect(probe.entries).toEqual([
+    expect.objectContaining({ action: 'download', kind: 'media', outcome: 'error' }),
+  ]);
 });
