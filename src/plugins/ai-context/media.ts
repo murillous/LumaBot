@@ -125,7 +125,7 @@ export function viewMediaTool({ transcript, refs, ai, models }: ViewDeps): AiToo
       }
       if (question) parts.push({ type: 'text', text: `Pergunta: ${question}` });
       const { text } = await ai.generate({
-        purpose: 'luma.view',
+        purpose: 'ai-context.view',
         instructions: DESCRIBE,
         messages: [{ role: 'user', content: parts }],
         signal: t.signal,

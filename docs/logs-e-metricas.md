@@ -77,7 +77,8 @@ mídia até 60 s, cada um até o prazo do comando.
 | `ai` | `ai.http.disabled` | `info` |
 | `usage` | `usage.record.failed`, `usage.observer.failed` | `error` |
 | `luma` | `luma.reply.failed`, `luma.persona-create.failed` | `error` |
-| `luma` | `luma.name.failed`, `luma.error-notice.failed`, `luma.ai-metrics.failed`, `luma.compact.failed`, `luma.memory.failed` | `warn` |
+| `luma` | `luma.name.failed`, `luma.error-notice.failed`, `luma.ai-metrics.failed`, `luma.memory-migration.failed` | `warn` |
+| `ai-context` | `ai-context.name.failed`, `ai-context.compact.failed`, `ai-context.memory.failed` | `warn` |
 | `luma` | `luma.typing.failed` | `debug` |
 | `resumo` | `resumo.summary.failed` | `error` |
 | `resumo` | `resumo.name.failed` | `warn` |

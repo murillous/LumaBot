@@ -150,7 +150,7 @@ export function peopleOf(entries: readonly Entry[]): Map<string, string> {
 
 /** O ato de lembrar ou esquecer, para a auditoria; nunca o fato. */
 export type MemoryAudit = (
-  action: 'luma.memory.remember' | 'luma.memory.forget',
+  action: 'ai-context.memory.remember' | 'ai-context.memory.forget',
   ctx: { readonly chatId: string; readonly isGroup: boolean; readonly block: 'chat' | 'person' },
 ) => void;
 
@@ -228,7 +228,7 @@ export function memoryTools(deps: ToolDeps): AiTool[] {
         fact.trim(),
       );
       if (!result.ok) return fail('full', result.facts.join(' | '));
-      deps.audit('luma.memory.remember', {
+      deps.audit('ai-context.memory.remember', {
         chatId,
         isGroup: t.message.chat.isGroup,
         block: who ? 'person' : 'chat',
@@ -258,7 +258,7 @@ export function memoryTools(deps: ToolDeps): AiTool[] {
       if (removed === 0) {
         return fail('not-found', (await deps.memory.facts(chatId, about)).join(' | '));
       }
-      deps.audit('luma.memory.forget', {
+      deps.audit('ai-context.memory.forget', {
         chatId,
         isGroup: t.message.chat.isGroup,
         block: who ? 'person' : 'chat',

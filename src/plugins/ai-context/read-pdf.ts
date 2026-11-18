@@ -221,7 +221,7 @@ export function readPdfTool(deps: ReadPdfDeps): AiTool {
             if (readers.length === 0) return refuse(fail('no-text', id));
             const ask = `Leia as páginas ${range.from} a ${range.to} de ${pdf.totalPages}.${question ? ` Pergunta: ${question}` : ''}`;
             const { text } = await ai.generate({
-              purpose: 'luma.pdf',
+              purpose: 'ai-context.pdf',
               instructions: READ_SCANNED,
               messages: [
                 {
@@ -251,7 +251,7 @@ export function readPdfTool(deps: ReadPdfDeps): AiTool {
         const truncated = text.length > MAX_SUMMARY_INPUT;
         const input = truncated ? text.slice(0, MAX_SUMMARY_INPUT) : text;
         const { text: summary } = await ai.generate({
-          purpose: 'luma.pdf',
+          purpose: 'ai-context.pdf',
           instructions: SUMMARIZE,
           messages: [
             {

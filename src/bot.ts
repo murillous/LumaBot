@@ -8,6 +8,7 @@ import { baileys } from '@usebridger/transport-baileys';
 import { plugins as apiPlugins } from '#api-plugins.ts';
 import { AUDIT_RETENTION_DAYS, loadConfig, pluginEnv } from '#config.ts';
 import { localSecret } from '#local-secret.ts';
+import { aiContext } from '#plugins/ai-context/ai-context.ts';
 import { aiMetrics } from '#plugins/ai-metrics/ai-metrics.ts';
 import { cloudflareAi } from '#plugins/cloudflare-ai/cloudflare-ai.ts';
 import { download } from '#plugins/download/download.ts';
@@ -96,6 +97,7 @@ const bot = createBot({
     ...apiPlugins,
     aiMetrics,
     cloudflareAi,
+    aiContext,
     luma,
     spontaneous,
     resumo,

@@ -4,7 +4,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ai } from '#plugins/ai/ai.ts';
 import { fakeProvider, promptText, scripted } from '#plugins/ai-testing.ts';
 import { aiToolsProbe, toolResult } from '#plugins/ai-tools-probe.ts';
-import { luma } from './luma.ts';
+import { luma } from '#plugins/luma/luma.ts';
+import { aiContext } from './ai-context.ts';
 
 let bot: TestBot | undefined;
 afterEach(async () => {
@@ -19,10 +20,11 @@ async function start(
   options: { capabilities?: Iterable<Capability> } = {},
 ) {
   bot = await createTestBot({
-    plugins: [ai, fakeProvider({ a: scripted('ok'), v: vision }), luma, aiToolsProbe],
+    plugins: [ai, fakeProvider({ a: scripted('ok'), v: vision }), aiContext, luma, aiToolsProbe],
     pluginConfig: {
       ai: { models: [{ model: 'fake:a' }] },
-      luma: { thinkingDelayMs: { min: 0, max: 0 }, visionModels: [{ model: 'fake:v' }] },
+      'ai-context': { visionModels: [{ model: 'fake:v' }] },
+      luma: { thinkingDelayMs: { min: 0, max: 0 } },
     },
     ...options,
   });
@@ -118,7 +120,7 @@ describe('na conversa', () => {
   it('a Luma vê os IDs das mídias anteriores e sabe que pode usá-los', async () => {
     const model = scripted('junto já');
     bot = await createTestBot({
-      plugins: [ai, fakeProvider({ a: model }), luma],
+      plugins: [ai, fakeProvider({ a: model }), aiContext, luma],
       pluginConfig: {
         ai: { models: [{ model: 'fake:a' }] },
         luma: { thinkingDelayMs: { min: 0, max: 0 } },

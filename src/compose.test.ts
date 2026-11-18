@@ -6,6 +6,7 @@ import { metrics } from '@usebridger/plugin-metrics';
 import { createTestBot, fixtures, type TestBot } from '@usebridger/testing';
 import { afterEach, describe, expect, it } from 'vitest';
 import { ai } from '#plugins/ai/ai.ts';
+import { aiContext } from '#plugins/ai-context/ai-context.ts';
 import { aiMetrics } from '#plugins/ai-metrics/ai-metrics.ts';
 import { fakeProvider, scripted } from '#plugins/ai-testing.ts';
 import { download } from '#plugins/download/download.ts';
@@ -45,6 +46,7 @@ async function start(model = scripted('oi')) {
       ai,
       fakeProvider({ a: model }, { nativeSearch: true }),
       aiMetrics,
+      aiContext,
       luma,
       spontaneous,
       resumo,
@@ -79,6 +81,7 @@ describe('composição do app', () => {
       expect.arrayContaining([
         'ai',
         'ai-metrics',
+        'ai-context',
         'luma',
         'spontaneous',
         'resumo',

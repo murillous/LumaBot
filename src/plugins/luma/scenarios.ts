@@ -10,6 +10,7 @@ import type { MockLanguageModelV4 } from 'ai/test';
 import { PDFDocument, StandardFonts } from 'pdf-lib';
 import sharp from 'sharp';
 import { ai } from '#plugins/ai/ai.ts';
+import { aiContext } from '#plugins/ai-context/ai-context.ts';
 import {
   type Answer,
   fakeProvider,
@@ -290,6 +291,7 @@ export async function play(s: Scenario, options: PlayOptions): Promise<Played> {
     fakeProvider(options.model ? { a: options.model } : {}, { images: { x: image } }),
     sticker,
     stickerEdit,
+    aiContext,
     luma,
   ];
   let bot: TestBot = await createTestBot({

@@ -152,7 +152,8 @@ O log de auditoria do kernel (tela **Auditoria**) guarda **1 ano** (`AUDIT_RETEN
 kernel já audita (plugins, config, segredos, login e, desde o core 0.12, `kernel.command.run` /
 `kernel.command.denied` para comando `owner` ou de papel custom, sem os argumentos), a Luma registra:
 
-- `luma.persona.set|create|delete`, `luma.history.clear` e `luma.memory.remember|forget` ([luma.md](docs/luma.md#auditoria)).
+- `luma.persona.set|create|delete` e `luma.history.clear` ([luma.md](docs/luma.md#auditoria)).
+- `ai-context.history.clear` e `ai-context.memory.remember|forget` ([ai-context.md](docs/ai-context.md#auditoria)).
 - `reminders.delete`, só quando quem cancela não é o dono ([reminders.md](docs/reminders.md#auditoria)).
 - `pairing.session.paired` (conectou depois de QR ou código) e `pairing.session.lost`
   (`logged-out` ou `auth-failed`).
@@ -222,7 +223,8 @@ o app carrega o `metrics`.
 | `ping` | `!ping` responde `pong`: prova o caminho transport → kernel → fila de saída → transport |
 | [`ai`](docs/ai.md) | Cadeia de modelos (Gemini, OpenAI, Claude, DeepSeek) com fallback, tool calling e busca nativa. Oferece o serviço `ai` e os pontos `ai.providers` e `ai.observers` |
 | [`ai-metrics`](docs/ai-metrics.md) | Consumo, vazão e custo por modelo, pelo serviço `metrics`. Oferece o serviço `aiMetrics` |
-| [`luma`](docs/luma.md) | A personagem: responde em PV, quando citada, chamada ou mencionada; histórico, memória longa por chat, personas e `!persona`, `!luma clear`/`stats`. Oferece o serviço `luma` |
+| [`ai-context`](docs/ai-context.md) | Contexto de conversa da IA: transcrição por chat com IDs, orçamento com resumo, memória longa e as tools que leem tudo isso. Oferece o serviço `aiContext` |
+| [`luma`](docs/luma.md) | A personagem: responde em PV, quando citada, chamada ou mencionada; personas e `!persona`, `!luma clear`/`stats`, sobre o `ai-context`. Oferece o serviço `luma` |
 | [`spontaneous`](docs/spontaneous.md) | Reação com emoji às mensagens dos grupos, decidida pela IA |
 | [`resumo`](docs/resumo.md) | Resumo da conversa: `!resumo [n]`. Oferece o serviço `resumo` |
 | [`transcribe`](docs/transcribe.md) | Transcrição de áudio: `!transcribe` (`!t`). Oferece o serviço `transcription` |
