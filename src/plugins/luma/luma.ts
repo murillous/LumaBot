@@ -44,12 +44,15 @@ import {
 import { PersonaParseError, parsePersona, personaPrompt, slugify } from './persona-generator.ts';
 import { DEFAULT_PERSONA, PERSONAS, type Persona } from './personas.ts';
 import { buildPrompt, type QuotedInfo, quotedContext } from './prompt.ts';
+import { readPdfTool } from './read-pdf.ts';
 import { renderStats } from './stats.ts';
 import {
+  cleanFileName,
   createTranscript,
   type Entry,
   header,
   mediaKind,
+  mediaLabel,
   replyNote,
   type Summary,
   stripHeader,
@@ -549,7 +552,8 @@ export const luma: PluginDefinition = definePlugin({
         const quoted = await quoteNote(i);
         if (quoted) userText = userText ? `${quoted} ${userText}` : quoted;
         // Mídia sem imagem anexada (vídeo, documento) só aparece como marca, como na transcrição.
-        if (i.current?.media && !image && userText) userText = `[${i.current.media}] ${userText}`;
+        if (i.current?.media && !image && userText)
+          userText = `${mediaLabel(i.current)} ${userText}`;
 
         if (!userText) {
           await i.reply(pick(cfg.boredReplies));
@@ -663,6 +667,7 @@ export const luma: PluginDefinition = definePlugin({
             person: personId(m.sender),
             text: text || null,
             ...(media && { media }),
+            ...(m.type === 'document' && m.fileName && { fileName: cleanFileName(m.fileName) }),
             ...(file && { file }),
             ...(replyTo && { replyTo }),
           },
@@ -816,6 +821,17 @@ export const luma: PluginDefinition = definePlugin({
         refs: ctx.media,
         ai,
         models: cfg.visionModels.length > 0 ? cfg.visionModels : cfg.models,
+      }),
+    );
+    ctx.services.contribute(
+      'ai.tools',
+      readPdfTool({
+        transcript,
+        refs: ctx.media,
+        ai,
+        models: cfg.models,
+        readers: cfg.visionModels,
+        services: ctx.services,
       }),
     );
     ctx.services.contribute('ai.tools', readMessagesTool(transcript));
