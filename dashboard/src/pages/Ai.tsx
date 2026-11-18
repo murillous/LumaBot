@@ -9,6 +9,7 @@ import { type CatalogProvider, ChainEditor } from './ai/ChainEditor.tsx';
 import {
   type AiDraft,
   buildAiBody,
+  buildKeyBody,
   buildResourceBody,
   type ChainItem,
   isRecord,
@@ -64,6 +65,18 @@ function AiScreen() {
       queryFn: () => ok(client.GET('/api/plugins/{name}/config', { params: { path: { name } } })),
     })),
   });
+  // A chave de cada provedor mora na config do plugin dele (`ai-google`): o catálogo diz qual.
+  const keyPlugins = [
+    ...new Set(
+      (catalog.data?.providers ?? []).flatMap((p) => (p.keyField ? [p.keyField.plugin] : [])),
+    ),
+  ];
+  const keyQueries = useQueries({
+    queries: keyPlugins.map((name) => ({
+      queryKey: ['ai-screen', 'config', name],
+      queryFn: () => ok(client.GET('/api/plugins/{name}/config', { params: { path: { name } } })),
+    })),
+  });
 
   if (aiConfig.isPending || catalog.isPending) {
     return (
@@ -91,8 +104,12 @@ function AiScreen() {
   const resourceConfigs: Record<string, PluginConfig | undefined> = Object.fromEntries(
     RESOURCE_NAMES.map((name, i) => [name, resources[i]?.data]),
   );
+  // Plugin de chave que falhou (desligado, sem permissão) só deixa a linha sem campo.
+  const keyConfigs: Record<string, PluginConfig | undefined> = Object.fromEntries(
+    keyPlugins.map((name, i) => [name, keyQueries[i]?.data]),
+  );
   // Espera as cinco terminarem: a cadeia própria de cada recurso entra no rascunho no 1º render.
-  if (resources.some((r) => r.isPending)) {
+  if (resources.some((r) => r.isPending) || keyQueries.some((q) => q.isPending)) {
     return (
       <section className="flex flex-col gap-4">
         <PageTitle>IA</PageTitle>
@@ -105,6 +122,7 @@ function AiScreen() {
       aiConfig={aiConfig.data}
       catalog={catalog.data.providers}
       resourceConfigs={resourceConfigs}
+      keyConfigs={keyConfigs}
     />
   );
 }
@@ -128,7 +146,6 @@ function baselineOf(config: PluginConfig): AiDraft {
     timeoutMs: numberOf(view, 'timeoutMs', 60_000),
     cooldownMs: numberOf(view, 'cooldownMs', 60_000),
     maxToolSteps: numberOf(view, 'maxToolSteps', 5),
-    keys: {},
   };
 }
 
@@ -142,10 +159,12 @@ function AiForm({
   aiConfig,
   catalog,
   resourceConfigs,
+  keyConfigs,
 }: {
   aiConfig: PluginConfig;
   catalog: readonly CatalogProvider[];
   resourceConfigs: Record<string, PluginConfig | undefined>;
+  keyConfigs: Record<string, PluginConfig | undefined>;
 }) {
   const { client } = useApi();
   const { can } = useSession();
@@ -197,15 +216,18 @@ function AiForm({
     timeoutMs: timeoutMs ?? base.timeoutMs,
     cooldownMs: cooldownMs ?? base.cooldownMs,
     maxToolSteps: Number.isInteger(steps) && steps >= 1 ? steps : base.maxToolSteps,
-    keys,
   };
   const aiChanged =
     !sameChain(chain, base.chain) ||
     draft.timeoutMs !== base.timeoutMs ||
     draft.cooldownMs !== base.cooldownMs ||
-    draft.maxToolSteps !== base.maxToolSteps ||
-    Object.values(keys).some((v) => v !== '');
-  const dirty = aiChanged || ownChanged.length > 0;
+    draft.maxToolSteps !== base.maxToolSteps;
+  // Só provedor com `keyField` tem campo; a chave digitada vai para o plugin dele.
+  const typedKeys = catalog.flatMap((p) => {
+    const value = keys[p.id] ?? '';
+    return p.keyField && value !== '' ? [{ ...p.keyField, value }] : [];
+  });
+  const dirty = aiChanged || ownChanged.length > 0 || typedKeys.length > 0;
   useLeaveGuard(dirty, 'Há alterações não salvas. Sair desta tela descarta tudo.');
 
   // O estado de cada modelo que aparece na tela, inclusive os do rascunho e os de cadeia própria.
@@ -288,6 +310,16 @@ function AiForm({
         const overrides = cfg?.view ? viewOverrides(cfg.view) : {};
         await put(name, buildResourceBody(overrides, own[name] ?? null));
       }
+      for (const { plugin, path, value } of typedKeys) {
+        if (failed) break;
+        const cfg = keyConfigs[plugin];
+        const overrides = cfg?.view ? viewOverrides(cfg.view) : {};
+        await put(plugin, buildKeyBody(overrides, path, value));
+      }
+      // O estado da chave (sem chave → configurada) vem do catálogo.
+      if (typedKeys.length > 0) {
+        await queryClient.invalidateQueries({ queryKey: ['ai-screen', 'catalog'] });
+      }
     } catch (error) {
       failed = true;
       loose.push(messageOf(error));
@@ -360,14 +392,17 @@ function AiForm({
       ),
     ]),
   );
-  const placed = (path: string) =>
+  const keyPaths = new Set(
+    catalog.flatMap((p) => (p.keyField ? [`${p.keyField.plugin}:${p.keyField.path}`] : [])),
+  );
+  const placed = (plugin: string, path: string) =>
+    keyPaths.has(`${plugin}:${path}`) ||
     /^models(\.|$)/.test(path) ||
-    /^keys\./.test(path) ||
     ['timeoutMs', 'cooldownMs', 'maxToolSteps'].includes(path);
   const unplaced = [
     ...Object.entries(errors).flatMap(([plugin, byPath]) =>
       Object.entries(byPath)
-        .filter(([path]) => !placed(path))
+        .filter(([path]) => !placed(plugin, path))
         .map(([path, message]) => `${plugin === AI ? '' : `${plugin}: `}${path}: ${message}`),
     ),
     ...general,
@@ -444,10 +479,8 @@ function AiForm({
           }}
           canWrite={canWrite && canKeys}
           secretsWritable={aiConfig.secretsWritable}
-          sources={aiSources}
-          env={aiEnv}
-          schema={aiConfig.schema}
-          errors={aiErrors}
+          configs={keyConfigs}
+          errors={errors}
         />
       </div>
 

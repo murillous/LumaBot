@@ -169,11 +169,18 @@ export function lockedSource(sources: Sources, path: string): 'env' | 'file' | n
   return null;
 }
 
-/** O schema da config declara a chave do provedor (`keys.properties.<id>`)? */
-export function schemaHasKey(schema: unknown, provider: string): boolean {
-  if (!isRecord(schema) || !isRecord(schema['properties'])) return false;
-  const keys = schema['properties']['keys'];
-  return isRecord(keys) && isRecord(keys['properties']) && provider in keys['properties'];
+/** O schema da config do plugin declara o campo da chave (`properties.<path>`)? */
+export function schemaHasField(schema: unknown, path: string): boolean {
+  return isRecord(schema) && isRecord(schema['properties']) && path in schema['properties'];
+}
+
+/** Corpo do PUT do plugin do provider: os overrides de antes e a chave digitada. */
+export function buildKeyBody(
+  overrides: Record<string, unknown>,
+  path: string,
+  value: string,
+): Record<string, unknown> {
+  return { ...overrides, [path]: value };
 }
 
 /** Overrides de uma config vista pela API; as mensagens vêm à parte e também são override. */
@@ -221,8 +228,6 @@ export interface AiDraft {
   readonly timeoutMs: number;
   readonly cooldownMs: number;
   readonly maxToolSteps: number;
-  /** Chaves digitadas por provedor; vazio não entra no corpo. */
-  readonly keys: Readonly<Record<string, string>>;
 }
 
 /** Corpo do PUT de `/api/plugins/ai/config`: overrides de antes mais o que mudou. */
@@ -236,8 +241,6 @@ export function buildAiBody(
   for (const field of ['timeoutMs', 'cooldownMs', 'maxToolSteps'] as const) {
     if (base[field] !== draft[field] || field in overrides) body[field] = draft[field];
   }
-  const keys = Object.fromEntries(Object.entries(draft.keys).filter(([, v]) => v !== ''));
-  if (Object.keys(keys).length > 0) body['keys'] = keys;
   return body;
 }
 

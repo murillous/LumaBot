@@ -10,7 +10,11 @@ import type { MockLanguageModelV4 } from 'ai/test';
 import { PDFDocument, StandardFonts } from 'pdf-lib';
 import sharp from 'sharp';
 import { ai } from '#plugins/ai/ai.ts';
+import { aiAnthropic } from '#plugins/ai-anthropic/ai-anthropic.ts';
 import { aiContext } from '#plugins/ai-context/ai-context.ts';
+import { aiDeepseek } from '#plugins/ai-deepseek/ai-deepseek.ts';
+import { aiGoogle } from '#plugins/ai-google/ai-google.ts';
+import { aiOpenai } from '#plugins/ai-openai/ai-openai.ts';
 import {
   type Answer,
   fakeProvider,
@@ -289,6 +293,8 @@ export async function play(s: Scenario, options: PlayOptions): Promise<Played> {
   const plugins: PluginDefinition[] = [
     ai,
     fakeProvider(options.model ? { a: options.model } : {}, { images: { x: image } }),
+    // Sem modelo falso, os evals usam os providers reais, com as chaves do bot.
+    ...(options.model ? [] : [aiGoogle, aiOpenai, aiAnthropic, aiDeepseek]),
     sticker,
     stickerEdit,
     aiContext,

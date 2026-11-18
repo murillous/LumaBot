@@ -55,7 +55,7 @@ Boa parte disso também está ao alcance da IA: pedir "faz uma figurinha disso" 
 | [pnpm](https://pnpm.io) (versão em `packageManager`) | Dependências. Com `corepack enable`, o `pnpm install` baixa a versão certa |
 | [FFmpeg](https://ffmpeg.org) com `libwebp`, no `PATH` | Figurinha de vídeo (`sticker`), `!gif` (`sticker-convert`) e `!download`. Sem ele, só esses recursos falham |
 | [yt-dlp](https://github.com/yt-dlp/yt-dlp), no `PATH` | `!download`, `!audio` e `!downloadsticker` ([download.md](docs/download.md#binários)) |
-| Chave de um provedor de IA | Gemini, OpenAI, Anthropic ou DeepSeek. Sem uma cadeia `models`, a IA recusa responder; o resto funciona |
+| Chave de um provedor de IA | Gemini, OpenAI, Anthropic ou DeepSeek, cada um no próprio plugin (`BRIDGER_AI_GOOGLE__KEY`...; [ai-providers.md](docs/ai-providers.md)). Sem uma cadeia `models`, a IA recusa responder; o resto funciona |
 
 No Debian/Ubuntu, de uma vez:
 
@@ -221,7 +221,8 @@ o app carrega o `metrics`.
 | --- | --- |
 | `pairing` | Desenha no terminal o QR ou mostra o código de pareamento. O log só avisa que chegou um QR, sem o valor |
 | `ping` | `!ping` responde `pong`: prova o caminho transport → kernel → fila de saída → transport |
-| [`ai`](docs/ai.md) | Cadeia de modelos (Gemini, OpenAI, Claude, DeepSeek) com fallback, tool calling e busca nativa. Oferece o serviço `ai` e os pontos `ai.providers` e `ai.observers` |
+| [`ai`](docs/ai.md) | Cadeia de modelos com fallback entre providers, tool calling e busca nativa. Oferece o serviço `ai` e os pontos `ai.providers` e `ai.observers` |
+| [`ai-google`, `ai-openai`, `ai-anthropic`, `ai-deepseek`](docs/ai-providers.md) | Um provider de IA cada (Gemini, OpenAI, Claude, DeepSeek) no ponto `ai.providers`, com a própria chave (`key`) |
 | [`ai-metrics`](docs/ai-metrics.md) | Consumo, vazão e custo por modelo, pelo serviço `metrics`. Oferece o serviço `aiMetrics` |
 | [`ai-context`](docs/ai-context.md) | Contexto de conversa da IA: transcrição por chat com IDs, orçamento com resumo, memória longa e as tools que leem tudo isso. Oferece o serviço `aiContext` |
 | [`luma`](docs/luma.md) | A personagem: responde em PV, quando citada, chamada ou mencionada; personas e `!persona`, `!luma clear`/`stats`, sobre o `ai-context`. Oferece o serviço `luma` |
@@ -243,7 +244,7 @@ o app carrega o `metrics`.
 | [`usage`](docs/usage.md) | Uso por pessoa em todas as ações, por dia, só no storage. Oferece o serviço `usage` e o ponto `usage.observers` |
 | [`utils`](docs/utils.md) | `!meunumero`/`!meuid` (número e ID do chat) e `!prefixo` (prefixo por chat, só admin). Ponto de extensão `utils.info` |
 
-Cada plugin (menos `pairing`, `ping`, `ai`, `ai-metrics`, `spontaneous`, `sticker-text` e `usage`) também
+Cada plugin (menos `pairing`, `ping`, `ai`, os providers (`ai-google`, `ai-openai`, `ai-anthropic`, `ai-deepseek`), `ai-metrics`, `spontaneous`, `sticker-text` e `usage`) também
 contribui tools que a IA chama por function calling ([ai-tools.md](docs/ai-tools.md)). Um plugin
 estende outro ou o usa pelos serviços do kernel (`ctx.services`), sem importar o código dele; o
 exemplo é o `sticker` ([sticker.md](docs/sticker.md#serviço-sticker)).
@@ -256,7 +257,8 @@ exemplo é o `sticker` ([sticker.md](docs/sticker.md#serviço-sticker)).
 | `@usebridger/transport-baileys` | Conexão com o WhatsApp (Baileys) |
 | `@usebridger/storage-sqlite` | Banco SQLite: credenciais, dados dos plugins, config salva |
 | `@usebridger/plugin-metrics` | Métricas do kernel e da IA, agregação diária e `GET /metrics` (Prometheus) |
-| `ai` e `@ai-sdk/*` | AI SDK: os provedores Google, OpenAI, Anthropic e DeepSeek |
+| `ai` | AI SDK: a cadeia, as tools e os tipos de modelo do `ai` |
+| `@ai-sdk/google`, `@ai-sdk/openai`, `@ai-sdk/anthropic`, `@ai-sdk/deepseek` | Um por plugin de provider (`ai-google`...) |
 | `sharp` | Imagem da figurinha e a legenda (Pango) |
 | `node-webpmux` | EXIF do WebP: nome e autor do pacote da figurinha |
 | `pdf-lib` | `!pdf` e `!mergepdf` |
