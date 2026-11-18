@@ -194,9 +194,13 @@ da resposta. Cada fase do redesenho do contexto tem os seus:
 - **No `pnpm test`** (`scenarios.test.ts`), com o modelo falso respondendo o que um modelo que
   acerta responderia: confere o contexto que a Luma monta (o modelo só acerta se ele estiver lá) e
   o caminho das tools.
-- **Contra o modelo real**, `pnpm evals:luma [filtro]` roda os mesmos cenários com a cadeia de
-  `BRIDGER_AI__MODELS` e as chaves do `.env`, mostra a resposta de cada um e sai com código 1 se
-  algum reprovar. O modelo de imagem segue falso. Gasta tokens; o filtro escolhe cenários pelo nome.
+- **Contra o modelo real**, `pnpm evals:luma [filtro]` roda os mesmos cenários com a cadeia e as
+  chaves que o bot usa: as que o dashboard salvou no banco (`LUMABOT_DB`, decifradas com a
+  `BRIDGER_SECRET_KEY` ou o `data/secret.key`) e, por cima, as `BRIDGER_AI__*` do `.env`. Mostra
+  a resposta de cada um e sai com código 1 se algum reprovar. O modelo de imagem segue falso.
+  Gasta tokens; o filtro escolhe cenários pelo nome.
+- Cada cenário roda numa cópia do banco feita com o bot rodando ou não, e a cópia é apagada no
+  fim: a conversa de teste não chega ao banco do bot.
 
 Cenário novo é um item em `SCENARIOS`, com o `fake` (as respostas certas), o `context` e o
 `outcome`.

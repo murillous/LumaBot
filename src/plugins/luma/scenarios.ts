@@ -4,7 +4,7 @@
 // confere o contexto que o modelo recebeu. O `scripts/luma-evals.ts` roda os mesmos contra o
 // modelo real e confere a resposta. Só os testes e o script importam este módulo.
 
-import type { PluginDefinition } from '@usebridger/core';
+import type { PluginDefinition, StoragePort } from '@usebridger/core';
 import { createTestBot, type TestBot } from '@usebridger/testing';
 import type { MockLanguageModelV4 } from 'ai/test';
 import sharp from 'sharp';
@@ -131,12 +131,13 @@ export const SCENARIOS: readonly Scenario[] = [
       { from: 'Caio', text: 'roubou nada, foi pênalti claro' },
     ],
     ask: { from: 'Ana', text: 'luma, mudando de assunto: qual a capital da Austrália?' },
+    // Canberra ou Camberra, a grafia em português.
     fake: ['Canberra, não Sydney'],
     context: (p) => [
       ...expectMatch(p, /Bia: o juiz roubou/, 'a conversa de antes'),
       ...expectMatch(p, /➜ Ana: mudando de assunto/, 'o pedido marcado'),
     ],
-    outcome: ({ reply }) => expectMatch(reply, /canberra/i, 'a resposta'),
+    outcome: ({ reply }) => expectMatch(reply, /ca[nm]berra/i, 'a resposta'),
   },
   {
     name: 'juntar figurinhas por ID',
@@ -222,6 +223,11 @@ export interface PlayOptions {
   readonly model?: MockLanguageModelV4;
   /** Variáveis `BRIDGER_*` (`BRIDGER_AI__MODELS`, chaves) para o modo real. */
   readonly env?: Record<string, string | undefined>;
+  /**
+   * Storage do bot de teste (padrão: em memória). O modo real passa a cópia do banco do bot, com
+   * a config e as chaves que o dashboard salvou.
+   */
+  readonly storage?: StoragePort;
 }
 
 export interface Played extends Outcome {
@@ -253,6 +259,7 @@ export async function play(s: Scenario, options: PlayOptions): Promise<Played> {
   let bot: TestBot = await createTestBot({
     plugins,
     ...(options.env && { env: options.env }),
+    ...(options.storage && { storage: options.storage }),
     pluginConfig: {
       ...(options.model && { ai: { models: [{ model: 'fake:a' }] } }),
       'sticker-edit': { models: ['fake:x'] },
