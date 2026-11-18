@@ -11,6 +11,7 @@ import { PDFDocument, StandardFonts } from 'pdf-lib';
 import sharp from 'sharp';
 import { ai } from '#plugins/ai/ai.ts';
 import { aiAnthropic } from '#plugins/ai-anthropic/ai-anthropic.ts';
+import { aiContext } from '#plugins/ai-context/ai-context.ts';
 import { aiDeepseek } from '#plugins/ai-deepseek/ai-deepseek.ts';
 import { aiGoogle } from '#plugins/ai-google/ai-google.ts';
 import { aiOpenai } from '#plugins/ai-openai/ai-openai.ts';
@@ -296,6 +297,7 @@ export async function play(s: Scenario, options: PlayOptions): Promise<Played> {
     ...(options.model ? [] : [aiGoogle, aiOpenai, aiAnthropic, aiDeepseek]),
     sticker,
     stickerEdit,
+    aiContext,
     luma,
   ];
   let bot: TestBot = await createTestBot({

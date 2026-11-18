@@ -4,6 +4,7 @@ import { APICallError } from 'ai';
 import sharp from 'sharp';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { ai } from '#plugins/ai/ai.ts';
+import { aiContext } from '#plugins/ai-context/ai-context.ts';
 import { fakeProvider, type PaintedModel, painted, scripted } from '#plugins/ai-testing.ts';
 import { aiToolsProbe, toolResult } from '#plugins/ai-tools-probe.ts';
 import { luma } from '#plugins/luma/luma.ts';
@@ -298,7 +299,7 @@ describe('tool edit_sticker por ID da conversa', () => {
         fakeProvider({ a: scripted('ok') }, { images: { x: model } }),
         sticker,
         stickerEdit,
-        ...(withLuma ? [luma] : []),
+        ...(withLuma ? [aiContext, luma] : []),
         aiToolsProbe,
       ],
       pluginConfig: {

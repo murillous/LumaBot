@@ -9,6 +9,7 @@ import { plugins as apiPlugins } from '#api-plugins.ts';
 import { AUDIT_RETENTION_DAYS, loadConfig, pluginEnv } from '#config.ts';
 import { localSecret } from '#local-secret.ts';
 import { aiAnthropic } from '#plugins/ai-anthropic/ai-anthropic.ts';
+import { aiContext } from '#plugins/ai-context/ai-context.ts';
 import { aiDeepseek } from '#plugins/ai-deepseek/ai-deepseek.ts';
 import { aiGoogle } from '#plugins/ai-google/ai-google.ts';
 import { aiMetrics } from '#plugins/ai-metrics/ai-metrics.ts';
@@ -105,6 +106,7 @@ const bot = createBot({
     aiAnthropic,
     aiDeepseek,
     cloudflareAi,
+    aiContext,
     luma,
     spontaneous,
     resumo,

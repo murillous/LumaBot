@@ -36,14 +36,8 @@ export const PERSONA_CREATE_FAILED = defineLogEvent({
   message: 'falha ao criar a persona',
 });
 
-export const COMPACT_FAILED = defineLogEvent({
-  name: 'luma.compact.failed',
+export const MEMORY_MIGRATION_FAILED = defineLogEvent({
+  name: 'luma.memory-migration.failed',
   level: 'warn',
-  message: 'falha ao resumir a conversa; segue com a transcrição cortada',
-});
-
-export const MEMORY_FAILED = defineLogEvent({
-  name: 'luma.memory.failed',
-  level: 'warn',
-  message: 'falha ao ler a memória longa; responde sem ela',
+  message: 'falha ao passar a memória longa para o ai-context; tenta de novo no próximo boot',
 });

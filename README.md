@@ -152,7 +152,8 @@ O log de auditoria do kernel (tela **Auditoria**) guarda **1 ano** (`AUDIT_RETEN
 kernel já audita (plugins, config, segredos, login e, desde o core 0.12, `kernel.command.run` /
 `kernel.command.denied` para comando `owner` ou de papel custom, sem os argumentos), a Luma registra:
 
-- `luma.persona.set|create|delete`, `luma.history.clear` e `luma.memory.remember|forget` ([luma.md](docs/luma.md#auditoria)).
+- `luma.persona.set|create|delete` e `luma.history.clear` ([luma.md](docs/luma.md#auditoria)).
+- `ai-context.history.clear` e `ai-context.memory.remember|forget` ([ai-context.md](docs/ai-context.md#auditoria)).
 - `reminders.delete`, só quando quem cancela não é o dono ([reminders.md](docs/reminders.md#auditoria)).
 - `pairing.session.paired` (conectou depois de QR ou código) e `pairing.session.lost`
   (`logged-out` ou `auth-failed`).
@@ -223,7 +224,8 @@ o app carrega o `metrics`.
 | [`ai`](docs/ai.md) | Cadeia de modelos com fallback entre providers, tool calling e busca nativa. Oferece o serviço `ai` e os pontos `ai.providers` e `ai.observers` |
 | [`ai-google`, `ai-openai`, `ai-anthropic`, `ai-deepseek`](docs/ai-providers.md) | Um provider de IA cada (Gemini, OpenAI, Claude, DeepSeek) no ponto `ai.providers`, com a própria chave (`key`) |
 | [`ai-metrics`](docs/ai-metrics.md) | Consumo, vazão e custo por modelo, pelo serviço `metrics`. Oferece o serviço `aiMetrics` |
-| [`luma`](docs/luma.md) | A personagem: responde em PV, quando citada, chamada ou mencionada; histórico, memória longa por chat, personas e `!persona`, `!luma clear`/`stats`. Oferece o serviço `luma` |
+| [`ai-context`](docs/ai-context.md) | Contexto de conversa da IA: transcrição por chat com IDs, orçamento com resumo, memória longa e as tools que leem tudo isso. Oferece o serviço `aiContext` |
+| [`luma`](docs/luma.md) | A personagem: responde em PV, quando citada, chamada ou mencionada; personas e `!persona`, `!luma clear`/`stats`, sobre o `ai-context`. Oferece o serviço `luma` |
 | [`spontaneous`](docs/spontaneous.md) | Reação com emoji às mensagens dos grupos, decidida pela IA |
 | [`resumo`](docs/resumo.md) | Resumo da conversa: `!resumo [n]`. Oferece o serviço `resumo` |
 | [`transcribe`](docs/transcribe.md) | Transcrição de áudio: `!transcribe` (`!t`). Oferece o serviço `transcription` |
@@ -242,7 +244,7 @@ o app carrega o `metrics`.
 | [`usage`](docs/usage.md) | Uso por pessoa em todas as ações, por dia, só no storage. Oferece o serviço `usage` e o ponto `usage.observers` |
 | [`utils`](docs/utils.md) | `!meunumero`/`!meuid` (número e ID do chat) e `!prefixo` (prefixo por chat, só admin). Ponto de extensão `utils.info` |
 
-Cada plugin (menos `pairing`, `ping`, `ai`, os providers `ai-*`, `ai-metrics`, `spontaneous`, `sticker-text` e `usage`) também
+Cada plugin (menos `pairing`, `ping`, `ai`, os providers (`ai-google`, `ai-openai`, `ai-anthropic`, `ai-deepseek`), `ai-metrics`, `spontaneous`, `sticker-text` e `usage`) também
 contribui tools que a IA chama por function calling ([ai-tools.md](docs/ai-tools.md)). Um plugin
 estende outro ou o usa pelos serviços do kernel (`ctx.services`), sem importar o código dele; o
 exemplo é o `sticker` ([sticker.md](docs/sticker.md#serviço-sticker)).
