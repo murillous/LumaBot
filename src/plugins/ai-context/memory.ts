@@ -1,12 +1,13 @@
-// Memória de longo prazo da Luma: blocos pequenos de fatos duráveis ("o João é corintiano"), um
+// Memória de longo prazo do bot: blocos pequenos de fatos duráveis ("o João é corintiano"), um
 // do chat e um de cada pessoa no chat, no storage. Entram no fim da instrução de sistema (estilo
-// core memory do Letta) e só mudam quando ela lembra ou esquece, então o cache do prompt continua.
+// core memory do Letta) e só mudam quando ele lembra ou esquece, então o cache do prompt continua.
 // Tudo é por chat: o que alguém conta no privado nunca aparece no grupo, nem o contrário.
 
 import type { Collection } from '@usebridger/core';
 import { z } from 'zod';
 import { type AiTool, aiTool, fail, ok } from '#plugins/ai-tools.ts';
 import { personId } from '#plugins/person-id.ts';
+import { DEFAULT_SPEECH, fill, type Speech } from './texts.ts';
 import type { Entry } from './transcript.ts';
 
 /** Um fato guardado. `about` vazio é do chat; senão, o `personId` de quem ele fala. */
@@ -35,16 +36,16 @@ export interface LongMemory {
   blocks(chatId: string, people: ReadonlyMap<string, string>): Promise<MemoryBlocks>;
   /**
    * Guarda o fato no bloco (`about` vazio = do chat). Fato repetido só renova o prazo. Bloco
-   * cheio recusa com os fatos que ele tem, para a Luma esquecer algum antes.
+   * cheio recusa com os fatos que ele tem, para o bot esquecer algum antes.
    */
   remember(chatId: string, about: string, name: string, text: string): Promise<RememberResult>;
   /** Apaga do bloco os fatos que batem com `text` (ou todos, sem `text`); devolve quantos. */
   forget(chatId: string, about: string, text?: string): Promise<number>;
-  /** Os fatos de um bloco, para a Luma ver o que tem antes de esquecer. */
+  /** Os fatos de um bloco, para o bot ver o que tem antes de esquecer. */
   facts(chatId: string, about: string): Promise<string[]>;
   /** Quem tem bloco no chat (`personId` → nome guardado com o fato mais recente). */
   known(chatId: string): Promise<Map<string, string>>;
-  /** Esquece tudo do chat (`!luma clear`). Devolve quantos fatos saíram. */
+  /** Esquece tudo do chat. Devolve quantos fatos saíram. */
   clear(chatId: string): Promise<number>;
 }
 
@@ -130,13 +131,15 @@ export function createMemory(
 }
 
 /** Os blocos como fecham a instrução de sistema; `''` sem nenhum fato. */
-export function renderMemory(blocks: MemoryBlocks): string {
+export function renderMemory(blocks: MemoryBlocks, speech: Speech = DEFAULT_SPEECH): string {
+  const { texts } = speech;
   const sections: string[] = [];
   if (blocks.chat.length > 0) {
-    sections.push(`Deste chat:\n${blocks.chat.map((f) => `- ${f}`).join('\n')}`);
+    sections.push(`${texts.memoryChat}\n${blocks.chat.map((f) => `- ${f}`).join('\n')}`);
   }
   for (const p of blocks.people) {
-    sections.push(`Sobre ${p.name}:\n${p.facts.map((f) => `- ${f}`).join('\n')}`);
+    const title = fill(texts.memoryPerson, { name: p.name });
+    sections.push(`${title}\n${p.facts.map((f) => `- ${f}`).join('\n')}`);
   }
   return sections.join('\n\n');
 }
@@ -144,7 +147,7 @@ export function renderMemory(blocks: MemoryBlocks): string {
 /** Quem falou na transcrição (`personId` → nome mais recente), para achar o bloco pelo nome. */
 export function peopleOf(entries: readonly Entry[]): Map<string, string> {
   const people = new Map<string, string>();
-  for (const e of entries) if (!e.fromLuma && e.person) people.set(e.person, e.name);
+  for (const e of entries) if (!e.fromSelf && e.person) people.set(e.person, e.name);
   return people;
 }
 
@@ -159,16 +162,10 @@ interface ToolDeps {
   /** As falas vivas do chat, para achar a pessoa pelo nome. */
   readonly entries: (chatId: string) => readonly Entry[];
   readonly audit: MemoryAudit;
+  readonly speech?: Speech;
 }
 
 const MAX_FACT = 200;
-
-const person = z
-  .string()
-  .optional()
-  .describe(
-    'Nome da pessoa de quem é o fato, como aparece na conversa. Sem ele, o fato é do chat (um combinado, uma piada interna, algo do grupo)',
-  );
 
 /**
  * A pessoa pelo nome: quem falou na transcrição ou quem já tem bloco no chat. `undefined` sem o
@@ -192,27 +189,23 @@ async function resolve(
   return null;
 }
 
-/** `remember` e `forget`: a Luma edita a própria memória longa do chat. */
+/** `remember` e `forget`: o bot edita a própria memória longa do chat. */
 export function memoryTools(deps: ToolDeps): AiTool[] {
+  const { texts } = deps.speech ?? DEFAULT_SPEECH;
+  const person = z.string().optional().describe(texts.toolPerson);
   const senderOf = (t: Parameters<AiTool['run']>[1]) => {
     const chatId = t.message.chat.id;
     const id = personId(t.message.sender);
-    const name = peopleOf(deps.entries(chatId)).get(id) ?? t.message.sender.name ?? 'Usuário';
+    const name =
+      peopleOf(deps.entries(chatId)).get(id) ?? t.message.sender.name ?? texts.unknownSender;
     return { id, name };
   };
 
   const remember = aiTool({
     name: 'remember',
-    description:
-      'Guarda um fato duradouro na sua memória deste chat, que sobrevive às horas e a reinícios: gostos, apelidos, como a pessoa quer ser chamada, um combinado, uma piada interna. Use quando pedirem para lembrar de algo ou quando aparecer um fato importante e duradouro. Não guarde o que é passageiro. Cada bloco tem espaço limitado: se encher, esqueça algo antes.',
+    description: texts.toolRemember,
     args: z.object({
-      fact: z
-        .string()
-        .min(1)
-        .max(MAX_FACT)
-        .describe(
-          'O fato, curto e em terceira pessoa (ex.: "é corintiano", "não gosta de ser chamada de Bianca")',
-        ),
+      fact: z.string().min(1).max(MAX_FACT).describe(texts.toolRememberFact),
       person,
     }),
     sideEffects: true,
@@ -239,13 +232,9 @@ export function memoryTools(deps: ToolDeps): AiTool[] {
 
   const forget = aiTool({
     name: 'forget',
-    description:
-      'Apaga fatos da sua memória deste chat. Use quando pedirem para esquecer algo, quando um fato guardado ficou errado ou para abrir espaço num bloco cheio. Sem "fact", apaga tudo o que você lembra da pessoa (ou do chat).',
+    description: texts.toolForget,
     args: z.object({
-      fact: z
-        .string()
-        .optional()
-        .describe('O fato a esquecer, ou parte dele; sem ele, o bloco inteiro'),
+      fact: z.string().optional().describe(texts.toolForgetFact),
       person,
     }),
     sideEffects: true,

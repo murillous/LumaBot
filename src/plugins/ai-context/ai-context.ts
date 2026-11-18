@@ -12,8 +12,8 @@ import { cleanResponse } from '#plugins/ai-response.ts';
 import { aiTool, mediaMessage, ok } from '#plugins/ai-tools.ts';
 import { personId } from '#plugins/person-id.ts';
 import {
-  COMPACT_INSTRUCTIONS,
   compactInput,
+  compactInstructions,
   estimateTokens,
   overflow,
   readMessagesTool,
@@ -22,7 +22,7 @@ import {
   transcriptTokens,
   unsummarized,
 } from './context.ts';
-import { COMPACT_FAILED, MEMORY_FAILED, NAME_FAILED } from './log-events.ts';
+import { COMPACT_FAILED, MEMORY_FAILED, NAME_FAILED, OBSERVER_FAILED } from './log-events.ts';
 import { type ChatMediaLookup, fileOf, lookupMedia, viewMediaTool } from './media.ts';
 import {
   createMemory,
@@ -33,8 +33,9 @@ import {
   peopleOf,
   renderMemory,
 } from './memory.ts';
-import { contextMessages, memoryGuide, type PromptImage, READING_GUIDE } from './prompt.ts';
-import { readPdfTool } from './read-pdf.ts';
+import { contextMessages, memoryGuide, type PromptImage, readingGuide } from './prompt.ts';
+import { type ReadOutcome, readPdfTool } from './read-pdf.ts';
+import { type ContextTexts, DEFAULT_TEXTS, type Speech } from './texts.ts';
 import {
   cleanFileName,
   createTranscript,
@@ -66,6 +67,8 @@ export interface BuildRequest {
   readonly log: Logger;
   /** Cadeia da compactação; ausente usa a do `ai-context`. */
   readonly models?: readonly ModelChainItem[];
+  /** Nome do bot no pedido de resumo. Padrão: o da config, senão o da sessão. */
+  readonly name?: string;
 }
 
 /** O contexto de uma resposta, pronto para o prompt. */
@@ -95,13 +98,45 @@ export interface RespondRequest {
   readonly purpose?: string;
   /** Cadeia desta resposta; ausente usa a do `ai-context`. */
   readonly models?: readonly ModelChainItem[];
-  /** Nome do bot na transcrição. Padrão: o da sessão. */
+  /** Nome do bot na transcrição. Padrão: o da config, senão o da sessão. */
   readonly name?: string;
 }
+
+/** As seções do sistema que o contexto acrescenta a quem o bot é. */
+export interface ContextGuide {
+  /** Como ler a transcrição. */
+  readonly reading: string;
+  /** A memória longa com os blocos do chat; `''` com a memória desligada. */
+  readonly memory: string;
+}
+
+/** Uma tool do contexto terminou; nunca leva o conteúdo (texto do PDF, fatos). */
+export interface ContextToolEvent {
+  readonly tool: 'read_pdf';
+  readonly outcome: ReadOutcome;
+  readonly message: Message;
+  readonly log: Logger;
+}
+
+export type ContextObserver = (event: ContextToolEvent) => void | Promise<void>;
+
+/** As tools que o `ai-context` contribui; cada uma pode ser desligada na config. */
+const TOOLS = [
+  'read_messages',
+  'view_media',
+  'read_pdf',
+  'remember',
+  'forget',
+  'clear_history',
+] as const;
 
 export interface AiContextService {
   /** Fuso em que o contexto lê a data e a hora. */
   readonly timeZone: string;
+  /** Os textos e o locale do contexto, para quem monta o prompt falar igual. */
+  readonly speech: Speech;
+  /** As seções do sistema: como ler a conversa e a memória (com os blocos de `build`). */
+  guide(name: string, memory: string): ContextGuide;
   /**
    * Põe a mensagem na transcrição (uma vez só, mesmo chamado de dois listeners) e devolve o que
    * veio antes dela. O próprio `ai-context` chama para toda mensagem; quem responde chama para
@@ -138,11 +173,21 @@ declare module '@usebridger/core' {
   interface Services {
     aiContext: AiContextService;
   }
+  interface ExtensionPoints {
+    /** Avisado quando uma tool do contexto termina (o `usage` conta a leitura de PDF). */
+    'ai-context.observers': ContextObserver;
+  }
 }
 
 const chain = z.array(chainItem);
 
 const config = z.object({
+  /** Nome do bot no resumo e na transcrição. Vazio: quem chama diz, senão o da sessão. */
+  name: z.string().optional(),
+  /** Locale das datas e horas que o modelo lê. */
+  locale: z.string().default('pt-BR'),
+  /** Tools do contexto que o bot não deve ter. */
+  disabledTools: z.array(z.enum(TOOLS)).default([]),
   /** Cadeia da compactação e das tools; vazio usa a principal do `ai`. */
   models: chain.default([]),
   /** Cadeia que enxerga, para `view_media` e o PDF escaneado. Vazio: `view_media` usa `models`. */
@@ -168,10 +213,12 @@ const config = z.object({
    */
   memory: z
     .object({
+      /** Desligada, sem blocos no sistema e sem as tools de lembrar e esquecer. */
+      enabled: z.boolean().default(true),
       blockChars: z.number().int().min(50).default(500),
       maxAgeDays: z.number().int().positive().default(180),
     })
-    .default({ blockChars: 500, maxAgeDays: 180 }),
+    .default({ enabled: true, blockChars: 500, maxAgeDays: 180 }),
   /** Fuso em que o bot lê a data e a hora. */
   timeZone: z.string().default('America/Sao_Paulo'),
 });
@@ -190,9 +237,18 @@ export const aiContext: PluginDefinition = definePlugin({
   engine: '<1.0.0',
   dependsOn: { ai: '^0.1.0' },
   config,
+  messages: DEFAULT_TEXTS,
   setup: (ctx) => {
     const cfg = ctx.config;
     const ai = ctx.services.get('ai');
+    const speech: Speech = { texts: ctx.plugin.messages as ContextTexts, locale: cfg.locale };
+    const { texts } = speech;
+    const enabled = (tool: (typeof TOOLS)[number]) =>
+      !cfg.disabledTools.includes(tool) &&
+      (cfg.memory.enabled || (tool !== 'remember' && tool !== 'forget'));
+    /** Nome do bot: o pedido, a config ou a sessão. */
+    const selfName = (asked?: string) => asked ?? cfg.name ?? ctx.self?.name ?? 'Bot';
+    const observers = ctx.services.extensionPoint('ai-context.observers');
     const transcript = createTranscript(cfg.history);
     const docs = ctx.storage.collection<MemoryDoc>('memory', { indexes: ['chatId'] });
     const memory = createMemory(docs, {
@@ -217,7 +273,7 @@ export const aiContext: PluginDefinition = definePlugin({
           ctx.log.event(NAME_FAILED, { err });
         }
       }
-      return contact.name ?? 'Usuário';
+      return contact.name ?? texts.unknownSender;
     };
 
     const add = async (m: Message, text: string, prior: readonly Entry[]): Promise<Observed> => {
@@ -231,7 +287,7 @@ export const aiContext: PluginDefinition = definePlugin({
         {
           // O relógio do bot, não o da mensagem: é por ele que a fala expira.
           at: Date.now(),
-          fromLuma: false,
+          fromSelf: false,
           name: await nameOf(m.sender),
           person: personId(m.sender),
           text: text || null,
@@ -288,15 +344,18 @@ export const aiContext: PluginDefinition = definePlugin({
       pending: readonly Entry[],
     ): Promise<Summary | undefined> => {
       const chatId = r.message.chat.id;
-      const folded = pending.slice(0, overflow(pending, cfg.timeZone, cfg.history.maxTokens / 2));
+      const half = cfg.history.maxTokens / 2;
+      const folded = pending.slice(0, overflow(pending, cfg.timeZone, half, speech));
       const last = folded.at(-1);
       if (!last) return summary;
       const models = r.models ?? cfg.models;
       try {
         const { text } = await ai.generate({
           purpose: 'ai-context.compact',
-          instructions: COMPACT_INSTRUCTIONS,
-          messages: [{ role: 'user', content: compactInput(summary?.text, folded, cfg.timeZone) }],
+          instructions: compactInstructions(selfName(r.name), speech),
+          messages: [
+            { role: 'user', content: compactInput(summary?.text, folded, cfg.timeZone, speech) },
+          ],
           signal: r.signal,
           // O custo entra no uso de quem fez o bot responder, como a resposta.
           actor: { id: personId(r.message.sender), chatId },
@@ -325,7 +384,7 @@ export const aiContext: PluginDefinition = definePlugin({
       const budget = cfg.history.maxTokens;
       let summary = transcript.summary(chatId);
       let pending = unsummarized(prior, summary);
-      if (transcriptTokens(pending, cfg.timeZone) > budget) {
+      if (transcriptTokens(pending, cfg.timeZone, speech) > budget) {
         let running = compacting.get(chatId);
         if (!running) {
           running = compact(r, summary, pending).finally(() => compacting.delete(chatId));
@@ -340,19 +399,20 @@ export const aiContext: PluginDefinition = definePlugin({
         pending = unsummarized(prior, summary);
       }
       const room = budget - (summary ? estimateTokens(summary.text) : 0);
-      const visible = pending.slice(overflow(pending, cfg.timeZone, room));
+      const visible = pending.slice(overflow(pending, cfg.timeZone, room, speech));
       return {
-        turns: toTurns(shorten(visible), cfg.timeZone),
+        turns: toTurns(shorten(visible, speech), cfg.timeZone, speech),
         ...(summary && { summary: summary.text }),
       };
     };
 
     /** A memória longa: o bloco do chat e os de quem está na conversa. Sem o storage, nada. */
     const memoryOf = async (r: BuildRequest): Promise<string> => {
+      if (!cfg.memory.enabled) return '';
       const { prior, current } = r.observed;
       const people = peopleOf(current ? [...prior, current] : prior);
       try {
-        return renderMemory(await memory.blocks(r.message.chat.id, people));
+        return renderMemory(await memory.blocks(r.message.chat.id, people), speech);
       } catch (err) {
         r.log.event(MEMORY_FAILED, { err });
         return '';
@@ -365,15 +425,20 @@ export const aiContext: PluginDefinition = definePlugin({
       return {
         ...context,
         memory: remembered,
-        ...(current && { header: header(current, cfg.timeZone) }),
-        today: today(current?.at ?? Date.now(), cfg.timeZone),
+        ...(current && { header: header(current, cfg.timeZone, speech) }),
+        today: today(current?.at ?? Date.now(), cfg.timeZone, speech),
       };
     };
 
-    const record: AiContextService['record'] = (chatId, speech, platformIds) => {
+    const guide = (name: string, remembered: string): ContextGuide => ({
+      reading: readingGuide(name, speech),
+      memory: cfg.memory.enabled ? memoryGuide(remembered || undefined, speech) : '',
+    });
+
+    const record: AiContextService['record'] = (chatId, said, platformIds) => {
       transcript.add(
         chatId,
-        { at: Date.now(), fromLuma: true, name: speech.name, text: speech.text },
+        { at: Date.now(), fromSelf: true, name: said.name, text: said.text },
         platformIds,
       );
     };
@@ -386,9 +451,10 @@ export const aiContext: PluginDefinition = definePlugin({
       const cited = observed.current?.replyTo
         ? observed.prior.find((e) => e.ref === observed.current?.replyTo)
         : undefined;
+      const name = selfName(r.name);
       const parts = [
-        replyNote(cited),
-        observed.current?.media && !picture ? mediaLabel(observed.current) : '',
+        replyNote(cited, speech),
+        observed.current?.media && !picture ? mediaLabel(observed.current, speech) : '',
         r.text ?? message.text ?? '',
       ];
       const context = await build({
@@ -396,26 +462,29 @@ export const aiContext: PluginDefinition = definePlugin({
         observed,
         signal,
         log,
+        name,
         ...(r.models && { models: r.models }),
       });
       const models =
         r.models ?? (picture && cfg.visionModels.length > 0 ? cfg.visionModels : cfg.models);
+      const sections = guide(name, context.memory);
       const result = await ai.generate({
         purpose: r.purpose ?? 'ai-context',
-        instructions: [
-          r.instructions,
-          READING_GUIDE,
-          memoryGuide(context.memory || undefined),
-        ].join('\n\n'),
-        messages: contextMessages({
-          senderName: observed.current?.name ?? (await nameOf(message.sender)),
-          userText: parts.filter(Boolean).join(' '),
-          history: context.turns,
-          today: context.today,
-          ...(context.summary && { summary: context.summary }),
-          ...(context.header && { header: context.header }),
-          ...(picture && { image: picture }),
-        }),
+        instructions: [r.instructions, sections.reading, sections.memory]
+          .filter(Boolean)
+          .join('\n\n'),
+        messages: contextMessages(
+          {
+            senderName: observed.current?.name ?? (await nameOf(message.sender)),
+            userText: parts.filter(Boolean).join(' '),
+            history: context.turns,
+            today: context.today,
+            ...(context.summary && { summary: context.summary }),
+            ...(context.header && { header: context.header }),
+            ...(picture && { image: picture }),
+          },
+          speech,
+        ),
         signal,
         toolContext: { message, reply: r.reply, signal, log },
         actor: { id: personId(message.sender), chatId },
@@ -424,13 +493,15 @@ export const aiContext: PluginDefinition = definePlugin({
       const text = stripHeader(cleanResponse(result.text));
       if (text) {
         const sent = await r.reply(text);
-        record(chatId, { text, name: r.name ?? ctx.self?.name ?? 'Bot' }, [sent.id]);
+        record(chatId, { text, name }, [sent.id]);
       }
       return result;
     };
 
     ctx.services.provide('aiContext', {
       timeZone: cfg.timeZone,
+      speech,
+      guide,
       observe,
       image,
       build,
@@ -466,27 +537,47 @@ export const aiContext: PluginDefinition = definePlugin({
 
     // ---- ferramentas da IA ----------------------------------------------------------------
 
-    ctx.services.contribute(
-      'ai.tools',
-      viewMediaTool({
-        transcript,
-        refs: ctx.media,
-        ai,
-        models: cfg.visionModels.length > 0 ? cfg.visionModels : cfg.models,
-      }),
-    );
-    ctx.services.contribute(
-      'ai.tools',
-      readPdfTool({
-        transcript,
-        refs: ctx.media,
-        ai,
-        models: cfg.models,
-        readers: cfg.visionModels,
-        services: ctx.services,
-      }),
-    );
-    ctx.services.contribute('ai.tools', readMessagesTool(transcript));
+    /** Avisa quem observa; um observer que falha não derruba a tool. */
+    const notify = async (event: ContextToolEvent) => {
+      for (const observer of observers.list()) {
+        try {
+          await observer(event);
+        } catch (err) {
+          event.log.event(OBSERVER_FAILED, { err, tool: event.tool });
+        }
+      }
+    };
+
+    if (enabled('view_media')) {
+      ctx.services.contribute(
+        'ai.tools',
+        viewMediaTool({
+          transcript,
+          refs: ctx.media,
+          ai,
+          models: cfg.visionModels.length > 0 ? cfg.visionModels : cfg.models,
+          speech,
+        }),
+      );
+    }
+    if (enabled('read_pdf')) {
+      ctx.services.contribute(
+        'ai.tools',
+        readPdfTool({
+          transcript,
+          refs: ctx.media,
+          ai,
+          models: cfg.models,
+          readers: cfg.visionModels,
+          speech,
+          onRead: (message, outcome) =>
+            notify({ tool: 'read_pdf', outcome, message, log: ctx.log }),
+        }),
+      );
+    }
+    if (enabled('read_messages')) {
+      ctx.services.contribute('ai.tools', readMessagesTool(transcript, speech));
+    }
     // Só o ato e o bloco (chat ou pessoa) vão para a auditoria: nunca o fato nem de quem é.
     const auditMemory: MemoryAudit = (action, { chatId, isGroup, block }) =>
       ctx.audit.record({
@@ -498,15 +589,16 @@ export const aiContext: PluginDefinition = definePlugin({
       memory,
       entries: (chatId) => transcript.entries(chatId),
       audit: auditMemory,
+      speech,
     })) {
-      ctx.services.contribute('ai.tools', tool);
+      if (enabled(tool.name as (typeof TOOLS)[number])) ctx.services.contribute('ai.tools', tool);
     }
+    if (!enabled('clear_history')) return;
     ctx.services.contribute(
       'ai.tools',
       aiTool({
         name: 'clear_history',
-        description:
-          'Apaga toda a memória que a Luma tem deste chat (em grupo, a de todos): a conversa e os fatos guardados. Use quando pedirem para esquecer tudo, limpar a memória ou recomeçar do zero. Para esquecer só um fato, use a ferramenta de esquecer.',
+        description: texts.toolClearHistory,
         args: z.object({}),
         run: async (_, t) => {
           const chat = t.message.chat;

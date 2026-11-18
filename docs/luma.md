@@ -30,8 +30,9 @@ A Luma lê a conversa pelo [`ai-context`](ai-context.md): a transcrição do cha
 o resumo das falas velhas e a memória longa em blocos. O que é só dela:
 
 - A instrução de sistema é a persona, as regras, as ferramentas e o formato do WhatsApp, com o
-  guia de leitura e a seção de memória do `ai-context` no meio e no fim. Não muda entre os turnos
-  do mesmo chat e persona, para o cache do provider valer.
+  guia de leitura e a seção de memória do `ai-context` no meio e no fim, com os textos e a config
+  dele (`messages`, `memory.enabled`). Não muda entre os turnos do mesmo chat e persona, para o
+  cache do provider valer.
 - O resumo usa a cadeia da Luma (`models`), como a resposta.
 - A resposta dela entra na transcrição como foi ao chat, com o ID de cada balão: quem citar
   qualquer um deles cita a fala.

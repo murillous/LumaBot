@@ -17,3 +17,9 @@ export const NAME_FAILED = defineLogEvent({
   level: 'warn',
   message: 'falha ao resolver o nome',
 });
+
+export const OBSERVER_FAILED = defineLogEvent({
+  name: 'ai-context.observer.failed',
+  level: 'warn',
+  message: 'observer do ai-context falhou; a tool segue',
+});

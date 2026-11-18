@@ -2,12 +2,14 @@
 // Puro: nada de bot, storage ou relógio; o plugin passa tudo pronto.
 
 import type { ModelMessage } from 'ai';
+import type { ContextGuide } from '#plugins/ai-context/ai-context.ts';
 import {
   type ContextMessagesInput,
   contextMessages,
   memoryGuide,
-  READING_GUIDE,
+  readingGuide,
 } from '#plugins/ai-context/prompt.ts';
+import type { Speech } from '#plugins/ai-context/texts.ts';
 import type { Persona } from './personas.ts';
 
 export interface PromptInput extends ContextMessagesInput {
@@ -19,6 +21,13 @@ export interface PromptInput extends ContextMessagesInput {
    * ou esquece algo, ou quando entra na conversa alguém com bloco.
    */
   readonly memory?: string;
+  /**
+   * As seções do `ai-context` (`guide()`), com os textos e a memória da config dele. Ausente, vale
+   * o texto padrão com o nome da Luma.
+   */
+  readonly guide?: ContextGuide;
+  /** Os textos e o locale do `ai-context`, para as mensagens falarem como ele. */
+  readonly speech?: Speech;
 }
 
 /**
@@ -33,8 +42,12 @@ function systemPrompt({
   persona,
   timeZone,
   memory,
-}: Pick<PromptInput, 'persona' | 'timeZone' | 'memory'>): string {
+  guide,
+}: Pick<PromptInput, 'persona' | 'timeZone' | 'memory' | 'guide'>): string {
   const traits = persona.traits.map((t) => `- ${t}`).join('\n');
+  const reading = guide?.reading ?? readingGuide('Luma');
+  // Memória desligada no `ai-context`: o sistema termina no formato.
+  const remembered = guide ? guide.memory : memoryGuide(memory);
 
   return `# Quem você é
 Seu nome é Luma. ${persona.context}
@@ -58,16 +71,14 @@ ${persona.style}
 Traços da personagem:
 ${traits}
 
-${READING_GUIDE}
+${reading}
 
 # Formato do WhatsApp
 1. Cada balão tem no máximo 200 caracteres.
 2. Algo pontual vai num balão só (ex.: "nossa mano q bizarro kkk").
 3. Para mandar mais de um balão, separe com "[PARTE]". Ex.: "mano não acredito[PARTE]eu tava lendo sobre isso ontem[PARTE]é muito doido"
 4. Nada de textão: no WhatsApp a conversa é feita de mensagens curtas.
-5. "[PARTE]" é só o separador entre balões; nunca escreva isso como texto.
-
-${memoryGuide(memory)}`;
+5. "[PARTE]" é só o separador entre balões; nunca escreva isso como texto.${remembered ? `\n\n${remembered}` : ''}`;
 }
 
 export function buildPrompt(input: PromptInput): {
@@ -79,8 +90,9 @@ export function buildPrompt(input: PromptInput): {
       persona: input.persona,
       timeZone: input.timeZone,
       ...(input.memory && { memory: input.memory }),
+      ...(input.guide && { guide: input.guide }),
     }),
-    messages: contextMessages(input),
+    messages: contextMessages(input, input.speech),
   };
 }
 

@@ -27,8 +27,45 @@ Um provider, a cadeia do `ai` e o `ai-context` com os padrões:
 | `visionModels` | `[]` | Cadeia que enxerga: `view_media` e PDF escaneado. Vazio: `view_media` usa `models`, e o PDF escaneado volta `no-text` |
 | `history.maxMessages` / `history.maxAgeMs` | `80` / `7200000` | Falas guardadas por chat e por quanto tempo cada uma fica |
 | `history.maxTokens` | `3000` | Tokens estimados da transcrição que vão ao modelo; passando disso, as falas velhas viram resumo |
+| `memory.enabled` | `true` | Desligada, o sistema fica sem a seção de memória e o bot sem `remember` e `forget` |
 | `memory.blockChars` / `memory.maxAgeDays` | `500` / `180` | Tamanho de cada bloco da memória longa e dias de um fato sem ser lembrado |
+| `name` | — | Nome do bot no resumo e na transcrição. Sem ele, vale o que quem chama passa (a Luma passa `Luma`), senão o nome da sessão |
 | `timeZone` | `America/Sao_Paulo` | Fuso em que o bot lê a data e a hora |
+| `locale` | `pt-BR` | Locale das datas e horas que o modelo lê (`terça-feira, 17/11/2026`, `16:30`) |
+| `disabledTools` | `[]` | Tools do contexto que o bot não deve ter: `read_messages`, `view_media`, `read_pdf`, `remember`, `forget`, `clear_history` |
+
+## `messages`
+
+Todo texto que o contexto manda ao modelo é `messages` do plugin (`src/plugins/ai-context/texts.ts`),
+e a config troca qualquer um: outro idioma, outro tom, outra plataforma. O padrão é PT-BR e não cita
+plataforma nem o nome de bot nenhum. `{nome}` é preenchido na hora.
+
+| Grupo | Chaves |
+| --- | --- |
+| Transcrição | `mediaSticker`, `mediaImage`, `mediaVideo`, `mediaAudio`, `mediaDocument`, `cutMark`, `summaryLabel`, `todayLine` (`{date}`), `replyTo` (`{ref}`), `replyToSelf` (`{excerpt}`), `replyToSelfEmpty`, `unknownSender` |
+| Sistema | `readingGuide` (`{name}`, `{cutMark}`), `memoryGuide`, `memoryHeader`, `memoryChat`, `memoryPerson` (`{name}`) |
+| Resumo | `compactInstructions` (`{name}`, `{maxChars}`), `compactPrevious` (`{summary}`), `compactNone`, `compactNew` (`{lines}`) |
+| `view_media` | `viewInstructions`, `viewLabel` (`{id}`, `{kind}`), `question` (`{question}`) |
+| `read_pdf` | `pdfSummarize`, `pdfReadScanned`, `pdfAskPages`, `pdfHeader`, `pdfPage`, `pdfEmptyPage`, `pdfScanned`, `pdfPageCount`, `pdfNoteTruncated`, `pdfNoteSummarized` |
+| Tools | `toolReadMessages`, `toolReadMessagesIds`, `toolViewMedia`, `toolViewMediaIds`, `toolViewMediaQuestion`, `toolReadPdf`, `toolReadPdfIds`, `toolReadPdfPages`, `toolReadPdfQuestion`, `toolRemember`, `toolRememberFact`, `toolForget`, `toolForgetFact`, `toolPerson`, `toolClearHistory` |
+
+Um bot em inglês, só com config:
+
+```jsonc
+"ai-context": {
+  "name": "Echo",
+  "locale": "en-US",
+  "messages": {
+    "mediaSticker": "sticker",
+    "todayLine": "[today is {date}]",
+    "readingGuide": "# How to read the chat\n1. ... never write \"{name}:\" in your reply. ...",
+    "...": "..."
+  }
+}
+```
+
+O formato da transcrição (`[#m12 16:30] Nome: fala`, a marca `➜`) é estrutura, não texto: fica
+igual em todo idioma, e o guia de leitura o explica.
 
 Por ambiente, `BRIDGER_AI_CONTEXT__HISTORY__MAX_TOKENS=4000` e assim por diante.
 
@@ -58,7 +95,7 @@ Quem precisa de mais controle (balões, persona, "digitando") monta com as peça
 ```ts
 observe(message, text?)     // grava a fala (uma vez só) e devolve { prior, current }
 image(message, log)         // a imagem ou figurinha (da mensagem ou da citada), até 8 MB
-build({ message, observed, signal, log, models? })
+build({ message, observed, signal, log, models?, name? })
                             // { turns, summary?, memory, header?, today }: a transcrição no
                             // orçamento (compactando, se preciso) e a memória longa
 record(chatId, { text, name }, platformIds)   // grava a fala do bot, com o ID de cada balão
@@ -67,12 +104,28 @@ clear(chatId)               // esquece a conversa e a memória longa
 media(chatId, id)           // { found: true, type, media } | { found: false, reason: 'unknown' | 'no-media' | 'view-once' }
 conversations()             // chats com conversa viva
 importMemory(docs)          // fatos de memória vindos de outro plugin; pula o que o bloco já tem
+guide(name, memory)         // { reading, memory }: as seções do sistema com os textos da config;
+                            // memory é '' com a memória desligada
+speech                      // { texts, locale }: para as mensagens falarem como o contexto
 timeZone
 ```
 
-`prompt.ts` exporta as peças puras do prompt: `READING_GUIDE` (como ler a transcrição),
-`memoryGuide(memory?)` (a seção da memória, com os blocos no fim) e `contextMessages(...)` (o
-resumo, a transcrição e a fala de agora com a imagem).
+`prompt.ts` exporta as peças puras do prompt, todas com os textos padrão se não receberem o
+`speech`: `readingGuide(name)` (como ler a transcrição), `memoryGuide(memory?)` (a seção da
+memória, com os blocos no fim) e `contextMessages(...)` (o resumo, a transcrição e a fala de agora
+com a imagem).
+
+## Ponto `ai-context.observers`
+
+Avisado quando uma tool do contexto termina, sem o conteúdo (nem o texto do PDF, nem os fatos):
+
+```ts
+ctx.services.contribute('ai-context.observers', ({ tool, outcome, message, log }) => { ... });
+// tool: 'read_pdf'; outcome: 'ok' | 'refused' | 'error'
+```
+
+O [`usage`](usage.md) conta a leitura de PDF por aqui. Observer que lança vai para o log
+(`ai-context.observer.failed`) e a tool segue.
 
 O `ai-context` grava sozinho toda mensagem que chega (menos a de outro bot), responda alguém a ela
 ou não. Quem responde chama `observe` também, para esperar a gravação: a mesma mensagem nunca entra
@@ -199,4 +252,5 @@ Em conversa privada, o alvo vai pseudonimizado.
 ## Uso opcional de outros plugins
 
 Sem `dependsOn`, na hora do uso: o [`user-names`](user-names.md) dá o nome de quem fala, e o
-[`usage`](usage.md) registra a leitura de PDF.
+[`usage`](usage.md) registra a leitura de PDF pelo [ponto de observers](#ponto-ai-contextobservers).
+O `ai-context` não importa nenhum plugin do app.
