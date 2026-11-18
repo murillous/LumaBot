@@ -4,15 +4,7 @@ import { APICallError, jsonSchema, tool } from 'ai';
 import { MockLanguageModelV4 } from 'ai/test';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import { aiAnthropic } from '#plugins/ai-anthropic/ai-anthropic.ts';
-import { aiDeepseek } from '#plugins/ai-deepseek/ai-deepseek.ts';
-import { aiGoogle } from '#plugins/ai-google/ai-google.ts';
-import { aiOpenai } from '#plugins/ai-openai/ai-openai.ts';
-import { aiTool, ok } from '#plugins/ai-tools.ts';
-import { help } from '#plugins/help/help.ts';
-import { rank } from '#plugins/rank/rank.ts';
-import { userNames } from '#plugins/user-names/user-names.ts';
-import { utils } from '#plugins/utils/utils.ts';
+import { aiTool, ok } from '#plugins/ai/tools.ts';
 import {
   type AiAttempt,
   type AiObserver,
@@ -21,6 +13,7 @@ import {
   AiUnavailableError,
   ai,
 } from './ai.ts';
+import { keyProvider } from './key-provider.ts';
 
 let bot: TestBot;
 
@@ -665,37 +658,6 @@ describe('ai.generate com tools', () => {
     expect(last?.text).toBe('de b');
   });
 
-  // As tools reais só de leitura: se uma perder o `sideEffects: false`, um 503 depois dela vira
-  // "Tô sem cabeça agora" em vez de cair no próximo modelo.
-  it.each(['list_commands', 'get_name', 'ranking', 'chat_info'])(
-    'a tool %s não bloqueia o fallback',
-    async (name) => {
-      let step = 0;
-      const a = new MockLanguageModelV4({
-        doGenerate: async () => {
-          if (step++ === 0) return toolCall(name, {});
-          throw apiError(503);
-        },
-      });
-      bot = await createTestBot({
-        plugins: [
-          ai,
-          caller([fake('fake', { a, b: model('de b') })]),
-          help,
-          userNames,
-          rank,
-          utils,
-        ],
-        pluginConfig: { ai: { models: [{ model: 'fake:a' }, { model: 'fake:b' }] } },
-      });
-      await bot.receive({ text: '!ask' });
-
-      // O 2º passo de `a` só existe se a tool rodou e devolveu o resultado ao modelo.
-      expect(a.doGenerateCalls).toHaveLength(2);
-      expect(bot.sent.at(-1)?.content).toMatchObject({ type: 'text', text: 'de b' });
-    },
-  );
-
   it('usa o texto dos passos anteriores quando o último vem vazio', async () => {
     let step = 0;
     const a = new MockLanguageModelV4({
@@ -772,27 +734,6 @@ describe('ai.generate com busca nativa', () => {
       AiUnavailableError,
     );
   });
-
-  it('o Gemini traz a busca; os outros providers, não', async () => {
-    let listed: AiProvider[] = [];
-    const spy = definePlugin({
-      name: 'spy',
-      version: '0.0.0',
-      engine: '<1.0.0',
-      dependsOn: { ai: '^0.1.0', 'ai-google': '^0.1.0', 'ai-openai': '^0.1.0' },
-      setup: (ctx) => {
-        listed = [...ctx.services.extensionPoint('ai.providers').list()];
-      },
-    });
-    bot = await createTestBot({
-      plugins: [ai, aiGoogle, aiOpenai, spy],
-      pluginConfig: { 'ai-google': { key: 'g-key' }, 'ai-openai': { key: 'o-key' } },
-    });
-
-    const byName = Object.fromEntries(listed.map((p) => [p.name, p]));
-    expect(Object.keys(byName['google']?.nativeSearch?.() ?? {})).toEqual(['google_search']);
-    expect(byName['openai']?.nativeSearch).toBeUndefined();
-  });
 });
 
 describe('API do ai: catálogo e estado', () => {
@@ -808,6 +749,18 @@ describe('API do ai: catálogo e estado', () => {
       providers: CatalogProvider[];
       models: object[];
     };
+  /** Provider por chave, como os `ai-<provider>`, sem o SDK: o `ai` não depende deles. */
+  const keyed = (plugin: string, name: string, maxTemperature: number) =>
+    keyProvider({
+      plugin,
+      version: '0.1.0',
+      provider: {
+        name,
+        temperature: { min: 0, max: maxTemperature },
+        models: [{ id: `${name}-1` }],
+      },
+      create: () => ({ languageModel: () => model('ok') }),
+    });
   const catalog = async () => {
     const { providers } = await get('catalog');
     const byId = (id: string) => providers.find((p) => p.id === id);
@@ -822,7 +775,13 @@ describe('API do ai: catálogo e estado', () => {
     // A chave do Google fica no legado `ai.keys`: o catálogo a vê pelo plugin do provider.
     bot = await createTestBot({
       http,
-      plugins: [ai, aiGoogle, aiOpenai, aiAnthropic, aiDeepseek, harness(providers)],
+      plugins: [
+        ai,
+        keyed('ai-google', 'google', 2),
+        keyed('ai-openai', 'openai', 2),
+        keyed('ai-anthropic', 'anthropic', 1),
+        harness(providers),
+      ],
       pluginConfig: { ai: { models, keys: { google: 'SEGREDO-DO-GOOGLE' }, cooldownMs: 30_000 } },
       ...extra,
     });

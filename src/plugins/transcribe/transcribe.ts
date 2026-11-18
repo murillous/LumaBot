@@ -9,7 +9,7 @@ import {
 import { z } from 'zod';
 import { type ActionSpec, trackerFor } from '#plugins/action-metrics.ts';
 import { AiUnavailableError, chainItem } from '#plugins/ai/ai.ts';
-import { aiTool, fail, mediaMessage, ok } from '#plugins/ai-tools.ts';
+import { aiTool, fail, mediaMessage, ok } from '#plugins/ai/tools.ts';
 import { mediaOf } from '#plugins/media-command.ts';
 import { TRANSCRIBE_DONE, TRANSCRIBE_FAILED, TRANSCRIBE_REFUSED } from './log-events.ts';
 

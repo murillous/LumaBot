@@ -1,7 +1,7 @@
 import { type Contact, definePlugin, type PluginDefinition } from '@usebridger/core';
 import { z } from 'zod';
-import { type AiToolContext, aiTool, fail, ok } from '#plugins/ai-tools.ts';
-import { personId } from '#plugins/person-id.ts';
+import { personId } from '#plugins/ai/person-id.ts';
+import { type AiToolContext, aiTool, fail, ok } from '#plugins/ai/tools.ts';
 import { REMEMBER_FAILED, SOURCE_FAILED } from './log-events.ts';
 import { cleanName, NICK_MAX, nickFromArgs } from './nick-args.ts';
 
@@ -117,6 +117,8 @@ export const userNames: PluginDefinition = definePlugin({
       },
     };
     ctx.services.provide('userNames', service);
+    // O nome que a IA lê na transcrição: o `ai-context` não conhece o `user-names`, só o ponto.
+    ctx.services.contribute('ai-context.names', (id) => service.displayName(id));
 
     ctx.services.contribute('userNames.sources', nick);
     ctx.services.contribute('userNames.sources', async (id) => (await seen(id))?.name ?? null);

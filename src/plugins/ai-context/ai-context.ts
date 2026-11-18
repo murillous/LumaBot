@@ -8,9 +8,9 @@ import {
 } from '@usebridger/core';
 import { z } from 'zod';
 import { chainItem, type GenerateResult, type ModelChainItem } from '#plugins/ai/ai.ts';
-import { cleanResponse } from '#plugins/ai-response.ts';
-import { aiTool, mediaMessage, ok } from '#plugins/ai-tools.ts';
-import { personId } from '#plugins/person-id.ts';
+import { personId } from '#plugins/ai/person-id.ts';
+import { cleanResponse } from '#plugins/ai/response.ts';
+import { aiTool, mediaMessage, ok } from '#plugins/ai/tools.ts';
 import {
   compactInput,
   compactInstructions,
@@ -169,6 +169,12 @@ export interface AiContextService {
   importMemory(docs: readonly MemoryDoc[]): Promise<number>;
 }
 
+/**
+ * Nome de exibição de um contato pelo id (o apelido do `user-names`). O contexto não conhece
+ * quem dá nomes: quem tem contribui aqui.
+ */
+export type NameResolver = (contactId: string) => Promise<string>;
+
 declare module '@usebridger/core' {
   interface Services {
     aiContext: AiContextService;
@@ -176,6 +182,8 @@ declare module '@usebridger/core' {
   interface ExtensionPoints {
     /** Avisado quando uma tool do contexto termina (o `usage` conta a leitura de PDF). */
     'ai-context.observers': ContextObserver;
+    /** Quem dá o nome de quem fala; vale o primeiro. Sem nenhum, o nome do perfil. */
+    'ai-context.names': NameResolver;
   }
 }
 
@@ -264,11 +272,14 @@ export const aiContext: PluginDefinition = definePlugin({
     const auditChat = (chatId: string, isGroup: boolean) =>
       isGroup ? chatId : ctx.pseudonym(chatId);
 
-    /** Nome de exibição: o apelido do `user-names`, se o plugin existe; senão o do perfil. */
+    // Visão viva: quem dá nomes e carrega depois do contexto vale no próximo uso.
+    const names = ctx.services.extensionPoint('ai-context.names');
+    /** Nome de exibição: o de quem contribui em `ai-context.names`, se houver; senão o do perfil. */
     const nameOf = async (contact: Contact): Promise<string> => {
-      if (ctx.services.has('userNames')) {
+      const [resolve] = names.list();
+      if (resolve) {
         try {
-          return await ctx.services.get('userNames').displayName(contact.id);
+          return await resolve(contact.id);
         } catch (err) {
           ctx.log.event(NAME_FAILED, { err });
         }

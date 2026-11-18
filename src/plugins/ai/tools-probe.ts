@@ -3,7 +3,7 @@
 
 import { definePlugin, type PluginDefinition } from '@usebridger/core';
 import type { TestBot } from '@usebridger/testing';
-import { invokeTool, offeredTools } from './ai-tools.ts';
+import { invokeTool, offeredTools } from './tools.ts';
 
 /**
  * `!tool <nome> <json>` roda a tool como a IA rodaria: só entre as oferecidas, com os argumentos

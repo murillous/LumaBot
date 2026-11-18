@@ -2,10 +2,10 @@ import { type Capability, MediaExpiredError } from '@usebridger/core';
 import { createTestBot, fixtures, type TestBot } from '@usebridger/testing';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ai } from '#plugins/ai/ai.ts';
-import { fakeProvider, promptText, scripted } from '#plugins/ai-testing.ts';
-import { aiToolsProbe, toolResult } from '#plugins/ai-tools-probe.ts';
-import { luma } from '#plugins/luma/luma.ts';
+import { fakeProvider, promptText, scripted } from '#plugins/ai/testing.ts';
+import { aiToolsProbe, toolResult } from '#plugins/ai/tools-probe.ts';
 import { aiContext } from './ai-context.ts';
+import { eco } from './testing.ts';
 
 let bot: TestBot | undefined;
 afterEach(async () => {
@@ -20,11 +20,10 @@ async function start(
   options: { capabilities?: Iterable<Capability> } = {},
 ) {
   bot = await createTestBot({
-    plugins: [ai, fakeProvider({ a: scripted('ok'), v: vision }), aiContext, luma, aiToolsProbe],
+    plugins: [ai, fakeProvider({ a: scripted('ok'), v: vision }), aiContext, aiToolsProbe],
     pluginConfig: {
       ai: { models: [{ model: 'fake:a' }] },
       'ai-context': { visionModels: [{ model: 'fake:v' }] },
-      luma: { thinkingDelayMs: { min: 0, max: 0 } },
     },
     ...options,
   });
@@ -117,20 +116,17 @@ describe('view_media', () => {
 });
 
 describe('na conversa', () => {
-  it('a Luma vê os IDs das mídias anteriores e sabe que pode usá-los', async () => {
+  it('o bot vê os IDs das mídias anteriores e sabe que pode usá-los', async () => {
     const model = scripted('junto já');
     bot = await createTestBot({
-      plugins: [ai, fakeProvider({ a: model }), aiContext, luma],
-      pluginConfig: {
-        ai: { models: [{ model: 'fake:a' }] },
-        luma: { thinkingDelayMs: { min: 0, max: 0 } },
-      },
+      plugins: [ai, fakeProvider({ a: model }), aiContext, eco],
+      pluginConfig: { ai: { models: [{ model: 'fake:a' }] } },
     });
     await bot.receive({ sticker: fixtures.sticker(), chat: group, sender: { name: 'Ana' } });
     await bot.receive({ sticker: fixtures.sticker(), chat: group, sender: { name: 'Bia' } });
 
     await bot.receive({
-      text: 'luma, junta a cabeça do cara da primeira figurinha no corpo do cara da segunda',
+      text: 'eco, junta a cabeça do cara da primeira figurinha no corpo do cara da segunda',
       chat: group,
       sender: { name: 'Caio' },
     });

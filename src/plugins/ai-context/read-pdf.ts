@@ -6,8 +6,8 @@ import { type Media, MediaExpiredError, type MediaRefs, type Message } from '@us
 import { extractText, getDocumentProxy } from 'unpdf';
 import { z } from 'zod';
 import type { AiService, ModelChainItem } from '#plugins/ai/ai.ts';
-import { type AiTool, type AiToolResult, aiTool, fail, ok } from '#plugins/ai-tools.ts';
-import { personId } from '#plugins/person-id.ts';
+import { personId } from '#plugins/ai/person-id.ts';
+import { type AiTool, type AiToolResult, aiTool, fail, ok } from '#plugins/ai/tools.ts';
 import { lookupMedia } from './media.ts';
 import { DEFAULT_SPEECH, fill, type Speech } from './texts.ts';
 import type { Transcript } from './transcript.ts';

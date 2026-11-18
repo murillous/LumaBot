@@ -69,6 +69,86 @@
       // A camada de config é o único lugar que lê process.env.
       "includes": ["**/src/config.ts", "**/src/config/**"],
       "linter": { "rules": { "style": { "noProcessEnv": "off" } } }
+    },
+    {
+      // Plugins genéricos de IA (#484): o `ai` não importa nada do app.
+      "includes": ["src/plugins/ai/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["../**", ".."],
+                    "message": "Import relativo ascendente: use o alias # do pacote ou reorganize o módulo."
+                  },
+                  {
+                    "group": ["#*", "#*/**", "!#plugins/ai/**"],
+                    "message": "Plugin genérico de IA (vai para o usebridger): importe só o próprio `ai`, nunca o app."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      // O `ai-context` depende só do `ai`.
+      "includes": ["src/plugins/ai-context/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["../**", ".."],
+                    "message": "Import relativo ascendente: use o alias # do pacote ou reorganize o módulo."
+                  },
+                  {
+                    "group": ["#*", "#*/**", "!#plugins/ai/**", "!#plugins/ai-context/**"],
+                    "message": "Plugin genérico de IA (vai para o usebridger): importe só o `ai` e o próprio `ai-context`, nunca o app."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      // Cada provider depende só do `ai` e da própria pasta.
+      "includes": [
+        "src/plugins/ai-google/**",
+        "src/plugins/ai-openai/**",
+        "src/plugins/ai-anthropic/**",
+        "src/plugins/ai-deepseek/**"
+      ],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["../**", ".."],
+                    "message": "Import relativo ascendente: use o alias # do pacote ou reorganize o módulo."
+                  },
+                  {
+                    "group": ["#*", "#*/**", "!#plugins/ai/**"],
+                    "message": "Plugin genérico de IA (vai para o usebridger): importe só o `ai`, nunca o app."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
     }
   ]
 }

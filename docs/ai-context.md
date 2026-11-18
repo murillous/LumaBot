@@ -12,14 +12,60 @@ Código em `src/plugins/ai-context/`: `ai-context.ts` (plugin e serviço), `tran
 
 ## Config mínima
 
-Um provider, a cadeia do `ai` e o `ai-context` com os padrões:
+Um provider ([ai-providers.md](ai-providers.md)), a cadeia do `ai` e o `ai-context` com os
+padrões:
 
 ```jsonc
 {
-  "ai": { "models": [{ "model": "google:gemini-2.5-flash" }], "keys": { "google": "..." } },
+  "ai-google": { "key": "..." },
+  "ai": { "models": [{ "model": "google:gemini-2.5-flash" }] },
   "ai-context": {}
 }
 ```
+
+## Exemplo mínimo
+
+Um bot que não é a Luma: um assistente que responde em privado com a transcrição, o resumo, a
+memória e a mídia por ID. Além dos plugins de IA, só um plugin de poucas linhas, que decide
+quando responder e quem o bot é (`src/plugins/ai-context/example.ts`):
+
+```ts
+import { createBot, definePlugin } from '@usebridger/core';
+
+const assistente = definePlugin({
+  name: 'assistente',
+  version: '0.1.0',
+  engine: '<1.0.0',
+  dependsOn: { 'ai-context': '^0.1.0' },
+  setup: (ctx) => {
+    ctx.events.on('message', async (e) => {
+      if (e.message.chat.isGroup) return;
+      await ctx.services.get('aiContext').respond({
+        message: e.message,
+        reply: e.reply,
+        signal: e.signal,
+        log: e.log,
+        instructions: '# Quem você é
+Você é um assistente prestativo e direto.',
+      });
+    });
+  },
+});
+
+const bot = createBot({
+  transport, // o transport da plataforma (baileys, telegram...)
+  plugins: [ai, aiDeepseek, aiContext, assistente],
+  pluginConfig: {
+    'ai-deepseek': { key: '...' },
+    ai: { models: [{ model: 'deepseek:deepseek-chat' }] },
+    'ai-context': { name: 'Assistente' },
+  },
+});
+await bot.start();
+```
+
+O `example.test.ts` sobe essa composição com a mesma config e um modelo falso no lugar do
+DeepSeek: responde em privado, lendo a fala na transcrição, e fica quieto em grupo.
 
 | Campo | Padrão | Efeito |
 | --- | --- | --- |
@@ -126,6 +172,19 @@ ctx.services.contribute('ai-context.observers', ({ tool, outcome, message, log }
 
 O [`usage`](usage.md) conta a leitura de PDF por aqui. Observer que lança vai para o log
 (`ai-context.observer.failed`) e a tool segue.
+
+## Ponto `ai-context.names`
+
+O nome de quem fala na transcrição. O `ai-context` não conhece quem guarda apelidos: quem sabe
+contribui uma função, e vale a primeira do ponto.
+
+```ts
+ctx.services.contribute('ai-context.names', (contactId) => apelidos.nome(contactId));
+```
+
+Sem ninguém no ponto, vale o nome do perfil (`contact.name`), e sem ele o `unknownSender` das
+`messages`. Se a função lança, o erro vai para o log (`ai-context.name.failed`) e vale o do
+perfil. Na Luma, quem contribui é o [`user-names`](user-names.md), com o `displayName`.
 
 O `ai-context` grava sozinho toda mensagem que chega (menos a de outro bot), responda alguém a ela
 ou não. Quem responde chama `observe` também, para esperar a gravação: a mesma mensagem nunca entra
@@ -251,6 +310,8 @@ Em conversa privada, o alvo vai pseudonimizado.
 
 ## Uso opcional de outros plugins
 
-Sem `dependsOn`, na hora do uso: o [`user-names`](user-names.md) dá o nome de quem fala, e o
-[`usage`](usage.md) registra a leitura de PDF pelo [ponto de observers](#ponto-ai-contextobservers).
-O `ai-context` não importa nenhum plugin do app.
+O `ai-context` não importa nem chama nenhum plugin do app: os outros entram pelos pontos dele. O
+[`user-names`](user-names.md) dá o nome de quem fala pelo [`ai-context.names`](#ponto-ai-contextnames),
+e o [`usage`](usage.md) registra a leitura de PDF pelo
+[`ai-context.observers`](#ponto-ai-contextobservers). Sem eles, o contexto funciona igual, com o
+nome do perfil e sem contar uso.

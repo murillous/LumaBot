@@ -1,4 +1,3 @@
-import { definePlugin, type ExtensionPoint } from '@usebridger/core';
 import { createTestBot, fixtures, type TestBot } from '@usebridger/testing';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
@@ -10,16 +9,7 @@ import {
   mediaMessage,
   offeredTools,
   TOOL_FAILED,
-} from './ai-tools.ts';
-import { download } from './download/download.ts';
-import { help } from './help/help.ts';
-import { pdf } from './pdf/pdf.ts';
-import { rank } from './rank/rank.ts';
-import { reminders } from './reminders/reminders.ts';
-import { sticker } from './sticker/sticker.ts';
-import { stickerConvert } from './sticker-convert/sticker-convert.ts';
-import { userNames } from './user-names/user-names.ts';
-import { utils } from './utils/utils.ts';
+} from './tools.ts';
 
 let bot: TestBot | undefined;
 afterEach(async () => {
@@ -79,58 +69,5 @@ describe('mediaMessage', () => {
     expect(mediaMessage(own, ['image'])).toBe(own);
     expect(mediaMessage(quoting, ['sticker'])).toBe(quoting.quoted);
     expect(mediaMessage(own, ['sticker'])).toBeNull();
-  });
-});
-
-describe('catálogo do app', () => {
-  it('cada plugin da tabela do #375 contribui suas tools, com nome único e JSON Schema', async () => {
-    let view: ExtensionPoint<AiTool> | undefined;
-    const reader = definePlugin({
-      name: 'reader',
-      version: '0.0.0',
-      engine: '<1.0.0',
-      setup: (ctx) => {
-        view = ctx.services.extensionPoint('ai.tools');
-      },
-    });
-    bot = await createTestBot({
-      plugins: [
-        help,
-        sticker,
-        stickerConvert,
-        pdf(),
-        reminders,
-        download(),
-        userNames,
-        rank,
-        utils,
-        reader,
-      ],
-    });
-
-    const tools = view?.list() ?? [];
-    expect(tools.map((t) => t.name).sort()).toEqual([
-      'cancel_reminder',
-      'chat_info',
-      'create_reminder',
-      'create_sticker',
-      'download_audio',
-      'download_media',
-      'download_sticker',
-      'get_name',
-      'image_to_pdf',
-      'list_commands',
-      'list_reminders',
-      'merge_pdfs',
-      'ranking',
-      'set_nickname',
-      'sticker_to_image',
-      'sticker_to_video',
-    ]);
-    for (const tool of tools) {
-      expect(tool.name).toMatch(/^[a-z]+(_[a-z]+)*$/);
-      expect(tool.description).not.toBe('');
-      expect(z.toJSONSchema(tool.args, { io: 'input' })).toMatchObject({ type: 'object' });
-    }
   });
 });

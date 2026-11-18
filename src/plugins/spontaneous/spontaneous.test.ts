@@ -3,8 +3,8 @@ import { createTestBot, type TestBot } from '@usebridger/testing';
 import { APICallError } from 'ai';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ai } from '#plugins/ai/ai.ts';
+import { fakeProvider, promptText, scripted } from '#plugins/ai/testing.ts';
 import { aiContext } from '#plugins/ai-context/ai-context.ts';
-import { fakeProvider, promptText, scripted } from '#plugins/ai-testing.ts';
 import { luma } from '#plugins/luma/luma.ts';
 import { spontaneous } from './spontaneous.ts';
 

@@ -8,11 +8,11 @@ import {
 } from '@usebridger/core';
 import { z } from 'zod';
 import { AiUnavailableError, chainItem } from '#plugins/ai/ai.ts';
+import { personId } from '#plugins/ai/person-id.ts';
+import { cleanResponse, splitIntoParts } from '#plugins/ai/response.ts';
+import { aiTool, fail, mediaMessage, ok } from '#plugins/ai/tools.ts';
 import type { MemoryDoc } from '#plugins/ai-context/memory.ts';
 import { type Entry, mediaLabel, replyNote, stripHeader } from '#plugins/ai-context/transcript.ts';
-import { cleanResponse, splitIntoParts } from '#plugins/ai-response.ts';
-import { aiTool, fail, mediaMessage, ok } from '#plugins/ai-tools.ts';
-import { personId } from '#plugins/person-id.ts';
 import {
   AI_METRICS_FAILED,
   ERROR_NOTICE_FAILED,

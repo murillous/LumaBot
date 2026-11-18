@@ -1,8 +1,8 @@
 import { definePlugin, type Logger, type Message, type PluginDefinition } from '@usebridger/core';
 import { z } from 'zod';
 import { chainItem } from '#plugins/ai/ai.ts';
-import { cleanResponse } from '#plugins/ai-response.ts';
-import { aiTool, fail, ok } from '#plugins/ai-tools.ts';
+import { cleanResponse } from '#plugins/ai/response.ts';
+import { aiTool, fail, ok } from '#plugins/ai/tools.ts';
 import { createChatWindow } from '#plugins/chat-window.ts';
 import { recordUsage, type UsageOutcome } from '#plugins/usage/usage.ts';
 import { NAME_FAILED, SUMMARY_FAILED, TYPING_FAILED } from './log-events.ts';

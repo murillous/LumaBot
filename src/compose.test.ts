@@ -6,9 +6,9 @@ import { metrics } from '@usebridger/plugin-metrics';
 import { createTestBot, fixtures, type TestBot } from '@usebridger/testing';
 import { afterEach, describe, expect, it } from 'vitest';
 import { ai } from '#plugins/ai/ai.ts';
+import { fakeProvider, scripted } from '#plugins/ai/testing.ts';
 import { aiContext } from '#plugins/ai-context/ai-context.ts';
 import { aiMetrics } from '#plugins/ai-metrics/ai-metrics.ts';
-import { fakeProvider, scripted } from '#plugins/ai-testing.ts';
 import { download } from '#plugins/download/download.ts';
 import { help } from '#plugins/help/help.ts';
 import { luma } from '#plugins/luma/luma.ts';
@@ -150,7 +150,7 @@ describe('composição do app', () => {
   });
 
   it('a Luma pode criar figurinha pelo ai.tools do sticker', async () => {
-    const { toolAnswer } = await import('#plugins/ai-testing.ts');
+    const { toolAnswer } = await import('#plugins/ai/testing.ts');
     const b = await start(scripted(toolAnswer('create_sticker', {}), 'prontinho'));
 
     await b.receive({ text: 'faz uma figurinha dessa imagem', image: fixtures.image() });

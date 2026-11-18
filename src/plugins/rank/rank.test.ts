@@ -5,7 +5,7 @@ import { definePlugin, type PluginDefinition } from '@usebridger/core';
 import { sqlite } from '@usebridger/storage-sqlite';
 import { createTestBot, type TestBot } from '@usebridger/testing';
 import { afterEach, expect, it } from 'vitest';
-import { aiToolsProbe, toolResult } from '#plugins/ai-tools-probe.ts';
+import { aiToolsProbe, toolResult } from '#plugins/ai/tools-probe.ts';
 import { type UsageOutcome, type UsageService, usage } from '#plugins/usage/usage.ts';
 import { userNames } from '#plugins/user-names/user-names.ts';
 import { type RankService, rank } from './rank.ts';

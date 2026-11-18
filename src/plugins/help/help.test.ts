@@ -1,7 +1,7 @@
 import { definePlugin } from '@usebridger/core';
 import { createTestBot, DEFAULT_CHAT, type TestBot } from '@usebridger/testing';
 import { afterEach, describe, expect, it } from 'vitest';
-import { aiToolsProbe, toolResult } from '#plugins/ai-tools-probe.ts';
+import { aiToolsProbe, toolResult } from '#plugins/ai/tools-probe.ts';
 import { ping } from '#plugins/ping.ts';
 import { formatMenu } from './format.ts';
 import { help } from './help.ts';

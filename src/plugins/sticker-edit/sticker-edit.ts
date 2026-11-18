@@ -10,8 +10,8 @@ import sharp from 'sharp';
 import { z } from 'zod';
 import { type ActionSpec, trackerFor } from '#plugins/action-metrics.ts';
 import { isContentFlagged } from '#plugins/ai/ai.ts';
+import { aiTool, fail, ok } from '#plugins/ai/tools.ts';
 import type { ChatMediaLookup } from '#plugins/ai-context/media.ts';
-import { aiTool, fail, ok } from '#plugins/ai-tools.ts';
 import { attempt, usage } from '#plugins/media-command.ts';
 import { clearBackground, hasTransparency, onWhite } from './background.ts';
 import {

@@ -6,7 +6,7 @@ import {
 } from '@usebridger/core';
 import { createTestBot, type TestBot } from '@usebridger/testing';
 import { afterEach, expect, it, type MockInstance, vi } from 'vitest';
-import { aiToolsProbe, toolResult } from '#plugins/ai-tools-probe.ts';
+import { aiToolsProbe, toolResult } from '#plugins/ai/tools-probe.ts';
 import {
   NickEmptyError,
   NickTooLongError,

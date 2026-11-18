@@ -1,15 +1,12 @@
 import { type Capability, MediaExpiredError } from '@usebridger/core';
 import { createTestBot, fixtures, type TestBot } from '@usebridger/testing';
-import { PDFDocument, StandardFonts } from 'pdf-lib';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ai } from '#plugins/ai/ai.ts';
-import { fakeProvider, promptText, scripted } from '#plugins/ai-testing.ts';
-import { aiToolsProbe, toolResult } from '#plugins/ai-tools-probe.ts';
-import { luma } from '#plugins/luma/luma.ts';
-import { usage } from '#plugins/usage/usage.ts';
-import { usageProbe } from '#plugins/usage/usage-testing.ts';
+import { fakeProvider, promptText, scripted } from '#plugins/ai/testing.ts';
+import { aiToolsProbe, toolResult } from '#plugins/ai/tools-probe.ts';
 import { aiContext } from './ai-context.ts';
 import { MAX_PDF_TEXT, pageRange } from './read-pdf.ts';
+import { eco, textPdf } from './testing.ts';
 
 let bot: TestBot | undefined;
 afterEach(async () => {
@@ -18,20 +15,6 @@ afterEach(async () => {
 });
 
 const group = { id: 'grupo@fake', isGroup: true };
-
-/** PDF com uma página por texto (só ASCII: a fonte padrão do pdf-lib não codifica acento). */
-async function textPdf(pages: readonly string[]): Promise<Buffer> {
-  const doc = await PDFDocument.create();
-  const font = await doc.embedFont(StandardFonts.Helvetica);
-  for (const text of pages) {
-    const page = doc.addPage();
-    // Uma linha por trecho de 90 caracteres, para caber na página.
-    (text.match(/.{1,90}/g) ?? []).forEach((line, i) => {
-      page.drawText(line, { x: 20, y: 800 - i * 10, font, size: 6 });
-    });
-  }
-  return Buffer.from(await doc.save());
-}
 
 const pdf = (data: Buffer, fileName = 'contrato.pdf') => ({
   document: { data, mimetype: 'application/pdf' },
@@ -43,32 +26,22 @@ const CONTRATO = ['O contrato vale 12 meses.', 'A multa por atraso e de 10 por c
 interface StartOptions {
   readonly vision?: boolean;
   readonly capabilities?: Iterable<Capability>;
-  readonly withUsage?: boolean;
 }
 
 async function start(options: StartOptions = {}) {
   const main = scripted('resumo: contrato de 12 meses, multa de 10%');
   const vision = scripted('[p. 1]\nRecibo de 50 reais');
-  const probe = usageProbe();
   bot = await createTestBot({
-    plugins: [
-      ai,
-      fakeProvider({ a: main, v: vision }),
-      aiContext,
-      luma,
-      aiToolsProbe,
-      ...(options.withUsage ? [usage, probe.plugin] : []),
-    ],
+    plugins: [ai, fakeProvider({ a: main, v: vision }), aiContext, eco, aiToolsProbe],
     pluginConfig: {
       ai: { models: [{ model: 'fake:a' }] },
       'ai-context': {
         ...(options.vision !== false && { visionModels: [{ model: 'fake:v' }] }),
       },
-      luma: { thinkingDelayMs: { min: 0, max: 0 } },
     },
     ...(options.capabilities && { capabilities: options.capabilities }),
   });
-  return { b: bot, main, vision, usage: probe.entries };
+  return { b: bot, main, vision };
 }
 
 describe('read_pdf', () => {
@@ -216,28 +189,14 @@ describe('read_pdf', () => {
 
     expect(toolResult(b)).toEqual({ ok: false, error: 'expired', detail: '#m1' });
   });
-
-  it('registra o uso de quem pediu como pdf/read, com o resultado', async () => {
-    const { b, usage: entries } = await start({ withUsage: true });
-    await b.receive({ ...pdf(await textPdf(CONTRATO)), chat: group });
-
-    await b.receive({ text: '!tool read_pdf {"ids":["m1"]}', chat: group });
-    await b.receive({ text: '!tool read_pdf {"ids":["m7"]}', chat: group });
-
-    const reads = entries.filter((e) => e.action === 'pdf');
-    expect(reads.map((e) => [e.kind, e.outcome])).toEqual([
-      ['read', 'ok'],
-      ['read', 'refused'],
-    ]);
-  });
 });
 
 describe('na conversa', () => {
-  it('a Luma vê o nome do PDF na transcrição e tem a read_pdf', async () => {
+  it('o bot vê o nome do PDF na transcrição e tem a read_pdf', async () => {
     const { b, main } = await start();
     await b.receive({ ...pdf(await textPdf(CONTRATO)), chat: group, sender: { name: 'Ana' } });
 
-    await b.receive({ text: 'luma, o que esse pdf fala?', chat: group, sender: { name: 'Bia' } });
+    await b.receive({ text: 'eco, o que esse pdf fala?', chat: group, sender: { name: 'Bia' } });
 
     const prompt = promptText(main);
     expect(prompt).toMatch(/#m1 \d\d:\d\d\] Ana: \[documento: contrato\.pdf\]/);
