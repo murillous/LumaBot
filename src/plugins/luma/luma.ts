@@ -355,11 +355,11 @@ export const luma: PluginDefinition = definePlugin({
      * pelo texto dela, como antes.
      */
     const quoteNote = async (i: Incoming): Promise<string> => {
-      const lastLuma = i.prior.findLast((e) => e.fromLuma);
+      const lastLuma = i.prior.findLast((e) => e.fromSelf);
       const replyTo = i.current?.replyTo;
       const cited = replyTo ? i.prior.find((e) => e.ref === replyTo) : undefined;
       // Citar a última fala dela é só continuação: ela já está logo antes, na transcrição.
-      if (cited) return cited === lastLuma ? '' : replyNote(cited);
+      if (cited) return cited === lastLuma ? '' : replyNote(cited, context.speech);
       return quotedContext(await quotedOf(i.message), lastLuma?.text ?? undefined);
     };
 
@@ -388,7 +388,7 @@ export const luma: PluginDefinition = definePlugin({
         if (quoted) userText = userText ? `${quoted} ${userText}` : quoted;
         // Mídia sem imagem anexada (vídeo, documento) só aparece como marca, como na transcrição.
         if (i.current?.media && !image && userText)
-          userText = `${mediaLabel(i.current)} ${userText}`;
+          userText = `${mediaLabel(i.current, context.speech)} ${userText}`;
 
         if (!userText) {
           await i.reply(pick(cfg.boredReplies));
@@ -409,6 +409,7 @@ export const luma: PluginDefinition = definePlugin({
             observed: { prior: i.prior, current: i.current },
             signal,
             log: i.log,
+            name: 'Luma',
             // O resumo usa a cadeia da Luma, como a resposta.
             ...(cfg.models.length > 0 && { models: cfg.models }),
           }),
@@ -417,6 +418,8 @@ export const luma: PluginDefinition = definePlugin({
         const { instructions, messages } = buildPrompt({
           persona: await personas.active(chat.id),
           timeZone: context.timeZone,
+          guide: context.guide('Luma', built.memory),
+          speech: context.speech,
           senderName,
           userText,
           history: built.turns,

@@ -21,7 +21,7 @@ const clock = (start = 1_000) => {
 
 const said = (name: string, text: string, over: Partial<NewEntry> = {}): NewEntry => ({
   at: 0,
-  fromLuma: false,
+  fromSelf: false,
   name,
   text,
   ...over,
@@ -39,7 +39,7 @@ describe('createTranscript', () => {
 
   it('acha a fala por qualquer um dos IDs da plataforma, só no próprio chat', () => {
     const t = createTranscript({ maxMessages: 10, maxAgeMs: 1000, now: () => 0 });
-    t.add('c', said('Luma', 'a b', { fromLuma: true }), ['p1', 'p2']);
+    t.add('c', said('Luma', 'a b', { fromSelf: true }), ['p1', 'p2']);
 
     expect(t.find('c', 'p1')?.ref).toBe('m1');
     expect(t.find('c', 'p2')?.ref).toBe('m1');
@@ -157,7 +157,7 @@ describe('toTurns', () => {
   const entry = (ref: string, over: Partial<Entry>): Entry => ({
     ref,
     at,
-    fromLuma: false,
+    fromSelf: false,
     name: 'Ana',
     text: null,
     ...over,
@@ -168,7 +168,7 @@ describe('toTurns', () => {
       [
         entry('m1', { name: 'Ana', text: 'oi' }),
         entry('m2', { name: 'Bia', text: 'olá' }),
-        entry('m3', { fromLuma: true, name: 'Luma', text: 'fala, gente' }),
+        entry('m3', { fromSelf: true, name: 'Luma', text: 'fala, gente' }),
         entry('m4', { name: 'Caio', text: 'e aí' }),
       ],
       'America/Sao_Paulo',
@@ -184,9 +184,9 @@ describe('toTurns', () => {
   it('marca a mídia e a citação, que aponta para o ID', () => {
     const [turn] = toTurns(
       [
-        entry('m1', { media: 'figurinha' }),
+        entry('m1', { media: 'sticker' }),
         entry('m2', { name: 'Bia', text: 'kkkk', replyTo: 'm1' }),
-        entry('m3', { name: 'Bia', media: 'imagem', text: 'olha', replyTo: 'sumiu' }),
+        entry('m3', { name: 'Bia', media: 'image', text: 'olha', replyTo: 'sumiu' }),
       ],
       'America/Sao_Paulo',
     );
@@ -198,15 +198,15 @@ describe('toTurns', () => {
 });
 
 describe('replyNote', () => {
-  const base: Entry = { ref: 'm4', at: 0, fromLuma: false, name: 'Ana', text: 'oi' };
+  const base: Entry = { ref: 'm4', at: 0, fromSelf: false, name: 'Ana', text: 'oi' };
 
   it('de alguém, o ID; dela, um trecho do que ela disse', () => {
     expect(replyNote(undefined)).toBe('');
     expect(replyNote(base)).toBe('(respondendo #m4)');
-    expect(replyNote({ ...base, fromLuma: true, text: 'pizza  de\ncalabresa' })).toBe(
+    expect(replyNote({ ...base, fromSelf: true, text: 'pizza  de\ncalabresa' })).toBe(
       '(respondendo à sua fala "pizza de calabresa")',
     );
-    expect(replyNote({ ...base, fromLuma: true, text: 'x'.repeat(100) })).toBe(
+    expect(replyNote({ ...base, fromSelf: true, text: 'x'.repeat(100) })).toBe(
       `(respondendo à sua fala "${'x'.repeat(80)}…")`,
     );
   });
@@ -214,8 +214,8 @@ describe('replyNote', () => {
 
 describe('mediaKind e stripHeader', () => {
   it('lê o tipo da mensagem como mídia; texto não é mídia', () => {
-    expect(mediaKind('sticker')).toBe('figurinha');
-    expect(mediaKind('voice')).toBe('áudio');
+    expect(mediaKind('sticker')).toBe('sticker');
+    expect(mediaKind('voice')).toBe('audio');
     expect(mediaKind('text')).toBeUndefined();
   });
 
