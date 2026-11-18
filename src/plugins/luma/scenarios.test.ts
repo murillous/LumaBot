@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { scripted } from '#plugins/ai-testing.ts';
+import { scripted } from '#plugins/ai/testing.ts';
 import { askPrompt, play, SCENARIOS } from './scenarios.ts';
 
 // Cada cenário com o modelo falso fazendo o papel de um modelo que acerta: o que se confere é o

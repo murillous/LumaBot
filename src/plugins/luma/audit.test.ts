@@ -1,8 +1,8 @@
 import { createTestBot, type TestBot } from '@usebridger/testing';
 import { afterEach, expect, it } from 'vitest';
 import { ai } from '#plugins/ai/ai.ts';
+import { fakeProvider, scripted, toolAnswer } from '#plugins/ai/testing.ts';
 import { aiContext } from '#plugins/ai-context/ai-context.ts';
-import { fakeProvider, scripted, toolAnswer } from '#plugins/ai-testing.ts';
 import { auditReader } from '#plugins/audit-reader.ts';
 import { luma } from './luma.ts';
 

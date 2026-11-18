@@ -244,4 +244,34 @@ própria: o modelo só aparece mais tarde na ordem (`position` maior).
 ## Testes
 
 Os testes contribuem um provider falso com `MockLanguageModelV4` (`ai/test`) e não fazem
-chamada de rede.
+chamada de rede. As peças de teste vão junto com o `ai`: `testing.ts` (`fakeProvider`,
+`scripted`, `toolAnswer`, `promptText`...) e `tools-probe.ts` (`!tool <nome> <json>` roda uma tool
+como a IA rodaria).
+
+## Fora do app (usebridger)
+
+O `ai`, o [`ai-context`](ai-context.md) e os [providers](ai-providers.md) nascem aqui e vão para
+o `usebridger` como plugins oficiais. Para a mudança ser só mover pastas, cada um vive inteiro
+na própria pasta e não importa nada do app:
+
+| Pasta | Vira | Pode importar |
+| --- | --- | --- |
+| `src/plugins/ai/` (`ai.ts`, `key-provider.ts`, `tools.ts`, `response.ts`, `person-id.ts` e as peças de teste) | `plugin-ai` | só a própria pasta |
+| `src/plugins/ai-context/` | `plugin-ai-context` | o `ai` e a própria pasta |
+| `src/plugins/ai-<provider>/` | `plugin-ai-<provider>` | o `ai` e a própria pasta |
+
+O Biome barra o resto (`noRestrictedImports` nos `overrides` do `biome.jsonc`): um `#plugins/luma/...`,
+`#config.ts` ou `../` dentro dessas pastas falha no `pnpm lint`, testes inclusive. Teste que junta
+um plugin genérico com um do app (a Luma sobre o `ai-context`, o `usage` contando o `read_pdf`, o
+catálogo de tools do app) fica na pasta do plugin do app ou em `src/plugins/ai-tools-catalog.test.ts`.
+
+Lacunas do kernel que apareceram na extração e o que cada uma deixa provisório:
+
+| Issue | Lacuna | Provisório aqui |
+| --- | --- | --- |
+| [usebridger#344](https://github.com/murillous/usebridger/issues/344) | `outbound.sent` sem o texto e o id do envio | o `ai-context` grava a fala do bot pelo `record`/`respond` |
+| [usebridger#345](https://github.com/murillous/usebridger/issues/345) | Mover um segredo de um plugin para outro | o legado `ai.keys` e o `legacyKey()` ([ai-providers.md](ai-providers.md#chaves-de-antes-compatibilidade)) |
+| [usebridger#346](https://github.com/murillous/usebridger/issues/346) | Id estável da pessoa entre chats | o `personId` (`ai/person-id.ts`) fixa o JID do WhatsApp |
+| [usebridger#347](https://github.com/murillous/usebridger/issues/347) | Ler a auditoria no `@usebridger/testing` | cópia do `auditReader` em `ai-context/testing.ts` |
+
+A mudança de repositório é a [usebridger#348](https://github.com/murillous/usebridger/issues/348).

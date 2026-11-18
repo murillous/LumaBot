@@ -2,7 +2,7 @@
 
 Todo plugin do app pode ser chamado pela IA por function calling. Cada plugin contribui as
 próprias tools ao ponto de extensão `ai.tools`; a IA lê a lista e não conhece nenhum plugin. O contrato fica em
-`src/plugins/ai-tools.ts`.
+`src/plugins/ai/tools.ts`, que vai junto com o `ai`.
 
 ## Contribuir uma tool
 
@@ -10,7 +10,7 @@ No `setup` do plugin, sem `dependsOn` no `ai`:
 
 ```ts
 import { z } from 'zod';
-import { aiTool, fail, mediaMessage, ok } from '#plugins/ai-tools.ts';
+import { aiTool, fail, mediaMessage, ok } from '#plugins/ai/tools.ts';
 
 ctx.services.contribute(
   'ai.tools',
@@ -49,7 +49,7 @@ tool.
 
 ## Testar
 
-O plugin de teste `ai-tools-probe.ts` faz o papel da IA: `!tool <nome> <json>` roda a tool entre
+O plugin de teste `ai/tools-probe.ts` faz o papel da IA: `!tool <nome> <json>` roda a tool entre
 as oferecidas e responde o resultado em JSON (`not-offered` se o transport não tem o `requires`).
 `toolResult(bot)` lê a última resposta:
 

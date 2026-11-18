@@ -1,7 +1,7 @@
 import { createMemoryStorage, definePlugin } from '@usebridger/core';
 import { createTestBot, type TestBot } from '@usebridger/testing';
 import { afterEach, expect, it } from 'vitest';
-import { personId } from '#plugins/person-id.ts';
+import { personId } from '#plugins/ai/person-id.ts';
 import { type RankService, rank } from './rank.ts';
 
 let bot: TestBot;

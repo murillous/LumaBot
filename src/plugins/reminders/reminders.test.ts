@@ -7,7 +7,7 @@ import {
   type TestBot,
 } from '@usebridger/testing';
 import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest';
-import { aiToolsProbe, toolResult } from '#plugins/ai-tools-probe.ts';
+import { aiToolsProbe, toolResult } from '#plugins/ai/tools-probe.ts';
 import { usage } from '#plugins/usage/usage.ts';
 import { usageProbe } from '#plugins/usage/usage-testing.ts';
 import { ReminderError, type RemindersService, reminders } from './reminders.ts';

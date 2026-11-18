@@ -5,7 +5,7 @@
 // rolante, que cita os IDs. A transcrição em si não muda: as falas resumidas continuam lá pelo ID.
 
 import { z } from 'zod';
-import { type AiTool, aiTool, fail, ok } from '#plugins/ai-tools.ts';
+import { type AiTool, aiTool, fail, ok } from '#plugins/ai/tools.ts';
 import { DEFAULT_SPEECH, DEFAULT_TEXTS, fill, type Speech } from './texts.ts';
 import {
   body,

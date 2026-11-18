@@ -4,7 +4,7 @@ import { definePlugin, PluginBootError, type PluginDefinition } from '@usebridge
 import { createTestBot, fixtures, type SentMediaType, type TestBot } from '@usebridger/testing';
 import sharp from 'sharp';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { aiToolsProbe } from '#plugins/ai-tools-probe.ts';
+import { aiToolsProbe } from '#plugins/ai/tools-probe.ts';
 import { checkBinary } from '#plugins/binary.ts';
 import { observedBot } from '#plugins/observe-probe.ts';
 import { stickerConvert } from '#plugins/sticker-convert/sticker-convert.ts';

@@ -13,8 +13,8 @@ import {
 import type { FilePart, TextPart } from 'ai';
 import { z } from 'zod';
 import type { AiService, ModelChainItem } from '#plugins/ai/ai.ts';
-import { type AiTool, aiTool, fail, ok } from '#plugins/ai-tools.ts';
-import { personId } from '#plugins/person-id.ts';
+import { personId } from '#plugins/ai/person-id.ts';
+import { type AiTool, aiTool, fail, ok } from '#plugins/ai/tools.ts';
 import { DEFAULT_SPEECH, fill, type Speech } from './texts.ts';
 import { kindLabel, type MediaFile, type Transcript } from './transcript.ts';
 

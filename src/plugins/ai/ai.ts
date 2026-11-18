@@ -19,7 +19,7 @@ import {
   type AiToolResult,
   invokeTool,
   offeredTools,
-} from '#plugins/ai-tools.ts';
+} from '#plugins/ai/tools.ts';
 import {
   GENERATE_DONE,
   HTTP_DISABLED,

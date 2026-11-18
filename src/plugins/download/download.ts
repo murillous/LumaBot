@@ -4,7 +4,7 @@ import { extname, join } from 'node:path';
 import { type CommandContext, definePlugin, type PluginDefinition } from '@usebridger/core';
 import { z } from 'zod';
 import { type ActionSpec, actionTracker, hostOf, trackerFor } from '#plugins/action-metrics.ts';
-import { type AiToolResult, aiTool, fail, ok } from '#plugins/ai-tools.ts';
+import { type AiToolResult, aiTool, fail, ok } from '#plugins/ai/tools.ts';
 import { checkBinary } from '#plugins/binary.ts';
 import {
   BINARIES_MISSING,

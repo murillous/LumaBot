@@ -52,6 +52,9 @@ remember(contact: { id; name; phone }): Promise<void>
 
 Uso opcional (ex.: `rank`): `ctx.services.has('userNames')` na hora do uso, sem `dependsOn`.
 
+O `user-names` também contribui o `displayName` no ponto `ai-context.names`: é o nome que a IA lê
+na transcrição ([ai-context.md](ai-context.md#ponto-ai-contextnames)).
+
 ## Ponto de extensão `userNames.sources`
 
 `NameSource = (id: string) => Promise<string | null>`. A primeira fonte que devolve nome vence;

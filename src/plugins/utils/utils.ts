@@ -6,7 +6,7 @@ import {
   type PluginDefinition,
 } from '@usebridger/core';
 import { z } from 'zod';
-import { aiTool, ok } from '#plugins/ai-tools.ts';
+import { aiTool, ok } from '#plugins/ai/tools.ts';
 import { recordUsage } from '#plugins/usage/usage.ts';
 import { INFO_LINE_FAILED } from './log-events.ts';
 

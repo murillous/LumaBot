@@ -36,7 +36,7 @@ primeiro).
 
 ## Identidade da pessoa
 
-A chave é `personId(contact)` (`src/plugins/person-id.ts`): `${phone}@s.whatsapp.net` quando o
+A chave é `personId(contact)` (`src/plugins/ai/person-id.ts`): `${phone}@s.whatsapp.net` quando o
 transport sabe o `phone`, senão o `id` cru. No WhatsApp a mesma pessoa chega como LID
 (`...@lid`) num chat e como número em outro; sem isso viraria duas linhas. A chave é um JID
 para o `userNames.displayName` resolvê-la: o `user-names` guarda nome e apelido sob o `id` cru

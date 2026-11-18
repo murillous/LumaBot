@@ -1,6 +1,6 @@
 import { definePlugin, type PluginDefinition } from '@usebridger/core';
 import { z } from 'zod';
-import { aiTool, ok } from '#plugins/ai-tools.ts';
+import { aiTool, ok } from '#plugins/ai/tools.ts';
 
 export type RankScope = { chatId: string } | 'global';
 export type RankEntry = { id: string; count: number };

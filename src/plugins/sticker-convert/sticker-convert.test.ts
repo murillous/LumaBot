@@ -7,7 +7,7 @@ import {
 } from '@usebridger/testing';
 import sharp from 'sharp';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { aiToolsProbe, toolResult } from '#plugins/ai-tools-probe.ts';
+import { aiToolsProbe, toolResult } from '#plugins/ai/tools-probe.ts';
 import { checkBinary } from '#plugins/binary.ts';
 import { observedBot } from '#plugins/observe-probe.ts';
 import { usage } from '#plugins/usage/usage.ts';

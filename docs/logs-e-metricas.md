@@ -73,7 +73,7 @@ mídia até 60 s, cada um até o prazo do comando.
 | `sticker-text` | `sticker-text.emoji-font.missing` | `warn` |
 | `ai` | `ai.generate.done` (`model`, `purpose`, `durationMs`, tokens) | `info` |
 | `ai` | `ai.model.failed` (tenta o próximo), `ai.search.unsupported`, `ai.models.empty`, `ai.keys.unreadable` | `warn` |
-| `ai` | `ai.provider.unregistered`, `ai.observer.failed`, `ai.tool.failed` (tool que lançou, em `ai-tools.ts`) | `error` |
+| `ai` | `ai.provider.unregistered`, `ai.observer.failed`, `ai.tool.failed` (tool que lançou, em `ai/tools.ts`) | `error` |
 | `ai` | `ai.http.disabled` | `info` |
 | `ai-google`, `ai-openai`, `ai-anthropic`, `ai-deepseek` | `ai-<provider>.key.missing` (sem chave: o provider fica fora da cadeia) | `info` |
 | `usage` | `usage.record.failed`, `usage.observer.failed` | `error` |

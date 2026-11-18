@@ -5,8 +5,8 @@
 
 import type { Collection } from '@usebridger/core';
 import { z } from 'zod';
-import { type AiTool, aiTool, fail, ok } from '#plugins/ai-tools.ts';
-import { personId } from '#plugins/person-id.ts';
+import { personId } from '#plugins/ai/person-id.ts';
+import { type AiTool, aiTool, fail, ok } from '#plugins/ai/tools.ts';
 import { DEFAULT_SPEECH, fill, type Speech } from './texts.ts';
 import type { Entry } from './transcript.ts';
 

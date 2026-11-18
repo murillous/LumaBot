@@ -1,7 +1,7 @@
 import { definePlugin, type PluginDefinition } from '@usebridger/core';
 import { z } from 'zod';
 import { type ActionSpec, hostOf, trackerFor } from '#plugins/action-metrics.ts';
-import { aiTool, fail, mediaMessage, ok } from '#plugins/ai-tools.ts';
+import { aiTool, fail, mediaMessage, ok } from '#plugins/ai/tools.ts';
 import { checkBinary } from '#plugins/binary.ts';
 import { attempt, usage } from '#plugins/media-command.ts';
 import { encodeSticker, type StickerPack, toStickerImage, videoToSticker } from './convert.ts';

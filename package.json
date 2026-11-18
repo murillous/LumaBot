@@ -17,7 +17,7 @@
     "start": "node --env-file-if-exists=.env dist/main.mjs",
     "start:all": "node scripts/start-all.ts",
     "dev": "node --env-file-if-exists=.env src/main.ts",
-    "typecheck": "tsc && pnpm --filter @lumabot/dashboard typecheck",
+    "typecheck": "tsc && tsc -p tsconfig.ai-plugins.json && pnpm --filter @lumabot/dashboard typecheck",
     "lint": "biome check",
     "lint:fix": "biome check --write",
     "test": "vitest run",

@@ -1,11 +1,10 @@
-import { createMemoryStorage, definePlugin, type StoragePort } from '@usebridger/core';
+import { definePlugin } from '@usebridger/core';
 import { createTestBot, fixtures, type TestBot } from '@usebridger/testing';
 import { afterEach, describe, expect, it } from 'vitest';
 import { ai } from '#plugins/ai/ai.ts';
-import { fakeProvider, promptText, scripted, toolAnswer } from '#plugins/ai-testing.ts';
-import { auditReader } from '#plugins/audit-reader.ts';
-import { luma } from '#plugins/luma/luma.ts';
+import { fakeProvider, promptText, scripted, toolAnswer } from '#plugins/ai/testing.ts';
 import { aiContext } from './ai-context.ts';
+import { auditReader, eco } from './testing.ts';
 import { DEFAULT_TEXTS } from './texts.ts';
 
 let bot: TestBot | undefined;
@@ -15,27 +14,6 @@ afterEach(async () => {
 });
 
 const group = { id: 'grupo@fake', isGroup: true };
-
-/** Um bot qualquer, que não é a Luma: responde pelo `respond` quando a fala começa com "eco". */
-const eco = definePlugin({
-  name: 'eco',
-  version: '0.0.0',
-  engine: '<1.0.0',
-  dependsOn: { 'ai-context': '^0.1.0' },
-  setup: (ctx) => {
-    ctx.events.on('message', async (e) => {
-      if (!e.text?.toLowerCase().startsWith('eco')) return;
-      await ctx.services.get('aiContext').respond({
-        message: e.message,
-        reply: e.reply,
-        signal: e.signal,
-        log: e.log,
-        instructions: '# Quem você é\nVocê é o Eco.',
-        name: 'Eco',
-      });
-    });
-  },
-});
 
 async function start(
   model: ReturnType<typeof scripted>,
@@ -109,53 +87,40 @@ describe('respond', () => {
   });
 });
 
-describe('memória da Luma', () => {
-  const fact = (text: string) => ({
-    chatId: 'grupo@fake',
-    about: '',
-    name: '',
-    text,
-    at: Date.now(),
-  });
-
-  async function withLuma(storage: StoragePort, model: ReturnType<typeof scripted>) {
-    bot = await createTestBot({
-      plugins: [ai, fakeProvider({ a: model }), aiContext, luma],
-      storage,
-      pluginConfig: {
-        ai: { models: [{ model: 'fake:a' }] },
-        luma: { thinkingDelayMs: { min: 0, max: 0 } },
+describe('ai-context.names', () => {
+  const namer = (resolve: (id: string) => Promise<string>) =>
+    definePlugin({
+      name: 'namer',
+      version: '0.0.0',
+      engine: '<1.0.0',
+      setup: (ctx) => {
+        ctx.services.contribute('ai-context.names', resolve);
       },
     });
-    return bot;
-  }
 
-  it('os fatos guardados pela Luma passam para o ai-context no boot', async () => {
-    const storage = createMemoryStorage();
-    await storage.forNamespace('luma').collection('memory').insert(fact('o grupo é do futebol'));
+  it('o nome de quem fala vem de quem contribui no ponto', async () => {
     const model = scripted('oi');
-    const b = await withLuma(storage, model);
+    const b = await start(model, { plugins: [namer(async () => 'Aninha')] });
 
-    await b.receive({ text: 'luma, oi', chat: group });
+    await b.receive({ text: 'eco, oi', sender: { name: 'Ana Paula' } });
 
-    expect(system(model)).toContain('- o grupo é do futebol');
-    expect(await storage.forNamespace('luma').collection('memory').find({})).toHaveLength(0);
-    expect(await storage.forNamespace('ai-context').collection('memory').find({})).toHaveLength(1);
+    expect(promptText(model)).toMatch(/Aninha: eco, oi/);
+    expect(promptText(model)).not.toContain('Ana Paula');
   });
 
-  it('migração repetida não duplica o fato', async () => {
-    const storage = createMemoryStorage();
-    await storage
-      .forNamespace('ai-context')
-      .collection('memory')
-      .insert(fact('o grupo é do futebol'));
-    // Sobrou na Luma: a migração anterior caiu entre gravar aqui e apagar lá.
-    await storage.forNamespace('luma').collection('memory').insert(fact('o grupo é do futebol'));
+  it('sem ninguém no ponto, ou se ele falha, vale o nome do perfil', async () => {
+    const model = scripted('oi');
+    const b = await start(model, {
+      plugins: [
+        namer(async () => {
+          throw new Error('sem banco');
+        }),
+      ],
+    });
 
-    await withLuma(storage, scripted('oi'));
+    await b.receive({ text: 'eco, oi', sender: { name: 'Ana Paula' } });
 
-    expect(await storage.forNamespace('ai-context').collection('memory').find({})).toHaveLength(1);
-    expect(await storage.forNamespace('luma').collection('memory').find({})).toHaveLength(0);
+    expect(promptText(model)).toMatch(/Ana Paula: eco, oi/);
   });
 });
 
@@ -262,22 +227,5 @@ describe('genérico', () => {
     expect(tools).not.toContain('read_pdf');
     expect(tools).not.toContain('clear_history');
     expect(tools).toContain('view_media');
-  });
-
-  it('a Luma lê a conversa com os textos do ai-context', async () => {
-    const model = scripted('oi');
-    bot = await createTestBot({
-      plugins: [ai, fakeProvider({ a: model }), aiContext, luma],
-      pluginConfig: {
-        ai: { models: [{ model: 'fake:a' }] },
-        'ai-context': { messages: { readingGuide: '# Leitura própria do {name}' } },
-        luma: { thinkingDelayMs: { min: 0, max: 0 } },
-      },
-    });
-
-    await bot.receive({ text: 'oi' });
-
-    expect(system(model)).toContain('# Leitura própria do Luma');
-    expect(system(model)).not.toContain('# Como ler a conversa');
   });
 });

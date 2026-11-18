@@ -1,6 +1,6 @@
 import { type Chat, definePlugin, type PluginDefinition } from '@usebridger/core';
 import { z } from 'zod';
-import { aiTool, ok } from '#plugins/ai-tools.ts';
+import { aiTool, ok } from '#plugins/ai/tools.ts';
 import { formatMenu } from './format.ts';
 import { SECTION_FAILED } from './log-events.ts';
 
