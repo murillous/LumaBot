@@ -176,6 +176,31 @@ histórico, para a fala da persona anterior não vazar para a nova.
 | `timeZone` | `America/Sao_Paulo` | Fuso em que ela lê a data e a hora |
 | `boredReplies`, `errorReplies` | frases do legacy | Variantes sorteadas (config, não `messages`, por serem listas) |
 
+## Cenários de conversa
+
+Mudança de prompt ou de contexto quebra comportamento em silêncio. Os cenários em
+`src/plugins/luma/scenarios.ts` são conversas roteirizadas: as falas antes, o pedido e o critério
+da resposta. Cada fase do redesenho do contexto tem os seus:
+
+| Fase | Cenário | Critério |
+| --- | --- | --- |
+| Transcrição única | o que você disse pra Bia? | repete o que respondeu a outra pessoa |
+| Transcrição única | continuação de "sim" | o "sim" citando uma fala dela responde a ela |
+| Transcrição única | mudança de assunto | responde a pergunta nova, não o assunto de antes |
+| Mídia por ID | juntar figurinhas por ID | `edit_sticker` com a 2ª como base e a 1ª como referência |
+| Orçamento | textão antigo lido pelo ID | acha, pelo `read_messages`, o dado no fim de um textão cortado |
+| Memória longa | fato lembrado depois do restart | o fato volta sem a transcrição |
+
+- **No `pnpm test`** (`scenarios.test.ts`), com o modelo falso respondendo o que um modelo que
+  acerta responderia: confere o contexto que a Luma monta (o modelo só acerta se ele estiver lá) e
+  o caminho das tools.
+- **Contra o modelo real**, `pnpm evals:luma [filtro]` roda os mesmos cenários com a cadeia de
+  `BRIDGER_AI__MODELS` e as chaves do `.env`, mostra a resposta de cada um e sai com código 1 se
+  algum reprovar. O modelo de imagem segue falso. Gasta tokens; o filtro escolhe cenários pelo nome.
+
+Cenário novo é um item em `SCENARIOS`, com o `fake` (as respostas certas), o `context` e o
+`outcome`.
+
 ## `messages`
 
 `historyCleared`, `lumaUsage`, `unavailable` e os textos da persona (`personaHeader`,

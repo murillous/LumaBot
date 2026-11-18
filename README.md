@@ -271,6 +271,7 @@ exemplo é o `sticker` ([sticker.md](docs/sticker.md#serviço-sticker)).
 | `pnpm lint` / `pnpm lint:fix` | Biome: lint, formatação e organização de imports |
 | `pnpm typecheck` | `tsc`, só checagem de tipos |
 | `pnpm test` | Vitest |
+| `pnpm evals:luma [filtro]` | Cenários de conversa da Luma contra o modelo real da `BRIDGER_AI__MODELS`; gasta tokens ([luma.md](docs/luma.md#cenários-de-conversa)) |
 | `pnpm --filter @lumabot/dashboard dev` | Dashboard da Luma no Vite, com o proxy para o bot ([dashboard/README.md](dashboard/README.md)) |
 | `pnpm --filter @lumabot/dashboard gen:api` | Regera a spec e os tipos da API do dashboard |
 
