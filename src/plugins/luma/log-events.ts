@@ -35,3 +35,9 @@ export const PERSONA_CREATE_FAILED = defineLogEvent({
   level: 'error',
   message: 'falha ao criar a persona',
 });
+
+export const COMPACT_FAILED = defineLogEvent({
+  name: 'luma.compact.failed',
+  level: 'warn',
+  message: 'falha ao resumir a conversa; segue com a transcrição cortada',
+});

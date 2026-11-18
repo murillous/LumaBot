@@ -107,6 +107,8 @@ export const aiMetrics: PluginDefinition = definePlugin({
           ['input', usage.inputTokens],
           ['output', usage.outputTokens],
           ['cache_read', usage.inputTokenDetails.cacheReadTokens],
+          // Escrita no cache (o Claude cobra à parte): mostra se o prefixo está sendo reaproveitado.
+          ['cache_write', usage.inputTokenDetails.cacheWriteTokens],
           ['reasoning', usage.outputTokenDetails.reasoningTokens],
         ];
         for (const [kind, value] of kinds) {

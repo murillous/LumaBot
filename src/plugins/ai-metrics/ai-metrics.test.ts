@@ -160,6 +160,47 @@ describe('observer do ai', () => {
     expect(total.tokens).toEqual({ input: 10, output: 8, cacheRead: 6, reasoning: 3 });
     expect(total.cacheHitRate).toBeCloseTo(0.6);
   });
+
+  it('a escrita no cache vira o tipo cache_write, para ver se o prefixo é reaproveitado', async () => {
+    let metricsService: MetricsService | undefined;
+    let aiService: AiService | undefined;
+    const grab = definePlugin({
+      name: 'grab',
+      version: '0.0.0',
+      engine: '<1.0.0',
+      dependsOn: { ai: '*', metrics: '*', 'ai-metrics': '*' },
+      setup: (ctx) => {
+        aiService = ctx.services.get('ai');
+        metricsService = ctx.services.get('metrics');
+      },
+    });
+    const writes = new MockLanguageModelV4({
+      doGenerate: async () => ({
+        ...textAnswer('ok'),
+        usage: {
+          inputTokens: { total: 10, noCache: 2, cacheRead: undefined, cacheWrite: 8 },
+          outputTokens: { total: 1, text: 1, reasoning: undefined },
+        },
+      }),
+    });
+    bot = await createTestBot({
+      plugins: [metrics, ai, fakeProvider({ a: writes }), aiMetrics, grab],
+      pluginConfig: { ai: { models: [{ model: 'fake:a' }] } },
+    });
+
+    await aiService?.generate(hi());
+
+    const today = new Date().toISOString().slice(0, 10);
+    const rows =
+      (await metricsService?.query({
+        name: 'ai_tokens_total',
+        from: today,
+        to: today,
+        granularity: 'day',
+        where: { kind: 'cache_write' },
+      })) ?? [];
+    expect(rows.map((r) => (r.type === 'counter' ? r.value : null))).toEqual([8]);
+  });
 });
 
 describe('custo', () => {

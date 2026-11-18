@@ -262,6 +262,95 @@ describe('memória', () => {
   });
 });
 
+describe('contexto no orçamento', () => {
+  /** A Luma com o orçamento da transcrição apertado, para poucas falas já passarem dele. */
+  async function tight(model: ReturnType<typeof scripted>, maxTokens = 200) {
+    bot = await createTestBot({
+      plugins: [ai, fakeProvider({ a: model }), luma],
+      pluginConfig: {
+        ai: { models: [{ model: 'fake:a' }] },
+        luma: { ...FAST, history: { maxTokens } },
+      },
+    });
+    return bot;
+  }
+
+  const system = (model: MockLanguageModelV4, call: number) =>
+    JSON.stringify(model.doGenerateCalls[call]?.prompt.filter((m) => m.role === 'system'));
+
+  /** Um grupo movimentado: falas que não chamam a Luma. */
+  async function chatter(b: TestBot, count: number) {
+    for (let n = 1; n <= count; n += 1) {
+      await b.receive({
+        text: `mensagem ${n} sobre o jogo de ontem, que foi muito disputado`,
+        chat: group,
+        sender: { id: `p${n % 3}@x`, name: ['Ana', 'Bia', 'Caio'][n % 3] },
+      });
+    }
+  }
+
+  it('o prefixo do sistema é idêntico entre turnos seguidos do mesmo chat', async () => {
+    const model = scripted('opa', 'de novo');
+    const b = await start(model);
+
+    await b.receive({ text: 'luma, oi', chat: group, sender: { name: 'Ana' } });
+    await b.receive({ text: 'luma, e aí?', chat: group, sender: { name: 'Bia' } });
+
+    expect(system(model, 1)).toBe(system(model, 0));
+    expect(conversation(model, 1)).toMatch(/\[hoje é [^\]]+, \d\d\/\d\d\/\d{4}\]/);
+  });
+
+  it('um grupo movimentado não passa do orçamento: as falas velhas viram resumo', async () => {
+    const model = scripted('Ana, Bia e Caio discutem o jogo (#m2).', 'foi 2 a 1', 'isso');
+    const b = await tight(model);
+
+    await chatter(b, 30);
+    await b.receive({ text: 'luma, quem ganhou?', chat: group, sender: { name: 'Ana' } });
+    await b.receive({ text: 'luma, certeza?', chat: group, sender: { name: 'Bia' } });
+
+    // A primeira chamada é a compactação, e a resposta já sai com o resumo.
+    expect(system(model, 0)).toContain('resumo de uma conversa');
+    expect(promptText(model, 0)).toMatch(/\[#m1 \d\d:\d\d\] Bia: mensagem 1 /);
+    const reply = conversation(model, 1);
+    expect(reply).toContain('[resumo da conversa até aqui]');
+    expect(reply).toContain('Ana, Bia e Caio discutem o jogo (#m2).');
+    expect(reply).not.toContain('mensagem 1 ');
+    expect(reply).toContain('mensagem 30 ');
+    // A transcrição ocupa só o orçamento (mais a fala de agora e o JSON das mensagens).
+    expect(reply.length / 3).toBeLessThan(200 + 60);
+    // Depois de compactar há folga: a resposta seguinte não compacta de novo.
+    expect(model.doGenerateCalls).toHaveLength(3);
+    expect(b.sent).toHaveReplied('foi 2 a 1');
+  });
+
+  it('se o resumo falhar, responde mesmo assim, só com as falas que cabem', async () => {
+    const model = scripted(new Error('resumo quebrou'), 'foi 2 a 1');
+    const b = await tight(model);
+
+    await chatter(b, 30);
+    await b.receive({ text: 'luma, quem ganhou?', chat: group, sender: { name: 'Ana' } });
+
+    expect(b.sent).toHaveReplied('foi 2 a 1');
+    const reply = conversation(model, 1);
+    expect(reply).not.toContain('[resumo da conversa até aqui]');
+    expect(reply).not.toContain('mensagem 1 ');
+    expect(reply).toContain('mensagem 30 ');
+    expect(reply.length / 3).toBeLessThan(200 + 60);
+  });
+
+  it('read_messages devolve o texto inteiro de uma fala pelo ID', async () => {
+    const long = `começo ${'texto colado '.repeat(60)}fim do textão`;
+    const model = scripted(toolAnswer('read_messages', { ids: ['#m1'] }), 'li tudo');
+    const b = await start(model);
+
+    await b.receive({ text: long, chat: group, sender: { name: 'Caio' } });
+    await b.receive({ text: 'luma, lê o que o Caio mandou', chat: group, sender: { name: 'Ana' } });
+
+    expect(b.sent).toHaveReplied('li tudo');
+    expect(promptText(model, 1)).toContain('fim do textão');
+  });
+});
+
 describe('!luma stats com o aiMetrics', () => {
   it('mostra respostas, tokens e custo da IA nos últimos dias', async () => {
     bot = await createTestBot({

@@ -40,6 +40,33 @@ privado continua isolado: um chat, uma conversa.
   `history.maxAgeMs` (2 h).
 - Tudo em **memória**, sem timer: a expiração é feita na leitura. Um restart esquece as conversas.
 
+## Prompt cacheável e orçamento
+
+O provider guarda em cache o começo do prompt que se repete entre chamadas (o DeepSeek, o Gemini e
+a OpenAI fazem isso sozinhos). Para valer, a **instrução de sistema não muda entre os turnos** do
+mesmo chat e persona: só a identidade, as regras, o formato e o fuso. O que muda a cada turno vai
+nas mensagens:
+
+- o dia de hoje, numa linha `[hoje é terça-feira, 17/11/2026]` antes da fala de agora (a hora já
+  está no cabeçalho dela);
+- a imagem, anexada à fala de agora;
+- o resumo da conversa, como primeira fala.
+
+A transcrição que vai ao modelo cabe em `history.maxTokens` (3000), estimados em 3 caracteres por
+token. A transcrição em si não muda: o que sai do prompt continua achável pelo ID.
+
+1. **Nível 1, sem modelo.** Fora das 10 falas mais recentes, o texto de uma pessoa com mais de 400
+   caracteres vira um trecho terminado em `…[cortado]`. A mídia já é só a marca com o ID. A Luma lê
+   o texto inteiro pela tool `read_messages`.
+2. **Nível 2, com modelo.** Passando do orçamento, as falas mais velhas viram um **resumo rolante**
+   (quem, assuntos em aberto, combinados, piadas internas), que cita os IDs. Ele dobra falas até
+   o resto ocupar metade do orçamento, então não roda a cada turno. Roda durante o "digitando",
+   com a cadeia da Luma (`purpose: luma.compact`), no uso de quem a chamou. Vai ao modelo como
+   `[resumo da conversa até aqui]` e vive enquanto a fala mais nova que ele cobre viveria (2 h).
+   `!luma clear` e a criação de persona o apagam junto.
+3. Se o resumo falha (`luma.compact.failed`), a resposta segue só com as falas mais recentes que
+   cabem no orçamento.
+
 ## Persona
 
 Cinco de fábrica (Pensadora, a padrão, Pistola, Good Vibes, Sênior e Literal, em `personas.ts`) e as
@@ -53,8 +80,8 @@ para a padrão.
 | `!persona criar <descrição>` | A IA gera a persona da descrição (`name`, `description`, `context`, `style`, 3 a 8 `traits`), o chat a ativa e a memória é limpa. JSON malformado tenta uma segunda vez |
 | `!persona deletar <n>` | Apaga uma persona **criada** no chat; as de fábrica são recusadas |
 
-Cada chat pode criar até `maxCustomPersonas` (10). O traço de formato dos balões (`MENSAGENS
-CURTAS...`) é do sistema e entra em toda persona gerada; o modelo nunca o escreve.
+Cada chat pode criar até `maxCustomPersonas` (10). O traço de formato dos balões (`mensagens
+curtas...`) é do sistema e entra em toda persona gerada; o modelo nunca o escreve.
 
 ## Auditoria
 
@@ -70,7 +97,7 @@ Registra no log de auditoria do kernel (`ctx.audit`) só o ato administrativo, n
 | Comando | O que faz |
 | --- | --- |
 | `!luma clear` (`!lc`, `!clear`) | Esquece a transcrição do chat (em grupo, para todos) |
-| `!luma stats` (`!ls`) | Conversas ativas e, se o [`ai-metrics`](ai-metrics.md) está carregado, respostas, taxa de sucesso, fallbacks, tokens, latência e custo dos últimos 7 dias |
+| `!luma stats` (`!ls`) | Conversas ativas e, se o [`ai-metrics`](ai-metrics.md) está carregado, respostas, taxa de sucesso, fallbacks, tokens (e a parte da entrada que veio do cache, quando houve), latência e custo dos últimos 7 dias |
 
 ## Tools da IA
 
@@ -80,6 +107,7 @@ Contribuídas ao ponto `ai.tools` ([ai-tools.md](ai-tools.md)).
 | --- | --- | --- | --- |
 | `clear_history` | — | Apaga a transcrição do chat (em grupo, a de todos) | — |
 | `create_persona` | `description` | Cria e ativa a persona; confirma no chat | `empty`, `limit`, `invalid-persona`, `unavailable` |
+| `read_messages` | `ids` (1 a 10, `#m12`) | Devolve o texto inteiro de falas anteriores do chat pelo ID (a cortada no nível 1, a citada no resumo). Só leitura | `unknown` (com o ID em `detail`) |
 | `view_media` | `ids` (1 a 4, `#m12`), `question?` | Olha imagens ou figurinhas anteriores do chat pelo ID e devolve a descrição. Só leitura | `unknown`, `no-media`, `view-once`, `not-image`, `too-large`, `expired` (com o ID em `detail`) |
 
 Trocar de persona ou limpar a memória por tool é recomeçar: a troca em curso **não** é guardada no
@@ -116,6 +144,7 @@ histórico, para a fala da persona anterior não vazar para a nova.
 | `defaultPersona` | `pensadora` | Persona de um chat que nunca escolheu |
 | `maxCustomPersonas` | `10` | Personas criadas por chat |
 | `history.maxMessages` / `history.maxAgeMs` | `80` / `7200000` | Falas guardadas por chat e por quanto tempo cada uma fica |
+| `history.maxTokens` | `3000` | Tokens estimados da transcrição que vão ao modelo; passando disso, as falas velhas viram resumo ([orçamento](#prompt-cacheável-e-orçamento)) |
 | `maxPartLength` / `maxParts` | `300` / `2` | Tamanho de cada balão e quantos no máximo |
 | `thinkingDelayMs` | `{ min: 2000, max: 5000 }` | Espera "digitando" antes de gerar; `0` desliga |
 | `replyTimeoutMs` | `180000` | Prazo da resposta inteira |

@@ -20,7 +20,7 @@ latência em ms. O histórico gravado antes do `plugin-metrics` 0.3 (nomes `ai.*
 | --- | --- | --- | --- |
 | `ai_attempts_total` | contador | `model`, `provider`, `purpose`, `outcome`, `position`, `statusCode?` | Toda tentativa da cadeia |
 | `ai_latency_seconds` | histograma (0,25 s a 60 s) | `model`, `purpose` | Tentativa que respondeu |
-| `ai_tokens_total` | contador | `model`, `purpose`, `kind` (`input`, `output`, `cache_read`, `reasoning`) | Tentativa que respondeu |
+| `ai_tokens_total` | contador | `model`, `purpose`, `kind` (`input`, `output`, `cache_read`, `cache_write`, `reasoning`) | Tentativa que respondeu |
 | `ai_finish_total` | contador | `model`, `purpose`, `reason` | Tentativa que respondeu |
 
 ## Serviço `aiMetrics`
