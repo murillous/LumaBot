@@ -44,7 +44,7 @@ cota do dia acabou, por exemplo), responde uma frase curta e a causa vai só par
 
 ### Mídias anteriores, por ID
 
-Com o plugin [`luma`](luma.md#mídia) carregado, a tool usa figurinhas e fotos mandadas antes no
+Com o plugin [`ai-context`](ai-context.md#mídia-anterior-pelo-id) carregado, a tool usa figurinhas e fotos mandadas antes no
 chat pelo ID da conversa (`#m12`), sem precisar citar:
 
 - `target` é a figurinha que vai ser editada (a base). Sem ele, vale a da mensagem ou a citada.
@@ -52,8 +52,8 @@ chat pelo ID da conversa (`#m12`), sem precisar citar:
   e com `target` por ID, a foto ou figurinha da própria mensagem vira a referência.
 
 "Junta a cabeça do cara da primeira figurinha no corpo do cara da segunda" vira
-`target: "#m2", references: ["#m1"]`. A mídia vem do serviço `luma` (`media(chatId, id)`); sem a
-`luma`, ID recusa com `no-history`. Mídia que saiu da plataforma recusa com `expired`. O comando
+`target: "#m2", references: ["#m1"]`. A mídia vem do serviço `aiContext` (`media(chatId, id)`);
+sem o `ai-context`, ID recusa com `no-history`. Mídia que saiu da plataforma recusa com `expired`. O comando
 `!editar` não muda.
 
 ## Serviço `stickerEdit`

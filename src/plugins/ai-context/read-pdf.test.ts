@@ -5,9 +5,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ai } from '#plugins/ai/ai.ts';
 import { fakeProvider, promptText, scripted } from '#plugins/ai-testing.ts';
 import { aiToolsProbe, toolResult } from '#plugins/ai-tools-probe.ts';
+import { luma } from '#plugins/luma/luma.ts';
 import { usage } from '#plugins/usage/usage.ts';
 import { usageProbe } from '#plugins/usage/usage-testing.ts';
-import { luma } from './luma.ts';
+import { aiContext } from './ai-context.ts';
 import { MAX_PDF_TEXT, pageRange } from './read-pdf.ts';
 
 let bot: TestBot | undefined;
@@ -53,16 +54,17 @@ async function start(options: StartOptions = {}) {
     plugins: [
       ai,
       fakeProvider({ a: main, v: vision }),
+      aiContext,
       luma,
       aiToolsProbe,
       ...(options.withUsage ? [usage, probe.plugin] : []),
     ],
     pluginConfig: {
       ai: { models: [{ model: 'fake:a' }] },
-      luma: {
-        thinkingDelayMs: { min: 0, max: 0 },
+      'ai-context': {
         ...(options.vision !== false && { visionModels: [{ model: 'fake:v' }] }),
       },
+      luma: { thinkingDelayMs: { min: 0, max: 0 } },
     },
     ...(options.capabilities && { capabilities: options.capabilities }),
   });

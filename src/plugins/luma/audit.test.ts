@@ -1,6 +1,7 @@
 import { createTestBot, type TestBot } from '@usebridger/testing';
 import { afterEach, expect, it } from 'vitest';
 import { ai } from '#plugins/ai/ai.ts';
+import { aiContext } from '#plugins/ai-context/ai-context.ts';
 import { fakeProvider, scripted, toolAnswer } from '#plugins/ai-testing.ts';
 import { auditReader } from '#plugins/audit-reader.ts';
 import { luma } from './luma.ts';
@@ -22,7 +23,7 @@ const generated = JSON.stringify({
 async function start() {
   const reader = auditReader();
   bot = await createTestBot({
-    plugins: [ai, fakeProvider({ a: scripted(generated) }), luma, reader.plugin],
+    plugins: [ai, fakeProvider({ a: scripted(generated) }), aiContext, luma, reader.plugin],
     adminPlugins: [reader.plugin.name],
     pluginConfig: {
       ai: { models: [{ model: 'fake:a' }] },
@@ -109,6 +110,7 @@ it('lembrar e esquecer auditam só o ato e o bloco, nunca o fato nem de quem é'
           'ok',
         ),
       }),
+      aiContext,
       luma,
       reader.plugin,
     ],
@@ -124,8 +126,8 @@ it('lembrar e esquecer auditam só o ato e o bloco, nunca o fato nem de quem é'
   await bot.receive({ text: 'luma, guarda isso', chat: group, sender: caio });
   await bot.receive({ text: 'luma, esquece', chat: group, sender: caio });
 
-  const [remembered] = await reader.events('luma.memory.remember');
-  const [forgot] = await reader.events('luma.memory.forget');
+  const [remembered] = await reader.events('ai-context.memory.remember');
+  const [forgot] = await reader.events('ai-context.memory.forget');
   expect(remembered?.target).toEqual({ type: 'chat', id: 'grupo@fake' });
   expect(remembered?.details).toEqual({ block: 'person' });
   expect(forgot?.details).toEqual({ block: 'person' });
