@@ -351,6 +351,79 @@ describe('contexto no orçamento', () => {
   });
 });
 
+describe('memória longa', () => {
+  const systemOf = (model: MockLanguageModelV4, call: number) =>
+    JSON.stringify(model.doGenerateCalls[call]?.prompt.filter((m) => m.role === 'system'));
+  const joao = { id: 'joao@x', name: 'João' };
+
+  it('um fato pedido para lembrar sobrevive a restart e à expiração da transcrição', async () => {
+    const model = scripted(
+      toolAnswer('remember', { fact: 'é corintiano', person: 'João' }),
+      'anotado',
+      'corinthians, claro',
+    );
+    const b = await start(model);
+
+    await b.receive({ text: 'lembra que eu sou corintiano', sender: joao });
+    // O restart esquece a transcrição (ela é só memória); o fato está no storage.
+    const after = await b.restart();
+    bot = after;
+    await after.receive({ text: 'qual meu time?', sender: joao });
+
+    const system = systemOf(model, 2);
+    expect(system).toContain('Sobre João:\\n- é corintiano');
+    expect(conversation(model, 2)).not.toContain('lembra que eu sou corintiano');
+  });
+
+  it('pedir para esquecer apaga o fato', async () => {
+    const model = scripted(
+      toolAnswer('remember', { fact: 'não gosta de ser chamada de Bianca', person: 'Bia' }),
+      'ok',
+      toolAnswer('forget', { fact: 'Bianca', person: 'Bia' }),
+      'esqueci',
+      'oi Bia',
+    );
+    const b = await start(model);
+    const bia = { id: 'bia@x', name: 'Bia' };
+
+    await b.receive({ text: 'luma, não me chama de Bianca', chat: group, sender: bia });
+    await b.receive({ text: 'luma, esquece aquilo do Bianca', chat: group, sender: bia });
+    expect(systemOf(model, 2)).toContain('não gosta de ser chamada de Bianca');
+    await b.receive({ text: 'luma, oi', chat: group, sender: bia });
+
+    expect(systemOf(model, 4)).not.toContain('Bianca');
+    expect(systemOf(model, 4)).not.toContain('O que você lembra');
+  });
+
+  it('o fato de um chat não aparece em outro, e o !luma clear o apaga', async () => {
+    const model = scripted(toolAnswer('remember', { fact: 'o grupo joga sexta' }), 'ok', 'oi');
+    const b = await start(model);
+
+    await b.receive({ text: 'luma, lembra que a gente joga sexta', chat: group, sender: joao });
+    await b.receive({ text: 'qual o plano de sexta?', sender: joao });
+    expect(systemOf(model, 2)).not.toContain('joga sexta');
+
+    await b.receive({ text: 'luma, oi', chat: group, sender: joao });
+    expect(systemOf(model, 3)).toContain('Deste chat:\\n- o grupo joga sexta');
+
+    await b.receive({ text: '!luma clear', chat: group, sender: joao });
+    await b.receive({ text: 'luma, oi de novo', chat: group, sender: joao });
+    expect(systemOf(model, 4)).not.toContain('joga sexta');
+  });
+
+  it('pessoa que não está na conversa nem tem bloco é recusada', async () => {
+    const model = scripted(
+      toolAnswer('remember', { fact: 'é flamenguista', person: 'Zé' }),
+      'quem?',
+    );
+    const b = await start(model);
+
+    await b.receive({ text: 'lembra que o Zé é flamenguista', sender: joao });
+
+    expect(promptText(model, 1)).toContain('unknown-person');
+  });
+});
+
 describe('!luma stats com o aiMetrics', () => {
   it('mostra respostas, tokens e custo da IA nos últimos dias', async () => {
     bot = await createTestBot({

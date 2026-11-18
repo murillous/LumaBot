@@ -31,6 +31,8 @@ export interface Entry {
   readonly at: number;
   readonly fromLuma: boolean;
   readonly name: string;
+  /** `personId` de quem falou (ausente nas falas dela): liga a fala ao bloco de memória da pessoa. */
+  readonly person?: string;
   readonly text: string | null;
   readonly media?: MediaKind;
   /** De onde baixar a mídia depois; ausente na de visualização única, que a Luma não guarda. */

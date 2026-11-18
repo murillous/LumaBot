@@ -26,6 +26,11 @@ export interface PromptInput {
    */
   readonly today?: string;
   readonly image?: PromptImage;
+  /**
+   * A memória longa do chat (os blocos já em texto), no fim do sistema: só muda quando ela lembra
+   * ou esquece algo, ou quando entra na conversa alguém com bloco.
+   */
+  readonly memory?: string;
   /** Resumo das falas mais velhas do chat (a compactação), antes da transcrição. */
   readonly summary?: string;
   readonly history: readonly Turn[];
@@ -39,7 +44,11 @@ export interface PromptInput {
  * As ferramentas não são listadas aqui: cada uma chega com nome, descrição e parâmetros pelo
  * ponto `ai.tools`, então plugin novo não obriga a editar este texto.
  */
-function systemPrompt({ persona, timeZone }: Pick<PromptInput, 'persona' | 'timeZone'>): string {
+function systemPrompt({
+  persona,
+  timeZone,
+  memory,
+}: Pick<PromptInput, 'persona' | 'timeZone' | 'memory'>): string {
   const traits = persona.traits.map((t) => `- ${t}`).join('\n');
 
   return `# Quem você é
@@ -78,7 +87,17 @@ ${traits}
 2. Algo pontual vai num balão só (ex.: "nossa mano q bizarro kkk").
 3. Para mandar mais de um balão, separe com "[PARTE]". Ex.: "mano não acredito[PARTE]eu tava lendo sobre isso ontem[PARTE]é muito doido"
 4. Nada de textão: no WhatsApp a conversa é feita de mensagens curtas.
-5. "[PARTE]" é só o separador entre balões; nunca escreva isso como texto.`;
+5. "[PARTE]" é só o separador entre balões; nunca escreva isso como texto.
+
+# Memória
+Você esquece a conversa depois de umas horas. Para guardar um fato duradouro (um gosto, um apelido, como a pessoa quer ser chamada, um combinado do grupo), use a ferramenta de lembrar; quando pedirem para esquecer, ou um fato ficar errado, a de esquecer. Guarde só o que vale por semanas, nunca o que é passageiro.${
+    memory
+      ? `
+
+# O que você lembra deste chat
+${memory}`
+      : ''
+  }`;
 }
 
 /** Abre o resumo na conversa; o sistema explica como lê-lo. */
@@ -123,7 +142,11 @@ export function buildPrompt(input: PromptInput): {
   });
 
   return {
-    instructions: systemPrompt({ persona: input.persona, timeZone: input.timeZone }),
+    instructions: systemPrompt({
+      persona: input.persona,
+      timeZone: input.timeZone,
+      ...(input.memory && { memory: input.memory }),
+    }),
     messages,
   };
 }

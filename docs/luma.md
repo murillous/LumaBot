@@ -67,6 +67,27 @@ token. A transcrição em si não muda: o que sai do prompt continua achável pe
 3. Se o resumo falha (`luma.compact.failed`), a resposta segue só com as falas mais recentes que
    cabem no orçamento.
 
+## Memória longa
+
+A transcrição some em 2 h; fatos duráveis ("o João é corintiano", "a Bia não gosta de ser chamada
+de Bianca") ficam em **blocos** no storage (coleção `memory`), no estilo da core memory do Letta.
+
+- Cada chat tem um bloco **do chat** (combinados, piadas internas) e um bloco **por pessoa** que
+  fala nele. Tudo é por chat: o que alguém conta no privado nunca aparece no grupo, nem o
+  contrário.
+- Cada bloco tem até `memory.blockChars` (500) caracteres. Cheio, o `remember` recusa com os fatos
+  que ele tem, e a Luma esquece algum antes.
+- Os blocos entram no **fim da instrução de sistema** (`# O que você lembra deste chat`): o do chat
+  e os de quem está na transcrição ou fala agora, em ordem fixa. Mudam só quando ela lembra ou
+  esquece, ou quando alguém com bloco entra na conversa, então o começo do prompt segue em cache.
+- A própria Luma edita os blocos pelas tools `remember` e `forget`. A pessoa é achada pelo nome:
+  quem falou nas últimas horas ou quem já tem bloco no chat.
+- **Retenção:** um fato sai depois de `memory.maxAgeDays` (180) dias sem ser lembrado de novo;
+  lembrar o mesmo fato renova o prazo. A expiração é feita na leitura, sem timer.
+- `!luma clear` e a tool `clear_history` apagam também os blocos do chat. Criar persona só limpa a
+  transcrição.
+- Se o storage falha na leitura (`luma.memory.failed`), a Luma responde sem a memória.
+
 ## Persona
 
 Cinco de fábrica (Pensadora, a padrão, Pistola, Good Vibes, Sênior e Literal, em `personas.ts`) e as
@@ -91,12 +112,13 @@ Registra no log de auditoria do kernel (`ctx.audit`) só o ato administrativo, n
 | --- | --- | --- |
 | `luma.persona.set` / `.create` / `.delete` | Troca, criação ou remoção de persona (comando ou tool); alvo = chat | `key` (e `wasActive` no delete), nunca o texto da persona |
 | `luma.history.clear` | `!luma clear` ou a tool `clear_history`; alvo = chat | — (quem pediu é o ator `contact` do evento) |
+| `luma.memory.remember` / `.forget` | A tool `remember` guardou ou a `forget` apagou um fato; alvo = chat | `block` (`chat` ou `person`), nunca o fato nem de quem é |
 
 ## Comandos
 
 | Comando | O que faz |
 | --- | --- |
-| `!luma clear` (`!lc`, `!clear`) | Esquece a transcrição do chat (em grupo, para todos) |
+| `!luma clear` (`!lc`, `!clear`) | Esquece a transcrição e a memória longa do chat (em grupo, para todos) |
 | `!luma stats` (`!ls`) | Conversas ativas e, se o [`ai-metrics`](ai-metrics.md) está carregado, respostas, taxa de sucesso, fallbacks, tokens (e a parte da entrada que veio do cache, quando houve), latência e custo dos últimos 7 dias |
 
 ## Tools da IA
@@ -105,7 +127,9 @@ Contribuídas ao ponto `ai.tools` ([ai-tools.md](ai-tools.md)).
 
 | Tool | Argumentos | O que faz | Recusas (`error`) |
 | --- | --- | --- | --- |
-| `clear_history` | — | Apaga a transcrição do chat (em grupo, a de todos) | — |
+| `clear_history` | — | Apaga a transcrição e a memória longa do chat (em grupo, a de todos) | — |
+| `remember` | `fact` (até 200), `person?` | Guarda o fato no bloco da pessoa (pelo nome) ou, sem `person`, no do chat. Fato repetido renova o prazo | `unknown-person` (com o nome), `full` (com os fatos do bloco em `detail`) |
+| `forget` | `fact?`, `person?` | Apaga do bloco os fatos que contêm `fact` (sem acento nem caixa); sem `fact`, o bloco inteiro | `unknown-person`, `not-found` (com os fatos do bloco em `detail`) |
 | `create_persona` | `description` | Cria e ativa a persona; confirma no chat | `empty`, `limit`, `invalid-persona`, `unavailable` |
 | `read_messages` | `ids` (1 a 10, `#m12`) | Devolve o texto inteiro de falas anteriores do chat pelo ID (a cortada no nível 1, a citada no resumo). Só leitura | `unknown` (com o ID em `detail`) |
 | `view_media` | `ids` (1 a 4, `#m12`), `question?` | Olha imagens ou figurinhas anteriores do chat pelo ID e devolve a descrição. Só leitura | `unknown`, `no-media`, `view-once`, `not-image`, `too-large`, `expired` (com o ID em `detail`) |
@@ -145,6 +169,7 @@ histórico, para a fala da persona anterior não vazar para a nova.
 | `maxCustomPersonas` | `10` | Personas criadas por chat |
 | `history.maxMessages` / `history.maxAgeMs` | `80` / `7200000` | Falas guardadas por chat e por quanto tempo cada uma fica |
 | `history.maxTokens` | `3000` | Tokens estimados da transcrição que vão ao modelo; passando disso, as falas velhas viram resumo ([orçamento](#prompt-cacheável-e-orçamento)) |
+| `memory.blockChars` / `memory.maxAgeDays` | `500` / `180` | Tamanho de cada bloco da [memória longa](#memória-longa) e dias de um fato sem ser lembrado |
 | `maxPartLength` / `maxParts` | `300` / `2` | Tamanho de cada balão e quantos no máximo |
 | `thinkingDelayMs` | `{ min: 2000, max: 5000 }` | Espera "digitando" antes de gerar; `0` desliga |
 | `replyTimeoutMs` | `180000` | Prazo da resposta inteira |
