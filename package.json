@@ -37,6 +37,7 @@
     "pdf-lib": "^1.17.1",
     "qrcode-terminal": "^0.12.0",
     "sharp": "^0.35.5",
+    "unpdf": "^2.2.1",
     "zod": "^4.6.5"
   },
   "devDependencies": {

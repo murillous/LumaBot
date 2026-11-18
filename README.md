@@ -258,6 +258,7 @@ exemplo é o `sticker` ([sticker.md](docs/sticker.md#serviço-sticker)).
 | `sharp` | Imagem da figurinha e a legenda (Pango) |
 | `node-webpmux` | EXIF do WebP: nome e autor do pacote da figurinha |
 | `pdf-lib` | `!pdf` e `!mergepdf` |
+| `unpdf` | Texto dos PDFs que a Luma lê (`read_pdf`), pelo PDF.js |
 | `qrcode-terminal` | O QR no terminal |
 | `zod` | Schema da config dos plugins e dos argumentos das tools |
 

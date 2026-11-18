@@ -4,7 +4,8 @@ A personagem: responde em conversa privada, quando citada, chamada pelo nome ou 
 histórico, persona por chat e as ferramentas do ponto `ai.tools`. A IA em si (cadeia de
 modelos, fallback, métricas) é do [`ai`](ai.md); a `luma` depende dele. Código em
 `src/plugins/luma/`: `luma.ts` (plugin), `transcript.ts`, `trigger.ts`, `prompt.ts`, `personas.ts`,
-`persona-generator.ts`, `stats.ts` e `media.ts` (mídia pelo ID e a tool `view_media`), todos puros menos o primeiro e o último.
+`persona-generator.ts`, `stats.ts`, `media.ts` (mídia pelo ID e a tool `view_media`) e `read-pdf.ts`
+(a tool `read_pdf`), todos puros menos o primeiro e os dois últimos.
 
 ## Quando responde
 
@@ -133,6 +134,7 @@ Contribuídas ao ponto `ai.tools` ([ai-tools.md](ai-tools.md)).
 | `create_persona` | `description` | Cria e ativa a persona; confirma no chat | `empty`, `limit`, `invalid-persona`, `unavailable` |
 | `read_messages` | `ids` (1 a 10, `#m12`) | Devolve o texto inteiro de falas anteriores do chat pelo ID (a cortada no nível 1, a citada no resumo). Só leitura | `unknown` (com o ID em `detail`) |
 | `view_media` | `ids` (1 a 4, `#m12`), `question?` | Olha imagens ou figurinhas anteriores do chat pelo ID e devolve a descrição. Só leitura | `unknown`, `no-media`, `view-once`, `not-image`, `too-large`, `expired` (com o ID em `detail`) |
+| `read_pdf` | `ids?` (até 4, `#m12`), `pages?` (`"3-7"`, `"5"`, `"10-"`), `question?` | Lê PDFs do chat e devolve o texto por página; sem `ids`, o da mensagem e o da citada. Só leitura ([PDF](#pdf)) | `no-pdf`, `unknown`, `no-media`, `view-once`, `not-pdf`, `too-large`, `expired`, `encrypted`, `invalid`, `invalid-pages` (com o total de páginas), `no-text` (com o ID em `detail`) |
 
 Trocar de persona ou limpar a memória por tool é recomeçar: a troca em curso **não** é guardada no
 histórico, para a fala da persona anterior não vazar para a nova.
@@ -155,8 +157,28 @@ histórico, para a fala da persona anterior não vazar para a nova.
   parte (`purpose: luma.view`, no uso de quem pediu) e devolve só o texto. O modelo da conversa
   pode não ter visão, e a imagem não pesa nos passos seguintes. Mídia que saiu da plataforma
   (`MediaExpiredError`) volta como `expired`.
+- **Documento** aparece na transcrição com o nome do arquivo (`[documento: contrato.pdf]`), sem
+  colchete nem quebra de linha e com até 80 caracteres. É assim que a Luma sabe qual ID é PDF.
 - Outras tools usam a mídia pelo serviço (`media(chatId, id)`): o
   [`edit_sticker`](sticker-edit.md#tool-da-ia) junta figurinhas anteriores por ID.
+
+## PDF
+
+A `read_pdf` tira o texto do PDF localmente, pelo PDF.js ([`unpdf`](https://github.com/unjs/unpdf)),
+sem custo de IA. O DeepSeek, modelo da conversa, não lê PDF; texto ele lê.
+
+- Até **30 mil caracteres**, o texto vai cru ao modelo, com um cabeçalho por PDF
+  (`--- #m4 contrato.pdf, p. 1-12 de 12 ---`) e `[p. N]` antes de cada página. É o que serve
+  para perguntas de seguimento.
+- Acima disso, uma chamada à parte (`purpose: luma.pdf`, cadeia `models`) resume e responde à
+  `question`, lendo no máximo 200 mil caracteres. O resultado traz o total de páginas, e a Luma
+  pede um trecho por `pages`.
+- **PDF escaneado** (nenhuma página com texto) vai como arquivo `application/pdf` à cadeia
+  `visionModels`, que precisa aceitar PDF (o Gemini aceita). Sem `visionModels`, volta `no-text`.
+- PDF de até **20 MB**; PDF com senha volta `encrypted`, e arquivo corrompido, `invalid`.
+- O texto **não é guardado**: a cada pergunta a Luma lê de novo pelo ID, enquanto a fala estiver
+  na transcrição. As chamadas à parte entram no uso de quem pediu (`actor`), e a tool registra
+  `pdf`/`read` no [`usage`](usage.md).
 
 ## Config
 
@@ -190,6 +212,7 @@ da resposta. Cada fase do redesenho do contexto tem os seus:
 | Mídia por ID | juntar figurinhas por ID | `edit_sticker` com a 2ª como base e a 1ª como referência |
 | Orçamento | textão antigo lido pelo ID | acha, pelo `read_messages`, o dado no fim de um textão cortado |
 | Memória longa | fato lembrado depois do restart | o fato volta sem a transcrição |
+| PDF (#478) | pergunta sobre um PDF do chat | acha, pela `read_pdf`, a multa no PDF que outra pessoa mandou |
 
 - **No `pnpm test`** (`scenarios.test.ts`), com o modelo falso respondendo o que um modelo que
   acerta responderia: confere o contexto que a Luma monta (o modelo só acerta se ele estiver lá) e
