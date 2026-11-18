@@ -21,7 +21,8 @@ ignorada. Erro vai para o log (`pdf.convert.failed`) e o chat recebe `conversion
 ## Tools da IA
 
 Contribuídas ao ponto `ai.tools` ([ai-tools.md](ai-tools.md)). O resultado vai para o modelo;
-o que o usuário recebe sai como resposta no chat.
+o que o usuário recebe sai como resposta no chat. Ler o texto de um PDF é da Luma: a
+[`read_pdf`](luma.md#pdf), que acha o PDF pelo ID da transcrição.
 
 | Tool | Argumentos | O que faz | Recusas (`error`) |
 | --- | --- | --- | --- |

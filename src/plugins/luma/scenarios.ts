@@ -7,6 +7,7 @@
 import type { PluginDefinition, StoragePort } from '@usebridger/core';
 import { createTestBot, type TestBot } from '@usebridger/testing';
 import type { MockLanguageModelV4 } from 'ai/test';
+import { PDFDocument, StandardFonts } from 'pdf-lib';
 import sharp from 'sharp';
 import { ai } from '#plugins/ai/ai.ts';
 import {
@@ -25,6 +26,8 @@ export interface Say {
   readonly from: string;
   readonly text?: string;
   readonly sticker?: string;
+  /** Um PDF com uma página por texto (só ASCII: a fonte padrão do pdf-lib não tem acento). */
+  readonly pdf?: { readonly name: string; readonly pages: readonly string[] };
   /** Responde citando uma fala da Luma que não está na transcrição (antiga ou de outra sessão). */
   readonly quotingLuma?: string;
 }
@@ -73,6 +76,14 @@ const solid = async (background: string) => ({
     .toBuffer(),
   mimetype: 'image/webp',
 });
+
+/** PDF de texto, uma página por item. */
+async function textPdf(pages: readonly string[]): Promise<Buffer> {
+  const doc = await PDFDocument.create();
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+  for (const text of pages) doc.addPage().drawText(text, { x: 40, y: 780, font, size: 10 });
+  return Buffer.from(await doc.save());
+}
 
 /** Cor do pixel do meio de uma imagem que o modelo de imagem recebeu. */
 async function centerColor(file: unknown): Promise<{ r: number; g: number; b: number }> {
@@ -199,6 +210,31 @@ export const SCENARIOS: readonly Scenario[] = [
     outcome: ({ reply }) => expectMatch(reply, new RegExp(SENHA), 'a resposta'),
   },
   {
+    name: 'pergunta sobre um PDF do chat',
+    issue: 478,
+    chat: 'group',
+    before: [
+      {
+        from: 'Ana',
+        pdf: {
+          name: 'contrato-aluguel.pdf',
+          pages: ['Contrato de aluguel por 30 meses.', 'Multa por atraso: 7 por cento do valor.'],
+        },
+      },
+      { from: 'Bia', text: 'alguém leu isso aí?' },
+    ],
+    ask: { from: 'Bia', text: 'luma, qual a multa por atraso no contrato da Ana?' },
+    fake: [
+      toolAnswer('read_pdf', { ids: ['#m1'], question: 'qual a multa por atraso?' }),
+      'a multa é de 7% do valor',
+    ],
+    context: (p) => [
+      ...expectMatch(p, /Ana: \[documento: contrato-aluguel\.pdf\]/, 'o PDF na transcrição'),
+      ...expectNot(p, /7 por cento/, 'o prompt antes da tool'),
+    ],
+    outcome: ({ reply }) => expectMatch(reply, /7 ?(%|por cento)/, 'a resposta'),
+  },
+  {
     name: 'fato lembrado depois do restart',
     issue: 465,
     chat: 'private',
@@ -274,6 +310,10 @@ export async function play(s: Scenario, options: PlayOptions): Promise<Played> {
         sender: { id: `${say.from.toLowerCase()}@s.whatsapp.net`, name: say.from },
         ...(say.text && { text: say.text }),
         ...(say.sticker && { sticker: await solid(say.sticker) }),
+        ...(say.pdf && {
+          document: { data: await textPdf(say.pdf.pages), mimetype: 'application/pdf' },
+          fileName: say.pdf.name,
+        }),
         ...(say.quotingLuma && { quoted: { text: say.quotingLuma, fromMe: true, chat } }),
       });
 

@@ -24,6 +24,17 @@ const MEDIA: Partial<Record<MessageType, MediaKind>> = {
 
 export const mediaKind = (type: MessageType): MediaKind | undefined => MEDIA[type];
 
+/** Nome de arquivo cabe na marca de mídia: sem colchete nem quebra de linha, curto. */
+export const cleanFileName = (name: string): string =>
+  name
+    .replace(/[[\]\s]+/g, ' ')
+    .trim()
+    .slice(0, 80);
+
+/** A marca da mídia na transcrição: `[documento: contrato.pdf]`, `[figurinha]`. */
+export const mediaLabel = (entry: Pick<Entry, 'media' | 'fileName'>): string =>
+  entry.fileName ? `[${entry.media}: ${entry.fileName}]` : `[${entry.media}]`;
+
 export interface Entry {
   /** ID curto no chat (`m12`): é o que a Luma vê e cita. */
   readonly ref: string;
@@ -35,6 +46,8 @@ export interface Entry {
   readonly person?: string;
   readonly text: string | null;
   readonly media?: MediaKind;
+  /** Nome do documento (`contrato.pdf`), já limpo: é como a Luma sabe qual mídia é PDF. */
+  readonly fileName?: string;
   /** De onde baixar a mídia depois; ausente na de visualização única, que a Luma não guarda. */
   readonly file?: MediaFile;
   /** `ref` da fala citada, se ela ainda está na transcrição. */
@@ -219,7 +232,7 @@ export function replyNote(replyTo: Entry | undefined): string {
 /** Corpo de uma fala de alguém: mídia, citação e texto, nessa ordem. */
 export function body(entry: Entry, byRef: ReadonlyMap<string, Entry>): string {
   const reply = entry.replyTo ? replyNote(byRef.get(entry.replyTo)) : '';
-  return [reply, entry.media ? `[${entry.media}]` : '', entry.text ?? ''].filter(Boolean).join(' ');
+  return [reply, entry.media ? mediaLabel(entry) : '', entry.text ?? ''].filter(Boolean).join(' ');
 }
 
 /**
