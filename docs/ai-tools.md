@@ -2,7 +2,7 @@
 
 Todo plugin do app pode ser chamado pela IA por function calling. Cada plugin contribui as
 próprias tools ao ponto de extensão `ai.tools`; a IA lê a lista e não conhece nenhum plugin. O contrato fica em
-`src/plugins/ai-tools.ts`.
+`src/plugins/ai/tools.ts`, que vai junto com o `ai`.
 
 ## Contribuir uma tool
 
@@ -10,7 +10,7 @@ No `setup` do plugin, sem `dependsOn` no `ai`:
 
 ```ts
 import { z } from 'zod';
-import { aiTool, fail, mediaMessage, ok } from '#plugins/ai-tools.ts';
+import { aiTool, fail, mediaMessage, ok } from '#plugins/ai/tools.ts';
 
 ctx.services.contribute(
   'ai.tools',
@@ -49,7 +49,7 @@ tool.
 
 ## Testar
 
-O plugin de teste `ai-tools-probe.ts` faz o papel da IA: `!tool <nome> <json>` roda a tool entre
+O plugin de teste `ai/tools-probe.ts` faz o papel da IA: `!tool <nome> <json>` roda a tool entre
 as oferecidas e responde o resultado em JSON (`not-offered` se o transport não tem o `requires`).
 `toolResult(bot)` lê a última resposta:
 
@@ -73,7 +73,8 @@ expect(toolResult(bot)).toEqual({ ok: true });
 | [`user-names`](user-names.md#tools-da-ia) | `set_nickname`, `get_name` |
 | [`reminders`](reminders.md#tools-da-ia) | `create_reminder`, `list_reminders`, `cancel_reminder` |
 | [`rank`](rank.md#tools-da-ia) | `ranking` |
-| [`luma`](luma.md#tools-da-ia) | `clear_history`, `create_persona`, `view_media`, `read_messages`, `remember`, `forget` |
+| [`luma`](luma.md#tools-da-ia) | `create_persona` |
+| [`ai-context`](ai-context.md#tools-da-ia) | `clear_history`, `read_messages`, `view_media`, `read_pdf`, `remember`, `forget` |
 | [`web-search`](web-search.md#tool-da-ia) | `search_web` |
 | [`transcribe`](transcribe.md#tool-da-ia) | `transcribe_audio` |
 | [`resumo`](resumo.md#tool-da-ia) | `summarize_chat` |

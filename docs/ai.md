@@ -1,7 +1,9 @@
 # ai
 
 Gera texto por uma cadeia de modelos com fallback entre providers, pelo
-[Vercel AI SDK](https://ai-sdk.dev).
+[Vercel AI SDK](https://ai-sdk.dev). O `ai` não traz provider nenhum: cada um é um plugin que
+contribui no ponto `ai.providers`, com a própria chave
+([ai-providers.md](ai-providers.md): Google, OpenAI, Anthropic e DeepSeek).
 Oferece o serviço `ai` e os pontos `ai.providers` e `ai.observers`, e roda as tools do ponto
 [`ai.tools`](ai-tools.md). O `ai` não tem comando nem gatilho: quem decide quando responder, o
 histórico e a persona são da [`luma`](luma.md); `resumo`, `spontaneous`,
@@ -12,7 +14,7 @@ histórico e a persona são da [`luma`](luma.md); `resumo`, `spontaneous`,
 | Campo | Padrão | Efeito |
 | --- | --- | --- |
 | `models` | `[]` | Cadeia em ordem: `[{ "model": "provider:modelo", "temperature"?, "maxOutputTokens"? }]` |
-| `keys.google`, `keys.openai`, `keys.anthropic`, `keys.deepseek` | — | Chave (secreta) de cada provider embutido |
+| `keys.google`, `keys.openai`, `keys.anthropic`, `keys.deepseek` | — | Obsoleto: só para as chaves de antes seguirem valendo ([ai-providers.md](ai-providers.md#chaves-de-antes-compatibilidade)). A chave nova fica em `ai-<provider>.key` |
 | `timeoutMs` | `60000` | Prazo de cada tentativa |
 | `cooldownMs` | `60000` | Tempo que um modelo que respondeu 429 passa no fim da cadeia |
 | `maxToolSteps` | `5` | Passos do modelo numa resposta com tools (chamar, ler o resultado e responder são dois) |
@@ -21,8 +23,8 @@ Por ambiente:
 
 ```sh
 BRIDGER_AI__MODELS='[{"model":"google:gemini-2.5-flash","temperature":1.4},{"model":"deepseek:deepseek-chat"}]'
-BRIDGER_AI__KEYS__GOOGLE=...
-BRIDGER_AI__KEYS__DEEPSEEK=...
+BRIDGER_AI_GOOGLE__KEY=...
+BRIDGER_AI_DEEPSEEK__KEY=...
 ```
 
 `temperature` e `maxOutputTokens` ficam no item da cadeia porque a escala muda entre providers: o
@@ -137,24 +139,28 @@ chave.
 
 ### `GET /api/plugins/ai/catalog`
 
-O que dá para escolher na cadeia. Vem dos providers do ponto `ai.providers` (o de outro plugin
-aparece sozinho) mais os quatro embutidos sem chave:
+O que dá para escolher na cadeia. Vem dos providers do ponto `ai.providers`, inclusive os que
+estão sem chave (o plugin do provider entra no ponto marcado `key.configured: false`):
 
 ```jsonc
 { "providers": [{
   "id": "google", "name": "Google", "key": "configured",   // configured | env | missing
+  "keyField": { "plugin": "ai-google", "path": "key" },     // onde a tela grava a chave
   "temperature": { "min": 0, "max": 2 },
   "models": [{ "id": "gemini-2.5-flash", "audio": true, "nativeSearch": true }]
 }] }
 ```
 
 `key: "missing"` traz os modelos do mesmo jeito (a tela pede a chave em vez de esconder a opção).
+`keyField` vem do `AiProvider.key` e diz em que plugin e campo a tela IA grava a chave (PUT na
+config daquele plugin). Provider sem `key` (o [`cloudflare-ai`](cloudflare-ai.md), um de teste)
+aparece como `configured` e sem `keyField`: a config dele é editada na tela Plugins.
 O catálogo não restringe a config: `provider:modelo` fora da lista continua valendo. Provider de
 plugin descreve os modelos em `AiProvider.models` (`id`, `audio?`, `nativeSearch?`), a faixa em
 `temperature` e o nome em `label`; tudo opcional.
 
-`env` (chave vinda de `BRIDGER_AI__KEYS__*`) só é detectado se o `ai` estiver em `adminPlugins`
-do bot: a fonte de cada campo da config só chega ao plugin por `ctx.admin`. Sem isso, a chave
+`env` (chave vinda de `BRIDGER_AI_<PROVIDER>__KEY`) só é detectado se o `ai` estiver em
+`adminPlugins` do bot: a fonte de cada campo da config de outro plugin só chega por `ctx.admin`. Sem isso, a chave
 presente aparece como `configured`. Pôr o `ai` em `adminPlugins` só por esse selo dá a ele
 acesso admin inteiro (`setOverrides`, `setSecret`): não é recomendado.
 
@@ -172,7 +178,8 @@ plugins):
 ] }
 ```
 
-`state` é `ready`, `cooldown` (com `until`) ou `unregistered` (sem chave ou plugin desligado).
+`state` é `ready`, `cooldown` (com `until`) ou `unregistered` (provider sem chave, ou plugin
+desligado).
 `lastOutcome`/`lastAt` são a última tentativa naquele modelo (os valores de `AiAttempt.outcome`),
 em memória: zeram no restart, como o cooldown.
 
@@ -194,14 +201,17 @@ setup(ctx) {
 ```
 
 Depois disso, `ollama:llama3` passa a valer na cadeia. O provider pode declarar também
-`nativeSearch(): ToolSet` (a busca nativa dele); o embutido do Gemini já o faz. E pode declarar
-`imageModel(id): ImageModel`, que a cadeia de imagem do [`sticker-edit`](sticker-edit.md) usa; os
-embutidos Google e OpenAI o têm, e o [`cloudflare-ai`](cloudflare-ai.md) contribui um provider só
-de imagem. Quando o filtro de conteúdo do provider recusa, o modelo de imagem lança
+`nativeSearch(): ToolSet` (a busca nativa dele); o `ai-google` o faz. E pode declarar
+`imageModel(id): ImageModel`, que a cadeia de imagem do [`sticker-edit`](sticker-edit.md) usa; o
+`ai-google` e o `ai-openai` o têm, e o [`cloudflare-ai`](cloudflare-ai.md) contribui um provider
+só de imagem. Quando o filtro de conteúdo do provider recusa, o modelo de imagem lança
 `APICallError` com `data: { flagged: true }`, e `isContentFlagged(err)` (exportado pelo `ai`)
-separa a recusa da falha comum. Os quatro embutidos entram pelo mesmo
-ponto, contribuídos pelo `ai`, só os que têm `keys.<nome>`. Com dois providers de mesmo nome,
-vale o primeiro na ordem de carga.
+separa a recusa da falha comum. Com dois providers de mesmo nome, vale o primeiro na ordem de
+carga.
+
+Provider cuja config é uma chave declara `key: { plugin, path, configured }`: a tela IA pede e
+grava a chave nesse campo, e com `configured: false` o `ai` trata o provider como não registrado.
+Para esse caso há o `keyProvider` ([ai-providers.md](ai-providers.md#provider-novo-por-chave)).
 
 ## Ponto `ai.observers`
 
@@ -234,4 +244,34 @@ própria: o modelo só aparece mais tarde na ordem (`position` maior).
 ## Testes
 
 Os testes contribuem um provider falso com `MockLanguageModelV4` (`ai/test`) e não fazem
-chamada de rede.
+chamada de rede. As peças de teste vão junto com o `ai`: `testing.ts` (`fakeProvider`,
+`scripted`, `toolAnswer`, `promptText`...) e `tools-probe.ts` (`!tool <nome> <json>` roda uma tool
+como a IA rodaria).
+
+## Fora do app (usebridger)
+
+O `ai`, o [`ai-context`](ai-context.md) e os [providers](ai-providers.md) nascem aqui e vão para
+o `usebridger` como plugins oficiais. Para a mudança ser só mover pastas, cada um vive inteiro
+na própria pasta e não importa nada do app:
+
+| Pasta | Vira | Pode importar |
+| --- | --- | --- |
+| `src/plugins/ai/` (`ai.ts`, `key-provider.ts`, `tools.ts`, `response.ts`, `person-id.ts` e as peças de teste) | `plugin-ai` | só a própria pasta |
+| `src/plugins/ai-context/` | `plugin-ai-context` | o `ai` e a própria pasta |
+| `src/plugins/ai-<provider>/` | `plugin-ai-<provider>` | o `ai` e a própria pasta |
+
+O Biome barra o resto (`noRestrictedImports` nos `overrides` do `biome.jsonc`): um `#plugins/luma/...`,
+`#config.ts` ou `../` dentro dessas pastas falha no `pnpm lint`, testes inclusive. Teste que junta
+um plugin genérico com um do app (a Luma sobre o `ai-context`, o `usage` contando o `read_pdf`, o
+catálogo de tools do app) fica na pasta do plugin do app ou em `src/plugins/ai-tools-catalog.test.ts`.
+
+Lacunas do kernel que apareceram na extração e o que cada uma deixa provisório:
+
+| Issue | Lacuna | Provisório aqui |
+| --- | --- | --- |
+| [usebridger#344](https://github.com/murillous/usebridger/issues/344) | `outbound.sent` sem o texto e o id do envio | o `ai-context` grava a fala do bot pelo `record`/`respond` |
+| [usebridger#345](https://github.com/murillous/usebridger/issues/345) | Mover um segredo de um plugin para outro | o legado `ai.keys` e o `legacyKey()` ([ai-providers.md](ai-providers.md#chaves-de-antes-compatibilidade)) |
+| [usebridger#346](https://github.com/murillous/usebridger/issues/346) | Id estável da pessoa entre chats | o `personId` (`ai/person-id.ts`) fixa o JID do WhatsApp |
+| [usebridger#347](https://github.com/murillous/usebridger/issues/347) | Ler a auditoria no `@usebridger/testing` | cópia do `auditReader` em `ai-context/testing.ts` |
+
+A mudança de repositório é a [usebridger#348](https://github.com/murillous/usebridger/issues/348).

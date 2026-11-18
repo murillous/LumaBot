@@ -9,7 +9,7 @@ transcrição, busca, lembrete, resumo, resposta da IA. Dados no storage do pró
 Um agregado por dia (UTC), pessoa, chat, ação, variante e resultado: `count` e `cost` (soma dos
 custos informados, em US$; 0 se nenhum foi). Nunca texto do usuário.
 
-A pessoa é o `personId` (`src/plugins/person-id.ts`): `<telefone>@s.whatsapp.net` quando o transport
+A pessoa é o `personId` (`src/plugins/ai/person-id.ts`): `<telefone>@s.whatsapp.net` quando o transport
 sabe o telefone, senão o id nativo. Assim a mesma pessoa é uma só no grupo e no privado.
 
 ## Quem registra
@@ -21,7 +21,7 @@ sabe o telefone, senão o id nativo. Assim a mesma pessoa é uma só no grupo e 
 | `sticker-convert` | `sticker_convert` | `image`, `gif` | `track` |
 | `sticker-edit` | `sticker_edit` | `sticker` | `track` |
 | `pdf` | `pdf` | `image`, `add`, `merge` | `track` |
-| `luma` (tool `read_pdf`) | `pdf` | `read` | `recordUsage` |
+| `ai-context` (tool `read_pdf`) | `pdf` | `read` | `recordUsage`, pelo ponto `ai-context.observers` |
 | `transcribe` | `transcribe` | `audio` | `track`, com o `by` do serviço |
 | `web-search` | `web_search` | `tavily`, `native` | `track`, com o `by` do serviço |
 | `reminders` | `reminders` | `create`, `cancel` | `recordUsage` |

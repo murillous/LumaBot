@@ -10,8 +10,8 @@ import sharp from 'sharp';
 import { z } from 'zod';
 import { type ActionSpec, trackerFor } from '#plugins/action-metrics.ts';
 import { isContentFlagged } from '#plugins/ai/ai.ts';
-import { aiTool, fail, ok } from '#plugins/ai-tools.ts';
-import type { ChatMediaLookup } from '#plugins/luma/media.ts';
+import { aiTool, fail, ok } from '#plugins/ai/tools.ts';
+import type { ChatMediaLookup } from '#plugins/ai-context/media.ts';
 import { attempt, usage } from '#plugins/media-command.ts';
 import { clearBackground, hasTransparency, onWhite } from './background.ts';
 import {
@@ -161,7 +161,7 @@ type IdRefusal =
 /**
  * Figurinha e referências escolhidas pela Luma por ID da transcrição (`#m12`), para usar mídias
  * anteriores do chat. Sem `target`, vale a da mensagem (ou da citada); sem `references`, a foto ou
- * figurinha da própria mensagem, se houver. Precisa do serviço `luma`, que guarda a transcrição.
+ * figurinha da própria mensagem, se houver. Precisa do serviço `aiContext`, que guarda a transcrição.
  */
 export function sourcesById(
   message: Message,
@@ -357,7 +357,9 @@ export const stickerEdit: PluginDefinition = definePlugin({
         run: async ({ request, target, references: referenceIds }, t) => {
           let sources: { target: Source; references: Source[] } | null;
           if (target || referenceIds) {
-            const lookup = ctx.services.has('luma') ? ctx.services.get('luma').media : undefined;
+            const lookup = ctx.services.has('aiContext')
+              ? ctx.services.get('aiContext').media
+              : undefined;
             const byId = sourcesById(t.message, { target, references: referenceIds }, lookup);
             if ('refused' in byId) return fail(byId.refused, byId.id);
             sources = byId;

@@ -3,7 +3,8 @@ import { createTestBot, type TestBot } from '@usebridger/testing';
 import { APICallError } from 'ai';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ai } from '#plugins/ai/ai.ts';
-import { fakeProvider, promptText, scripted } from '#plugins/ai-testing.ts';
+import { fakeProvider, promptText, scripted } from '#plugins/ai/testing.ts';
+import { aiContext } from '#plugins/ai-context/ai-context.ts';
 import { luma } from '#plugins/luma/luma.ts';
 import { spontaneous } from './spontaneous.ts';
 
@@ -146,7 +147,7 @@ describe('quando não age', () => {
       },
     });
     const model = scripted('😂');
-    const b = await start(model, {}, [luma]);
+    const b = await start(model, {}, [aiContext, luma]);
 
     await say(b, 'luma, kkkk');
     await b.bot.settled();
@@ -173,7 +174,7 @@ describe('com a Luma', () => {
   it('quando a Luma responde, o espontâneo não avalia nem reage', async () => {
     const model = scripted('opa, tô aqui');
     bot = await createTestBot({
-      plugins: [ai, fakeProvider({ a: model }), luma, spontaneous],
+      plugins: [ai, fakeProvider({ a: model }), aiContext, luma, spontaneous],
       pluginConfig: {
         ai: { models: [{ model: 'fake:a' }] },
         luma: { thinkingDelayMs: { min: 0, max: 0 } },
@@ -191,7 +192,7 @@ describe('com a Luma', () => {
   it('conversa que não é com a Luma segue para o espontâneo', async () => {
     const model = scripted('😂');
     bot = await createTestBot({
-      plugins: [ai, fakeProvider({ a: model }), luma, spontaneous],
+      plugins: [ai, fakeProvider({ a: model }), aiContext, luma, spontaneous],
       pluginConfig: {
         ai: { models: [{ model: 'fake:a' }] },
         luma: { thinkingDelayMs: { min: 0, max: 0 } },

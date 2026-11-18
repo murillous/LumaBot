@@ -6,7 +6,8 @@ import {
   type ServiceAccess,
 } from '@usebridger/core';
 import { z } from 'zod';
-import { personId } from '#plugins/person-id.ts';
+import { personId } from '#plugins/ai/person-id.ts';
+import type {} from '#plugins/ai-context/ai-context.ts';
 import { OBSERVER_FAILED, RECORD_FAILED } from './log-events.ts';
 
 export type UsageOutcome = 'ok' | 'refused' | 'error';
@@ -158,5 +159,12 @@ export const usage: PluginDefinition = definePlugin({
       },
     };
     ctx.services.provide('usage', service);
+
+    // A leitura de PDF do `ai-context` conta como ação de PDF de quem pediu. O ponto não precisa
+    // existir: sem o `ai-context`, a contribuição só não é lida.
+    ctx.services.contribute('ai-context.observers', async ({ tool, outcome, message, log }) => {
+      if (tool !== 'read_pdf') return;
+      await recordUsage(ctx.services, log, message, { action: 'pdf', kind: 'read', outcome });
+    });
   },
 });

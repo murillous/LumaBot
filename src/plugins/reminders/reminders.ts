@@ -10,7 +10,7 @@ import {
   type ServiceAccess,
 } from '@usebridger/core';
 import { z } from 'zod';
-import { aiTool, fail, ok } from '#plugins/ai-tools.ts';
+import { aiTool, fail, ok } from '#plugins/ai/tools.ts';
 import { recordUsage, type UsageOutcome } from '#plugins/usage/usage.ts';
 import { formatRecurrence, formatWhen, remaining, stats } from './format.ts';
 import {

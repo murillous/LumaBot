@@ -5,8 +5,9 @@ import { APICallError } from 'ai';
 import type { MockLanguageModelV4 } from 'ai/test';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ai } from '#plugins/ai/ai.ts';
+import { fakeProvider, promptText, scripted, textAnswer, toolAnswer } from '#plugins/ai/testing.ts';
+import { aiContext } from '#plugins/ai-context/ai-context.ts';
 import { aiMetrics } from '#plugins/ai-metrics/ai-metrics.ts';
-import { fakeProvider, promptText, scripted, textAnswer, toolAnswer } from '#plugins/ai-testing.ts';
 import { rank } from '#plugins/rank/rank.ts';
 import { transcribe } from '#plugins/transcribe/transcribe.ts';
 import { usage } from '#plugins/usage/usage.ts';
@@ -26,7 +27,7 @@ const FAST = { thinkingDelayMs: { min: 0, max: 0 } };
 
 async function start(model: ReturnType<typeof scripted>) {
   bot = await createTestBot({
-    plugins: [ai, fakeProvider({ a: model }), luma],
+    plugins: [ai, fakeProvider({ a: model }), aiContext, luma],
     pluginConfig: { ai: { models: [{ model: 'fake:a' }] }, luma: FAST },
   });
   return bot;
@@ -130,7 +131,7 @@ describe('quando a Luma responde', () => {
       },
     });
     bot = await createTestBot({
-      plugins: [ai, fakeProvider({ a: scripted('oi') }), luma, watcher],
+      plugins: [ai, fakeProvider({ a: scripted('oi') }), aiContext, luma, watcher],
       pluginConfig: { ai: { models: [{ model: 'fake:a' }] }, luma: FAST },
     });
 
@@ -266,10 +267,11 @@ describe('contexto no orçamento', () => {
   /** A Luma com o orçamento da transcrição apertado, para poucas falas já passarem dele. */
   async function tight(model: ReturnType<typeof scripted>, maxTokens = 200) {
     bot = await createTestBot({
-      plugins: [ai, fakeProvider({ a: model }), luma],
+      plugins: [ai, fakeProvider({ a: model }), aiContext, luma],
       pluginConfig: {
         ai: { models: [{ model: 'fake:a' }] },
-        luma: { ...FAST, history: { maxTokens } },
+        'ai-context': { history: { maxTokens } },
+        luma: FAST,
       },
     });
     return bot;
@@ -427,7 +429,7 @@ describe('memória longa', () => {
 describe('!luma stats com o aiMetrics', () => {
   it('mostra respostas, tokens e custo da IA nos últimos dias', async () => {
     bot = await createTestBot({
-      plugins: [metrics, ai, fakeProvider({ a: scripted('oi') }), aiMetrics, luma],
+      plugins: [metrics, ai, fakeProvider({ a: scripted('oi') }), aiMetrics, aiContext, luma],
       pluginConfig: {
         ai: { models: [{ model: 'fake:a' }] },
         'ai-metrics': {
@@ -561,7 +563,7 @@ describe('personas', () => {
       },
     });
     bot = await createTestBot({
-      plugins: [ai, fakeProvider({ a: scripted(generated) }), luma, racer],
+      plugins: [ai, fakeProvider({ a: scripted(generated) }), aiContext, luma, racer],
       pluginConfig: { ai: { models: [{ model: 'fake:a' }] }, luma: FAST },
     });
     await bot.receive({ text: '!persona criar uma vovó italiana' });
@@ -574,7 +576,7 @@ describe('personas', () => {
 
   it('respeita o limite de personas por chat', async () => {
     bot = await createTestBot({
-      plugins: [ai, fakeProvider({ a: scripted(generated) }), luma],
+      plugins: [ai, fakeProvider({ a: scripted(generated) }), aiContext, luma],
       pluginConfig: {
         ai: { models: [{ model: 'fake:a' }] },
         luma: { ...FAST, maxCustomPersonas: 1 },
@@ -646,7 +648,7 @@ describe('mídia', () => {
     const text = scripted('x');
     const vision = scripted('é um gato');
     bot = await createTestBot({
-      plugins: [ai, fakeProvider({ a: text, v: vision }), luma],
+      plugins: [ai, fakeProvider({ a: text, v: vision }), aiContext, luma],
       pluginConfig: {
         ai: { models: [{ model: 'fake:a' }] },
         luma: { ...FAST, visionModels: [{ model: 'fake:v' }] },
@@ -696,7 +698,7 @@ describe('áudio com o plugin transcribe', () => {
     // 1ª chamada: a Luma pede a tool; 2ª: o transcribe transcreve; 3ª: a Luma responde.
     const model = scripted(toolAnswer('transcribe_audio', {}), 'quero pizza hoje', 'boa, pizza!');
     bot = await createTestBot({
-      plugins: [ai, fakeProvider({ a: model }), transcribe, luma],
+      plugins: [ai, fakeProvider({ a: model }), transcribe, aiContext, luma],
       pluginConfig: { ai: { models: [{ model: 'fake:a' }] }, luma: FAST },
     });
 
@@ -739,7 +741,7 @@ describe('quando falha', () => {
   });
 
   it('sem cadeia configurada, avisa em vez de calar', async () => {
-    bot = await createTestBot({ plugins: [ai, luma], pluginConfig: { luma: FAST } });
+    bot = await createTestBot({ plugins: [ai, aiContext, luma], pluginConfig: { luma: FAST } });
 
     await bot.receive({ text: 'oi' });
 
@@ -758,7 +760,16 @@ describe('quando falha', () => {
 describe('outros plugins', () => {
   it('a resposta conta no rank pelo usage', async () => {
     bot = await createTestBot({
-      plugins: [metrics, ai, fakeProvider({ a: scripted('oi') }), aiMetrics, luma, usage, rank],
+      plugins: [
+        metrics,
+        ai,
+        fakeProvider({ a: scripted('oi') }),
+        aiMetrics,
+        aiContext,
+        luma,
+        usage,
+        rank,
+      ],
       pluginConfig: { ai: { models: [{ model: 'fake:a' }] }, luma: FAST },
     });
 
@@ -777,6 +788,7 @@ describe('outros plugins', () => {
         ai,
         fakeProvider({ a: scripted('oi') }),
         aiMetrics,
+        aiContext,
         luma,
         usage,
         probe.plugin,
@@ -813,6 +825,7 @@ describe('outros plugins', () => {
         ai,
         fakeProvider({ a: scripted('oi') }),
         aiMetrics,
+        aiContext,
         luma,
         usage,
         rank,

@@ -2746,6 +2746,22 @@
                               "missing"
                             ]
                           },
+                          "keyField": {
+                            "type": "object",
+                            "properties": {
+                              "plugin": {
+                                "type": "string"
+                              },
+                              "path": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "plugin",
+                              "path"
+                            ],
+                            "additionalProperties": false
+                          },
                           "temperature": {
                             "type": "object",
                             "properties": {

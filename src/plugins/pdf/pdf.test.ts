@@ -7,7 +7,7 @@ import {
 } from '@usebridger/testing';
 import { PDFDocument } from 'pdf-lib';
 import { afterEach, describe, expect, it } from 'vitest';
-import { aiToolsProbe, toolResult } from '#plugins/ai-tools-probe.ts';
+import { aiToolsProbe, toolResult } from '#plugins/ai/tools-probe.ts';
 import { observedBot } from '#plugins/observe-probe.ts';
 import { usage } from '#plugins/usage/usage.ts';
 import { usageProbe } from '#plugins/usage/usage-testing.ts';

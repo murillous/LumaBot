@@ -5,7 +5,7 @@ import { APICallError } from 'ai';
 import { MockLanguageModelV4 } from 'ai/test';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { type AiService, ai } from '#plugins/ai/ai.ts';
-import { fakeProvider, scripted, textAnswer } from '#plugins/ai-testing.ts';
+import { fakeProvider, scripted, textAnswer } from '#plugins/ai/testing.ts';
 import { usage } from '#plugins/usage/usage.ts';
 import { usageProbe } from '#plugins/usage/usage-testing.ts';
 import { type AiMetricsService, aiMetrics } from './ai-metrics.ts';

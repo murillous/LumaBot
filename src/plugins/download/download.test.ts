@@ -4,7 +4,7 @@ import type { PluginDefinition } from '@usebridger/core';
 import { createTestBot, FakeTransport, fixtures, type TestBot } from '@usebridger/testing';
 import sharp from 'sharp';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { aiToolsProbe, toolResult } from '#plugins/ai-tools-probe.ts';
+import { aiToolsProbe, toolResult } from '#plugins/ai/tools-probe.ts';
 import { checkBinary } from '#plugins/binary.ts';
 import { type ObservedBot, observedBot } from '#plugins/observe-probe.ts';
 import { sticker } from '#plugins/sticker/sticker.ts';

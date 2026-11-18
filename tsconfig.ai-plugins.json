@@ -1,0 +1,14 @@
+{
+  // Só os plugins genéricos de IA (#484): compilados sem o app, nada do app pode vazar nos tipos
+  // (um serviço declarado por um plugin do app, um import). É o que garante que vão ao usebridger
+  // só movendo as pastas.
+  "extends": "./tsconfig.json",
+  "include": [
+    "src/plugins/ai/**/*.ts",
+    "src/plugins/ai-context/**/*.ts",
+    "src/plugins/ai-google/**/*.ts",
+    "src/plugins/ai-openai/**/*.ts",
+    "src/plugins/ai-anthropic/**/*.ts",
+    "src/plugins/ai-deepseek/**/*.ts"
+  ]
+}

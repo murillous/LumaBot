@@ -1,7 +1,7 @@
 import { definePlugin, type PluginDefinition } from '@usebridger/core';
 import { z } from 'zod';
 import { type ActionSpec, trackerFor } from '#plugins/action-metrics.ts';
-import { aiTool, fail, mediaMessage, ok } from '#plugins/ai-tools.ts';
+import { aiTool, fail, mediaMessage, ok } from '#plugins/ai/tools.ts';
 import { attempt, mediaOf, usage } from '#plugins/media-command.ts';
 import { imageToPdf, mergePdfs } from './convert.ts';
 import { PDF_DONE, PDF_FAILED, PDF_REFUSED } from './log-events.ts';

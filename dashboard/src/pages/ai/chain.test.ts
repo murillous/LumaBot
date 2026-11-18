@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildAiBody,
+  buildKeyBody,
   buildResourceBody,
   chainErrorTarget,
   changeProvider,
@@ -13,7 +14,7 @@ import {
   overridesOf,
   parseChain,
   removeAt,
-  schemaHasKey,
+  schemaHasField,
   secondsToMs,
   splitModel,
   stateWord,
@@ -146,20 +147,19 @@ describe('corpo do PUT', () => {
     });
   });
 
-  it('a IA manda o que mudou e a chave digitada, sem fixar padrões', () => {
+  it('a IA manda o que mudou, sem fixar padrões', () => {
     const base = {
       chain: [{ model: 'google:a' }],
       timeoutMs: 60_000,
       cooldownMs: 60_000,
       maxToolSteps: 5,
-      keys: {},
     };
-    const body = buildAiBody({}, base, {
-      ...base,
-      cooldownMs: 30_000,
-      keys: { google: 'sk-1', openai: '' },
-    });
-    expect(body).toEqual({ cooldownMs: 30_000, keys: { google: 'sk-1' } });
+    const body = buildAiBody({}, base, { ...base, cooldownMs: 30_000 });
+    expect(body).toEqual({ cooldownMs: 30_000 });
+  });
+
+  it('a chave digitada vai para o plugin do provedor, com os overrides dele', () => {
+    expect(buildKeyBody({ outro: 1 }, 'key', 'sk-1')).toEqual({ outro: 1, key: 'sk-1' });
   });
 });
 
@@ -218,11 +218,11 @@ describe('revisão', () => {
     );
   });
 
-  it('o schema declara a chave do provedor?', () => {
-    const schema = { properties: { keys: { properties: { google: {} } } } };
-    expect(schemaHasKey(schema, 'google')).toBe(true);
-    expect(schemaHasKey(schema, 'openai')).toBe(false);
-    expect(schemaHasKey(null, 'google')).toBe(false);
+  it('o schema do plugin declara o campo da chave?', () => {
+    const schema = { properties: { key: {} } };
+    expect(schemaHasField(schema, 'key')).toBe(true);
+    expect(schemaHasField(schema, 'token')).toBe(false);
+    expect(schemaHasField(null, 'key')).toBe(false);
   });
 
   it('cadeia própria vazia vale como a principal', () => {

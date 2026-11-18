@@ -1,7 +1,3 @@
-import { createAnthropic } from '@ai-sdk/anthropic';
-import { createDeepSeek } from '@ai-sdk/deepseek';
-import { createGoogle } from '@ai-sdk/google';
-import { createOpenAI } from '@ai-sdk/openai';
 import { BotConfigError, definePlugin, type PluginDefinition, secret } from '@usebridger/core';
 import {
   APICallError,
@@ -23,7 +19,7 @@ import {
   type AiToolResult,
   invokeTool,
   offeredTools,
-} from '#plugins/ai-tools.ts';
+} from '#plugins/ai/tools.ts';
 import {
   GENERATE_DONE,
   HTTP_DISABLED,
@@ -42,6 +38,16 @@ export interface AiModelInfo {
   readonly audio?: boolean;
   /** Tem a busca nativa do provider. */
   readonly nativeSearch?: boolean;
+}
+
+/** Onde o provider guarda a chave, para a tela da IA pedir e gravar. */
+export interface AiProviderKey {
+  /** Plugin dono da config: `ai-google`. */
+  readonly plugin: string;
+  /** Campo secreto na config dele: `key`. */
+  readonly path: string;
+  /** Sem chave, o provider só aparece no catálogo: a cadeia o pula como não registrado. */
+  readonly configured: boolean;
 }
 
 /** Fonte de modelos. Provider novo é um plugin que contribui em `ai.providers`, sem editar o `ai`. */
@@ -65,6 +71,11 @@ export interface AiProvider {
    * tiver. O `ai` a oferece quando a chamada pede `nativeSearch`.
    */
   nativeSearch?(): ToolSet;
+  /**
+   * A chave do provider, se ele tiver uma que a tela da IA edita. Sem `key`, o provider conta
+   * como configurado (a config dele, se houver, é editada na tela do plugin).
+   */
+  readonly key?: AiProviderKey;
 }
 
 /** Resultados possíveis de uma tentativa; fonte única do tipo e do schema do `/status`. */
@@ -176,6 +187,12 @@ export interface AiService {
    * próximo modelo; o resto relança na hora, porque se repetiria no próximo.
    */
   generate(request: GenerateRequest): Promise<GenerateResult>;
+  /**
+   * @deprecated Chave salva em `ai.keys.<provider>` antes de os providers virarem plugins. O
+   * plugin do provider a usa quando a própria `key` está vazia; sai quando o Bridger migrar
+   * segredo entre plugins (usebridger#345).
+   */
+  legacyKey(provider: string): string | undefined;
 }
 
 /** Nenhum modelo da cadeia está disponível (o último erro transitório vai no `cause`). */
@@ -209,44 +226,13 @@ declare module '@usebridger/core' {
   }
 }
 
-/** Embutidos: o `ai` os contribui pelo próprio ponto, só os que têm chave. */
-const BUILT_IN = {
-  google: (apiKey: string) => createGoogle({ apiKey }),
-  openai: (apiKey: string) => createOpenAI({ apiKey }),
-  anthropic: (apiKey: string) => createAnthropic({ apiKey }),
-  deepseek: (apiKey: string) => createDeepSeek({ apiKey }),
-};
-type BuiltIn = keyof typeof BUILT_IN;
-const BUILT_IN_NAMES = Object.keys(BUILT_IN) as BuiltIn[];
-
-type ProviderInfo = Pick<AiProvider, 'label' | 'models' | 'temperature'>;
-/** Descrição dos embutidos: o catálogo os lista mesmo sem chave, para a tela pedir a chave. */
-const BUILT_IN_INFO: Record<BuiltIn, Required<ProviderInfo>> = {
-  google: {
-    label: 'Google',
-    temperature: { min: 0, max: 2 },
-    models: [
-      { id: 'gemini-2.5-flash', audio: true, nativeSearch: true },
-      { id: 'gemini-2.5-flash-lite', audio: true, nativeSearch: true },
-      { id: 'gemini-2.5-pro', audio: true, nativeSearch: true },
-    ],
-  },
-  openai: {
-    label: 'OpenAI',
-    temperature: { min: 0, max: 2 },
-    models: [{ id: 'gpt-5' }, { id: 'gpt-5-mini' }],
-  },
-  anthropic: {
-    label: 'Anthropic',
-    temperature: { min: 0, max: 1 },
-    models: [{ id: 'claude-haiku-5-5' }, { id: 'claude-sonnet-5-5' }, { id: 'claude-opus-5-5' }],
-  },
-  deepseek: {
-    label: 'DeepSeek',
-    temperature: { min: 0, max: 2 },
-    models: [{ id: 'deepseek-chat' }, { id: 'deepseek-reasoner' }],
-  },
-};
+/**
+ * Obsoleto: os providers que o `ai` embutia e cujas chaves ficavam em `keys`. O campo continua no
+ * schema só para as chaves já salvas pelo dashboard (cifradas em nome do `ai`) seguirem valendo:
+ * o kernel não move segredo entre plugins, então só o `ai` consegue lê-las.
+ */
+const LEGACY_KEYS = ['google', 'openai', 'anthropic', 'deepseek'] as const;
+type LegacyKey = (typeof LEGACY_KEYS)[number];
 
 const keyState = z.enum(['configured', 'env', 'missing']);
 const catalogResponse = z.object({
@@ -255,6 +241,8 @@ const catalogResponse = z.object({
       id: z.string(),
       name: z.string(),
       key: keyState,
+      /** Onde gravar a chave; sem ele, a chave (se houver) é da config do plugin do provider. */
+      keyField: z.object({ plugin: z.string(), path: z.string() }).optional(),
       temperature: z.object({ min: z.number(), max: z.number() }).optional(),
       models: z.array(z.object({ id: z.string(), audio: z.boolean(), nativeSearch: z.boolean() })),
     }),
@@ -288,11 +276,11 @@ const config = z.object({
    * porque a escala muda entre providers (`temperature` vai a 2 no Gemini e a 1 no Claude).
    */
   models: z.array(chainItem).default([]),
-  /** Chaves dos providers embutidos; provider de outro plugin traz a própria config. */
+  /** Obsoleto: a chave fica na config do plugin do provider (`ai-google.key`). */
   keys: z
     .object(
-      Object.fromEntries(BUILT_IN_NAMES.map((p) => [p, secret(z.string().min(1)).optional()])) as {
-        [P in BuiltIn]: z.ZodOptional<z.ZodString>;
+      Object.fromEntries(LEGACY_KEYS.map((p) => [p, secret(z.string().min(1)).optional()])) as {
+        [P in LegacyKey]: z.ZodOptional<z.ZodString>;
       },
     )
     .default({}),
@@ -320,28 +308,8 @@ export const ai: PluginDefinition = definePlugin({
     const { models: chain, keys, timeoutMs, cooldownMs, maxToolSteps } = ctx.config;
     // Visão viva: provider de plugin que carrega depois do `ai` aparece no próximo uso.
     const providers = ctx.services.extensionPoint('ai.providers');
-    for (const name of BUILT_IN_NAMES) {
-      const key = keys[name];
-      if (key) {
-        const provider = BUILT_IN[name](key);
-        ctx.services.contribute('ai.providers', {
-          name,
-          ...BUILT_IN_INFO[name],
-          languageModel: (id) => provider.languageModel(id),
-          // Só Gemini e OpenAI editam imagem pelo SDK; Claude e DeepSeek só leem.
-          ...((name === 'google' || name === 'openai') && {
-            imageModel: (id: string) =>
-              (provider as ReturnType<typeof createGoogle | typeof createOpenAI>).image(id),
-          }),
-          // Só o Gemini traz a busca pronta; os outros providers entram sem ela.
-          ...(name === 'google' && {
-            nativeSearch: () => ({
-              google_search: (provider as ReturnType<typeof createGoogle>).tools.googleSearch({}),
-            }),
-          }),
-        });
-      }
-    }
+    // Provider sem chave fica no ponto só para o catálogo pedir a chave; a cadeia não o vê.
+    const usable = (p: AiProvider) => p.key?.configured !== false;
     // Modelo → fim do cooldown. Em memória: um restart zera, o que só custa uma tentativa.
     const coolingUntil = new Map<string, number>();
 
@@ -398,11 +366,11 @@ export const ai: PluginDefinition = definePlugin({
 
     // `env` pede a fonte de cada campo da config, que só o `ctx.admin` (adminPlugins) expõe; sem
     // ele, a chave presente conta como `configured`.
-    const keySources = async (): Promise<Record<string, string>> => {
+    const keySources = async (plugin: string): Promise<Record<string, string>> => {
       try {
-        return (await ctx.admin?.config.describe('ai'))?.sources ?? {};
+        return (await ctx.admin?.config.describe(plugin))?.sources ?? {};
       } catch (err) {
-        ctx.log.event(KEYS_UNREADABLE, { err });
+        ctx.log.event(KEYS_UNREADABLE, { plugin, err });
         return {};
       }
     };
@@ -417,31 +385,33 @@ export const ai: PluginDefinition = definePlugin({
         permission: 'config.read',
         response: catalogResponse,
         handler: async () => {
-          const sources = await keySources();
           const byName = new Map<string, AiProvider>();
           for (const p of providers.list()) if (!byName.has(p.name)) byName.set(p.name, p);
-          const names = [...new Set([...BUILT_IN_NAMES, ...byName.keys()])];
           return {
-            providers: names.map((id) => {
-              const registered = byName.get(id);
-              const info: ProviderInfo | undefined = registered ?? BUILT_IN_INFO[id as BuiltIn];
-              const key = !registered
-                ? 'missing'
-                : sources[`keys.${id}`] === 'env'
-                  ? 'env'
-                  : 'configured';
-              return {
-                id,
-                name: info?.label ?? id,
-                key,
-                ...(info?.temperature && { temperature: info.temperature }),
-                models: (info?.models ?? []).map((m) => ({
-                  id: m.id,
-                  audio: m.audio ?? false,
-                  nativeSearch: m.nativeSearch ?? false,
-                })),
-              };
-            }),
+            providers: await Promise.all(
+              [...byName.values()].map(async (p) => {
+                const field = p.key;
+                const key = !field
+                  ? 'configured'
+                  : !field.configured
+                    ? 'missing'
+                    : (await keySources(field.plugin))[field.path] === 'env'
+                      ? 'env'
+                      : 'configured';
+                return {
+                  id: p.name,
+                  name: p.label ?? p.name,
+                  key,
+                  ...(field && { keyField: { plugin: field.plugin, path: field.path } }),
+                  ...(p.temperature && { temperature: p.temperature }),
+                  models: (p.models ?? []).map((m) => ({
+                    id: m.id,
+                    audio: m.audio ?? false,
+                    nativeSearch: m.nativeSearch ?? false,
+                  })),
+                };
+              }),
+            ),
           };
         },
       });
@@ -455,7 +425,12 @@ export const ai: PluginDefinition = definePlugin({
         response: statusResponse,
         handler: ({ query }) => {
           const now = Date.now();
-          const names = new Set(providers.list().map((p) => p.name));
+          const names = new Set(
+            providers
+              .list()
+              .filter(usable)
+              .map((p) => p.name),
+          );
           const wanted: string[] = query.models
             ? query.models.split(',').filter(Boolean)
             : chain.map((m) => m.model);
@@ -490,6 +465,9 @@ export const ai: PluginDefinition = definePlugin({
     }
 
     ctx.services.provide('ai', {
+      // `hasOwn`: um nome como `constructor` não pode devolver o que vem do protótipo.
+      legacyKey: (provider) =>
+        Object.hasOwn(keys, provider) ? keys[provider as LegacyKey] : undefined,
       async generate(request) {
         const now = Date.now();
         // Cadeia da chamada, validada como a da config; o cooldown abaixo é por modelo e vale
@@ -504,7 +482,9 @@ export const ai: PluginDefinition = definePlugin({
         for (const [position, entry] of order.entries()) {
           const sep = entry.model.indexOf(':');
           const name = entry.model.slice(0, sep);
-          const provider = registered.find((p) => p.name === name);
+          // O primeiro com o nome vence; se ele está sem chave, o item conta como não registrado.
+          const found = registered.find((p) => p.name === name);
+          const provider = found && usable(found) ? found : undefined;
           const started = Date.now();
           const attempt = (
             outcome: AiAttempt['outcome'],

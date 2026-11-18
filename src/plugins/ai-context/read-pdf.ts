@@ -1,30 +1,24 @@
-// `read_pdf`: a Luma lê PDFs do chat pelo ID da transcrição (ou o da mensagem e da citada). O texto
+// `read_pdf`: o bot lê PDFs do chat pelo ID da transcrição (ou o da mensagem e da citada). O texto
 // sai local, pelo PDF.js (`unpdf`), sem custo de IA; só o PDF grande demais (resumo) e o escaneado
 // (sem texto, lido pela cadeia de visão) custam uma chamada à parte, no uso de quem pediu.
 
-import {
-  type Media,
-  MediaExpiredError,
-  type MediaRefs,
-  type Message,
-  type ServiceAccess,
-} from '@usebridger/core';
+import { type Media, MediaExpiredError, type MediaRefs, type Message } from '@usebridger/core';
 import { extractText, getDocumentProxy } from 'unpdf';
 import { z } from 'zod';
 import type { AiService, ModelChainItem } from '#plugins/ai/ai.ts';
-import { type AiTool, type AiToolResult, aiTool, fail, ok } from '#plugins/ai-tools.ts';
-import { personId } from '#plugins/person-id.ts';
-import { recordUsage, type UsageOutcome } from '#plugins/usage/usage.ts';
+import { personId } from '#plugins/ai/person-id.ts';
+import { type AiTool, type AiToolResult, aiTool, fail, ok } from '#plugins/ai/tools.ts';
 import { lookupMedia } from './media.ts';
+import { DEFAULT_SPEECH, fill, type Speech } from './texts.ts';
 import type { Transcript } from './transcript.ts';
 
 /** PDF maior que isso não é baixado: pesa na memória do processo e passa do limite dos providers. */
 export const MAX_PDF_BYTES = 20 * 1024 * 1024;
 /** Texto acima disso não vai cru ao modelo da conversa: vira resumo numa chamada à parte. */
 export const MAX_PDF_TEXT = 30_000;
-/** O que o resumo lê, no máximo; o resto a Luma pede por `pages`. */
+/** O que o resumo lê, no máximo; o resto o bot pede por `pages`. */
 const MAX_SUMMARY_INPUT = 200_000;
-/** Quantos PDFs a Luma lê de uma vez, como no `view_media`. */
+/** Quantos PDFs o bot lê de uma vez, como no `view_media`. */
 const MAX_PDFS = 4;
 
 /** Por que o PDF não abre: com senha ou corrompido. */
@@ -82,13 +76,8 @@ const isPdf = (media: Media, fileName?: string | null): boolean =>
   media.mimetype.startsWith('application/pdf') ||
   (fileName ?? media.fileName ?? '').toLowerCase().endsWith('.pdf');
 
-const SUMMARIZE = `Você resume documentos PDF para alguém num chat de WhatsApp.
-O texto vem com marcadores de página ("[p. 3]"). Diga do que o documento trata e os pontos principais, citando as páginas.
-Se houver uma pergunta, responda a ela primeiro, com base no texto. Não invente o que não está escrito. Responda em português.`;
-
-const READ_SCANNED = `Você lê PDFs escaneados (páginas que são imagem) para alguém que não consegue abri-los.
-Transcreva o texto das páginas pedidas, na ordem, com "[p. N]" antes de cada página. Se o texto for longo, resuma cada página em vez de transcrever.
-Se houver uma pergunta, responda a ela no fim. Responda em português.`;
+/** Como terminou a leitura, para quem conta o uso. */
+export type ReadOutcome = 'ok' | 'refused' | 'error';
 
 interface ReadPdfDeps {
   readonly transcript: Transcript;
@@ -98,7 +87,9 @@ interface ReadPdfDeps {
   readonly models: readonly ModelChainItem[];
   /** Cadeia que lê PDF escaneado (precisa aceitar PDF, como o Gemini); vazia: não lê. */
   readonly readers: readonly ModelChainItem[];
-  readonly services: ServiceAccess;
+  /** Avisado ao fim de cada leitura, para quem conta o uso (o `usage`). Nunca leva o texto. */
+  readonly onRead?: (message: Message, outcome: ReadOutcome) => Promise<void>;
+  readonly speech?: Speech;
 }
 
 interface Source {
@@ -149,35 +140,29 @@ function findSources(
 
 /**
  * `read_pdf`: lê PDFs do chat e devolve o texto por página, para resumir e responder perguntas.
- * Nada do texto é guardado: a cada pergunta a Luma lê de novo pelo ID, enquanto a fala estiver na
+ * Nada do texto é guardado: a cada pergunta o bot lê de novo pelo ID, enquanto a fala estiver na
  * transcrição.
  */
 export function readPdfTool(deps: ReadPdfDeps): AiTool {
-  const { ai, models, readers, services } = deps;
+  const { ai, models, readers, onRead } = deps;
+  const { texts } = deps.speech ?? DEFAULT_SPEECH;
   return aiTool({
     name: 'read_pdf',
-    description:
-      'Lê PDFs mandados neste chat e devolve o texto, página por página. Use para resumir, explicar ou responder perguntas sobre um PDF ("resume esse PDF", "o que esse PDF fala?", "qual a multa do contrato?"). Sem ids, lê o PDF da mensagem atual e o da citada. Para perguntas seguintes sobre o mesmo PDF, chame de novo com o ID dele. PDF grande volta resumido, com o total de páginas: passe pages para ler um trecho.',
+    description: texts.toolReadPdf,
     args: z.object({
-      ids: z
-        .array(z.string().min(1))
-        .max(MAX_PDFS)
-        .optional()
-        .describe('IDs das mensagens com o PDF, como aparecem na conversa (ex.: ["#m4"])'),
-      pages: z
-        .string()
-        .optional()
-        .describe('Faixa de páginas a ler, como "3-7", "5" ou "10-" (padrão: todas)'),
-      question: z.string().optional().describe('O que você quer saber do PDF, se algo específico'),
+      ids: z.array(z.string().min(1)).max(MAX_PDFS).optional().describe(texts.toolReadPdfIds),
+      pages: z.string().optional().describe(texts.toolReadPdfPages),
+      question: z.string().optional().describe(texts.toolReadPdfQuestion),
     }),
     requires: ['media.download'],
     sideEffects: false,
     run: async ({ ids, pages, question }, t) => {
       const chatId = t.message.chat.id;
       const actor = { id: personId(t.message.sender), chatId };
-      // O uso conta como ação de PDF de quem pediu; o custo das chamadas à parte vem pelo `actor`.
-      const used = (outcome: UsageOutcome) =>
-        recordUsage(services, t.log, t.message, { action: 'pdf', kind: 'read', outcome });
+      // O uso vai para quem observa; o custo das chamadas à parte vem pelo `actor`.
+      const used = async (outcome: ReadOutcome) => {
+        await onRead?.(t.message, outcome);
+      };
       const refuse = async (result: AiToolResult) => {
         await used('refused');
         return result;
@@ -208,21 +193,39 @@ export function readPdfTool(deps: ReadPdfDeps): AiTool {
             throw err;
           }
           const range = pageRange(pages, pdf.totalPages);
-          if (!range) return refuse(fail('invalid-pages', `${id} tem ${pdf.totalPages} páginas`));
-          const header = `--- ${id} ${name}, p. ${range.from}-${range.to} de ${pdf.totalPages} ---`;
+          if (!range) {
+            return refuse(
+              fail('invalid-pages', fill(texts.pdfPageCount, { id, total: pdf.totalPages })),
+            );
+          }
+          const header = fill(texts.pdfHeader, {
+            id,
+            name,
+            from: range.from,
+            to: range.to,
+            total: pdf.totalPages,
+          });
           const chosen = pdf.pages.slice(range.from - 1, range.to);
           let body: string;
           if (chosen.some((p) => p.length > 0)) {
             body = chosen
-              .map((p, i) => `[p. ${range.from + i}]\n${p || '(página sem texto)'}`)
+              .map(
+                (p, i) =>
+                  `${fill(texts.pdfPage, { page: range.from + i })}\n${p || texts.pdfEmptyPage}`,
+              )
               .join('\n\n');
           } else {
             // Sem texto nenhum: páginas escaneadas. Só um modelo que lê PDF tira o texto delas.
             if (readers.length === 0) return refuse(fail('no-text', id));
-            const ask = `Leia as páginas ${range.from} a ${range.to} de ${pdf.totalPages}.${question ? ` Pergunta: ${question}` : ''}`;
+            const pagesAsk = fill(texts.pdfAskPages, {
+              from: range.from,
+              to: range.to,
+              total: pdf.totalPages,
+            });
+            const ask = question ? `${pagesAsk} ${fill(texts.question, { question })}` : pagesAsk;
             const { text } = await ai.generate({
-              purpose: 'luma.pdf',
-              instructions: READ_SCANNED,
+              purpose: 'ai-context.pdf',
+              instructions: texts.pdfReadScanned,
               messages: [
                 {
                   role: 'user',
@@ -236,7 +239,7 @@ export function readPdfTool(deps: ReadPdfDeps): AiTool {
               actor,
               models: readers,
             });
-            body = `(PDF escaneado, lido como imagem)\n${text.trim()}`;
+            body = `${texts.pdfScanned}\n${text.trim()}`;
           }
           sections.push(`${header}\n${body}`);
           read.push({ id, name, totalPages: pdf.totalPages, pages: `${range.from}-${range.to}` });
@@ -251,12 +254,12 @@ export function readPdfTool(deps: ReadPdfDeps): AiTool {
         const truncated = text.length > MAX_SUMMARY_INPUT;
         const input = truncated ? text.slice(0, MAX_SUMMARY_INPUT) : text;
         const { text: summary } = await ai.generate({
-          purpose: 'luma.pdf',
-          instructions: SUMMARIZE,
+          purpose: 'ai-context.pdf',
+          instructions: texts.pdfSummarize,
           messages: [
             {
               role: 'user',
-              content: question ? `${input}\n\nPergunta: ${question}` : input,
+              content: question ? `${input}\n\n${fill(texts.question, { question })}` : input,
             },
           ],
           signal: t.signal,
@@ -267,9 +270,7 @@ export function readPdfTool(deps: ReadPdfDeps): AiTool {
         return ok({
           pdfs: read,
           summary: summary.trim(),
-          note: truncated
-            ? 'O PDF é longo demais e o resumo cobre só o começo. Para o resto, passe pages.'
-            : 'O texto é longo e veio resumido. Para ler um trecho inteiro, passe pages.',
+          note: truncated ? texts.pdfNoteTruncated : texts.pdfNoteSummarized,
         });
       } catch (err) {
         await used('error');

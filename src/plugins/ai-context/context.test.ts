@@ -16,7 +16,7 @@ const TZ = 'America/Sao_Paulo';
 const entry = (n: number, text: string, over: Partial<Entry> = {}): Entry => ({
   ref: `m${n}`,
   at: Date.UTC(2026, 10, 17, 19, 0) + n * 60_000,
-  fromLuma: false,
+  fromSelf: false,
   name: 'Ana',
   text,
   ...over,
@@ -43,7 +43,7 @@ describe('shorten (nível 1)', () => {
   it('as últimas falas e as da Luma ficam inteiras', () => {
     const long = 'b'.repeat(1000);
     const entries = [
-      entry(1, long, { fromLuma: true, name: 'Luma' }),
+      entry(1, long, { fromSelf: true, name: 'Luma' }),
       ...many(KEEP_FULL - 1).map((e, i) => ({ ...e, ref: `m${i + 2}` })),
       entry(KEEP_FULL + 1, long),
     ];
@@ -82,8 +82,8 @@ describe('compactInput', () => {
     const text = compactInput(
       'Ana gosta de pizza (#m1).',
       [
-        entry(4, 'bora pedir?', { media: 'figurinha' }),
-        entry(5, 'bora!', { fromLuma: true, name: 'Luma' }),
+        entry(4, 'bora pedir?', { media: 'sticker' }),
+        entry(5, 'bora!', { fromSelf: true, name: 'Luma' }),
       ],
       TZ,
     );

@@ -1,8 +1,8 @@
 import { createTestBot, type TestBot } from '@usebridger/testing';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ai } from '#plugins/ai/ai.ts';
-import { fakeProvider, scripted } from '#plugins/ai-testing.ts';
-import { aiToolsProbe, toolResult } from '#plugins/ai-tools-probe.ts';
+import { fakeProvider, scripted } from '#plugins/ai/testing.ts';
+import { aiToolsProbe, toolResult } from '#plugins/ai/tools-probe.ts';
 import { observedBot } from '#plugins/observe-probe.ts';
 import { usage } from '#plugins/usage/usage.ts';
 import { usageProbe } from '#plugins/usage/usage-testing.ts';

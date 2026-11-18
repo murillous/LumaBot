@@ -1,5 +1,5 @@
 // Mídia da transcrição pelo ID (`#m12`): guardar de onde baixar quando a fala chega, achar depois
-// sem a mensagem, e a tool `view_media`, o "Read" da Luma para olhar uma figurinha ou foto anterior.
+// sem a mensagem, e a tool `view_media`, o "Read" do bot para olhar uma figurinha ou foto anterior.
 
 import {
   type Capability,
@@ -13,9 +13,10 @@ import {
 import type { FilePart, TextPart } from 'ai';
 import { z } from 'zod';
 import type { AiService, ModelChainItem } from '#plugins/ai/ai.ts';
-import { type AiTool, aiTool, fail, ok } from '#plugins/ai-tools.ts';
-import { personId } from '#plugins/person-id.ts';
-import type { MediaFile, Transcript } from './transcript.ts';
+import { personId } from '#plugins/ai/person-id.ts';
+import { type AiTool, aiTool, fail, ok } from '#plugins/ai/tools.ts';
+import { DEFAULT_SPEECH, fill, type Speech } from './texts.ts';
+import { kindLabel, type MediaFile, type Transcript } from './transcript.ts';
 
 /** O que um plugin acha pelo ID de uma fala do chat. */
 export type ChatMediaLookup =
@@ -62,13 +63,9 @@ export function lookupMedia(
 
 /** Imagem maior que isso não vai ao modelo: estoura o corpo da requisição e custa caro. */
 const MAX_VIEW_BYTES = 8 * 1024 * 1024;
-/** Quantas mídias a Luma olha de uma vez. */
+/** Quantas mídias o bot olha de uma vez. */
 const MAX_VIEW = 4;
 const VIEWABLE: readonly MessageType[] = ['image', 'sticker'];
-
-const DESCRIBE = `Você descreve imagens de um chat de WhatsApp para alguém que não consegue vê-las.
-Para cada imagem, rotulada com o ID dela, diga de forma objetiva e curta: o que e quem aparece (pessoas, roupas, poses, expressões), o texto escrito nela, o estilo (foto, desenho, meme) e a emoção que passa.
-Se houver uma pergunta, responda a ela também. Responda em português.`;
 
 interface ViewDeps {
   readonly transcript: Transcript;
@@ -76,28 +73,28 @@ interface ViewDeps {
   readonly ai: AiService;
   /** Cadeia que enxerga; vazia usa a principal. */
   readonly models: readonly ModelChainItem[];
+  readonly speech?: Speech;
 }
 
 /**
- * `view_media`: a Luma olha mídias anteriores do chat pelo ID. Quem enxerga é a cadeia de visão,
+ * `view_media`: o bot olha mídias anteriores do chat pelo ID. Quem enxerga é a cadeia de visão,
  * numa chamada à parte que devolve a descrição em texto: o modelo da conversa pode não ter visão
  * (o DeepSeek), e a imagem não fica pesando nos passos seguintes.
  */
-export function viewMediaTool({ transcript, refs, ai, models }: ViewDeps): AiTool {
+export function viewMediaTool({
+  transcript,
+  refs,
+  ai,
+  models,
+  speech = DEFAULT_SPEECH,
+}: ViewDeps): AiTool {
+  const { texts } = speech;
   return aiTool({
     name: 'view_media',
-    description:
-      'Olha imagens ou figurinhas que já foram mandadas neste chat, pelo ID da conversa (#m12), e devolve a descrição delas. Use quando precisar ver uma mídia anterior para responder ou para escolher qual usar (ex.: "o que tinha naquela figurinha?", "qual das duas é o cara de terno?"). A imagem da mensagem atual (ou da citada) você já vê, sem precisar desta ferramenta.',
+    description: texts.toolViewMedia,
     args: z.object({
-      ids: z
-        .array(z.string().min(1))
-        .min(1)
-        .max(MAX_VIEW)
-        .describe('IDs das mensagens com a mídia, como aparecem na conversa (ex.: ["#m3", "#m5"])'),
-      question: z
-        .string()
-        .optional()
-        .describe('O que você quer saber das imagens, se algo específico'),
+      ids: z.array(z.string().min(1)).min(1).max(MAX_VIEW).describe(texts.toolViewMediaIds),
+      question: z.string().optional().describe(texts.toolViewMediaQuestion),
     }),
     requires: ['media.download'],
     sideEffects: false,
@@ -117,16 +114,17 @@ export function viewMediaTool({ transcript, refs, ai, models }: ViewDeps): AiToo
           if (err instanceof MediaExpiredError) return fail('expired', id);
           throw err;
         }
-        const label = found.type === 'sticker' ? 'figurinha' : 'imagem';
+        const label = kindLabel(found.type === 'sticker' ? 'sticker' : 'image', speech);
+        const ref = id.startsWith('#') ? id : `#${id}`;
         parts.push(
-          { type: 'text', text: `${id.startsWith('#') ? id : `#${id}`} (${label}):` },
+          { type: 'text', text: fill(texts.viewLabel, { id: ref, kind: label }) },
           { type: 'file', data, mediaType: media.mimetype.split(';')[0] ?? media.mimetype },
         );
       }
-      if (question) parts.push({ type: 'text', text: `Pergunta: ${question}` });
+      if (question) parts.push({ type: 'text', text: fill(texts.question, { question }) });
       const { text } = await ai.generate({
-        purpose: 'luma.view',
-        instructions: DESCRIBE,
+        purpose: 'ai-context.view',
+        instructions: texts.viewInstructions,
         messages: [{ role: 'user', content: parts }],
         signal: t.signal,
         // O custo da olhada entra no uso de quem pediu, como a resposta.

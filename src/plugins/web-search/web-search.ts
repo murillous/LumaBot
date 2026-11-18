@@ -2,7 +2,7 @@ import { definePlugin, type Message, type PluginDefinition, secret } from '@useb
 import { z } from 'zod';
 import { type ActionSpec, trackerFor } from '#plugins/action-metrics.ts';
 import { AiUnavailableError, chainItem } from '#plugins/ai/ai.ts';
-import { aiTool, fail, ok } from '#plugins/ai-tools.ts';
+import { aiTool, fail, ok } from '#plugins/ai/tools.ts';
 import { SEARCH_DONE, SEARCH_FAILED, SEARCH_REFUSED } from './log-events.ts';
 import { searchTavily, TavilyError } from './tavily.ts';
 
