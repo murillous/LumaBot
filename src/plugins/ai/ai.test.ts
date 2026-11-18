@@ -4,6 +4,10 @@ import { APICallError, jsonSchema, tool } from 'ai';
 import { MockLanguageModelV4 } from 'ai/test';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
+import { aiAnthropic } from '#plugins/ai-anthropic/ai-anthropic.ts';
+import { aiDeepseek } from '#plugins/ai-deepseek/ai-deepseek.ts';
+import { aiGoogle } from '#plugins/ai-google/ai-google.ts';
+import { aiOpenai } from '#plugins/ai-openai/ai-openai.ts';
 import { aiTool, ok } from '#plugins/ai-tools.ts';
 import { help } from '#plugins/help/help.ts';
 import { rank } from '#plugins/rank/rank.ts';
@@ -306,13 +310,30 @@ describe('ai.observers', () => {
 });
 
 describe('ai.providers', () => {
-  it('contribui só os embutidos com chave', async () => {
+  it('sozinho, o ai não contribui provider nenhum', async () => {
     bot = await createTestBot({
       plugins: [ai, harness([])],
       pluginConfig: { ai: { keys: { google: 'g-key', anthropic: 'a-key' } } },
     });
 
-    expect(names).toEqual(['google', 'anthropic']);
+    expect(names).toEqual([]);
+  });
+
+  it('provider marcado sem chave fica fora da cadeia, como um não registrado', async () => {
+    const seen: AiAttempt[] = [];
+    const a = model('nunca');
+    const ai = await start(
+      [{ model: 'off:a' }, { model: 'fake:b' }],
+      [
+        { ...fake('off', { a }), key: { plugin: 'ai-off', path: 'key', configured: false } },
+        fake('fake', { b: model('ok') }),
+      ],
+      [(attempt) => void seen.push(attempt)],
+    );
+
+    expect((await ai.generate(hi)).model).toBe('fake:b');
+    expect(a.doGenerateCalls).toHaveLength(0);
+    expect(seen[0]).toMatchObject({ model: 'off:a', outcome: 'unregistered' });
   });
 
   it('rejeita item da cadeia sem provider:modelo', async () => {
@@ -752,20 +773,20 @@ describe('ai.generate com busca nativa', () => {
     );
   });
 
-  it('o Gemini embutido traz a busca; os outros embutidos, não', async () => {
+  it('o Gemini traz a busca; os outros providers, não', async () => {
     let listed: AiProvider[] = [];
     const spy = definePlugin({
       name: 'spy',
       version: '0.0.0',
       engine: '<1.0.0',
-      dependsOn: { ai: '^0.1.0' },
+      dependsOn: { ai: '^0.1.0', 'ai-google': '^0.1.0', 'ai-openai': '^0.1.0' },
       setup: (ctx) => {
         listed = [...ctx.services.extensionPoint('ai.providers').list()];
       },
     });
     bot = await createTestBot({
-      plugins: [ai, spy],
-      pluginConfig: { ai: { keys: { google: 'g-key', openai: 'o-key' } } },
+      plugins: [ai, aiGoogle, aiOpenai, spy],
+      pluginConfig: { 'ai-google': { key: 'g-key' }, 'ai-openai': { key: 'o-key' } },
     });
 
     const byName = Object.fromEntries(listed.map((p) => [p.name, p]));
@@ -798,9 +819,10 @@ describe('API do ai: catálogo e estado', () => {
     providers: AiProvider[],
     extra: { env?: Record<string, string>; adminPlugins?: string[] } = {},
   ) {
+    // A chave do Google fica no legado `ai.keys`: o catálogo a vê pelo plugin do provider.
     bot = await createTestBot({
       http,
-      plugins: [ai, harness(providers)],
+      plugins: [ai, aiGoogle, aiOpenai, aiAnthropic, aiDeepseek, harness(providers)],
       pluginConfig: { ai: { models, keys: { google: 'SEGREDO-DO-GOOGLE' }, cooldownMs: 30_000 } },
       ...extra,
     });
@@ -812,7 +834,11 @@ describe('API do ai: catálogo e estado', () => {
 
     const { providers, byId } = await catalog();
 
-    expect(byId('google')).toMatchObject({ key: 'configured', temperature: { min: 0, max: 2 } });
+    expect(byId('google')).toMatchObject({
+      key: 'configured',
+      keyField: { plugin: 'ai-google', path: 'key' },
+      temperature: { min: 0, max: 2 },
+    });
     expect(byId('openai')?.key).toBe('missing');
     expect(byId('openai')?.models.length).toBeGreaterThan(0);
     expect(byId('anthropic')?.temperature).toEqual({ min: 0, max: 1 });
@@ -825,13 +851,15 @@ describe('API do ai: catálogo e estado', () => {
       models: [{ id: 'llama3', audio: false }],
     };
     await startApi([], [other], {
-      env: { BRIDGER_AI__KEYS__GOOGLE: 'SEGREDO-DO-ENV' },
+      env: { BRIDGER_AI_GOOGLE__KEY: 'SEGREDO-DO-ENV' },
       adminPlugins: ['ai'],
     });
 
     const { providers, byId } = await catalog();
 
     expect(byId('ollama')?.models).toEqual([{ id: 'llama3', audio: false, nativeSearch: false }]);
+    expect(byId('ollama')).toMatchObject({ key: 'configured' });
+    expect(byId('ollama')).not.toHaveProperty('keyField');
     expect(byId('google')?.key).toBe('env');
     expect(byId('openai')?.key).toBe('missing');
     expect(JSON.stringify(providers)).not.toContain('SEGREDO');

@@ -8,7 +8,11 @@ import { baileys } from '@usebridger/transport-baileys';
 import { plugins as apiPlugins } from '#api-plugins.ts';
 import { AUDIT_RETENTION_DAYS, loadConfig, pluginEnv } from '#config.ts';
 import { localSecret } from '#local-secret.ts';
+import { aiAnthropic } from '#plugins/ai-anthropic/ai-anthropic.ts';
+import { aiDeepseek } from '#plugins/ai-deepseek/ai-deepseek.ts';
+import { aiGoogle } from '#plugins/ai-google/ai-google.ts';
 import { aiMetrics } from '#plugins/ai-metrics/ai-metrics.ts';
+import { aiOpenai } from '#plugins/ai-openai/ai-openai.ts';
 import { cloudflareAi } from '#plugins/cloudflare-ai/cloudflare-ai.ts';
 import { download } from '#plugins/download/download.ts';
 import { giveUp } from '#plugins/give-up.ts';
@@ -95,6 +99,11 @@ const bot = createBot({
     // `metrics` e `ai`, os que registram rotas na API (a lista também gera a spec do dashboard).
     ...apiPlugins,
     aiMetrics,
+    // Providers da cadeia: cada um com a própria chave; sem ela, fica só no catálogo.
+    aiGoogle,
+    aiOpenai,
+    aiAnthropic,
+    aiDeepseek,
     cloudflareAi,
     luma,
     spontaneous,

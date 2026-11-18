@@ -47,12 +47,25 @@ export function loadConfig(env: ConfigEnv = process.env): AppConfig {
   };
 }
 
+/** Providers que eram embutidos no `ai`, com a chave em `BRIDGER_AI__KEYS__<NOME>`. */
+const LEGACY_KEY_ENV = ['google', 'openai', 'anthropic', 'deepseek'] as const;
+
 /**
  * Ambiente da config de plugin (`BRIDGER_*`). O `bot.ts` completa nele o token do primeiro acesso e a
  * chave mestra quando faltam, sem ler o `process.env` por conta própria.
+ *
+ * A variável antiga da chave (`BRIDGER_AI__KEYS__GOOGLE`) também vale para o plugin do provider
+ * (`BRIDGER_AI_GOOGLE__KEY`), para o `.env` de antes seguir funcionando e o dashboard mostrar a
+ * chave como vinda do ambiente. A nova, se definida, vence.
  */
 export function pluginEnv(env: ConfigEnv = process.env): ConfigEnv {
-  return env;
+  const mapped: Record<string, string> = {};
+  for (const name of LEGACY_KEY_ENV) {
+    const legacy = env[`BRIDGER_AI__KEYS__${name.toUpperCase()}`];
+    const current = `BRIDGER_AI_${name.toUpperCase()}__KEY`;
+    if (legacy && !env[current]) mapped[current] = legacy;
+  }
+  return Object.keys(mapped).length > 0 ? { ...env, ...mapped } : env;
 }
 
 /**

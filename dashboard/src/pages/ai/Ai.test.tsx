@@ -19,6 +19,7 @@ const CATALOG = {
     {
       id: 'google',
       name: 'Google',
+      keyField: { plugin: 'ai-google', path: 'key' },
       key: 'configured',
       temperature: { min: 0, max: 2 },
       models: [
@@ -29,6 +30,7 @@ const CATALOG = {
     {
       id: 'anthropic',
       name: 'Anthropic',
+      keyField: { plugin: 'ai-anthropic', path: 'key' },
       key: 'configured',
       temperature: { min: 0, max: 1 },
       models: [
@@ -39,6 +41,7 @@ const CATALOG = {
     {
       id: 'openai',
       name: 'OpenAI',
+      keyField: { plugin: 'ai-openai', path: 'key' },
       key: 'env',
       temperature: { min: 0, max: 2 },
       models: [{ id: 'gpt-5', audio: false, nativeSearch: false }],
@@ -46,6 +49,7 @@ const CATALOG = {
     {
       id: 'deepseek',
       name: 'DeepSeek',
+      keyField: { plugin: 'ai-deepseek', path: 'key' },
       key: 'missing',
       temperature: { min: 0, max: 2 },
       models: [{ id: 'deepseek-chat', audio: false, nativeSearch: false }],
@@ -95,14 +99,23 @@ const AI_CONFIG = (
     { models: 'override', timeoutMs: 'default', cooldownMs: 'default', 'keys.google': 'secret' },
   );
 
+/** Config do plugin de um provedor (`ai-google`): só o campo `key`. */
+const keyView = (sources: Record<string, string> = {}, env: Record<string, string> = {}): Cfg => ({
+  view: { config: {}, messages: {}, sources, env },
+  schema: { properties: { key: {} } },
+  secretsWritable: true,
+});
+
 interface Setup {
   ai?: Cfg;
   plugins?: Record<string, Cfg>;
   put?: Handler;
+  /** Resposta do PUT do `ai-deepseek`, o provedor sem chave do catálogo. */
+  keyPut?: Handler;
   extra?: Record<string, Handler>;
 }
 
-function routes({ ai = AI_CONFIG(), plugins = {}, put, extra = {} }: Setup = {}) {
+function routes({ ai = AI_CONFIG(), plugins = {}, put, keyPut, extra = {} }: Setup = {}) {
   const base: Record<string, Handler> = {
     'GET /api/plugins/ai/config': () => ({ body: ai }),
     'GET /api/plugins/ai/catalog': () => ({ body: CATALOG }),
@@ -129,6 +142,11 @@ function routes({ ai = AI_CONFIG(), plugins = {}, put, extra = {} }: Setup = {})
       body: plugins[name] ?? view({ models: [] }),
     });
     base[`PUT /api/plugins/${name}/config`] = ({ body }) => ({ body: view(body) });
+  }
+  for (const name of ['ai-google', 'ai-anthropic', 'ai-openai', 'ai-deepseek']) {
+    base[`GET /api/plugins/${name}/config`] = () => ({ body: plugins[name] ?? keyView() });
+    base[`PUT /api/plugins/${name}/config`] =
+      (name === 'ai-deepseek' && keyPut) || (() => ({ body: keyView({ key: 'secret' }) }));
   }
   return { ...base, ...extra };
 }
@@ -372,15 +390,19 @@ describe('IA: chaves', () => {
     );
   });
 
-  it('a chave digitada vai no corpo e o campo volta vazio depois de salvar', async () => {
+  it('a chave digitada vai para o plugin do provedor e o campo volta vazio depois de salvar', async () => {
     const user = userEvent.setup();
     const app = await open();
     const field = screen.getByLabelText('Chave de DeepSeek') as HTMLInputElement;
     await user.type(field, 'sk-novo');
     await user.click(screen.getByRole('button', { name: 'Salvar alterações' }));
-    await waitFor(() => expect(putBody(app)).toBeTruthy());
-    expect(putBody(app)).toEqual({ models: expect.any(Array), keys: { deepseek: 'sk-novo' } });
+    await waitFor(() => expect(putBody(app, 'ai-deepseek')).toBeTruthy());
+    expect(putBody(app, 'ai-deepseek')).toEqual({ key: 'sk-novo' });
+    // A config da IA não mudou: nada de PUT nela.
+    expect(putBody(app)).toBeUndefined();
     await waitFor(() => expect(field.value).toBe(''));
+    // O estado "sem chave" vem do catálogo: ele é lido de novo depois de salvar.
+    expect(app.calls.filter((c) => c.path === '/api/plugins/ai/catalog').length).toBeGreaterThan(1);
   });
 
   it('sem secrets.write, o campo de chave some', async () => {
@@ -405,17 +427,16 @@ describe('IA: salvar e erros', () => {
           errors: [
             { in: 'body', path: 'models.0.temperature', message: 'acima do máximo', code: 'x' },
             { in: 'body', path: 'cooldownMs', message: 'valor inválido', code: 'x' },
-            { in: 'body', path: 'keys.deepseek', message: 'chave inválida', code: 'x' },
           ],
         },
       }),
     });
-    await user.type(screen.getByLabelText('Chave de DeepSeek'), 'ruim');
+    const timeout = screen.getByLabelText(/Tempo limite por tentativa/);
+    await user.clear(timeout);
+    await user.type(timeout, '10');
     await user.click(screen.getByRole('button', { name: 'Salvar alterações' }));
     expect(await screen.findByText('acima do máximo')).toBeTruthy();
     expect(screen.getByText('valor inválido')).toBeTruthy();
-    expect(screen.getByLabelText('Chave de DeepSeek').getAttribute('aria-invalid')).toBe('true');
-    expect(screen.getByText('chave inválida')).toBeTruthy();
     expect(screen.getByText('Alterações não salvas')).toBeTruthy();
     expect(putBody(app)).toBeTruthy();
   });
@@ -584,25 +605,16 @@ describe('IA: revisão', () => {
 
   it('chave por variável (fonte da config) é só leitura, mesmo com o catálogo dizendo configurada', async () => {
     await open({
-      ai: view(
-        cfg(),
-        { models: 'override', 'keys.google': 'env' },
-        {},
-        { 'keys.google': 'BRIDGER_AI__KEYS__GOOGLE' },
-      ),
+      plugins: { 'ai-google': keyView({ key: 'env' }, { key: 'BRIDGER_AI_GOOGLE__KEY' }) },
     });
     const table = screen.getByRole('table', { name: 'Chaves dos provedores' });
-    expect(within(table).getAllByText('BRIDGER_AI__KEYS__GOOGLE')).toHaveLength(1);
+    expect(within(table).getAllByText('BRIDGER_AI_GOOGLE__KEY')).toHaveLength(1);
     expect(within(table).queryByLabelText('Chave de Google')).toBeNull();
   });
 
-  it('só há campo de chave para provedor que o schema declara', async () => {
-    await open({
-      ai: {
-        ...view(cfg(), { models: 'override' }),
-        schema: { properties: { keys: { properties: { google: {} } } } },
-      },
-    });
+  it('só há campo de chave para provedor cujo plugin declara o campo', async () => {
+    const noField = { ...keyView(), schema: { properties: {} } };
+    await open({ plugins: { 'ai-anthropic': noField, 'ai-deepseek': noField } });
     expect(screen.getByLabelText('Chave de Google')).toBeTruthy();
     expect(screen.queryByLabelText('Chave de DeepSeek')).toBeNull();
     expect(screen.getAllByText('chave na config do plugin dele')).toHaveLength(2);
@@ -611,15 +623,13 @@ describe('IA: revisão', () => {
   it('409 de segredo sombreado aparece junto da linha da chave', async () => {
     const user = userEvent.setup();
     await open({
-      put: () => ({
+      keyPut: () => ({
         status: 409,
         body: {
           type: 'about:blank',
           title: 'Conflito',
           status: 409,
-          errors: [
-            { in: 'body', path: 'keys.deepseek', message: 'definida pela env X', code: 'shadowed' },
-          ],
+          errors: [{ in: 'body', path: 'key', message: 'definida pela env X', code: 'shadowed' }],
         },
       }),
     });

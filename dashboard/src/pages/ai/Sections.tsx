@@ -10,7 +10,7 @@ import {
   lockedSource,
   type ModelStatus,
   type Sources,
-  schemaHasKey,
+  schemaHasField,
 } from './chain.ts';
 
 /** Resumo da seção Fallback de `docs/ai.md`: o que a cadeia faz em cada situação. */
@@ -249,6 +249,12 @@ export function ResourceTable({
   );
 }
 
+/** O que a tabela de chaves lê da config do plugin de cada provedor (`ai-google`...). */
+export interface KeyPluginConfig {
+  readonly view?: { readonly sources: Sources; readonly env: EnvNames } | null;
+  readonly schema?: unknown;
+}
+
 /** Uma linha por provedor do catálogo: configurada, pela variável, pelo arquivo ou sem chave. */
 export function KeysTable({
   catalog,
@@ -256,9 +262,7 @@ export function KeysTable({
   onType,
   canWrite,
   secretsWritable,
-  sources,
-  env,
-  schema,
+  configs,
   errors,
 }: {
   catalog: readonly CatalogProvider[];
@@ -268,17 +272,20 @@ export function KeysTable({
   canWrite: boolean;
   /** O servidor tem chave mestra para guardar segredo. */
   secretsWritable: boolean;
-  /** Fontes da config da IA: env e arquivo valem mais que o catálogo. */
-  sources: Sources;
-  env: EnvNames;
-  /** JSON Schema da config da IA: só provedor com `keys.properties.<id>` aceita chave aqui. */
-  schema: unknown;
-  errors: Readonly<Record<string, string>>;
+  /** Config do plugin dono de cada chave (`keyField.plugin`): env e arquivo valem mais que o catálogo. */
+  configs: Readonly<Record<string, KeyPluginConfig | undefined>>;
+  /** Erros do PUT por plugin e caminho. */
+  errors: Readonly<Record<string, Readonly<Record<string, string>>>>;
 }) {
-  const origin = (id: string, fallback: CatalogProvider['key']) => {
-    return lockedSource(sources, `keys.${id}`) ?? (fallback === 'env' ? 'env' : null);
-  };
-  const anyLocked = catalog.some((p) => origin(p.id, p.key) !== null);
+  const rows = catalog.map((provider) => {
+    const field = provider.keyField;
+    const config = field ? configs[field.plugin] : undefined;
+    const from =
+      (field && lockedSource(config?.view?.sources ?? {}, field.path)) ??
+      (provider.key === 'env' ? 'env' : null);
+    return { provider, field, config, from };
+  });
+  const anyLocked = rows.some((r) => r.from !== null);
   return (
     <div className="flex flex-col gap-3">
       {canWrite && anyLocked && (
@@ -300,12 +307,12 @@ export function KeysTable({
           </tr>
         </thead>
         <tbody>
-          {catalog.map((provider) => {
-            const error = errors[`keys.${provider.id}`];
+          {rows.map(({ provider, field, config, from }) => {
+            const error = field ? errors[field.plugin]?.[field.path] : undefined;
             const errorId = `key-${provider.id}-error`;
-            const from = origin(provider.id, provider.key);
-            const editable =
-              canWrite && from === null && secretsWritable && schemaHasKey(schema, provider.id);
+            // Sem o schema do plugin (config ilegível), a tela não sabe se o campo existe.
+            const hasField = field !== undefined && schemaHasField(config?.schema, field.path);
+            const editable = canWrite && from === null && secretsWritable && hasField;
             return (
               <tr key={provider.id}>
                 <th scope="row" className="font-medium">
@@ -316,7 +323,7 @@ export function KeysTable({
                     <span className="text-muted">
                       pela variável{' '}
                       <span className="font-mono text-label">
-                        {envOf(env, `keys.${provider.id}`) ?? 'de ambiente'}
+                        {(field && envOf(config?.view?.env ?? {}, field.path)) ?? 'de ambiente'}
                       </span>
                     </span>
                   )}
@@ -350,7 +357,7 @@ export function KeysTable({
                         )}
                       </div>
                     )}
-                    {from === null && !schemaHasKey(schema, provider.id) && (
+                    {from === null && !hasField && (
                       <span className="text-help text-muted">chave na config do plugin dele</span>
                     )}
                     {!editable && error && <p className="text-help text-danger">{error}</p>}

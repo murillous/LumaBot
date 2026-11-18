@@ -75,6 +75,7 @@ mídia até 60 s, cada um até o prazo do comando.
 | `ai` | `ai.model.failed` (tenta o próximo), `ai.search.unsupported`, `ai.models.empty`, `ai.keys.unreadable` | `warn` |
 | `ai` | `ai.provider.unregistered`, `ai.observer.failed`, `ai.tool.failed` (tool que lançou, em `ai-tools.ts`) | `error` |
 | `ai` | `ai.http.disabled` | `info` |
+| `ai-google`, `ai-openai`, `ai-anthropic`, `ai-deepseek` | `ai-<provider>.key.missing` (sem chave: o provider fica fora da cadeia) | `info` |
 | `usage` | `usage.record.failed`, `usage.observer.failed` | `error` |
 | `luma` | `luma.reply.failed`, `luma.persona-create.failed` | `error` |
 | `luma` | `luma.name.failed`, `luma.error-notice.failed`, `luma.ai-metrics.failed`, `luma.compact.failed`, `luma.memory.failed` | `warn` |

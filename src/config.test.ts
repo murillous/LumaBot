@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fontconfigRelaunchEnv, loadConfig } from './config.ts';
+import { fontconfigRelaunchEnv, loadConfig, pluginEnv } from './config.ts';
 
 describe('loadConfig', () => {
   it('sem variáveis, usa os padrões: SQLite em data/, pareamento por QR, log em info, dashboard na 3000', () => {
@@ -80,5 +80,21 @@ describe('fontconfigRelaunchEnv', () => {
   it('não relança fora do Windows nem com a variável já definida', () => {
     expect(fontconfigRelaunchEnv('a.conf', 'linux', {})).toBeUndefined();
     expect(fontconfigRelaunchEnv('a.conf', 'win32', { FONTCONFIG_FILE: 'b.conf' })).toBeUndefined();
+  });
+});
+
+describe('pluginEnv', () => {
+  it('a variável antiga da chave vale para o plugin do provider', () => {
+    const env = pluginEnv({ BRIDGER_AI__KEYS__GOOGLE: 'g', BRIDGER_AI__KEYS__DEEPSEEK: 'd' });
+
+    expect(env['BRIDGER_AI_GOOGLE__KEY']).toBe('g');
+    expect(env['BRIDGER_AI_DEEPSEEK__KEY']).toBe('d');
+    expect(env['BRIDGER_AI_OPENAI__KEY']).toBeUndefined();
+  });
+
+  it('a variável nova vence a antiga', () => {
+    const env = pluginEnv({ BRIDGER_AI__KEYS__GOOGLE: 'velha', BRIDGER_AI_GOOGLE__KEY: 'nova' });
+
+    expect(env['BRIDGER_AI_GOOGLE__KEY']).toBe('nova');
   });
 });
