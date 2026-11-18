@@ -56,13 +56,37 @@ describe('buildPrompt', () => {
     expect(messages).toHaveLength(3);
   });
 
-  it('o contexto do grupo entra rotulado como ambiente, só quando há', () => {
-    expect(buildPrompt(base).instructions).not.toContain('CONTEXTO AMBIENTE');
+  it('com cabeçalho, a fala de agora ganha o ID, a hora e a marca de que é com ela', () => {
+    const { messages } = buildPrompt({ ...base, header: '[#m3 16:30]' });
 
-    const { instructions } = buildPrompt({ ...base, groupContext: 'Bia: bom dia' });
-    expect(instructions).toContain('[CONVERSA DO GRUPO — CONTEXTO AMBIENTE]');
-    expect(instructions).toContain('NÃO foi endereçado a você');
-    expect(instructions).toContain('Bia: bom dia');
+    expect(messages.at(-1)).toEqual({ role: 'user', content: '[#m3 16:30] ➜ Ana: oi' });
+  });
+
+  it('o que o grupo disse desde a última fala dela e a fala de agora são um turno só', () => {
+    const { messages } = buildPrompt({
+      ...base,
+      header: '[#m3 16:30]',
+      history: [
+        { role: 'user', text: '[#m1 16:29] Bia: alguém viu o jogo?' },
+        { role: 'assistant', text: 'vi sim' },
+        { role: 'user', text: '[#m2 16:30] Caio: foi 2 a 1' },
+      ],
+    });
+
+    expect(messages).toHaveLength(3);
+    expect(messages.at(-1)).toEqual({
+      role: 'user',
+      content: '[#m2 16:30] Caio: foi 2 a 1\n[#m3 16:30] ➜ Ana: oi',
+    });
+  });
+
+  it('explica como ler a transcrição: cabeçalho, marca, citação e mídia', () => {
+    const { instructions } = buildPrompt(base);
+
+    expect(instructions).toContain('[#m12 16:30] Nome: mensagem');
+    expect(instructions).toContain('➜');
+    expect(instructions).toContain('(respondendo #m9)');
+    expect(instructions).toContain('[figurinha]');
   });
 
   it('a imagem vai como parte da última mensagem e muda a instrução', () => {

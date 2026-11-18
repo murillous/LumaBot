@@ -2,8 +2,8 @@
 // Puro: nada de bot, storage ou relógio; o plugin passa tudo pronto.
 
 import type { ModelMessage } from 'ai';
-import type { Turn } from './history.ts';
 import type { Persona } from './personas.ts';
+import type { Turn } from './transcript.ts';
 
 export interface PromptImage {
   readonly data: Uint8Array;
@@ -18,16 +18,16 @@ export interface PromptInput {
   /** Quem fala agora; entra como rótulo da mensagem para a Luma distinguir as pessoas. */
   readonly senderName: string;
   readonly userText: string;
-  /** Últimas falas do grupo, só para sentir o clima; nunca endereçadas a ela. */
-  readonly groupContext?: string;
+  /** Cabeçalho da fala de agora na transcrição (`[#m12 16:30]`); a linha ganha a marca `➜`. */
+  readonly header?: string;
   readonly image?: PromptImage;
   readonly history: readonly Turn[];
 }
 
 /**
- * Instrução de sistema: só a identidade (persona, regras, ferramentas, formato) e o contexto
- * ambiente do grupo. O histórico e a fala de agora vão como turnos reais em `messages`, para o
- * modelo separar o que é sistema, o que é memória e o que responder agora.
+ * Instrução de sistema: só a identidade (persona, regras, ferramentas, formato). A transcrição do
+ * chat e a fala de agora vão como turnos reais em `messages`, para o modelo separar o que é
+ * sistema, o que é memória e o que responder agora.
  *
  * As ferramentas não são listadas aqui: cada uma chega com nome, descrição e parâmetros pelo
  * ponto `ai.tools`, então plugin novo não obriga a editar este texto.
@@ -36,16 +36,12 @@ function systemPrompt({
   persona,
   now,
   timeZone,
-  groupContext,
   hasImage,
-}: Pick<PromptInput, 'persona' | 'now' | 'timeZone' | 'groupContext'> & {
+}: Pick<PromptInput, 'persona' | 'now' | 'timeZone'> & {
   hasImage: boolean;
 }): string {
   const when = now.toLocaleString('pt-BR', { timeZone, dateStyle: 'full', timeStyle: 'short' });
   const traits = persona.traits.map((t) => `- ${t}`).join('\n');
-  const group = groupContext
-    ? `[CONVERSA DO GRUPO — CONTEXTO AMBIENTE]\n(Isto é só o que rolava no grupo antes de te chamarem. NÃO foi endereçado a você e você NÃO precisa responder a estas mensagens — use apenas pra sentir o clima do papo.)\n${groupContext}\n\n`
-    : '';
   const image = hasImage
     ? '\n[IMAGEM]\nA imagem está anexada à ÚLTIMA mensagem do usuário — é a ela que você reage agora, ATRAVÉS DA SUA PERSONALIDADE, como se tivesse recebido essa foto no WhatsApp. Identifique o que há nela e responda ao que o usuário pediu sobre ela. Se for uma figurinha, entenda a emoção dela.\n'
     : '';
@@ -82,13 +78,14 @@ ${persona.style}
 ${traits}
 
 [COMO LER A CONVERSA]
-1. O histórico desta conversa chega como turnos separados e alternados: os SEUS turnos anteriores são as suas próprias falas; os turnos do usuário chegam rotulados "Nome: mensagem" (o rótulo serve só pra você saber quem falou — NUNCA escreva prefixos como "Nome:" ou "Luma:" na sua resposta).
-2. A ÚLTIMA mensagem do usuário é a que você deve responder AGORA. As mensagens anteriores são só a memória do que já rolou entre vocês.
-3. Mensagens curtas e vagas ("não sei", "sim", "ok", "continua", "e aí", "qual?") são SEMPRE continuação do que você disse imediatamente antes — nunca as trate como mensagem solta.
-4. Se a mensagem atual não tiver relação nenhuma com o que veio antes (mudança clara de assunto), siga o novo assunto sem forçar conexão com o anterior.
-5. Evite repetir o nome da pessoa o tempo todo. Aja como se estivesse no WhatsApp de verdade.
+1. A conversa chega como turnos: os SEUS turnos são as suas próprias falas, para quem quer que tenha sido. As falas das pessoas chegam como linhas "[#m12 16:30] Nome: mensagem"; num grupo, várias pessoas aparecem no mesmo turno. O cabeçalho serve só pra você saber quem falou, quando e qual é a mensagem — NUNCA escreva cabeçalhos, IDs ou prefixos como "Nome:" ou "Luma:" na sua resposta.
+2. A linha marcada com ➜ é a que falou com você AGORA: responda a ela. As outras são o que rolou no chat; use como contexto, sem responder a cada uma.
+3. "(respondendo #m9)" quer dizer que a pessoa citou a mensagem #m9; "(respondendo à sua fala ...)", que citou uma fala sua. "[figurinha]", "[imagem]", "[áudio]", "[vídeo]" e "[documento]" marcam a mídia que a pessoa mandou; você só vê a imagem quando ela vem anexada.
+4. Mensagens curtas e vagas ("não sei", "sim", "ok", "continua", "e aí", "qual?") são SEMPRE continuação do que você disse imediatamente antes a essa pessoa — nunca as trate como mensagem solta.
+5. Se a mensagem atual não tiver relação nenhuma com o que veio antes (mudança clara de assunto), siga o novo assunto sem forçar conexão com o anterior.
+6. Evite repetir o nome da pessoa o tempo todo. Aja como se estivesse no WhatsApp de verdade.
 ${image}
-${group}[FORMATO WHATSAPP]
+[FORMATO WHATSAPP]
 1. REGRA ABSOLUTA DE TAMANHO: CADA BLOCO PODE TER NO MÁXIMO 200 CARACTERES.
 2. RESPOSTA SIMPLES: Responda em um único bloco se for algo pontual (ex: "nossa mano q bizarro kkk").
 3. MÚLTIPLAS MENSAGENS: Se quiser mandar vários balões, use exatamente "[PARTE]" para separar.
@@ -101,15 +98,21 @@ export function buildPrompt(input: PromptInput): {
   instructions: string;
   messages: ModelMessage[];
 } {
-  const { history, senderName, userText, image } = input;
+  const { history, senderName, userText, header, image } = input;
 
   // Alguns providers exigem que a conversa comece por uma fala do usuário; a poda do histórico
   // pode ter cortado um par pelo meio.
   const turns = [...history];
   while (turns[0]?.role === 'assistant') turns.shift();
 
+  const line = `${senderName}: ${userText}`;
+  const current = header ? `${header} ➜ ${line}` : line;
+  // O que as pessoas disseram desde a última fala dela e a fala de agora são um turno só: dois
+  // turnos `user` seguidos confundem alguns providers.
+  const merged = turns.at(-1)?.role === 'user' ? turns.pop() : undefined;
+  const text = merged ? `${merged.text}\n${current}` : current;
+
   const messages: ModelMessage[] = turns.map((t) => ({ role: t.role, content: t.text }));
-  const text = `${senderName}: ${userText}`;
   messages.push({
     role: 'user',
     content: image
@@ -127,7 +130,6 @@ export function buildPrompt(input: PromptInput): {
       now: input.now,
       timeZone: input.timeZone,
       hasImage: image !== undefined,
-      ...(input.groupContext ? { groupContext: input.groupContext } : {}),
     }),
     messages,
   };

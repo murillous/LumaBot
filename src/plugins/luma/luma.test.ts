@@ -155,34 +155,80 @@ describe('memória', () => {
     expect(second).toContain('Ana: qual meu nome?');
   });
 
-  it('em grupo, cada pessoa tem a sua conversa', async () => {
-    const model = scripted('ok');
+  it('em grupo, a conversa é uma só: ela sabe o que respondeu a outra pessoa', async () => {
+    const model = scripted('pizza de calabresa', 'falei que era calabresa');
     const b = await start(model);
 
     await b.receive({
-      text: 'luma, segredo da Ana',
+      text: 'luma, qual a melhor pizza?',
       chat: group,
       sender: { id: 'ana@x', name: 'Ana' },
     });
-    await b.receive({ text: 'luma, oi', chat: group, sender: { id: 'bia@x', name: 'Bia' } });
+    await b.receive({
+      text: 'luma, o que você disse pra Ana?',
+      chat: group,
+      sender: { id: 'bia@x', name: 'Bia' },
+    });
 
-    // O que a Ana disse chega à Bia só como clima do grupo, nunca como memória dela.
-    expect(conversation(model, 1)).not.toContain('segredo da Ana');
-    expect(promptText(model, 1)).toContain('CONTEXTO AMBIENTE');
+    const second = conversation(model, 1);
+    expect(second).toContain('Ana: luma, qual a melhor pizza?');
+    expect(second).toContain('"role":"assistant"');
+    expect(second).toContain('pizza de calabresa');
+    expect(second).toContain('➜ Bia: o que você disse pra Ana?');
   });
 
-  it('em grupo, a conversa do grupo vira clima ambiente, sem a fala de agora', async () => {
+  it('em grupo, o que se disse antes entra na conversa, em ordem e sem repetir a fala de agora', async () => {
     const model = scripted('ok');
     const b = await start(model);
 
     await b.receive({ text: 'alguém viu o jogo?', chat: group, sender: { name: 'Caio' } });
+    await b.receive({ sticker: fixtures.sticker(), chat: group, sender: { name: 'Bia' } });
     await b.receive({ text: 'luma, quem ganhou?', chat: group, sender: { name: 'Ana' } });
 
-    const prompt = promptText(model);
-    expect(prompt).toContain('CONTEXTO AMBIENTE');
-    expect(prompt).toContain('Caio: alguém viu o jogo?');
-    expect(prompt).not.toMatch(/Ana: luma, quem ganhou[\s\S]*CONTEXTO AMBIENTE/);
+    const prompt = conversation(model, 0);
+    expect(prompt).toMatch(/#m1 \d\d:\d\d\] Caio: alguém viu o jogo\?/);
+    expect(prompt).toMatch(/#m2 \d\d:\d\d\] Bia: \[figurinha\]/);
+    expect(prompt).toMatch(/#m3 \d\d:\d\d\] ➜ Ana: quem ganhou\?/);
     expect(prompt.match(/quem ganhou/g)).toHaveLength(1);
+    expect(promptText(model)).not.toContain('CONTEXTO AMBIENTE');
+  });
+
+  it('citar uma fala do grupo que está na transcrição vira o ID dela', async () => {
+    const model = scripted('ok');
+    const b = await start(model);
+
+    const first = await b.receive({
+      text: 'o jogo foi 2 a 1',
+      chat: group,
+      sender: { name: 'Caio' },
+    });
+    await b.receive({
+      text: 'luma, é verdade?',
+      chat: group,
+      sender: { name: 'Ana' },
+      quoted: first,
+    });
+
+    expect(conversation(model, 0)).toContain('Ana: (respondendo #m1) é verdade?');
+  });
+
+  it('citar uma fala antiga dela, para outra pessoa, lembra o que ela disse', async () => {
+    const model = scripted('pizza de calabresa', 'banana', 'sim, calabresa');
+    const b = await start(model);
+
+    await b.receive({ text: 'luma, pizza?', chat: group, sender: { id: 'ana@x', name: 'Ana' } });
+    const pizza = b.sent.at(-1)?.key.id ?? '';
+    await b.receive({ text: 'luma, fruta?', chat: group, sender: { id: 'bia@x', name: 'Bia' } });
+    await b.receive({
+      text: 'sério?',
+      chat: group,
+      sender: { id: 'caio@x', name: 'Caio' },
+      quoted: { id: pizza, text: 'pizza de calabresa', fromMe: true, chat: group },
+    });
+
+    expect(conversation(model, 2)).toContain(
+      'Caio: (respondendo à sua fala \\"pizza de calabresa\\") sério?',
+    );
   });
 
   it('!luma clear esquece, e !lc e !clear são o mesmo comando', async () => {
