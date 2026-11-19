@@ -1,7 +1,7 @@
 import { createTestBot, type TestBot } from '@usebridger/testing';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ai } from '#plugins/ai/ai.ts';
-import { fakeProvider, scripted } from '#plugins/ai/testing.ts';
+import { fakeProvider, groundedAnswer, scripted } from '#plugins/ai/testing.ts';
 import { aiToolsProbe, toolResult } from '#plugins/ai/tools-probe.ts';
 import { observedBot } from '#plugins/observe-probe.ts';
 import { usage } from '#plugins/usage/usage.ts';
@@ -94,6 +94,31 @@ describe('Google Grounding como fallback', () => {
         }),
     };
   };
+
+  it('as fontes da busca nativa vão ao modelo com a URL, sem repetir', async () => {
+    const model = scripted(
+      groundedAnswer('O meme é de 2014.', [
+        { url: 'https://knowyourmeme.com/gato', title: 'Gato chorando' },
+        { url: 'https://knowyourmeme.com/gato', title: 'Gato chorando' },
+        { url: 'https://youtu.be/abc' },
+      ]),
+    );
+    bot = await createTestBot({
+      plugins: [
+        ai,
+        fakeProvider({ a: model }, { nativeSearch: true }),
+        webSearch({ fetch: vi.fn() as never }),
+        aiToolsProbe,
+      ],
+      pluginConfig: { ai: { models: [{ model: 'fake:a' }] } },
+    });
+
+    expect(await search(bot)).toEqual({
+      ok: true,
+      results:
+        'O meme é de 2014.\n\nFontes:\n[1] Gato chorando\nhttps://knowyourmeme.com/gato\n[2] https://youtu.be/abc',
+    });
+  });
 
   it('sem chave do Tavily, busca pelo provider com busca nativa', async () => {
     const g = grounding(vi.fn() as never);
@@ -226,6 +251,17 @@ describe('formatTavily', () => {
     expect(new TavilyError(400, 'limit').quota).toBe(false);
     expect(new TavilyError(432, '').quota).toBe(true);
     expect(new TavilyError(403, 'usage limit exceeded').quota).toBe(true);
+  });
+
+  it('leva a URL de cada fonte, para o modelo não inventar link', () => {
+    const results = [
+      { title: 'Gato chorando', url: 'https://youtu.be/abc?t=3', content: 'meme' },
+      { title: 'Sem link', content: 'só texto' },
+    ];
+
+    expect(formatTavily({ results }, 5)).toBe(
+      '[1] Gato chorando\nhttps://youtu.be/abc?t=3\nmeme\n\n[2] Sem link\nsó texto',
+    );
   });
 
   it('sem nada, diz que não achou', () => {

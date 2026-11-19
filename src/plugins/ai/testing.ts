@@ -16,6 +16,7 @@ export interface Answer {
   content: (
     | { type: 'text'; text: string }
     | { type: 'tool-call'; toolCallId: string; toolName: string; input: string }
+    | { type: 'source'; sourceType: 'url'; id: string; url: string; title?: string }
   )[];
   finishReason: { unified: 'stop' | 'tool-calls'; raw: undefined };
   usage: Usage;
@@ -33,6 +34,23 @@ export const textAnswer = (text: string): Answer => ({
   finishReason: { unified: 'stop' as const, raw: undefined },
   usage: USAGE,
   warnings: [],
+});
+
+/** Resposta da busca nativa: o texto e as páginas que ela usou. */
+export const groundedAnswer = (
+  text: string,
+  sources: readonly { url: string; title?: string }[],
+): Answer => ({
+  ...textAnswer(text),
+  content: [
+    { type: 'text' as const, text },
+    ...sources.map((s, i) => ({
+      type: 'source' as const,
+      sourceType: 'url' as const,
+      id: `src-${i}`,
+      ...s,
+    })),
+  ],
 });
 
 /** O modelo pede uma tool (e, opcionalmente, diz algo antes). */
