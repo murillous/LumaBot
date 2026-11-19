@@ -22,11 +22,27 @@ esperar. O `ai` é opcional (`optionalDependsOn`): sem ele, só o Tavily.
 Todo resultado leva as URLs das fontes porque, sem elas, o modelo que precisa mandar um link
 inventa um. A Luma só manda link que veio de uma ferramenta ([luma.md](luma.md)).
 
-## Tool da IA
+## Tools da IA
 
 | Tool | Argumentos | O que faz | Recusas (`error`) |
 | --- | --- | --- | --- |
 | `search_web` | `query` | Busca e devolve o texto (`results`) só ao modelo | `unavailable` |
+| `search_images` | `query` | Busca imagens pela descrição e devolve até `tavily.maxResults` (`images`: `url` e, quando o Tavily dá, `description`) só ao modelo | `unavailable` (sem chave do Tavily ou sem cota), `not-found` |
+| `send_image` | `url`, `caption?` | Baixa a imagem do link e envia no chat (`send.image`) | `url-failed`, `not-image` |
+
+## Imagem e meme da internet
+
+"Manda um meme de X" é um encadeamento que o modelo faz com as tools:
+
+- **Imagem:** `search_images` → `send_image` com a URL escolhida pela descrição.
+- **Figurinha:** `search_images` → `create_sticker` com `url` ([sticker.md](sticker.md)).
+- **Vídeo:** `search_web` (que traz as URLs) → `download_media` ([download.md](download.md)).
+
+`search_images` só tem o Tavily: a busca nativa não devolve imagens. O `send_image` baixa pelo
+`fetchUrl` do `sticker` (`src/plugins/sticker/fetch-url.ts`): recusa endereço interno (também nos
+redirecionamentos) e passa de 5 MB. O tipo é conferido pelos primeiros bytes (JPEG, PNG, GIF ou
+WebP; `image-type.ts`), porque o link pode levar a uma página HTML. O link que não baixa vai ao log
+como `web-search.image.refused`, só com o host.
 
 ## Config
 

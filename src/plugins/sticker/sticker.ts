@@ -110,7 +110,10 @@ export const sticker: PluginDefinition = definePlugin({
         description:
           'Cria uma figurinha e envia no chat. A fonte é o link `url`, se dado; senão, a imagem, vídeo, GIF ou figurinha da mensagem do usuário ou da mensagem que ele respondeu. `caption` é escrita na figurinha estática.',
         args: z.object({
-          url: z.url().optional().describe('Link de uma imagem ou vídeo'),
+          url: z
+            .url()
+            .optional()
+            .describe('Link de uma imagem ou vídeo, como um achado na busca de imagens'),
           caption: z.string().optional().describe('Texto escrito na figurinha'),
         }),
         run: async ({ url, caption = '' }, t) => {
