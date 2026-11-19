@@ -1,10 +1,12 @@
 import { definePlugin, type Message, type PluginDefinition, secret } from '@usebridger/core';
 import { z } from 'zod';
-import { type ActionSpec, trackerFor } from '#plugins/action-metrics.ts';
+import { type ActionSpec, hostOf, trackerFor } from '#plugins/action-metrics.ts';
 import { AiUnavailableError, chainItem, type WebSource } from '#plugins/ai/ai.ts';
 import { aiTool, fail, ok } from '#plugins/ai/tools.ts';
-import { SEARCH_DONE, SEARCH_FAILED, SEARCH_REFUSED } from './log-events.ts';
-import { searchTavily, TavilyError } from './tavily.ts';
+import { fetchUrl, UrlFetchError } from '#plugins/sticker/fetch-url.ts';
+import { imageMimetype } from './image-type.ts';
+import { IMAGE_URL_REFUSED, SEARCH_DONE, SEARCH_FAILED, SEARCH_REFUSED } from './log-events.ts';
+import { searchTavily, searchTavilyImages, TavilyError } from './tavily.ts';
 
 /** Nenhuma fonte de busca respondeu: sem chave do Tavily e sem provider com busca nativa. */
 export class SearchUnavailableError extends Error {
@@ -173,6 +175,72 @@ export function webSearch({ fetch: fetchFn = fetch }: WebSearchDeps = {}): Plugi
               if (err instanceof SearchUnavailableError) return fail('unavailable');
               throw err;
             }
+          },
+        }),
+      );
+
+      ctx.services.contribute(
+        'ai.tools',
+        aiTool({
+          name: 'search_images',
+          sideEffects: false,
+          description:
+            'Busca imagens na internet pela descrição (um meme, uma foto, um personagem) e devolve as URLs com a descrição de cada uma. Escolha a que combina e envie com a ferramenta de mandar imagem ou, se pedirem figurinha, com a de criar figurinha passando o link. Para meme em vídeo, busque com a busca na internet e baixe o link com a ferramenta de baixar vídeo.',
+          args: z.object({
+            query: z
+              .string()
+              .min(2)
+              .describe("O que a imagem mostra, em poucas palavras. Ex: 'meme gato chorando'."),
+          }),
+          run: async ({ query }, t) => {
+            if (!tavily.apiKey || Date.now() < quotaUntil) return fail('unavailable');
+            const apiKey = tavily.apiKey;
+            try {
+              const images = await track({ log: ctx.log, message: t.message }, 'images', () =>
+                searchTavilyImages(
+                  query,
+                  { apiKey, maxResults: tavily.maxResults, signal: t.signal },
+                  fetchFn,
+                ),
+              );
+              if (images.length === 0) return fail('not-found');
+              return ok({ images: images.map((i) => ({ ...i })) });
+            } catch (err) {
+              if (t.signal.aborted) throw err;
+              if (err instanceof TavilyError && err.quota)
+                quotaUntil = Date.now() + quotaCooldownMs;
+              // O `track` registrou a recusa ou a falha; para o modelo, a busca não está disponível.
+              return fail('unavailable');
+            }
+          },
+        }),
+      );
+
+      ctx.services.contribute(
+        'ai.tools',
+        aiTool({
+          name: 'send_image',
+          description:
+            'Baixa a imagem de um link e envia no chat, com legenda opcional. Use com um link que veio de uma ferramenta (a busca de imagens), nunca com um inventado.',
+          args: z.object({
+            url: z.url().describe('Link direto da imagem'),
+            caption: z.string().optional().describe('Legenda da imagem'),
+          }),
+          requires: ['send.image'],
+          run: async ({ url, caption }, t) => {
+            let bytes: Buffer;
+            try {
+              bytes = await fetchUrl(url, t.signal);
+            } catch (err) {
+              if (!(err instanceof UrlFetchError)) throw err;
+              t.log.event(IMAGE_URL_REFUSED, { err, host: hostOf(url) });
+              return fail('url-failed');
+            }
+            // O link pode levar a uma página HTML: confere pelos bytes, não pela extensão.
+            const mimetype = imageMimetype(bytes);
+            if (!mimetype) return fail('not-image');
+            await t.reply.image(bytes, { mimetype, ...(caption && { caption }) });
+            return ok();
           },
         }),
       );

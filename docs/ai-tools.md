@@ -75,7 +75,7 @@ expect(toolResult(bot)).toEqual({ ok: true });
 | [`rank`](rank.md#tools-da-ia) | `ranking` |
 | [`luma`](luma.md#tools-da-ia) | `create_persona` |
 | [`ai-context`](ai-context.md#tools-da-ia) | `clear_history`, `read_messages`, `view_media`, `read_pdf`, `remember`, `forget` |
-| [`web-search`](web-search.md#tool-da-ia) | `search_web` |
+| [`web-search`](web-search.md#tools-da-ia) | `search_web`, `search_images`, `send_image` |
 | [`transcribe`](transcribe.md#tool-da-ia) | `transcribe_audio` |
 | [`resumo`](resumo.md#tool-da-ia) | `summarize_chat` |
 

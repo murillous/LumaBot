@@ -21,3 +21,10 @@ export const SEARCH_FAILED = defineLogEvent({
   level: 'error',
   message: 'backend de busca falhou',
 });
+
+/** O link do `send_image` não baixou (endereço interno, erro HTTP, grande demais). Sem a URL. */
+export const IMAGE_URL_REFUSED = defineLogEvent({
+  name: 'web-search.image.refused',
+  level: 'warn',
+  message: 'link de imagem não baixou',
+});

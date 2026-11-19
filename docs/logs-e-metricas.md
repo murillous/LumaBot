@@ -43,7 +43,7 @@ conta como recusa; os outros contam como falha e são relançados. Os comandos d
 | `sticker-convert` | `image`, `gif` | `sticker-convert.convert.*` | `luma_sticker_convert_*` | `not-animated` |
 | `pdf` | `image`, `add` (à fila do `!mergepdf`), `merge` | `pdf.convert.*` | `luma_pdf_*` | `too-large` |
 | `transcribe` | `audio` | `transcribe.audio.*` | `luma_transcribe_*` | `too-large`, `unavailable` |
-| `web-search` | `tavily`, `native` (um por backend tentado) | `web-search.search.*` | `luma_web_search_*` | `quota`, `unavailable` |
+| `web-search` | `tavily`, `native` (um por backend tentado), `images` (`search_images`) | `web-search.search.*` | `luma_web_search_*` | `quota`, `unavailable` |
 
 Os comandos e as tools da IA registram igual. O `!downloadsticker` conta no `download`, não no
 `sticker`. A transcrição é medida no serviço `transcription`, então conta também quando a Luma
@@ -71,6 +71,7 @@ mídia até 60 s, cada um até o prazo do comando.
 | `sticker` | `sticker.ffmpeg.missing` | `warn` |
 | `sticker-convert` | `sticker-convert.ffmpeg.missing` | `warn` |
 | `sticker-text` | `sticker-text.emoji-font.missing` | `warn` |
+| `web-search` | `web-search.image.refused` (link do `send_image` que não baixou; só o `host`) | `warn` |
 | `ai` | `ai.generate.done` (`model`, `purpose`, `durationMs`, tokens) | `info` |
 | `ai` | `ai.model.failed` (tenta o próximo), `ai.search.unsupported`, `ai.models.empty`, `ai.keys.unreadable` | `warn` |
 | `ai` | `ai.provider.unregistered`, `ai.observer.failed`, `ai.tool.failed` (tool que lançou, em `ai/tools.ts`) | `error` |

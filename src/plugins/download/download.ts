@@ -116,7 +116,7 @@ export function download(options: DownloadOptions = {}): PluginDefinition {
         aiTool({
           name: 'download_media',
           description:
-            'Baixa o vídeo ou a foto de um link (X, Instagram, TikTok, YouTube...) e envia no chat.',
+            'Baixa o vídeo ou a foto de um link (X, Instagram, TikTok, YouTube...) e envia no chat. Para mandar um vídeo ou meme que a pessoa só descreveu, ache o link com a busca na internet e passe-o aqui.',
           args: z.object({ url }),
           requires: ['send.video'],
           run: ({ url }, t) =>
