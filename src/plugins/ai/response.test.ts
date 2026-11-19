@@ -16,6 +16,16 @@ describe('cleanResponse', () => {
     expect(cleanResponse('kkkkkkk')).toBe('kkkkkkk');
   });
 
+  it('link em markdown vira texto e URL soltos, que o WhatsApp abre', () => {
+    expect(cleanResponse('olha [esse vídeo](https://youtu.be/abc?t=3) kkk')).toBe(
+      'olha esse vídeo: https://youtu.be/abc?t=3 kkk',
+    );
+  });
+
+  it('link em markdown cujo texto é a própria URL fica só com a URL', () => {
+    expect(cleanResponse('[https://g1.com/x](https://g1.com/x)')).toBe('https://g1.com/x');
+  });
+
   it('texto vazio continua vazio', () => {
     expect(cleanResponse('<think>só pensando</think>')).toBe('');
   });
@@ -46,6 +56,19 @@ describe('splitIntoParts', () => {
 
   it('sem ponto natural, corta no limite', () => {
     expect(splitIntoParts('a'.repeat(50), opts)).toEqual(['a'.repeat(30), 'a'.repeat(20)]);
+  });
+
+  it('não corta no meio de um link: ele vai inteiro para o balão seguinte', () => {
+    const url = 'https://youtu.be/abcdefg';
+    expect(splitIntoParts(`olha esse aqui mano ${url} kkk`, opts)).toEqual([
+      'olha esse aqui mano',
+      `${url} kkk`,
+    ]);
+  });
+
+  it('link maior que o balão vai inteiro, passando do limite', () => {
+    const url = `https://exemplo.com/${'a'.repeat(40)}`;
+    expect(splitIntoParts(`${url} fim`, opts)).toEqual([url, 'fim']);
   });
 
   it('respeita maxParts mesmo com texto sobrando', () => {

@@ -167,6 +167,13 @@ describe('buildPrompt', () => {
     expect(withLuma.messages.map((m) => m.role)).toEqual(['user', 'assistant', 'user']);
   });
 
+  it('manda só link que veio de uma ferramenta, solto e sem markdown', () => {
+    const { instructions } = buildPrompt(base);
+
+    expect(instructions).toContain('Só mande link que veio de uma ferramenta');
+    expect(instructions).toContain('sem markdown');
+  });
+
   it('não lista ferramentas pelo nome: elas chegam pelo ai.tools', () => {
     const { instructions } = buildPrompt(base);
 

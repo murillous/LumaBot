@@ -33,6 +33,10 @@ o resumo das falas velhas e a memória longa em blocos. O que é só dela:
   guia de leitura e a seção de memória do `ai-context` no meio e no fim, com os textos e a config
   dele (`messages`, `memory.enabled`). Não muda entre os turnos do mesmo chat e persona, para o
   cache do provider valer.
+- Link só sai se veio de uma ferramenta (a busca, por exemplo), copiado como veio; a regra está
+  no prompt. Na resposta, `[texto](url)` em markdown vira `texto: url`, porque o WhatsApp colaria o
+  `)` na URL, e a divisão em balões nunca corta um link no meio (`cleanResponse` e
+  `splitIntoParts`, em `src/plugins/ai/response.ts`).
 - O resumo usa a cadeia da Luma (`models`), como a resposta.
 - A resposta dela entra na transcrição como foi ao chat, com o ID de cada balão: quem citar
   qualquer um deles cita a fala.

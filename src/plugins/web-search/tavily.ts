@@ -9,7 +9,11 @@ export interface TavilyOptions {
 
 interface TavilyResponse {
   readonly answer?: string | null;
-  readonly results?: readonly { readonly title?: string; readonly content?: string }[];
+  readonly results?: readonly {
+    readonly title?: string;
+    readonly url?: string;
+    readonly content?: string;
+  }[];
   readonly error?: string;
 }
 
@@ -34,12 +38,14 @@ const SNIPPET = 350;
 /** Prazo do Tavily: curto para um Tavily travado não consumir o signal inteiro do listener. */
 export const TAVILY_TIMEOUT_MS = 10_000;
 
-/** Resumo do Tavily e as `shown` primeiras fontes, no tamanho que cabe no contexto do modelo. */
+/** Resumo do Tavily e as `shown` primeiras fontes (título, URL e trecho), no tamanho que cabe no contexto do modelo. */
 export function formatTavily(data: TavilyResponse, shown: number): string {
   const lines: string[] = [];
   if (data.answer) lines.push(`Resumo: ${data.answer}`, '');
   (data.results ?? []).slice(0, shown).forEach((r, i) => {
     lines.push(`[${i + 1}] ${r.title ?? ''}`);
+    // A URL vai junto: sem ela, o modelo que precisa mandar um link inventa um.
+    if (r.url) lines.push(r.url);
     if (r.content) lines.push(r.content.slice(0, SNIPPET));
     lines.push('');
   });

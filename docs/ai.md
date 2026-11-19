@@ -62,6 +62,9 @@ const { text, model, usage } = await ctx.services.get('ai').generate({
 });
 ```
 
+Com `nativeSearch: true`, `sources` traz as páginas que a busca nativa usou (`{ url, title? }`), na
+ordem e sem repetir URL. Fica vazio sem busca nativa ou quando o provider não as devolve.
+
 Com `actor`, cada tentativa leva quem pediu, e o `ai-metrics` grava a resposta no `usage` dessa
 pessoa, com o custo (veja [ai-metrics](ai-metrics.md#uso-por-pessoa)). Hoje só a `luma` informa.
 

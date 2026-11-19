@@ -172,6 +172,12 @@ export interface ToolCallRecord {
   readonly result: AiToolResult;
 }
 
+/** Página que a busca nativa do provider (Google Grounding) usou para responder. */
+export interface WebSource {
+  readonly url: string;
+  readonly title?: string;
+}
+
 export interface GenerateResult {
   readonly text: string;
   /** O item da cadeia que respondeu, como `google:gemini-2.5-flash`. */
@@ -179,6 +185,8 @@ export interface GenerateResult {
   readonly usage: LanguageModelUsage;
   /** As tools chamadas nesta resposta, na ordem; vazio sem `toolContext`. */
   readonly toolCalls: readonly ToolCallRecord[];
+  /** Fontes da busca nativa, sem repetir URL; vazio sem `nativeSearch` ou se o provider não as dá. */
+  readonly sources: readonly WebSource[];
 }
 
 export interface AiService {
@@ -193,6 +201,19 @@ export interface AiService {
    * segredo entre plugins (usebridger#345).
    */
   legacyKey(provider: string): string | undefined;
+}
+
+// O `ai` não exporta o tipo da fonte; ele sai do retorno do `generateText`.
+type Source = Awaited<ReturnType<typeof generateText>>['sources'][number];
+
+/** As fontes de URL, na ordem e sem repetir; as de documento não viram link. */
+function webSources(sources: readonly Source[]): WebSource[] {
+  const seen = new Map<string, WebSource>();
+  for (const s of sources) {
+    if (s.sourceType !== 'url' || seen.has(s.url)) continue;
+    seen.set(s.url, s.title ? { url: s.url, title: s.title } : { url: s.url });
+  }
+  return [...seen.values()];
 }
 
 /** Nenhum modelo da cadeia está disponível (o último erro transitório vai no `cause`). */
@@ -563,7 +584,13 @@ export const ai: PluginDefinition = definePlugin({
                 .map((step) => step.text.trim())
                 .filter(Boolean)
                 .join('\n');
-            return { text, model: entry.model, usage, toolCalls: calls };
+            return {
+              text,
+              model: entry.model,
+              usage,
+              toolCalls: calls,
+              sources: webSources(result.steps.flatMap((step) => step.sources)),
+            };
           } catch (err) {
             const statusCode = APICallError.isInstance(err) ? err.statusCode : undefined;
             const extra = statusCode === undefined ? {} : { statusCode };

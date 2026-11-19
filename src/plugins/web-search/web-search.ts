@@ -1,7 +1,7 @@
 import { definePlugin, type Message, type PluginDefinition, secret } from '@usebridger/core';
 import { z } from 'zod';
 import { type ActionSpec, trackerFor } from '#plugins/action-metrics.ts';
-import { AiUnavailableError, chainItem } from '#plugins/ai/ai.ts';
+import { AiUnavailableError, chainItem, type WebSource } from '#plugins/ai/ai.ts';
 import { aiTool, fail, ok } from '#plugins/ai/tools.ts';
 import { SEARCH_DONE, SEARCH_FAILED, SEARCH_REFUSED } from './log-events.ts';
 import { searchTavily, TavilyError } from './tavily.ts';
@@ -60,6 +60,18 @@ const ACTION: ActionSpec = {
   },
 };
 
+/**
+ * O resumo da busca nativa com as páginas que ela usou. Sem as URLs, o modelo que precisa mandar
+ * um link inventa um.
+ */
+function withSources(text: string, sources: readonly WebSource[]): string {
+  if (!text || sources.length === 0) return text;
+  const lines = sources.map((s, i) =>
+    s.title ? `[${i + 1}] ${s.title}\n${s.url}` : `[${i + 1}] ${s.url}`,
+  );
+  return `${text}\n\nFontes:\n${lines.join('\n')}`;
+}
+
 export interface WebSearchDeps {
   /** Para os testes não irem à rede. */
   readonly fetch?: typeof fetch;
@@ -112,7 +124,7 @@ export function webSearch({ fetch: fetchFn = fetch }: WebSearchDeps = {}): Plugi
           if (ctx.services.has('ai')) {
             try {
               const ai = ctx.services.get('ai');
-              const { text } = await track({ log: ctx.log, message: by }, 'native', () =>
+              const { text, sources } = await track({ log: ctx.log, message: by }, 'native', () =>
                 ai.generate({
                   purpose: 'web-search',
                   nativeSearch: true,
@@ -126,7 +138,7 @@ export function webSearch({ fetch: fetchFn = fetch }: WebSearchDeps = {}): Plugi
                   ...(signal && { signal }),
                 }),
               );
-              return text.trim() || 'Nenhum resultado encontrado.';
+              return withSources(text.trim(), sources) || 'Nenhum resultado encontrado.';
             } catch (err) {
               // A recusa já foi registrada pelo `track`; o resto sobe para quem buscou.
               if (!(err instanceof AiUnavailableError)) throw err;
