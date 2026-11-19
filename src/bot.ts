@@ -22,6 +22,7 @@ import { luma } from '#plugins/luma/luma.ts';
 import { pairing } from '#plugins/pairing.ts';
 import { pdf } from '#plugins/pdf/pdf.ts';
 import { ping } from '#plugins/ping.ts';
+import { polls } from '#plugins/polls/polls.ts';
 import { rank } from '#plugins/rank/rank.ts';
 import { reminders } from '#plugins/reminders/reminders.ts';
 import { resumo } from '#plugins/resumo/resumo.ts';
@@ -119,6 +120,7 @@ const bot = createBot({
     stickerEdit,
     pdf(),
     reminders,
+    polls,
     download({ cookies: config.ytdlpCookies }),
     userNames,
     rank,
