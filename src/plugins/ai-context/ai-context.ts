@@ -22,6 +22,7 @@ import {
   transcriptTokens,
   unsummarized,
 } from './context.ts';
+import { listenAudioTool } from './listen-audio.ts';
 import { COMPACT_FAILED, MEMORY_FAILED, NAME_FAILED, OBSERVER_FAILED } from './log-events.ts';
 import { type ChatMediaLookup, fileOf, lookupMedia, viewMediaTool } from './media.ts';
 import {
@@ -124,6 +125,7 @@ export type ContextObserver = (event: ContextToolEvent) => void | Promise<void>;
 const TOOLS = [
   'read_messages',
   'view_media',
+  'listen_audio',
   'read_pdf',
   'remember',
   'forget',
@@ -200,6 +202,14 @@ const config = z.object({
   models: chain.default([]),
   /** Cadeia que enxerga, para `view_media` e o PDF escaneado. Vazio: `view_media` usa `models`. */
   visionModels: chain.default([]),
+  /** Cadeia que ouve, para `listen_audio`. Vazio usa `models`. */
+  audioModels: chain.default([]),
+  /** Áudio maior que isso o `listen_audio` nem manda ao modelo (15 MB). */
+  maxAudioBytes: z
+    .number()
+    .int()
+    .positive()
+    .default(15 * 1024 * 1024),
   /**
    * Falas guardadas na transcrição de cada chat (todas, inclusive as do bot), por quanto tempo, e
    * quantos tokens (estimados) dela vão ao modelo: passando disso, as mais velhas viram resumo.
@@ -567,6 +577,19 @@ export const aiContext: PluginDefinition = definePlugin({
           refs: ctx.media,
           ai,
           models: cfg.visionModels.length > 0 ? cfg.visionModels : cfg.models,
+          speech,
+        }),
+      );
+    }
+    if (enabled('listen_audio')) {
+      ctx.services.contribute(
+        'ai.tools',
+        listenAudioTool({
+          transcript,
+          refs: ctx.media,
+          ai,
+          models: cfg.audioModels.length > 0 ? cfg.audioModels : cfg.models,
+          maxBytes: cfg.maxAudioBytes,
           speech,
         }),
       );

@@ -55,6 +55,11 @@ Se houver uma pergunta, responda a ela também. Responda em português.`,
   viewLabel: '{id} ({kind}):',
   question: 'Pergunta: {question}',
 
+  // ---- listen_audio
+  listenInstructions: `Você ouve áudios de um chat para alguém que não consegue ouvi-los.
+Para cada áudio, rotulado com o ID dele, transcreva o que foi dito, fiel ao que a pessoa falou. Se for longo, resuma. Diga também o que não é fala e importa (música, risada, choro, barulho).
+Se não der para entender ou estiver vazio, diga isso. Se houver uma pergunta, responda a ela no fim. Responda em português.`,
+
   // ---- read_pdf
   pdfSummarize: `Você resume documentos PDF para alguém num chat.
 O texto vem com marcadores de página ("[p. 3]"). Diga do que o documento trata e os pontos principais, citando as páginas.
@@ -80,6 +85,10 @@ Se houver uma pergunta, responda a ela no fim. Responda em português.`,
   toolViewMediaIds:
     'IDs das mensagens com a mídia, como aparecem na conversa (ex.: ["#m3", "#m5"])',
   toolViewMediaQuestion: 'O que você quer saber das imagens, se algo específico',
+  toolListenAudio:
+    'Ouve áudios e mensagens de voz que já foram mandados neste chat, pelo ID da conversa (#m12), e devolve o que foi dito. Use quando precisar saber o que alguém falou num áudio anterior ("o que ele disse naquele áudio?", "resume os áudios"). O áudio da mensagem atual (ou da citada) você transcreve com a ferramenta de transcrição.',
+  toolListenAudioIds: 'IDs das mensagens com o áudio, como aparecem na conversa (ex.: ["#m3"])',
+  toolListenAudioQuestion: 'O que você quer saber dos áudios, se algo específico',
   toolReadPdf:
     'Lê PDFs mandados neste chat e devolve o texto, página por página. Use para resumir, explicar ou responder perguntas sobre um PDF ("resume esse PDF", "o que esse PDF fala?", "qual a multa do contrato?"). Sem ids, lê o PDF da mensagem atual e o da citada. Para perguntas seguintes sobre o mesmo PDF, chame de novo com o ID dele. PDF grande volta resumido, com o total de páginas: passe pages para ler um trecho.',
   toolReadPdfIds: 'IDs das mensagens com o PDF, como aparecem na conversa (ex.: ["#m4"])',

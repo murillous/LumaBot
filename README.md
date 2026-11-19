@@ -238,6 +238,7 @@ o app carrega o `metrics`.
 | [`cloudflare-ai`](docs/cloudflare-ai.md) | Provider `cloudflare` no ponto `ai.providers`: os modelos de imagem grátis do Workers AI que o `sticker-edit` usa |
 | [`pdf`](docs/pdf.md) | Imagem → PDF e junção de PDFs: `!pdf`, `!mergepdf` |
 | [`reminders`](docs/reminders.md) | Lembretes agendados: `!lembrete`, `!lembretes`, `!cancelarlembrete`. Oferece o serviço `reminders` e o ponto `reminders.parsers` |
+| [`polls`](docs/polls.md) | Enquetes pela IA: abre e conta os votos (`create_poll`, `poll_results`). Exige a capability `polls` |
 | [`user-names`](docs/user-names.md) | Apelidos e nome de exibição: `!nick`, serviço `userNames` |
 | [`download`](docs/download.md) | Vídeo, foto, áudio e figurinha de links pelo yt-dlp: `!download`, `!audio`, `!downloadsticker` |
 | [`rank`](docs/rank.md) | Ranking de quem mais usa a Luma, contado pelo `usage`: `!rank`, serviço `rank` |

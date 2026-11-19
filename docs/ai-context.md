@@ -5,9 +5,9 @@ rolante, a **memória longa** em blocos e as tools que leem tudo isso pelo ID. N
 responder nem quem o bot é: isso é de quem usa o serviço `aiContext`. Hoje é a
 [`luma`](luma.md); qualquer outro bot sobre o Bridger usa do mesmo jeito.
 
-Depende do [`ai`](ai.md) (`dependsOn: { ai }`): o resumo e o `view_media` chamam o `generate`.
+Depende do [`ai`](ai.md) (`dependsOn: { ai }`): o resumo, o `view_media` e o `listen_audio` chamam o `generate`.
 Código em `src/plugins/ai-context/`: `ai-context.ts` (plugin e serviço), `transcript.ts`,
-`context.ts` (orçamento e resumo), `memory.ts`, `media.ts` (`view_media`), `read-pdf.ts`
+`context.ts` (orçamento e resumo), `memory.ts`, `media.ts` (`view_media`), `listen-audio.ts` (`listen_audio`), `read-pdf.ts`
 (`read_pdf`) e `prompt.ts` (as seções do sistema e as mensagens).
 
 ## Config mínima
@@ -71,6 +71,8 @@ DeepSeek: responde em privado, lendo a fala na transcrição, e fica quieto em g
 | --- | --- | --- |
 | `models` | `[]` | Cadeia do resumo e das tools (o resumo grande da `read_pdf`). Vazio usa a principal do `ai` |
 | `visionModels` | `[]` | Cadeia que enxerga: `view_media` e PDF escaneado. Vazio: `view_media` usa `models`, e o PDF escaneado volta `no-text` |
+| `audioModels` | `[]` | Cadeia que ouve, para o `listen_audio`. Vazio usa `models` |
+| `maxAudioBytes` | `15728640` | Áudio maior que isso o `listen_audio` não manda ao modelo |
 | `history.maxMessages` / `history.maxAgeMs` | `80` / `7200000` | Falas guardadas por chat e por quanto tempo cada uma fica |
 | `history.maxTokens` | `3000` | Tokens estimados da transcrição que vão ao modelo; passando disso, as falas velhas viram resumo |
 | `memory.enabled` | `true` | Desligada, o sistema fica sem a seção de memória e o bot sem `remember` e `forget` |
@@ -78,7 +80,7 @@ DeepSeek: responde em privado, lendo a fala na transcrição, e fica quieto em g
 | `name` | — | Nome do bot no resumo e na transcrição. Sem ele, vale o que quem chama passa (a Luma passa `Luma`), senão o nome da sessão |
 | `timeZone` | `America/Sao_Paulo` | Fuso em que o bot lê a data e a hora |
 | `locale` | `pt-BR` | Locale das datas e horas que o modelo lê (`terça-feira, 17/11/2026`, `16:30`) |
-| `disabledTools` | `[]` | Tools do contexto que o bot não deve ter: `read_messages`, `view_media`, `read_pdf`, `remember`, `forget`, `clear_history` |
+| `disabledTools` | `[]` | Tools do contexto que o bot não deve ter: `read_messages`, `view_media`, `listen_audio`, `read_pdf`, `remember`, `forget`, `clear_history` |
 
 ## `messages`
 
@@ -92,6 +94,7 @@ plataforma nem o nome de bot nenhum. `{nome}` é preenchido na hora.
 | Sistema | `readingGuide` (`{name}`, `{cutMark}`), `memoryGuide`, `memoryHeader`, `memoryChat`, `memoryPerson` (`{name}`) |
 | Resumo | `compactInstructions` (`{name}`, `{maxChars}`), `compactPrevious` (`{summary}`), `compactNone`, `compactNew` (`{lines}`) |
 | `view_media` | `viewInstructions`, `viewLabel` (`{id}`, `{kind}`), `question` (`{question}`) |
+| `listen_audio` | `listenInstructions`; o rótulo e a pergunta são os do `view_media` (`viewLabel`, `question`) |
 | `read_pdf` | `pdfSummarize`, `pdfReadScanned`, `pdfAskPages`, `pdfHeader`, `pdfPage`, `pdfEmptyPage`, `pdfScanned`, `pdfPageCount`, `pdfNoteTruncated`, `pdfNoteSummarized` |
 | Tools | `toolReadMessages`, `toolReadMessagesIds`, `toolViewMedia`, `toolViewMediaIds`, `toolViewMediaQuestion`, `toolReadPdf`, `toolReadPdfIds`, `toolReadPdfPages`, `toolReadPdfQuestion`, `toolRemember`, `toolRememberFact`, `toolForget`, `toolForgetFact`, `toolPerson`, `toolClearHistory` |
 
@@ -264,6 +267,12 @@ Letta.
   parte (`purpose: ai-context.view`, no uso de quem pediu) e devolve só o texto. O modelo da
   conversa pode não ter visão, e a imagem não pesa nos passos seguintes. Mídia que saiu da
   plataforma (`MediaExpiredError`) volta como `expired`.
+- `listen_audio` faz o mesmo com áudios e mensagens de voz: manda-os à cadeia de áudio
+  (`audioModels`, ou `models`) numa chamada à parte (`purpose: ai-context.listen`) e devolve o
+  que foi dito. Nem todo modelo ouve áudio (o DeepSeek não ouve): com a cadeia principal sem
+  áudio, configure `audioModels` com um que ouça (o Gemini). Áudio acima de `maxAudioBytes`
+  (15 MB) volta `too-large` sem ir ao modelo. O áudio da mensagem atual continua com o
+  [`transcribe_audio`](transcribe.md#tool-da-ia).
 - Outras tools usam a mídia pelo serviço (`media(chatId, id)`): o
   [`edit_sticker`](sticker-edit.md#tool-da-ia) junta figurinhas anteriores por ID.
 
@@ -295,6 +304,7 @@ Contribuídas ao ponto `ai.tools` ([ai-tools.md](ai-tools.md)).
 | `forget` | `fact?`, `person?` | Apaga do bloco os fatos que contêm `fact` (sem acento nem caixa); sem `fact`, o bloco inteiro | `unknown-person`, `not-found` (com os fatos do bloco em `detail`) |
 | `read_messages` | `ids` (1 a 10, `#m12`) | Devolve o texto inteiro de falas anteriores do chat pelo ID (a cortada no nível 1, a citada no resumo). Só leitura | `unknown` (com o ID em `detail`) |
 | `view_media` | `ids` (1 a 4, `#m12`), `question?` | Olha imagens ou figurinhas anteriores do chat pelo ID e devolve a descrição. Só leitura | `unknown`, `no-media`, `view-once`, `not-image`, `too-large`, `expired` (com o ID em `detail`) |
+| `listen_audio` | `ids` (1 a 4, `#m12`), `question?` | Ouve áudios ou mensagens de voz anteriores do chat pelo ID e devolve o que foi dito (`transcript`). Só leitura | `unknown`, `no-media`, `view-once`, `not-audio`, `too-large`, `expired` (com o ID em `detail`) |
 | `read_pdf` | `ids?` (até 4, `#m12`), `pages?` (`"3-7"`, `"5"`, `"10-"`), `question?` | Lê PDFs do chat e devolve o texto por página; sem `ids`, o da mensagem e o da citada. Só leitura ([PDF](#pdf)) | `no-pdf`, `unknown`, `no-media`, `view-once`, `not-pdf`, `too-large`, `expired`, `encrypted`, `invalid`, `invalid-pages` (com o total de páginas), `no-text` (com o ID em `detail`) |
 
 ## Auditoria
