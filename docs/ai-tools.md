@@ -74,7 +74,7 @@ expect(toolResult(bot)).toEqual({ ok: true });
 | [`reminders`](reminders.md#tools-da-ia) | `create_reminder`, `list_reminders`, `cancel_reminder` |
 | [`rank`](rank.md#tools-da-ia) | `ranking` |
 | [`luma`](luma.md#tools-da-ia) | `create_persona` |
-| [`ai-context`](ai-context.md#tools-da-ia) | `clear_history`, `read_messages`, `view_media`, `read_pdf`, `remember`, `forget` |
+| [`ai-context`](ai-context.md#tools-da-ia) | `clear_history`, `read_messages`, `view_media`, `listen_audio`, `read_pdf`, `remember`, `forget` |
 | [`web-search`](web-search.md#tool-da-ia) | `search_web` |
 | [`transcribe`](transcribe.md#tool-da-ia) | `transcribe_audio` |
 | [`resumo`](resumo.md#tool-da-ia) | `summarize_chat` |
