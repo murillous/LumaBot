@@ -120,9 +120,12 @@ const config = z.object({
   defaultPersona: z.string().default(DEFAULT_PERSONA),
   /** Personas que cada chat pode criar. */
   maxCustomPersonas: z.number().int().min(0).default(10),
-  /** Balões da resposta: tamanho de cada um e quantos no máximo. */
-  maxPartLength: z.number().int().min(20).default(300),
-  maxParts: z.number().int().min(1).default(2),
+  /**
+   * Balões da resposta. Quantos mandar é decisão do modelo, que usa o mínimo possível:
+   * `maxPartLength` só corta o texto que veio sem `[PARTE]`, e `maxParts` é a trava contra loop.
+   */
+  maxPartLength: z.number().int().min(20).default(1500),
+  maxParts: z.number().int().min(1).default(6),
   /** Espera "digitando" antes de gerar, sorteada entre `min` e `max`; 0 desliga. */
   thinkingDelayMs: z
     .object({
