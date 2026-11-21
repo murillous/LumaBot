@@ -43,13 +43,17 @@ function outsideUrl(text: string, cut: number): number {
 export interface SplitOptions {
   /** Tamanho máximo de cada balão. */
   readonly maxLength: number;
-  /** Balões no máximo; o que passar disso é descartado. */
+  /**
+   * Teto de balões: trava contra modelo em loop inundando o chat, não o estilo da resposta. Nada é
+   * descartado; o que passa do teto vai junto no último balão.
+   */
   readonly maxParts: number;
 }
 
 /**
  * Divide a resposta em balões. O modelo separa com `[PARTE]`; sem o marcador, o texto longo é
- * cortado em pontuação ou quebra de linha perto do limite, nunca no meio de um link.
+ * cortado em pontuação ou quebra de linha perto do limite, nunca no meio de um link. Acima de
+ * `maxParts`, o excedente se junta ao último balão em vez de sumir.
  */
 export function splitIntoParts(text: string, { maxLength, maxParts }: SplitOptions): string[] {
   if (!text) return [];
@@ -57,15 +61,18 @@ export function splitIntoParts(text: string, { maxLength, maxParts }: SplitOptio
   const marked = text
     .split('[PARTE]')
     .map((part) => part.trim())
-    .filter(Boolean)
-    .slice(0, maxParts);
+    .filter(Boolean);
+  if (marked.length > maxParts) {
+    return [...marked.slice(0, maxParts - 1), marked.slice(maxParts - 1).join('\n\n')];
+  }
   if (marked.length > 1) return marked;
   if (text.length <= maxLength) return [text];
 
   const parts: string[] = [];
   let rest = text;
   while (rest.length > 0 && parts.length < maxParts) {
-    if (rest.length <= maxLength) {
+    // No último balão permitido o resto vai inteiro: cortar mais seria perder texto.
+    if (rest.length <= maxLength || parts.length === maxParts - 1) {
       parts.push(rest);
       break;
     }

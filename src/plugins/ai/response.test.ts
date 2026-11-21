@@ -34,8 +34,16 @@ describe('cleanResponse', () => {
 describe('splitIntoParts', () => {
   const opts = { maxLength: 30, maxParts: 2 };
 
-  it('divide pelo marcador [PARTE] e descarta o excedente', () => {
-    expect(splitIntoParts('um[PARTE]dois[PARTE]três', opts)).toEqual(['um', 'dois']);
+  it('divide pelo marcador [PARTE]', () => {
+    expect(splitIntoParts('um[PARTE]dois', opts)).toEqual(['um', 'dois']);
+  });
+
+  it('acima do teto, o excedente marcado vai junto no último balão', () => {
+    expect(splitIntoParts('um[PARTE]dois[PARTE]três', opts)).toEqual(['um', 'dois\n\ntrês']);
+  });
+
+  it('com teto 1, tudo vai num balão só', () => {
+    expect(splitIntoParts('um[PARTE]dois', { ...opts, maxParts: 1 })).toEqual(['um\n\ndois']);
   });
 
   it('com um marcador só e texto curto, devolve o texto como veio', () => {
@@ -71,8 +79,8 @@ describe('splitIntoParts', () => {
     expect(splitIntoParts(`${url} fim`, opts)).toEqual([url, 'fim']);
   });
 
-  it('respeita maxParts mesmo com texto sobrando', () => {
-    expect(splitIntoParts('a'.repeat(200), opts)).toHaveLength(2);
+  it('respeita maxParts sem perder texto: o resto vai inteiro no último balão', () => {
+    expect(splitIntoParts('a'.repeat(200), opts)).toEqual(['a'.repeat(30), 'a'.repeat(170)]);
   });
 
   it('vazio não gera balão', () => {

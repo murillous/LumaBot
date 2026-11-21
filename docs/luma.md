@@ -59,8 +59,8 @@ para a padrão.
 | `!persona criar <descrição>` | A IA gera a persona da descrição (`name`, `description`, `context`, `style`, 3 a 8 `traits`), o chat a ativa e a memória é limpa. JSON malformado tenta uma segunda vez |
 | `!persona deletar <n>` | Apaga uma persona **criada** no chat; as de fábrica são recusadas |
 
-Cada chat pode criar até `maxCustomPersonas` (10). O traço de formato dos balões (`mensagens
-curtas...`) é do sistema e entra em toda persona gerada; o modelo nunca o escreve.
+Cada chat pode criar até `maxCustomPersonas` (10). O traço de formato dos balões (`o mínimo de
+balões...`) é do sistema e entra em toda persona gerada; o modelo nunca o escreve.
 
 ## Auditoria
 
@@ -113,7 +113,7 @@ anterior não vazar para a nova.
 | `visionModels` | `[]` | Cadeia para mensagem com imagem. Vazio usa `models`. O `view_media` e o PDF escaneado usam o `visionModels` do [`ai-context`](ai-context.md#config-mínima) |
 | `defaultPersona` | `pensadora` | Persona de um chat que nunca escolheu |
 | `maxCustomPersonas` | `10` | Personas criadas por chat |
-| `maxPartLength` / `maxParts` | `300` / `2` | Tamanho de cada balão e quantos no máximo |
+| `maxPartLength` / `maxParts` | `1500` / `6` | Quantos balões mandar é decisão do modelo, instruído a usar o mínimo. `maxPartLength` só corta texto que veio sem `[PARTE]`; `maxParts` é a trava contra loop, e o que passa dele vai junto no último balão, nunca é descartado |
 | `thinkingDelayMs` | `{ min: 2000, max: 5000 }` | Espera "digitando" antes de gerar; `0` desliga |
 | `replyTimeoutMs` | `180000` | Prazo da resposta inteira |
 | `boredReplies`, `errorReplies` | frases do legacy | Variantes sorteadas (config, não `messages`, por serem listas) |

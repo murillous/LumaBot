@@ -101,13 +101,23 @@ describe('quando a Luma responde', () => {
     expect(model.doGenerateCalls).toHaveLength(0);
   });
 
-  it('divide a resposta nos balões marcados e limita a quantidade', async () => {
+  it('manda quantos balões o modelo marcou', async () => {
     const b = await start(scripted('mano[PARTE]não acredito[PARTE]sério'));
 
     await b.receive({ text: 'conta' });
 
     const texts = b.sent.flatMap(({ content }) => (content.type === 'text' ? [content.text] : []));
-    expect(texts).toEqual(['mano', 'não acredito']);
+    expect(texts).toEqual(['mano', 'não acredito', 'sério']);
+  });
+
+  it('acima do teto de 6 balões, junta o resto no último sem perder texto', async () => {
+    const marked = Array.from({ length: 8 }, (_, i) => `b${i + 1}`).join('[PARTE]');
+    const b = await start(scripted(marked));
+
+    await b.receive({ text: 'conta' });
+
+    const texts = b.sent.flatMap(({ content }) => (content.type === 'text' ? [content.text] : []));
+    expect(texts).toEqual(['b1', 'b2', 'b3', 'b4', 'b5', 'b6\n\nb7\n\nb8']);
   });
 
   it('chamada sem dizer nada leva uma resposta de tédio, sem gastar a IA', async () => {
