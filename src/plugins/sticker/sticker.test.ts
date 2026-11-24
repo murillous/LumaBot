@@ -312,3 +312,90 @@ it('a figurinha conta no usage de quem pediu', async () => {
     expect.objectContaining({ action: 'sticker', kind: 'media', outcome: 'ok' }),
   ]);
 });
+
+/** MP4 sintético com faixa de vídeo e som (`sine`) para os testes do `!sticker áudio`. */
+async function videoWithAudio(seconds: number): Promise<Buffer> {
+  const { stdout } = await promisify(execFile)(
+    'ffmpeg',
+    [
+      ...[
+        '-loglevel',
+        'error',
+        '-f',
+        'lavfi',
+        '-i',
+        `testsrc2=size=64x64:rate=15:duration=${seconds}`,
+      ],
+      ...['-f', 'lavfi', '-i', `sine=frequency=440:duration=${seconds}`],
+      ...['-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac'],
+      ...['-movflags', 'frag_keyframe+empty_moov', '-f', 'mp4', 'pipe:1'],
+    ],
+    { encoding: 'buffer', maxBuffer: 20 * 1024 * 1024 },
+  );
+  return stdout;
+}
+
+describe('!sticker áudio', () => {
+  it('converte vídeo com som em figurinha animada WebP com sound-sha256 no EXIF e áudio anexado', async () => {
+    const video = await videoWithAudio(2);
+    bot = await createTestBot({ plugins: [stickerPlugin] });
+
+    await bot.receive({ text: '!s áudio', video: { data: video, mimetype: 'video/mp4' } });
+
+    const sticker = sentBytes('sticker');
+    const meta = await sharp(sticker).metadata();
+    expect(meta).toMatchObject({
+      format: 'webp',
+      width: 512,
+      height: 512,
+    });
+    expect(meta.exif?.toString()).toContain('"sound-sha256":');
+  }, 30_000);
+
+  it('aceita áudio sem acento e em maiúsculas respondendo a um vídeo', async () => {
+    const video = await videoWithAudio(2);
+    bot = await createTestBot({ plugins: [stickerPlugin] });
+
+    await bot.receive({
+      text: '!s AUDIO',
+      quoted: { video: { data: video, mimetype: 'video/mp4' } },
+    });
+
+    expect(bot.sent).toContainSticker();
+    expect((await sharp(sentBytes('sticker')).metadata()).exif?.toString()).toContain(
+      '"sound-sha256":',
+    );
+  }, 30_000);
+
+  it('recusa vídeo sem áudio com stickerNoAudio e registra no-audio', async () => {
+    const o = await observedBot([stickerPlugin]);
+    bot = o.bot;
+
+    await bot.receive({ text: '!s áudio', video: fixtures.video() });
+
+    expect(bot.sent).toHaveReplied('❌ Esse vídeo não tem áudio.');
+    expect(o.event('sticker.create.refused')).toMatchObject({
+      kind: 'audio',
+      reason: 'no-audio',
+    });
+  }, 30_000);
+
+  it('sem vídeo, explica o uso', async () => {
+    const expected = 'ℹ️ Responda a um vídeo com !sticker áudio.';
+    bot = await createTestBot({ plugins: [stickerPlugin] });
+
+    await bot.receive({ text: '!s áudio' });
+    expect(bot.sent).toHaveReplied(expected);
+
+    await bot.receive({ text: '!s audio', quoted: { sticker: fixtures.sticker() } });
+    expect(bot.sent).toHaveLength(2);
+    expect(bot.sent.slice(1)).toHaveReplied(expected);
+  });
+
+  it('recusa vídeo de visualização única no modo áudio', async () => {
+    bot = await createTestBot({ plugins: [stickerPlugin] });
+
+    await bot.receive({ text: '!s áudio', video: fixtures.video(), isViewOnce: true });
+    expect(bot.sent).toHaveReplied('ℹ️ Não faço figurinha de mídia de visualização única.');
+  });
+});

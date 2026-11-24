@@ -12,11 +12,20 @@ Código em `src/plugins/sticker/` (`sticker.ts`: comando e serviço; `convert.ts
 | Comando | Entrada | Saída |
 | --- | --- | --- |
 | `!sticker [texto]` / `!s` | Imagem, vídeo, GIF, figurinha ou link | Figurinha 512×512 |
+| `!sticker áudio` / `!s audio` | Vídeo com som | Figurinha animada WebP com áudio nativo (OGG/Opus) de até 10 s |
 
 A mídia vem da própria mensagem ou, na falta, da citada; mídia de visualização única é recusada.
 Com o `sticker-text` carregado, o texto depois do comando (sem o link) vira legenda na
 figurinha estática, até 90 caracteres, com emoji colorido (ver [Legenda](#legenda-sticker-text)).
 Sem ele, o texto é ignorado. Figurinha animada nunca leva legenda.
+
+### Figurinha com áudio (`!sticker áudio`)
+
+O `!sticker áudio` (aceito com ou sem acento, em qualquer caixa) gera uma figurinha animada em
+**WebP** com `"sound-sha256"` no chunk EXIF e envia o som do vídeo (OGG/Opus, até 10 s) no campo
+`audioMessage` (26) do `StickerMessage` via `@usebridger/transport-baileys`. Se o vídeo não tiver
+faixa de áudio, responde `stickerNoAudio` e registra `sticker.create.refused` com
+`reason: 'no-audio'`.
 
 Enquanto converte, o bot reage ⏳ na mensagem e depois ✅ ou ❌; num transport sem `reactions`, a
 reação é ignorada. Erro de conversão vai para o log (`sticker.create.failed`) e o chat recebe
@@ -121,8 +130,8 @@ estejam em `disabledPlugins`; então o `!downloadsticker` responde `stickerUnava
 
 ## FFmpeg
 
-Vídeo → figurinha roda o binário `ffmpeg`, que precisa estar no `PATH` (com `libwebp`, como nos
-builds do apt e do gyan.dev). Figurinha de imagem não depende dele: usa o Sharp. Por isso, sem o
+Vídeo → figurinha roda o binário `ffmpeg`, que precisa estar no `PATH` (com `libwebp`, `libvpx` e
+`libopus`, como nos builds do apt e do gyan.dev). Figurinha de imagem não depende dele: usa o Sharp. Por isso, sem o
 FFmpeg, o plugin sobe mesmo assim: o `setup` só registra o aviso `sticker.ffmpeg.missing` no log. O
 FFmpeg trabalha em arquivos num diretório temporário (`os.tmpdir()`), apagado ao fim de cada
 conversão.
@@ -133,6 +142,7 @@ conversão.
 | --- | --- | --- |
 | Prazo do comando | 60 s | Conversão segura o chat; o padrão do bot é curto para um vídeo |
 | Figurinha de vídeo | 20 s, 15 fps, até 800 KB | Figurinha animada pesada chega, mas não baixa no WhatsApp |
+| Figurinha com áudio | 10 s, até 800 KB | Áudio OGG/Opus embutido na figurinha animada (sound sticker) |
 | Download do link | 5 MB, até 3 redirecionamentos | O link vem de qualquer pessoa no chat |
 
 O link do `!sticker` só é baixado se todos os endereços do host forem públicos: loopback, redes
