@@ -43,12 +43,14 @@ export async function encodeSticker(image: Buffer, pack: StickerPack): Promise<B
 
 /**
  * Vídeo ou GIF → figurinha animada, recortada no centro para 512×512. Falha se nem a tentativa
- * mais leve couber no limite: figurinha que não baixa é pior que o erro.
+ * mais leve couber no limite: figurinha que não baixa é pior que o erro. `maxSeconds` corta a
+ * animação antes das tentativas: a figurinha com áudio não pode durar mais que o som.
  */
 export async function videoToSticker(
   video: Buffer,
   pack: StickerPack,
   signal: AbortSignal,
+  maxSeconds = Number.POSITIVE_INFINITY,
 ): Promise<Buffer> {
   const webp = await withTempDir(async (dir) => {
     const input = join(dir, 'in');
@@ -60,7 +62,7 @@ export async function videoToSticker(
           '-i',
           input,
           '-t',
-          String(seconds),
+          String(Math.min(seconds, maxSeconds)),
           '-vf',
           `scale=${STICKER_SIZE}:${STICKER_SIZE}:force_original_aspect_ratio=increase,crop=${STICKER_SIZE}:${STICKER_SIZE},fps=${fps}`,
           '-c:v',

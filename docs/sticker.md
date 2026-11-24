@@ -25,7 +25,9 @@ O `!sticker áudio` (aceito com ou sem acento, em qualquer caixa) gera uma figur
 **WebP** com `"sound-sha256"` no chunk EXIF e envia o som do vídeo (OGG/Opus, até 10 s) no campo
 `audioMessage` (26) do `StickerMessage` via `@usebridger/transport-baileys`. Se o vídeo não tiver
 faixa de áudio, responde `stickerNoAudio` e registra `sticker.create.refused` com
-`reason: 'no-audio'`.
+`reason: 'no-audio'`. A animação é cortada nos mesmos 10 s do som, e a duração enviada sai da
+última página do OGG (sem `ffprobe`). Num transport sem a capability `send.sticker.audio`, o comando
+responde `stickerAudioUnavailable` antes de converter.
 
 Enquanto converte, o bot reage ⏳ na mensagem e depois ✅ ou ❌; num transport sem `reactions`, a
 reação é ignorada. Erro de conversão vai para o log (`sticker.create.failed`) e o chat recebe
@@ -130,8 +132,8 @@ estejam em `disabledPlugins`; então o `!downloadsticker` responde `stickerUnava
 
 ## FFmpeg
 
-Vídeo → figurinha roda o binário `ffmpeg`, que precisa estar no `PATH` (com `libwebp`, `libvpx` e
-`libopus`, como nos builds do apt e do gyan.dev). Figurinha de imagem não depende dele: usa o Sharp. Por isso, sem o
+Vídeo → figurinha roda o binário `ffmpeg`, que precisa estar no `PATH` (com `libwebp` e `libopus`,
+como nos builds do apt e do gyan.dev). Figurinha de imagem não depende dele: usa o Sharp. Por isso, sem o
 FFmpeg, o plugin sobe mesmo assim: o `setup` só registra o aviso `sticker.ffmpeg.missing` no log. O
 FFmpeg trabalha em arquivos num diretório temporário (`os.tmpdir()`), apagado ao fim de cada
 conversão.

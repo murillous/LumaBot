@@ -4,7 +4,7 @@ import { type ActionSpec, hostOf, trackerFor } from '#plugins/action-metrics.ts'
 import { aiTool, fail, mediaMessage, ok } from '#plugins/ai/tools.ts';
 import { checkBinary } from '#plugins/binary.ts';
 import { attempt, usage } from '#plugins/media-command.ts';
-import { extractAudio, NoAudioError } from './audio-sticker.ts';
+import { AUDIO_STICKER_SECONDS, extractAudio, NoAudioError } from './audio-sticker.ts';
 import { encodeSticker, type StickerPack, toStickerImage, videoToSticker } from './convert.ts';
 import { fetchUrl, UrlFetchError } from './fetch-url.ts';
 import { FFMPEG_MISSING, STICKER_DONE, STICKER_FAILED, STICKER_REFUSED } from './log-events.ts';
@@ -54,6 +54,7 @@ const MESSAGES = {
   stickerViewOnce: 'ℹ️ Não faço figurinha de mídia de visualização única.',
   stickerAudioUsage: 'ℹ️ Responda a um vídeo com {prefix}sticker áudio.',
   stickerNoAudio: '❌ Esse vídeo não tem áudio.',
+  stickerAudioUnavailable: 'ℹ️ Figurinha com áudio não funciona por aqui.',
   urlError: '❌ Não consegui baixar esse link.',
   conversionError: '❌ Erro na conversão',
 };
@@ -190,6 +191,10 @@ export const sticker: PluginDefinition = definePlugin({
         const stickers = plugin.services.get('sticker');
         const track = trackerFor(ACTION, plugin.services);
         if (isAudioMode(ctx.args[0])) {
+          // Sem a capability o kernel recusaria o envio só depois de converter: avisa antes.
+          if (!plugin.capabilities.has('send.sticker.audio')) {
+            return usage('stickerAudioUnavailable')(ctx);
+          }
           const video = mediaMessage(ctx.message, ['video']);
           if (!video) return usage('stickerAudioUsage')(ctx);
           if (video.isViewOnce) return usage('stickerViewOnce')(ctx);
@@ -205,7 +210,7 @@ export const sticker: PluginDefinition = definePlugin({
                 author: ctx.t('stickerAuthor'),
                 soundSha256: audio.sha256,
               };
-              const sticker = await videoToSticker(bytes, pack, ctx.signal);
+              const sticker = await videoToSticker(bytes, pack, ctx.signal, AUDIO_STICKER_SECONDS);
               await ctx.reply.sticker(sticker, {
                 audio: audio.data,
                 audioMimetype: audio.mimetype,

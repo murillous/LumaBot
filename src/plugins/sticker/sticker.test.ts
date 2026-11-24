@@ -1,7 +1,14 @@
 import { execFile } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { promisify } from 'node:util';
 import { definePlugin, PluginBootError, type PluginDefinition } from '@usebridger/core';
-import { createTestBot, fixtures, type SentMediaType, type TestBot } from '@usebridger/testing';
+import {
+  createTestBot,
+  FakeTransport,
+  fixtures,
+  type SentMediaType,
+  type TestBot,
+} from '@usebridger/testing';
 import sharp from 'sharp';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { aiToolsProbe } from '#plugins/ai/tools-probe.ts';
@@ -10,6 +17,7 @@ import { observedBot } from '#plugins/observe-probe.ts';
 import { stickerConvert } from '#plugins/sticker-convert/sticker-convert.ts';
 import { usage } from '#plugins/usage/usage.ts';
 import { usageProbe } from '#plugins/usage/usage-testing.ts';
+import { oggSeconds } from './audio-sticker.ts';
 import { type StickerStep, sticker as stickerPlugin } from './sticker.ts';
 
 // A checagem do FFmpeg é a de verdade (o CI o instala); um teste a faz falhar.
@@ -350,7 +358,45 @@ describe('!sticker áudio', () => {
       height: 512,
     });
     expect(meta.exif?.toString()).toContain('"sound-sha256":');
+    const [sent] = bot.sentMedia('sticker');
+    expect(sent?.content).toMatchObject({
+      audioMimetype: 'audio/ogg; codecs=opus',
+      audioSeconds: 2,
+    });
+    // O hash no EXIF é o do áudio enviado: é por ele que o WhatsApp liga o som à figurinha.
+    const audio = sent?.content.audio;
+    expect(Buffer.isBuffer(audio)).toBe(true);
+    const sha = createHash('sha256')
+      .update(audio as Buffer)
+      .digest('base64');
+    expect(meta.exif?.toString()).toContain(`"sound-sha256":"${sha}"`);
   }, 30_000);
+
+  it('corta a animação e o som em 10 s', async () => {
+    const video = await videoWithAudio(12);
+    bot = await createTestBot({ plugins: [stickerPlugin] });
+
+    await bot.receive({ text: '!s áudio', video: { data: video, mimetype: 'video/mp4' } });
+
+    const [sent] = bot.sentMedia('sticker');
+    expect(sent?.content).toMatchObject({ audioSeconds: 10 });
+    const { delay = [] } = await sharp(sentBytes('sticker'), { animated: true }).metadata();
+    expect(delay.reduce((a, b) => a + b, 0)).toBeLessThanOrEqual(10_000);
+  }, 60_000);
+
+  it('sem a capability send.sticker.audio, avisa antes de converter', async () => {
+    bot = await createTestBot({
+      plugins: [stickerPlugin],
+      transport: new FakeTransport({
+        capabilities: ['send.text', 'send.sticker', 'media.download', 'quoted'],
+      }),
+    });
+
+    await bot.receive({ text: '!s áudio', video: fixtures.video() });
+
+    expect(bot.sent).toHaveReplied('ℹ️ Figurinha com áudio não funciona por aqui.');
+    expect(bot.sent).not.toContainSticker();
+  });
 
   it('aceita áudio sem acento e em maiúsculas respondendo a um vídeo', async () => {
     const video = await videoWithAudio(2);
@@ -397,5 +443,27 @@ describe('!sticker áudio', () => {
 
     await bot.receive({ text: '!s áudio', video: fixtures.video(), isViewOnce: true });
     expect(bot.sent).toHaveReplied('ℹ️ Não faço figurinha de mídia de visualização única.');
+  });
+});
+
+describe('oggSeconds', () => {
+  /** Página OGG mínima: só o cabeçalho, com a granule position dada. */
+  function oggPage(granule: bigint): Buffer {
+    const page = Buffer.alloc(27);
+    page.write('OggS', 0, 'latin1');
+    page.writeBigInt64LE(granule, 6);
+    return page;
+  }
+
+  it('lê a duração da última página, descontando o pre-skip do OpusHead', () => {
+    const head = Buffer.alloc(19);
+    head.write('OpusHead', 0, 'latin1');
+    head.writeUInt16LE(48_000, 10);
+    expect(oggSeconds(Buffer.concat([oggPage(0n), head, oggPage(48_000n * 3n)]))).toBe(2);
+    expect(oggSeconds(Buffer.concat([oggPage(0n), oggPage(48_000n * 3n)]))).toBe(3);
+  });
+
+  it('sem página OGG, cai em 1 s', () => {
+    expect(oggSeconds(Buffer.from('nada'))).toBe(1);
   });
 });

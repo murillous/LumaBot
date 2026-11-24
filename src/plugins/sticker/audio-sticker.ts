@@ -1,14 +1,10 @@
 // Figurinha com áudio nativo do WhatsApp (`!sticker áudio`): WebP (com `"sound-sha256"` no EXIF)
 // + `AudioMessage` (OGG/Opus) no campo 26 do `StickerMessage`.
 
-import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { promisify } from 'node:util';
 import { ffmpeg, withTempDir } from '#plugins/ffmpeg.ts';
-
-const execFileAsync = promisify(execFile);
 
 /** Teto da figurinha com áudio (10 s). */
 export const AUDIO_STICKER_SECONDS = 10;
@@ -62,22 +58,21 @@ export async function extractAudio(video: Buffer, signal: AbortSignal): Promise<
     }
     const data = await readFile(output);
     const sha256 = createHash('sha256').update(data).digest('base64');
-    const seconds = await probeSeconds(output, signal);
+    const seconds = oggSeconds(data);
     return { data, sha256, seconds, mimetype: 'audio/ogg; codecs=opus' };
   });
 }
 
-/** Duração em segundos pelo `ffprobe`; sem ele, devolve `1` como fallback explícito. */
-async function probeSeconds(file: string, signal: AbortSignal): Promise<number> {
-  try {
-    const { stdout } = await execFileAsync(
-      'ffprobe',
-      ['-v', 'error', '-show_entries', 'format=duration', '-of', 'default=nw=1:nk=1', file],
-      { signal },
-    );
-    const parsed = Number.parseFloat(stdout.trim());
-    return Number.isFinite(parsed) && parsed > 0 ? Math.max(1, Math.round(parsed)) : 1;
-  } catch {
-    return 1;
-  }
+/**
+ * Duração do OGG/Opus pela última página: a granule position (int64 LE no byte 6 do cabeçalho
+ * `OggS`) conta amostras a 48 kHz, somadas ao pre-skip do `OpusHead` (uint16 LE no byte 10). Lê
+ * dos bytes para não depender do `ffprobe`; nunca dá menos de 1 s, que o WhatsApp mostra.
+ */
+export function oggSeconds(ogg: Buffer): number {
+  const page = ogg.lastIndexOf('OggS');
+  if (page < 0 || page + 14 > ogg.length) return 1;
+  const head = ogg.indexOf('OpusHead');
+  const preSkip = head >= 0 && head + 12 <= ogg.length ? ogg.readUInt16LE(head + 10) : 0;
+  const samples = Number(ogg.readBigInt64LE(page + 6)) - preSkip;
+  return Math.max(1, Math.min(AUDIO_STICKER_SECONDS, Math.round(samples / 48_000)));
 }
