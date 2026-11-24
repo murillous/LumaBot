@@ -6,8 +6,8 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { ffmpeg, withTempDir } from '#plugins/ffmpeg.ts';
 
-/** Teto da figurinha com áudio (10 s). */
-export const AUDIO_STICKER_SECONDS = 10;
+/** Teto da figurinha com áudio, o mesmo da figurinha de vídeo. */
+export const AUDIO_STICKER_SECONDS = 20;
 
 /** O vídeo veio sem faixa de áudio: recusa, não é falha do bot. */
 export class NoAudioError extends Error {
@@ -25,10 +25,14 @@ export interface ExtractedAudio {
 }
 
 /**
- * Extrai a faixa de áudio de um vídeo como OGG/Opus, limitado a `AUDIO_STICKER_SECONDS`.
+ * Extrai a faixa de áudio de um vídeo como OGG/Opus, cortada em `maxSeconds`.
  * Lança `NoAudioError` se o vídeo não tiver som.
  */
-export async function extractAudio(video: Buffer, signal: AbortSignal): Promise<ExtractedAudio> {
+export async function extractAudio(
+  video: Buffer,
+  signal: AbortSignal,
+  maxSeconds = AUDIO_STICKER_SECONDS,
+): Promise<ExtractedAudio> {
   return withTempDir(async (dir) => {
     const input = join(dir, 'in');
     const output = join(dir, 'out.ogg');
@@ -41,7 +45,7 @@ export async function extractAudio(video: Buffer, signal: AbortSignal): Promise<
           '-map',
           '0:a:0',
           '-t',
-          String(AUDIO_STICKER_SECONDS),
+          String(maxSeconds),
           '-vn',
           ...['-map_metadata', '-1', '-avoid_negative_ts', 'make_zero'],
           ...['-c:a', 'libopus', '-b:a', '64k', '-ac', '1', '-ar', '48000'],

@@ -322,7 +322,7 @@ it('a figurinha conta no usage de quem pediu', async () => {
 });
 
 /** MP4 sintético com faixa de vídeo e som (`sine`) para os testes do `!sticker áudio`. */
-async function videoWithAudio(seconds: number): Promise<Buffer> {
+async function videoWithAudio(seconds: number, source = 'testsrc2'): Promise<Buffer> {
   const { stdout } = await promisify(execFile)(
     'ffmpeg',
     [
@@ -332,7 +332,7 @@ async function videoWithAudio(seconds: number): Promise<Buffer> {
         '-f',
         'lavfi',
         '-i',
-        `testsrc2=size=64x64:rate=15:duration=${seconds}`,
+        `${source}=size=64x64:rate=15:duration=${seconds}`,
       ],
       ...['-f', 'lavfi', '-i', `sine=frequency=440:duration=${seconds}`],
       ...['-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac'],
@@ -372,16 +372,35 @@ describe('!sticker áudio', () => {
     expect(meta.exif?.toString()).toContain(`"sound-sha256":"${sha}"`);
   }, 30_000);
 
-  it('corta a animação e o som em 10 s', async () => {
-    const video = await videoWithAudio(12);
+  /** Soma dos atrasos dos quadros da figurinha animada, em ms. */
+  async function animationMs(sticker: Buffer): Promise<number> {
+    const { delay = [] } = await sharp(sticker, { animated: true }).metadata();
+    return delay.reduce((a, b) => a + b, 0);
+  }
+
+  it('corta a animação e o som em 20 s', async () => {
+    // Cor sólida: a primeira tentativa (20 s) cabe no limite.
+    const video = await videoWithAudio(22, 'color');
     bot = await createTestBot({ plugins: [stickerPlugin] });
 
     await bot.receive({ text: '!s áudio', video: { data: video, mimetype: 'video/mp4' } });
 
     const [sent] = bot.sentMedia('sticker');
-    expect(sent?.content).toMatchObject({ audioSeconds: 10 });
-    const { delay = [] } = await sharp(sentBytes('sticker'), { animated: true }).metadata();
-    expect(delay.reduce((a, b) => a + b, 0)).toBeLessThanOrEqual(10_000);
+    expect(sent?.content).toMatchObject({ audioSeconds: 20 });
+    expect(await animationMs(sentBytes('sticker'))).toBeLessThanOrEqual(20_000);
+  }, 60_000);
+
+  it('vídeo pesado cai numa tentativa mais curta e o som acompanha', async () => {
+    // O `testsrc2` de 22 s passa de 800 KB nas tentativas mais longas.
+    const video = await videoWithAudio(22);
+    bot = await createTestBot({ plugins: [stickerPlugin] });
+
+    await bot.receive({ text: '!s áudio', video: { data: video, mimetype: 'video/mp4' } });
+
+    const [sent] = bot.sentMedia('sticker');
+    const seconds = sent?.content.audioSeconds ?? 0;
+    expect(seconds).toBeLessThan(20);
+    expect(Math.abs((await animationMs(sentBytes('sticker'))) - seconds * 1000)).toBeLessThan(1000);
   }, 60_000);
 
   it('sem a capability send.sticker.audio, avisa antes de converter', async () => {

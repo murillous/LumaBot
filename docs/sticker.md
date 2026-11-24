@@ -12,7 +12,7 @@ Código em `src/plugins/sticker/` (`sticker.ts`: comando e serviço; `convert.ts
 | Comando | Entrada | Saída |
 | --- | --- | --- |
 | `!sticker [texto]` / `!s` | Imagem, vídeo, GIF, figurinha ou link | Figurinha 512×512 |
-| `!sticker áudio` / `!s audio` | Vídeo com som | Figurinha animada WebP com áudio nativo (OGG/Opus) de até 10 s |
+| `!sticker áudio` / `!s audio` | Vídeo com som | Figurinha animada WebP com áudio nativo (OGG/Opus) de até 20 s |
 
 A mídia vem da própria mensagem ou, na falta, da citada; mídia de visualização única é recusada.
 Com o `sticker-text` carregado, o texto depois do comando (sem o link) vira legenda na
@@ -22,10 +22,11 @@ Sem ele, o texto é ignorado. Figurinha animada nunca leva legenda.
 ### Figurinha com áudio (`!sticker áudio`)
 
 O `!sticker áudio` (aceito com ou sem acento, em qualquer caixa) gera uma figurinha animada em
-**WebP** com `"sound-sha256"` no chunk EXIF e envia o som do vídeo (OGG/Opus, até 10 s) no campo
+**WebP** com `"sound-sha256"` no chunk EXIF e envia o som do vídeo (OGG/Opus, até 20 s) no campo
 `audioMessage` (26) do `StickerMessage` via `@usebridger/transport-baileys`. Se o vídeo não tiver
 faixa de áudio, responde `stickerNoAudio` e registra `sticker.create.refused` com
-`reason: 'no-audio'`. A animação é cortada nos mesmos 10 s do som, e a duração enviada sai da
+`reason: 'no-audio'`. O som acompanha a animação: se o vídeo é pesado e a figurinha cai numa tentativa mais curta
+(ver [Limites](#limites)), o áudio é cortado na mesma duração, e a duração enviada sai da
 última página do OGG (sem `ffprobe`). Num transport sem a capability `send.sticker.audio`, o comando
 responde `stickerAudioUnavailable` antes de converter.
 
@@ -144,7 +145,7 @@ conversão.
 | --- | --- | --- |
 | Prazo do comando | 60 s | Conversão segura o chat; o padrão do bot é curto para um vídeo |
 | Figurinha de vídeo | 20 s, 15 fps, até 800 KB | Figurinha animada pesada chega, mas não baixa no WhatsApp |
-| Figurinha com áudio | 10 s, até 800 KB | Áudio OGG/Opus embutido na figurinha animada (sound sticker) |
+| Figurinha com áudio | 20 s, até 800 KB | Áudio OGG/Opus embutido na figurinha animada (sound sticker) |
 | Download do link | 5 MB, até 3 redirecionamentos | O link vem de qualquer pessoa no chat |
 
 O link do `!sticker` só é baixado se todos os endereços do host forem públicos: loopback, redes

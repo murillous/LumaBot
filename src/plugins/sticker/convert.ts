@@ -43,32 +43,49 @@ export async function encodeSticker(image: Buffer, pack: StickerPack): Promise<B
 
 /**
  * Vídeo ou GIF → figurinha animada, recortada no centro para 512×512. Falha se nem a tentativa
- * mais leve couber no limite: figurinha que não baixa é pior que o erro. `maxSeconds` corta a
- * animação antes das tentativas: a figurinha com áudio não pode durar mais que o som.
+ * mais leve couber no limite: figurinha que não baixa é pior que o erro.
  */
 export async function videoToSticker(
   video: Buffer,
   pack: StickerPack,
   signal: AbortSignal,
-  maxSeconds = Number.POSITIVE_INFINITY,
 ): Promise<Buffer> {
-  const webp = await withTempDir(async (dir) => {
+  return withStickerExif((await animateVideo(video, signal)).webp, pack);
+}
+
+/** Animação WebP ainda sem o EXIF e o teto de duração da tentativa que coube no limite. */
+export interface Animation {
+  readonly webp: Buffer;
+  readonly seconds: number;
+}
+
+/**
+ * As tentativas de `STICKER_ATTEMPTS`, cada uma cortada em `maxSeconds`. Devolve também a duração
+ * da que coube: a figurinha com áudio corta o som nela, que pode ser menor que `maxSeconds`.
+ */
+export async function animateVideo(
+  video: Buffer,
+  signal: AbortSignal,
+  maxSeconds = Number.POSITIVE_INFINITY,
+): Promise<Animation> {
+  return withTempDir(async (dir) => {
     const input = join(dir, 'in');
     const output = join(dir, 'out.webp');
     await writeFile(input, video);
-    for (const { quality, seconds, fps } of STICKER_ATTEMPTS) {
+    for (const attempt of STICKER_ATTEMPTS) {
+      const seconds = Math.min(attempt.seconds, maxSeconds);
       await ffmpeg(
         [
           '-i',
           input,
           '-t',
-          String(Math.min(seconds, maxSeconds)),
+          String(seconds),
           '-vf',
-          `scale=${STICKER_SIZE}:${STICKER_SIZE}:force_original_aspect_ratio=increase,crop=${STICKER_SIZE}:${STICKER_SIZE},fps=${fps}`,
+          `scale=${STICKER_SIZE}:${STICKER_SIZE}:force_original_aspect_ratio=increase,crop=${STICKER_SIZE}:${STICKER_SIZE},fps=${attempt.fps}`,
           '-c:v',
           'libwebp',
           '-quality',
-          String(quality),
+          String(attempt.quality),
           '-loop',
           '0',
           '-an',
@@ -77,20 +94,19 @@ export async function videoToSticker(
         signal,
       );
       const webp = await readFile(output);
-      if (webp.length <= STICKER_MAX_BYTES) return webp;
+      if (webp.length <= STICKER_MAX_BYTES) return { webp, seconds };
     }
     throw new Error(
       `figurinha animada passa de ${STICKER_MAX_BYTES} bytes mesmo na tentativa mais leve`,
     );
   });
-  return withStickerExif(webp, pack);
 }
 
 /**
  * O WhatsApp lê nome e autor do pacote num JSON dentro do chunk EXIF do WebP, na tag 0x5741
  * de um IFD de uma entrada só.
  */
-async function withStickerExif(webp: Buffer, pack: StickerPack): Promise<Buffer> {
+export async function withStickerExif(webp: Buffer, pack: StickerPack): Promise<Buffer> {
   const json = Buffer.from(
     JSON.stringify({
       'sticker-pack-id': 'com.luma.bot',

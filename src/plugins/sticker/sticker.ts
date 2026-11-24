@@ -5,7 +5,14 @@ import { aiTool, fail, mediaMessage, ok } from '#plugins/ai/tools.ts';
 import { checkBinary } from '#plugins/binary.ts';
 import { attempt, usage } from '#plugins/media-command.ts';
 import { AUDIO_STICKER_SECONDS, extractAudio, NoAudioError } from './audio-sticker.ts';
-import { encodeSticker, type StickerPack, toStickerImage, videoToSticker } from './convert.ts';
+import {
+  animateVideo,
+  encodeSticker,
+  type StickerPack,
+  toStickerImage,
+  videoToSticker,
+  withStickerExif,
+} from './convert.ts';
 import { fetchUrl, UrlFetchError } from './fetch-url.ts';
 import { FFMPEG_MISSING, STICKER_DONE, STICKER_FAILED, STICKER_REFUSED } from './log-events.ts';
 
@@ -204,13 +211,18 @@ export const sticker: PluginDefinition = definePlugin({
             'audio',
             async (step) => {
               const bytes = await video.media.download();
-              const audio = await extractAudio(bytes, ctx.signal);
-              const pack: StickerPack = {
+              // O áudio primeiro: vídeo sem som é recusado antes da conversão cara.
+              let audio = await extractAudio(bytes, ctx.signal);
+              const animation = await animateVideo(bytes, ctx.signal, AUDIO_STICKER_SECONDS);
+              // Vídeo pesado cai numa tentativa mais curta; o som acompanha a animação.
+              if (animation.seconds < audio.seconds) {
+                audio = await extractAudio(bytes, ctx.signal, animation.seconds);
+              }
+              const sticker = await withStickerExif(animation.webp, {
                 name: ctx.t('stickerPack'),
                 author: ctx.t('stickerAuthor'),
                 soundSha256: audio.sha256,
-              };
-              const sticker = await videoToSticker(bytes, pack, ctx.signal, AUDIO_STICKER_SECONDS);
+              });
               await ctx.reply.sticker(sticker, {
                 audio: audio.data,
                 audioMimetype: audio.mimetype,
