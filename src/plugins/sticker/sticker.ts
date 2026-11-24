@@ -6,7 +6,7 @@ import { checkBinary } from '#plugins/binary.ts';
 import { attempt, usage } from '#plugins/media-command.ts';
 import { AUDIO_STICKER_SECONDS, extractAudio, NoAudioError } from './audio-sticker.ts';
 import {
-  animateVideo,
+  animateToFit,
   encodeSticker,
   type StickerPack,
   toStickerImage,
@@ -254,7 +254,7 @@ export const sticker: PluginDefinition = definePlugin({
           async (step) => {
             const bytes = await video.download();
             // A animação primeiro: o som é cortado na duração real dela, ao milissegundo.
-            const animation = await animateVideo(bytes, ctx.signal, AUDIO_STICKER_SECONDS);
+            const animation = await animateToFit(bytes, ctx.signal, AUDIO_STICKER_SECONDS);
             const audio = await extractAudio(bytes, ctx.signal, animation.ms);
             const sticker = await withStickerExif(animation.webp, {
               name: ctx.t('stickerPack'),

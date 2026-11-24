@@ -34,8 +34,7 @@ Som e animação ficam em sincronia:
   depois da de vídeo (comum em gravação de celular), o som ganha silêncio no começo; se é o vídeo
   que começa depois, o primeiro quadro cobre o intervalo.
 - **Mesma duração.** A animação é convertida primeiro, e o áudio é cortado (ou completado com
-  silêncio) na duração real dela, ao milissegundo. Vale também quando o vídeo é pesado e a
-  figurinha cai numa tentativa mais curta (ver [Limites](#limites)).
+  silêncio) na duração real dela, ao milissegundo.
 
 A duração enviada ao WhatsApp, em segundos inteiros, sai da última página do OGG (sem `ffprobe`).
 
@@ -154,7 +153,7 @@ conversão.
 | --- | --- | --- |
 | Prazo do comando | 60 s | Conversão segura o chat; o padrão do bot é curto para um vídeo |
 | Figurinha de vídeo | 20 s, 15 fps, até 800 KB | Figurinha animada pesada chega, mas não baixa no WhatsApp |
-| Figurinha com áudio | 20 s, até 800 KB | Áudio OGG/Opus embutido na figurinha animada (sound sticker) |
+| Figurinha com áudio | 20 s, 4 a 15 fps, até 800 KB | O som toca inteiro: fps e qualidade se ajustam ao vídeo |
 | Download do link | 5 MB, até 3 redirecionamentos | O link vem de qualquer pessoa no chat |
 
 O link do `!sticker` só é baixado se todos os endereços do host forem públicos: loopback, redes
@@ -165,6 +164,19 @@ Vídeo nítido (como os do `!download`) passa fácil de 800 KB. A figurinha é r
 duração e fps menores até caber: 75/20 s/15 fps, 50/10 s/15 fps, 40/8 s/12 fps, 30/6 s/10 fps e
 20/4 s/10 fps. Se nem a última cabe, o comando responde erro de conversão em vez de mandar uma
 figurinha que não baixa.
+
+A figurinha com áudio (`!sa`) não encurta primeiro: o som precisa tocar inteiro. O plano é
+dinâmico, pelo peso de cada vídeo:
+
+1. Três amostras a 2 fps do vídeo inteiro (até 20 s), nas qualidades 50, 30 e 15, dão o peso médio
+   por quadro de cada uma. O peso cresce linear com o fps, então a amostra prevê o resultado.
+2. Com um orçamento de 92% dos 800 KB, escolhe a melhor qualidade que ainda dá 8 fps (até 15).
+   Se nenhuma dá, usa a qualidade 15 no maior fps que couber.
+3. Só se nem 4 fps cabem, encurta a figurinha (e o som) até caber a 4 fps.
+4. Se o resultado ainda passar do limite, replaneja com o peso medido nele (até 3 vezes).
+
+Um vídeo de celular de 15 s (720×1280) sai inteiro a 4 fps em uns 3 s de conversão; um vídeo leve
+sai a 15 fps na qualidade 50.
 
 O `!sticker` roda fora da fila do chat (`background`): as outras mensagens do chat não esperam a
 conversão.

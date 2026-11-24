@@ -21,6 +21,7 @@ import { stickerConvert } from '#plugins/sticker-convert/sticker-convert.ts';
 import { usage } from '#plugins/usage/usage.ts';
 import { usageProbe } from '#plugins/usage/usage-testing.ts';
 import { oggMs, oggSeconds } from './audio-sticker.ts';
+import { planFit } from './convert.ts';
 import { type StickerStep, sticker as stickerPlugin } from './sticker.ts';
 
 // A checagem do FFmpeg é a de verdade (o CI o instala); um teste a faz falhar.
@@ -426,17 +427,21 @@ describe('!sa', () => {
     expect(await animationMs(sentBytes('sticker'))).toBeLessThanOrEqual(20_000);
   }, 60_000);
 
-  it('vídeo pesado cai numa tentativa mais curta e o som acompanha', async () => {
-    // O `testsrc2` de 22 s passa de 800 KB nas tentativas mais longas.
+  it('vídeo pesado mantém os 20 s com menos quadros por segundo, e o som acompanha', async () => {
+    // O `testsrc2` de 22 s a 15 fps passa de 800 KB: o plano desce o fps em vez de encurtar.
     const video = await videoWithAudio(22);
     bot = await createTestBot({ plugins: [stickerPlugin] });
 
     await bot.receive({ text: '!sa', video: { data: video, mimetype: 'video/mp4' } });
 
     const [sent] = bot.sentMedia('sticker');
-    expect(sent?.content.audioSeconds).toBeLessThan(20);
+    const sticker = sentBytes('sticker');
+    expect(sticker.length).toBeLessThanOrEqual(800 * 1024);
+    expect(sent?.content.audioSeconds).toBe(20);
+    const { pages = 0 } = await sharp(sticker, { animated: true }).metadata();
+    expect(pages).toBeLessThan(20 * 15);
     // O som dura o mesmo que a animação, à precisão de um quadro Opus (20 ms).
-    const ms = await animationMs(sentBytes('sticker'));
+    const ms = await animationMs(sticker);
     expect(Math.abs(oggMs(sent?.content.audio as Buffer) - ms)).toBeLessThanOrEqual(20);
   }, 60_000);
 
@@ -536,5 +541,38 @@ describe('oggSeconds', () => {
 
   it('sem página OGG, cai em 1 s', () => {
     expect(oggSeconds(Buffer.from('nada'))).toBe(1);
+  });
+});
+
+describe('planFit', () => {
+  // Pesos por quadro medidos num vídeo de celular de 15 s, 720×1280, nas três qualidades.
+  const phone = [
+    { quality: 50, bytesPerFrame: 19_758 },
+    { quality: 30, bytesPerFrame: 15_677 },
+    { quality: 15, bytesPerFrame: 12_000 },
+  ];
+
+  it('vídeo leve sai na melhor qualidade a 15 fps', () => {
+    expect(planFit([{ quality: 50, bytesPerFrame: 2_000 }], 20)).toEqual({
+      quality: 50,
+      fps: 15,
+      seconds: 20,
+    });
+  });
+
+  it('desce a qualidade antes de descer de 8 fps', () => {
+    // Em 5 s, a qualidade 50 só daria 7 fps; a 30 dá 9.
+    expect(planFit(phone, 5)).toEqual({ quality: 30, fps: 9, seconds: 5 });
+  });
+
+  it('vídeo de celular pesado mantém a duração na qualidade mais leve', () => {
+    expect(planFit(phone, 15)).toEqual({ quality: 15, fps: 4, seconds: 15 });
+  });
+
+  it('só encurta quando nem 4 fps cabem', () => {
+    const plan = planFit(phone, 20);
+    expect(plan).toMatchObject({ quality: 15, fps: 4 });
+    expect(plan.seconds).toBeLessThan(20);
+    expect(12_000 * plan.fps * plan.seconds).toBeLessThanOrEqual(800 * 1024);
   });
 });
