@@ -321,7 +321,7 @@ it('a figurinha conta no usage de quem pediu', async () => {
   ]);
 });
 
-/** MP4 sintético com faixa de vídeo e som (`sine`) para os testes do `!sticker áudio`. */
+/** MP4 sintético com faixa de vídeo e som (`sine`) para os testes do `!sa`. */
 async function videoWithAudio(seconds: number, source = 'testsrc2'): Promise<Buffer> {
   const { stdout } = await promisify(execFile)(
     'ffmpeg',
@@ -343,12 +343,12 @@ async function videoWithAudio(seconds: number, source = 'testsrc2'): Promise<Buf
   return stdout;
 }
 
-describe('!sticker áudio', () => {
+describe('!sa', () => {
   it('converte vídeo com som em figurinha animada WebP com sound-sha256 no EXIF e áudio anexado', async () => {
     const video = await videoWithAudio(2);
     bot = await createTestBot({ plugins: [stickerPlugin] });
 
-    await bot.receive({ text: '!s áudio', video: { data: video, mimetype: 'video/mp4' } });
+    await bot.receive({ text: '!sa', video: { data: video, mimetype: 'video/mp4' } });
 
     const sticker = sentBytes('sticker');
     const meta = await sharp(sticker).metadata();
@@ -383,7 +383,7 @@ describe('!sticker áudio', () => {
     const video = await videoWithAudio(22, 'color');
     bot = await createTestBot({ plugins: [stickerPlugin] });
 
-    await bot.receive({ text: '!s áudio', video: { data: video, mimetype: 'video/mp4' } });
+    await bot.receive({ text: '!sa', video: { data: video, mimetype: 'video/mp4' } });
 
     const [sent] = bot.sentMedia('sticker');
     expect(sent?.content).toMatchObject({ audioSeconds: 20 });
@@ -395,7 +395,7 @@ describe('!sticker áudio', () => {
     const video = await videoWithAudio(22);
     bot = await createTestBot({ plugins: [stickerPlugin] });
 
-    await bot.receive({ text: '!s áudio', video: { data: video, mimetype: 'video/mp4' } });
+    await bot.receive({ text: '!sa', video: { data: video, mimetype: 'video/mp4' } });
 
     const [sent] = bot.sentMedia('sticker');
     const seconds = sent?.content.audioSeconds ?? 0;
@@ -411,18 +411,18 @@ describe('!sticker áudio', () => {
       }),
     });
 
-    await bot.receive({ text: '!s áudio', video: fixtures.video() });
+    await bot.receive({ text: '!sa', video: fixtures.video() });
 
     expect(bot.sent).toHaveReplied('ℹ️ Figurinha com áudio não funciona por aqui.');
     expect(bot.sent).not.toContainSticker();
   });
 
-  it('aceita áudio sem acento e em maiúsculas respondendo a um vídeo', async () => {
+  it('pelo nome inteiro, respondendo a um vídeo', async () => {
     const video = await videoWithAudio(2);
     bot = await createTestBot({ plugins: [stickerPlugin] });
 
     await bot.receive({
-      text: '!s AUDIO',
+      text: '!stickeraudio',
       quoted: { video: { data: video, mimetype: 'video/mp4' } },
     });
 
@@ -436,7 +436,7 @@ describe('!sticker áudio', () => {
     const o = await observedBot([stickerPlugin]);
     bot = o.bot;
 
-    await bot.receive({ text: '!s áudio', video: fixtures.video() });
+    await bot.receive({ text: '!sa', video: fixtures.video() });
 
     expect(bot.sent).toHaveReplied('❌ Esse vídeo não tem áudio.');
     expect(o.event('sticker.create.refused')).toMatchObject({
@@ -446,13 +446,13 @@ describe('!sticker áudio', () => {
   }, 30_000);
 
   it('sem vídeo, explica o uso', async () => {
-    const expected = 'ℹ️ Responda a um vídeo com !sticker áudio.';
+    const expected = 'ℹ️ Responda a um vídeo com som com !sa.';
     bot = await createTestBot({ plugins: [stickerPlugin] });
 
-    await bot.receive({ text: '!s áudio' });
+    await bot.receive({ text: '!sa' });
     expect(bot.sent).toHaveReplied(expected);
 
-    await bot.receive({ text: '!s audio', quoted: { sticker: fixtures.sticker() } });
+    await bot.receive({ text: '!sa', quoted: { sticker: fixtures.sticker() } });
     expect(bot.sent).toHaveLength(2);
     expect(bot.sent.slice(1)).toHaveReplied(expected);
   });
@@ -460,7 +460,7 @@ describe('!sticker áudio', () => {
   it('recusa vídeo de visualização única no modo áudio', async () => {
     bot = await createTestBot({ plugins: [stickerPlugin] });
 
-    await bot.receive({ text: '!s áudio', video: fixtures.video(), isViewOnce: true });
+    await bot.receive({ text: '!sa', video: fixtures.video(), isViewOnce: true });
     expect(bot.sent).toHaveReplied('ℹ️ Não faço figurinha de mídia de visualização única.');
   });
 });

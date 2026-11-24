@@ -12,16 +12,16 @@ Código em `src/plugins/sticker/` (`sticker.ts`: comando e serviço; `convert.ts
 | Comando | Entrada | Saída |
 | --- | --- | --- |
 | `!sticker [texto]` / `!s` | Imagem, vídeo, GIF, figurinha ou link | Figurinha 512×512 |
-| `!sticker áudio` / `!s audio` | Vídeo com som | Figurinha animada WebP com áudio nativo (OGG/Opus) de até 20 s |
+| `!stickeraudio` / `!sa` | Vídeo com som | Figurinha animada WebP com áudio nativo (OGG/Opus) de até 20 s |
 
 A mídia vem da própria mensagem ou, na falta, da citada; mídia de visualização única é recusada.
 Com o `sticker-text` carregado, o texto depois do comando (sem o link) vira legenda na
 figurinha estática, até 90 caracteres, com emoji colorido (ver [Legenda](#legenda-sticker-text)).
 Sem ele, o texto é ignorado. Figurinha animada nunca leva legenda.
 
-### Figurinha com áudio (`!sticker áudio`)
+### Figurinha com áudio (`!sa`)
 
-O `!sticker áudio` (aceito com ou sem acento, em qualquer caixa) gera uma figurinha animada em
+O `!sa` (ou `!stickeraudio`), na mensagem do vídeo ou respondendo a ele, gera uma figurinha animada em
 **WebP** com `"sound-sha256"` no chunk EXIF e envia o som do vídeo (OGG/Opus, até 20 s) no campo
 `audioMessage` (26) do `StickerMessage` via `@usebridger/transport-baileys`. Se o vídeo não tiver
 faixa de áudio, responde `stickerNoAudio` e registra `sticker.create.refused` com

@@ -34,6 +34,7 @@ e o roadmap vivem no `usebridger`: bug ou feature do Bridger vai para lá.
 | --- | --- |
 | Conversa | Responde em PV e, nos grupos, quando citada, chamada ou mencionada. Troca de persona com `!persona` |
 | `!sticker` (`!s`) | Figurinha de imagem, vídeo, GIF ou link, com legenda opcional |
+| `!stickeraudio` (`!sa`) | Figurinha animada com o som do vídeo, até 20 s |
 | `!image` / `!gif` | Figurinha de volta a imagem ou vídeo |
 | `!editar` (`!edit`) | Edita uma figurinha com IA (grátis, pelo Cloudflare) |
 | `!transcribe` (`!t`) | Transcreve o áudio |

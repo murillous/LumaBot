@@ -1,4 +1,4 @@
-// Figurinha com áudio nativo do WhatsApp (`!sticker áudio`): WebP (com `"sound-sha256"` no EXIF)
+// Figurinha com áudio nativo do WhatsApp (`!sa`): WebP (com `"sound-sha256"` no EXIF)
 // + `AudioMessage` (OGG/Opus) no campo 26 do `StickerMessage`.
 
 import { createHash } from 'node:crypto';

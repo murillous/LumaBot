@@ -59,7 +59,7 @@ const MESSAGES = {
   stickerAuthor: 'Criado com ❤️ por LumaBot',
   stickerUsage: 'ℹ️ Responda a uma imagem/vídeo com {prefix}sticker',
   stickerViewOnce: 'ℹ️ Não faço figurinha de mídia de visualização única.',
-  stickerAudioUsage: 'ℹ️ Responda a um vídeo com {prefix}sticker áudio.',
+  stickerAudioUsage: 'ℹ️ Responda a um vídeo com som com {prefix}sa.',
   stickerNoAudio: '❌ Esse vídeo não tem áudio.',
   stickerAudioUnavailable: 'ℹ️ Figurinha com áudio não funciona por aqui.',
   urlError: '❌ Não consegui baixar esse link.',
@@ -73,7 +73,7 @@ const FFMPEG_CONCURRENCY = 2;
 
 /**
  * Cada figurinha do `!sticker` e da tool no log (`sticker.create.*`) e em `luma_sticker_*`.
- * `kind`: `media` (da mensagem), `url` ou `audio` (`!sticker áudio`). A do `!downloadsticker`
+ * `kind`: `media` (da mensagem), `url` ou `audio` (`!sa`). A do `!downloadsticker`
  * conta no `download`.
  */
 const ACTION: ActionSpec = {
@@ -197,47 +197,6 @@ export const sticker: PluginDefinition = definePlugin({
       run: async (ctx, plugin) => {
         const stickers = plugin.services.get('sticker');
         const track = trackerFor(ACTION, plugin.services);
-        if (isAudioMode(ctx.args[0])) {
-          // Sem a capability o kernel recusaria o envio só depois de converter: avisa antes.
-          if (!plugin.capabilities.has('send.sticker.audio')) {
-            return usage('stickerAudioUnavailable')(ctx);
-          }
-          const video = mediaMessage(ctx.message, ['video']);
-          if (!video) return usage('stickerAudioUsage')(ctx);
-          if (video.isViewOnce) return usage('stickerViewOnce')(ctx);
-          return attempt(
-            ctx,
-            track,
-            'audio',
-            async (step) => {
-              const bytes = await video.media.download();
-              // O áudio primeiro: vídeo sem som é recusado antes da conversão cara.
-              let audio = await extractAudio(bytes, ctx.signal);
-              const animation = await animateVideo(bytes, ctx.signal, AUDIO_STICKER_SECONDS);
-              // Vídeo pesado cai numa tentativa mais curta; o som acompanha a animação.
-              if (animation.seconds < audio.seconds) {
-                audio = await extractAudio(bytes, ctx.signal, animation.seconds);
-              }
-              const sticker = await withStickerExif(animation.webp, {
-                name: ctx.t('stickerPack'),
-                author: ctx.t('stickerAuthor'),
-                soundSha256: audio.sha256,
-              });
-              await ctx.reply.sticker(sticker, {
-                audio: audio.data,
-                audioMimetype: audio.mimetype,
-                audioSeconds: audio.seconds,
-              });
-              step.note({
-                animated: true,
-                audio: true,
-                bytes: sticker.length,
-                audioBytes: audio.data.length,
-              });
-            },
-            (err) => (err instanceof NoAudioError ? 'stickerNoAudio' : 'conversionError'),
-          );
-        }
         const url = /https?:\/\/\S+/i.exec(ctx.rawArgs)?.[0] ?? null;
         const text = (url ? ctx.rawArgs.replace(url, '') : ctx.rawArgs).replace(/\s+/g, ' ').trim();
         const linkError = (err: unknown) =>
@@ -272,22 +231,62 @@ export const sticker: PluginDefinition = definePlugin({
         });
       },
     },
+    stickeraudio: {
+      aliases: ['sa'],
+      description: 'Vídeo com som → figurinha com áudio',
+      accepts: ['video', 'quoted:video'],
+      onReject: usage('stickerAudioUsage'),
+      timeoutMs: TIMEOUT_MS,
+      background: true,
+      concurrency: FFMPEG_CONCURRENCY,
+      run: async (ctx, plugin) => {
+        // Sem a capability o kernel recusaria o envio só depois de converter: avisa antes.
+        if (!plugin.capabilities.has('send.sticker.audio')) {
+          return usage('stickerAudioUnavailable')(ctx);
+        }
+        const video = ctx.media;
+        if (!video) return usage('stickerAudioUsage')(ctx);
+        if (ctx.accepted?.message.isViewOnce) return usage('stickerViewOnce')(ctx);
+        return attempt(
+          ctx,
+          trackerFor(ACTION, plugin.services),
+          'audio',
+          async (step) => {
+            const bytes = await video.download();
+            // O áudio primeiro: vídeo sem som é recusado antes da conversão cara.
+            let audio = await extractAudio(bytes, ctx.signal);
+            const animation = await animateVideo(bytes, ctx.signal, AUDIO_STICKER_SECONDS);
+            // Vídeo pesado cai numa tentativa mais curta; o som acompanha a animação.
+            if (animation.seconds < audio.seconds) {
+              audio = await extractAudio(bytes, ctx.signal, animation.seconds);
+            }
+            const sticker = await withStickerExif(animation.webp, {
+              name: ctx.t('stickerPack'),
+              author: ctx.t('stickerAuthor'),
+              soundSha256: audio.sha256,
+            });
+            await ctx.reply.sticker(sticker, {
+              audio: audio.data,
+              audioMimetype: audio.mimetype,
+              audioSeconds: audio.seconds,
+            });
+            step.note({
+              animated: true,
+              audio: true,
+              bytes: sticker.length,
+              audioBytes: audio.data.length,
+            });
+          },
+          (err) => (err instanceof NoAudioError ? 'stickerNoAudio' : 'conversionError'),
+        );
+      },
+    },
   },
 });
 
 /** O GIF do WhatsApp chega como vídeo; o de outras plataformas, como `image/gif`. */
 function isAnimatedMime(mimetype: string): boolean {
   return mimetype.startsWith('video/') || mimetype === 'image/gif';
-}
-
-/** `!sticker áudio`, com ou sem acento, em qualquer caixa. */
-function isAudioMode(arg: string | undefined): boolean {
-  return (
-    arg
-      ?.normalize('NFD')
-      .replace(/\p{Diacritic}/gu, '')
-      .toLowerCase() === 'audio'
-  );
 }
 
 /** GIF, MP4/MOV (caixa `ftyp`) ou WebM pelos bytes iniciais: o link nem sempre tem extensão. */
