@@ -25,13 +25,13 @@ export interface ExtractedAudio {
 }
 
 /**
- * Extrai a faixa de áudio de um vídeo como OGG/Opus, cortada em `maxSeconds`.
- * Lança `NoAudioError` se o vídeo não tiver som.
+ * Extrai a faixa de áudio de um vídeo como OGG/Opus com exatamente `ms` de duração, na mesma
+ * linha do tempo da animação. Lança `NoAudioError` se o vídeo não tiver som.
  */
 export async function extractAudio(
   video: Buffer,
   signal: AbortSignal,
-  maxSeconds = AUDIO_STICKER_SECONDS,
+  ms: number,
 ): Promise<ExtractedAudio> {
   return withTempDir(async (dir) => {
     const input = join(dir, 'in');
@@ -44,10 +44,12 @@ export async function extractAudio(
           input,
           '-map',
           '0:a:0',
-          '-t',
-          String(maxSeconds),
           '-vn',
-          ...['-map_metadata', '-1', '-avoid_negative_ts', 'make_zero'],
+          ...['-map_metadata', '-1'],
+          // Sincronia com a animação: `first_pts=0` preenche com silêncio o atraso do áudio em
+          // relação ao início do vídeo (sem isso o som sai adiantado), e `apad` + `-t` deixam o
+          // som com a duração exata da animação, nem mais curto nem mais longo.
+          ...['-af', 'aresample=async=1:first_pts=0,apad', '-t', String(ms / 1000)],
           ...['-c:a', 'libopus', '-b:a', '64k', '-ac', '1', '-ar', '48000'],
           ...['-f', 'ogg', output],
         ],
@@ -68,15 +70,19 @@ export async function extractAudio(
 }
 
 /**
- * Duração do OGG/Opus pela última página: a granule position (int64 LE no byte 6 do cabeçalho
- * `OggS`) conta amostras a 48 kHz, somadas ao pre-skip do `OpusHead` (uint16 LE no byte 10). Lê
- * dos bytes para não depender do `ffprobe`; nunca dá menos de 1 s, que o WhatsApp mostra.
+ * Duração do OGG/Opus em ms pela última página: a granule position (int64 LE no byte 6 do
+ * cabeçalho `OggS`) conta amostras a 48 kHz, somadas ao pre-skip do `OpusHead` (uint16 LE no byte
+ * 10). Lê dos bytes para não depender do `ffprobe`; sem página OGG, devolve 0.
  */
-export function oggSeconds(ogg: Buffer): number {
+export function oggMs(ogg: Buffer): number {
   const page = ogg.lastIndexOf('OggS');
-  if (page < 0 || page + 14 > ogg.length) return 1;
+  if (page < 0 || page + 14 > ogg.length) return 0;
   const head = ogg.indexOf('OpusHead');
   const preSkip = head >= 0 && head + 12 <= ogg.length ? ogg.readUInt16LE(head + 10) : 0;
-  const samples = Number(ogg.readBigInt64LE(page + 6)) - preSkip;
-  return Math.max(1, Math.min(AUDIO_STICKER_SECONDS, Math.round(samples / 48_000)));
+  return ((Number(ogg.readBigInt64LE(page + 6)) - preSkip) * 1000) / 48_000;
+}
+
+/** Duração em segundos inteiros, como o WhatsApp mostra: nunca menos de 1 s. */
+export function oggSeconds(ogg: Buffer): number {
+  return Math.max(1, Math.min(AUDIO_STICKER_SECONDS, Math.round(oggMs(ogg) / 1000)));
 }

@@ -253,13 +253,9 @@ export const sticker: PluginDefinition = definePlugin({
           'audio',
           async (step) => {
             const bytes = await video.download();
-            // O áudio primeiro: vídeo sem som é recusado antes da conversão cara.
-            let audio = await extractAudio(bytes, ctx.signal);
+            // A animação primeiro: o som é cortado na duração real dela, ao milissegundo.
             const animation = await animateVideo(bytes, ctx.signal, AUDIO_STICKER_SECONDS);
-            // Vídeo pesado cai numa tentativa mais curta; o som acompanha a animação.
-            if (animation.seconds < audio.seconds) {
-              audio = await extractAudio(bytes, ctx.signal, animation.seconds);
-            }
+            const audio = await extractAudio(bytes, ctx.signal, animation.ms);
             const sticker = await withStickerExif(animation.webp, {
               name: ctx.t('stickerPack'),
               author: ctx.t('stickerAuthor'),

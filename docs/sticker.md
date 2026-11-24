@@ -25,10 +25,19 @@ O `!sa` (ou `!stickeraudio`), na mensagem do vídeo ou respondendo a ele, gera u
 **WebP** com `"sound-sha256"` no chunk EXIF e envia o som do vídeo (OGG/Opus, até 20 s) no campo
 `audioMessage` (26) do `StickerMessage` via `@usebridger/transport-baileys`. Se o vídeo não tiver
 faixa de áudio, responde `stickerNoAudio` e registra `sticker.create.refused` com
-`reason: 'no-audio'`. O som acompanha a animação: se o vídeo é pesado e a figurinha cai numa tentativa mais curta
-(ver [Limites](#limites)), o áudio é cortado na mesma duração, e a duração enviada sai da
-última página do OGG (sem `ffprobe`). Num transport sem a capability `send.sticker.audio`, o comando
-responde `stickerAudioUnavailable` antes de converter.
+`reason: 'no-audio'`. Num transport sem a capability `send.sticker.audio`, o comando responde
+`stickerAudioUnavailable` antes de converter.
+
+Som e animação ficam em sincronia:
+
+- **Mesmo início.** Os dois saem da mesma linha do tempo do vídeo. Se a faixa de áudio começa
+  depois da de vídeo (comum em gravação de celular), o som ganha silêncio no começo; se é o vídeo
+  que começa depois, o primeiro quadro cobre o intervalo.
+- **Mesma duração.** A animação é convertida primeiro, e o áudio é cortado (ou completado com
+  silêncio) na duração real dela, ao milissegundo. Vale também quando o vídeo é pesado e a
+  figurinha cai numa tentativa mais curta (ver [Limites](#limites)).
+
+A duração enviada ao WhatsApp, em segundos inteiros, sai da última página do OGG (sem `ffprobe`).
 
 Enquanto converte, o bot reage ⏳ na mensagem e depois ✅ ou ❌; num transport sem `reactions`, a
 reação é ignorada. Erro de conversão vai para o log (`sticker.create.failed`) e o chat recebe

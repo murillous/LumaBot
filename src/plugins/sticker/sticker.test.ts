@@ -1,5 +1,8 @@
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { definePlugin, PluginBootError, type PluginDefinition } from '@usebridger/core';
 import {
@@ -17,7 +20,7 @@ import { observedBot } from '#plugins/observe-probe.ts';
 import { stickerConvert } from '#plugins/sticker-convert/sticker-convert.ts';
 import { usage } from '#plugins/usage/usage.ts';
 import { usageProbe } from '#plugins/usage/usage-testing.ts';
-import { oggSeconds } from './audio-sticker.ts';
+import { oggMs, oggSeconds } from './audio-sticker.ts';
 import { type StickerStep, sticker as stickerPlugin } from './sticker.ts';
 
 // A checagem do FFmpeg é a de verdade (o CI o instala); um teste a faz falhar.
@@ -343,6 +346,39 @@ async function videoWithAudio(seconds: number, source = 'testsrc2'): Promise<Buf
   return stdout;
 }
 
+/** Remuxa o vídeo com a faixa de áudio deslocada `seconds` para depois da de vídeo. */
+async function withAudioOffset(video: Buffer, seconds: number): Promise<Buffer> {
+  const dir = await mkdtemp(join(tmpdir(), 'lumabot-test-'));
+  try {
+    const input = join(dir, 'in.mp4');
+    const output = join(dir, 'out.mp4');
+    await writeFile(input, video);
+    await promisify(execFile)('ffmpeg', [
+      ...['-y', '-loglevel', 'error', '-i', input, '-itsoffset', String(seconds), '-i', input],
+      ...['-map', '0:v', '-map', '1:a', '-c', 'copy', output],
+    ]);
+    return await readFile(output);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}
+
+/** Segundos de silêncio no começo do áudio, pelo `silencedetect` do FFmpeg; 0 se não houver. */
+async function leadingSilence(audio: Buffer): Promise<number> {
+  const dir = await mkdtemp(join(tmpdir(), 'lumabot-test-'));
+  try {
+    const input = join(dir, 'in.ogg');
+    await writeFile(input, audio);
+    const { stderr } = await promisify(execFile)('ffmpeg', [
+      ...['-i', input, '-af', 'silencedetect=n=-40dB:d=0.05', '-f', 'null', '-'],
+    ]);
+    const first = /silence_start: (\S+)[\s\S]*?silence_end: (\S+)/.exec(stderr);
+    return first && Number(first[1]) === 0 ? Number(first[2]) : 0;
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}
+
 describe('!sa', () => {
   it('converte vídeo com som em figurinha animada WebP com sound-sha256 no EXIF e áudio anexado', async () => {
     const video = await videoWithAudio(2);
@@ -398,9 +434,25 @@ describe('!sa', () => {
     await bot.receive({ text: '!sa', video: { data: video, mimetype: 'video/mp4' } });
 
     const [sent] = bot.sentMedia('sticker');
-    const seconds = sent?.content.audioSeconds ?? 0;
-    expect(seconds).toBeLessThan(20);
-    expect(Math.abs((await animationMs(sentBytes('sticker'))) - seconds * 1000)).toBeLessThan(1000);
+    expect(sent?.content.audioSeconds).toBeLessThan(20);
+    // O som dura o mesmo que a animação, à precisão de um quadro Opus (20 ms).
+    const ms = await animationMs(sentBytes('sticker'));
+    expect(Math.abs(oggMs(sent?.content.audio as Buffer) - ms)).toBeLessThanOrEqual(20);
+  }, 60_000);
+
+  it('áudio que começa depois do vídeo continua atrasado na figurinha', async () => {
+    // Como em gravação de celular: a faixa de áudio começa 0,5 s depois da de vídeo.
+    const video = await withAudioOffset(await videoWithAudio(4), 0.5);
+    bot = await createTestBot({ plugins: [stickerPlugin] });
+
+    await bot.receive({ text: '!sa', video: { data: video, mimetype: 'video/mp4' } });
+
+    const [sent] = bot.sentMedia('sticker');
+    const silence = await leadingSilence(sent?.content.audio as Buffer);
+    expect(silence).toBeGreaterThan(0.4);
+    expect(silence).toBeLessThan(0.6);
+    const ms = await animationMs(sentBytes('sticker'));
+    expect(Math.abs(oggMs(sent?.content.audio as Buffer) - ms)).toBeLessThanOrEqual(20);
   }, 60_000);
 
   it('sem a capability send.sticker.audio, avisa antes de converter', async () => {

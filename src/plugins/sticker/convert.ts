@@ -53,15 +53,15 @@ export async function videoToSticker(
   return withStickerExif((await animateVideo(video, signal)).webp, pack);
 }
 
-/** Animação WebP ainda sem o EXIF e o teto de duração da tentativa que coube no limite. */
+/** Animação WebP ainda sem o EXIF e sua duração real (soma dos atrasos dos quadros). */
 export interface Animation {
   readonly webp: Buffer;
-  readonly seconds: number;
+  readonly ms: number;
 }
 
 /**
  * As tentativas de `STICKER_ATTEMPTS`, cada uma cortada em `maxSeconds`. Devolve também a duração
- * da que coube: a figurinha com áudio corta o som nela, que pode ser menor que `maxSeconds`.
+ * real da que coube: a figurinha com áudio corta o som nela, ao milissegundo.
  */
 export async function animateVideo(
   video: Buffer,
@@ -81,7 +81,9 @@ export async function animateVideo(
           '-t',
           String(seconds),
           '-vf',
-          `scale=${STICKER_SIZE}:${STICKER_SIZE}:force_original_aspect_ratio=increase,crop=${STICKER_SIZE}:${STICKER_SIZE},fps=${attempt.fps}`,
+          // `start_time=0`: se o vídeo começa depois do áudio (comum em gravação de celular), o
+          // primeiro quadro cobre o intervalo, e a animação fica na mesma linha do tempo do som.
+          `scale=${STICKER_SIZE}:${STICKER_SIZE}:force_original_aspect_ratio=increase,crop=${STICKER_SIZE}:${STICKER_SIZE},fps=${attempt.fps}:start_time=0`,
           '-c:v',
           'libwebp',
           '-quality',
@@ -94,7 +96,10 @@ export async function animateVideo(
         signal,
       );
       const webp = await readFile(output);
-      if (webp.length <= STICKER_MAX_BYTES) return { webp, seconds };
+      if (webp.length <= STICKER_MAX_BYTES) {
+        const { delay = [] } = await sharp(webp, { animated: true }).metadata();
+        return { webp, ms: delay.reduce((total, d) => total + d, 0) };
+      }
     }
     throw new Error(
       `figurinha animada passa de ${STICKER_MAX_BYTES} bytes mesmo na tentativa mais leve`,
