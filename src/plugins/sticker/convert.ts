@@ -9,7 +9,7 @@ import { ffmpeg, withTempDir } from '#plugins/ffmpeg.ts';
 
 export const STICKER_SIZE = 512;
 /** Figurinha animada mais pesada que isso chega ao destinatário, mas não baixa. */
-const STICKER_MAX_BYTES = 800 * 1024;
+export const STICKER_MAX_BYTES = 800 * 1024;
 /**
  * Tentativas da figurinha animada, da mais fiel à mais leve, até uma caber em
  * `STICKER_MAX_BYTES`. O `-fs` do FFmpeg não serve de teto: o libwebp entrega a animação de uma
@@ -27,6 +27,8 @@ const STICKER_ATTEMPTS = [
 export interface StickerPack {
   readonly name: string;
   readonly author: string;
+  /** SHA-256 em base64 do áudio anexado no campo 26 do `StickerMessage` (sound sticker). */
+  readonly soundSha256?: string;
 }
 
 /** Imagem → PNG 512×512, a tela em que as etapas do serviço desenham. */
@@ -92,6 +94,7 @@ async function withStickerExif(webp: Buffer, pack: StickerPack): Promise<Buffer>
       'sticker-pack-id': 'com.luma.bot',
       'sticker-pack-name': pack.name,
       'sticker-pack-publisher': pack.author,
+      ...(pack.soundSha256 ? { 'sound-sha256': pack.soundSha256 } : {}),
     }),
   );
   // Cabeçalho TIFF little-endian, 1 entrada: tag 0x5741, tipo UNDEFINED (7), tamanho do JSON

@@ -4,6 +4,7 @@ import { type ActionSpec, hostOf, trackerFor } from '#plugins/action-metrics.ts'
 import { aiTool, fail, mediaMessage, ok } from '#plugins/ai/tools.ts';
 import { checkBinary } from '#plugins/binary.ts';
 import { attempt, usage } from '#plugins/media-command.ts';
+import { extractAudio, NoAudioError } from './audio-sticker.ts';
 import { encodeSticker, type StickerPack, toStickerImage, videoToSticker } from './convert.ts';
 import { fetchUrl, UrlFetchError } from './fetch-url.ts';
 import { FFMPEG_MISSING, STICKER_DONE, STICKER_FAILED, STICKER_REFUSED } from './log-events.ts';
@@ -51,6 +52,8 @@ const MESSAGES = {
   stickerAuthor: 'Criado com ❤️ por LumaBot',
   stickerUsage: 'ℹ️ Responda a uma imagem/vídeo com {prefix}sticker',
   stickerViewOnce: 'ℹ️ Não faço figurinha de mídia de visualização única.',
+  stickerAudioUsage: 'ℹ️ Responda a um vídeo com {prefix}sticker áudio.',
+  stickerNoAudio: '❌ Esse vídeo não tem áudio.',
   urlError: '❌ Não consegui baixar esse link.',
   conversionError: '❌ Erro na conversão',
 };
@@ -62,7 +65,8 @@ const FFMPEG_CONCURRENCY = 2;
 
 /**
  * Cada figurinha do `!sticker` e da tool no log (`sticker.create.*`) e em `luma_sticker_*`.
- * `kind`: `media` (da mensagem) ou `url`. A do `!downloadsticker` conta no `download`.
+ * `kind`: `media` (da mensagem), `url` ou `audio` (`!sticker áudio`). A do `!downloadsticker`
+ * conta no `download`.
  */
 const ACTION: ActionSpec = {
   metric: 'sticker',
@@ -70,7 +74,12 @@ const ACTION: ActionSpec = {
   // Até o prazo do comando (60 s): a de vídeo passa pelo FFmpeg e leva segundos.
   buckets: [0.25, 0.5, 1, 2, 5, 10, 20, 30, 60],
   events: { done: STICKER_DONE, refused: STICKER_REFUSED, failed: STICKER_FAILED },
-  refusal: (err) => (err instanceof UrlFetchError ? 'url-failed' : undefined),
+  refusal: (err) =>
+    err instanceof UrlFetchError
+      ? 'url-failed'
+      : err instanceof NoAudioError
+        ? 'no-audio'
+        : undefined,
 };
 
 /**
@@ -180,6 +189,38 @@ export const sticker: PluginDefinition = definePlugin({
       run: async (ctx, plugin) => {
         const stickers = plugin.services.get('sticker');
         const track = trackerFor(ACTION, plugin.services);
+        if (isAudioMode(ctx.args[0])) {
+          const video = mediaMessage(ctx.message, ['video']);
+          if (!video) return usage('stickerAudioUsage')(ctx);
+          if (video.isViewOnce) return usage('stickerViewOnce')(ctx);
+          return attempt(
+            ctx,
+            track,
+            'audio',
+            async (step) => {
+              const bytes = await video.media.download();
+              const audio = await extractAudio(bytes, ctx.signal);
+              const pack: StickerPack = {
+                name: ctx.t('stickerPack'),
+                author: ctx.t('stickerAuthor'),
+                soundSha256: audio.sha256,
+              };
+              const sticker = await videoToSticker(bytes, pack, ctx.signal);
+              await ctx.reply.sticker(sticker, {
+                audio: audio.data,
+                audioMimetype: audio.mimetype,
+                audioSeconds: audio.seconds,
+              });
+              step.note({
+                animated: true,
+                audio: true,
+                bytes: sticker.length,
+                audioBytes: audio.data.length,
+              });
+            },
+            (err) => (err instanceof NoAudioError ? 'stickerNoAudio' : 'conversionError'),
+          );
+        }
         const url = /https?:\/\/\S+/i.exec(ctx.rawArgs)?.[0] ?? null;
         const text = (url ? ctx.rawArgs.replace(url, '') : ctx.rawArgs).replace(/\s+/g, ' ').trim();
         const linkError = (err: unknown) =>
@@ -220,6 +261,16 @@ export const sticker: PluginDefinition = definePlugin({
 /** O GIF do WhatsApp chega como vídeo; o de outras plataformas, como `image/gif`. */
 function isAnimatedMime(mimetype: string): boolean {
   return mimetype.startsWith('video/') || mimetype === 'image/gif';
+}
+
+/** `!sticker áudio`, com ou sem acento, em qualquer caixa. */
+function isAudioMode(arg: string | undefined): boolean {
+  return (
+    arg
+      ?.normalize('NFD')
+      .replace(/\p{Diacritic}/gu, '')
+      .toLowerCase() === 'audio'
+  );
 }
 
 /** GIF, MP4/MOV (caixa `ftyp`) ou WebM pelos bytes iniciais: o link nem sempre tem extensão. */
