@@ -53,7 +53,10 @@ export async function videoToSticker(
   return withStickerExif((await animateVideo(video, signal)).webp, pack);
 }
 
-/** Animação WebP ainda sem o EXIF e sua duração real (soma dos atrasos dos quadros). */
+/**
+ * Animação WebP ainda sem o EXIF e sua duração real (soma dos atrasos dos quadros). `ms` é 0
+ * quando o vídeo não muda: o encoder junta os quadros iguais e entrega um WebP estático.
+ */
 export interface Animation {
   readonly webp: Buffer;
   readonly ms: number;
@@ -146,8 +149,10 @@ export async function animateToFit(
         return { quality, bytesPerFrame: webp.length / count, ms };
       }),
     );
-    // A amostra cobre o vídeo inteiro até `maxSeconds`: a duração dela é a do vídeo.
-    const seconds = Math.min(maxSeconds, (probes[0]?.ms ?? maxSeconds * 1000) / 1000);
+    // A amostra cobre o vídeo inteiro até `maxSeconds`: a duração dela é a do vídeo. Vídeo parado
+    // vira WebP estático, sem duração: aí vale o teto, e o quadro único cabe de sobra.
+    const probeMs = probes[0]?.ms || maxSeconds * 1000;
+    const seconds = Math.min(maxSeconds, probeMs / 1000);
     let plan = planFit(probes, seconds);
     for (let i = 0; i < 3; i++) {
       const webp = await encodeAnimation(input, join(dir, 'out.webp'), plan, signal);
@@ -174,9 +179,14 @@ async function encodeAnimation(
       '-vf',
       // `start_time=0`: se o vídeo começa depois do áudio (comum em gravação de celular), o
       // primeiro quadro cobre o intervalo, e a animação fica na mesma linha do tempo do som.
-      `scale=${STICKER_SIZE}:${STICKER_SIZE}:force_original_aspect_ratio=increase,crop=${STICKER_SIZE}:${STICKER_SIZE},fps=${fps}:start_time=0`,
+      // `gblur` leve tira o detalhe fino (granulado, nitidez exagerada de meme) que pesa no VP8
+      // e nem aparece no tamanho em que a figurinha é vista: ~14% a menos no mesmo vídeo. O
+      // `hqdn3d` ficou de fora porque apaga a transparência.
+      `scale=${STICKER_SIZE}:${STICKER_SIZE}:force_original_aspect_ratio=increase,crop=${STICKER_SIZE}:${STICKER_SIZE},fps=${fps}:start_time=0,gblur=sigma=0.8`,
+      // `libwebp_anim` (WebPAnimEncoder) só regrava a parte do quadro que mudou, e junta quadros
+      // iguais: mais ~14% a menos que o `libwebp`, que grava cada quadro inteiro.
       '-c:v',
-      'libwebp',
+      'libwebp_anim',
       '-quality',
       String(quality),
       '-loop',
@@ -189,7 +199,7 @@ async function encodeAnimation(
   return readFile(output);
 }
 
-/** Quadros da animação e duração real (soma dos atrasos). */
+/** Quadros da animação e duração real (soma dos atrasos); WebP estático dá 1 quadro e 0 ms. */
 async function frames(webp: Buffer): Promise<{ count: number; ms: number }> {
   const { pages = 1, delay = [] } = await sharp(webp, { animated: true }).metadata();
   return { count: pages, ms: delay.reduce((total, d) => total + d, 0) };

@@ -25,13 +25,15 @@ export interface ExtractedAudio {
 }
 
 /**
- * Extrai a faixa de áudio de um vídeo como OGG/Opus com exatamente `ms` de duração, na mesma
- * linha do tempo da animação. Lança `NoAudioError` se o vídeo não tiver som.
+ * Extrai a faixa de áudio de um vídeo (ou de um áudio) como OGG/Opus. Com `ms`, sai com
+ * exatamente essa duração, na mesma linha do tempo da animação. Sem, vai até
+ * `AUDIO_STICKER_SECONDS`: é o áudio juntado a uma figurinha pronta, ou a animação estática, que
+ * não têm com o que sincronizar. Lança `NoAudioError` se a mídia não tiver som.
  */
 export async function extractAudio(
   video: Buffer,
   signal: AbortSignal,
-  ms: number,
+  ms?: number,
 ): Promise<ExtractedAudio> {
   return withTempDir(async (dir) => {
     const input = join(dir, 'in');
@@ -49,7 +51,9 @@ export async function extractAudio(
           // Sincronia com a animação: `first_pts=0` preenche com silêncio o atraso do áudio em
           // relação ao início do vídeo (sem isso o som sai adiantado), e `apad` + `-t` deixam o
           // som com a duração exata da animação, nem mais curto nem mais longo.
-          ...['-af', 'aresample=async=1:first_pts=0,apad', '-t', String(ms / 1000)],
+          ...(ms
+            ? ['-af', 'aresample=async=1:first_pts=0,apad', '-t', String(ms / 1000)]
+            : ['-af', 'aresample=async=1:first_pts=0', '-t', String(AUDIO_STICKER_SECONDS)]),
           ...['-c:a', 'libopus', '-b:a', '64k', '-ac', '1', '-ar', '48000'],
           ...['-f', 'ogg', output],
         ],

@@ -39,7 +39,7 @@ conta como recusa; os outros contam como falha e são relançados. Os comandos d
 | Plugin | `kind` | Eventos (`.done` / `.refused` / `.failed`) | Métricas | Recusas (`reason`) |
 | --- | --- | --- | --- | --- |
 | `download` | `media`, `audio`, `sticker` | `download.media.*` | `luma_download_*` | `too-large`, `image-unsupported` |
-| `sticker` | `media` (da mensagem), `url` | `sticker.create.*` | `luma_sticker_*` | `url-failed` |
+| `sticker` | `media` (da mensagem), `url`, `audio` (`!sa` de vídeo), `join` (`!sa` que junta figurinha e áudio) | `sticker.create.*` | `luma_sticker_*` | `url-failed`, `no-audio` |
 | `sticker-convert` | `image`, `gif` | `sticker-convert.convert.*` | `luma_sticker_convert_*` | `not-animated` |
 | `pdf` | `image`, `add` (à fila do `!mergepdf`), `merge` | `pdf.convert.*` | `luma_pdf_*` | `too-large` |
 | `transcribe` | `audio` | `transcribe.audio.*` | `luma_transcribe_*` | `too-large`, `unavailable` |
@@ -55,7 +55,7 @@ Campos da linha do fim, além de `kind`, `durationMs`, `reason` e `err`:
 | Plugin | Campos |
 | --- | --- |
 | `download` | `host` do link, `bytes` enviados |
-| `sticker` | `host` (só `url`), `animated`, `bytes` da figurinha |
+| `sticker` | `host` (só `url`), `animated`, `bytes` da figurinha; no `!sa`, `audio` e `audioBytes` |
 | `sticker-convert` | `bytes` enviados |
 | `pdf` | `bytes` do PDF, `pdfs` juntados (`merge`) |
 | `transcribe` | `bytes` do áudio, `result` (`text`, `unintelligible`, `silent`, `empty`) |
