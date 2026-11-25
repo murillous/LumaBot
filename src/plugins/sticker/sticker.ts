@@ -1,10 +1,23 @@
-import { definePlugin, type PluginDefinition } from '@usebridger/core';
+import {
+  type CommandContext,
+  definePlugin,
+  type LogFields,
+  type Media,
+  type Message,
+  type PluginDefinition,
+  type StepHandler,
+} from '@usebridger/core';
 import { z } from 'zod';
-import { type ActionSpec, hostOf, trackerFor } from '#plugins/action-metrics.ts';
+import { type ActionSpec, hostOf, type Track, trackerFor } from '#plugins/action-metrics.ts';
 import { aiTool, fail, mediaMessage, ok } from '#plugins/ai/tools.ts';
 import { checkBinary } from '#plugins/binary.ts';
 import { attempt, usage } from '#plugins/media-command.ts';
-import { AUDIO_STICKER_SECONDS, extractAudio, NoAudioError } from './audio-sticker.ts';
+import {
+  AUDIO_STICKER_SECONDS,
+  type ExtractedAudio,
+  extractAudio,
+  NoAudioError,
+} from './audio-sticker.ts';
 import {
   animateToFit,
   encodeSticker,
@@ -59,7 +72,11 @@ const MESSAGES = {
   stickerAuthor: 'Criado com ❤️ por LumaBot',
   stickerUsage: 'ℹ️ Responda a uma imagem/vídeo com {prefix}sticker',
   stickerViewOnce: 'ℹ️ Não faço figurinha de mídia de visualização única.',
-  stickerAudioUsage: 'ℹ️ Responda a um vídeo com som com {prefix}sa.',
+  stickerAudioUsage: 'ℹ️ Responda a um vídeo com som, a uma figurinha ou a um áudio com {prefix}sa.',
+  stickerAudioAskAudio: '🎙️ Agora manda o áudio dessa figurinha (toca até 20 s).',
+  stickerAudioAskSticker: '🖼️ Agora manda a figurinha que vai tocar esse áudio.',
+  stickerAudioJoinCancelled:
+    'ℹ️ Não era o que eu esperava, então cancelei. Mande {prefix}sa de novo.',
   stickerNoAudio: '❌ Esse vídeo não tem áudio.',
   stickerAudioUnavailable: 'ℹ️ Figurinha com áudio não funciona por aqui.',
   urlError: '❌ Não consegui baixar esse link.',
@@ -73,8 +90,8 @@ const FFMPEG_CONCURRENCY = 2;
 
 /**
  * Cada figurinha do `!sticker` e da tool no log (`sticker.create.*`) e em `luma_sticker_*`.
- * `kind`: `media` (da mensagem), `url` ou `audio` (`!sa`). A do `!downloadsticker`
- * conta no `download`.
+ * `kind`: `media` (da mensagem), `url`, `audio` (`!sa` de vídeo) ou `join` (`!sa` que junta
+ * figurinha e áudio). A do `!downloadsticker` conta no `download`.
  */
 const ACTION: ActionSpec = {
   metric: 'sticker',
@@ -119,6 +136,7 @@ export const sticker: PluginDefinition = definePlugin({
     };
     ctx.services.provide('sticker', service);
     const track = trackerFor(ACTION, ctx.services);
+    ctx.conversations.define(JOIN_STEP, joinStep(track));
 
     ctx.services.contribute(
       'ai.tools',
@@ -233,8 +251,8 @@ export const sticker: PluginDefinition = definePlugin({
     },
     stickeraudio: {
       aliases: ['sa'],
-      description: 'Vídeo com som → figurinha com áudio',
-      accepts: ['video', 'quoted:video'],
+      description: 'Vídeo com som, ou figurinha + áudio → figurinha com áudio',
+      accepts: ['video', 'quoted:video', 'quoted:sticker', 'quoted:audio', 'quoted:voice'],
       onReject: usage('stickerAudioUsage'),
       timeoutMs: TIMEOUT_MS,
       background: true,
@@ -244,34 +262,31 @@ export const sticker: PluginDefinition = definePlugin({
         if (!plugin.capabilities.has('send.sticker.audio')) {
           return usage('stickerAudioUnavailable')(ctx);
         }
-        const video = ctx.media;
-        if (!video) return usage('stickerAudioUsage')(ctx);
+        const source = ctx.media;
+        if (!source) return usage('stickerAudioUsage')(ctx);
         if (ctx.accepted?.message.isViewOnce) return usage('stickerViewOnce')(ctx);
+
+        // Figurinha ou áudio é só metade: o WhatsApp não deixa texto em nenhum dos dois, então a
+        // outra metade vem na próxima mensagem da pessoa, que o passo `JOIN_STEP` trata.
+        const type = ctx.accepted?.message.type;
+        if (type === 'sticker' || type === 'audio' || type === 'voice') {
+          const bytes = (await source.download()).toString('base64');
+          const half: JoinHalf = type === 'sticker' ? { sticker: bytes } : { audio: bytes };
+          ctx.expectReply(JOIN_STEP, { data: half, ttlMs: JOIN_TTL_MS });
+          return ctx.t(type === 'sticker' ? 'stickerAudioAskAudio' : 'stickerAudioAskSticker');
+        }
+
         return attempt(
           ctx,
           trackerFor(ACTION, plugin.services),
           'audio',
           async (step) => {
-            const bytes = await video.download();
-            // A animação primeiro: o som é cortado na duração real dela, ao milissegundo.
+            const bytes = await source.download();
+            // A animação primeiro: o som é cortado na duração real dela, ao milissegundo. Vídeo
+            // parado vira figurinha estática (0 ms), e o som vai inteiro até o teto.
             const animation = await animateToFit(bytes, ctx.signal, AUDIO_STICKER_SECONDS);
-            const audio = await extractAudio(bytes, ctx.signal, animation.ms);
-            const sticker = await withStickerExif(animation.webp, {
-              name: ctx.t('stickerPack'),
-              author: ctx.t('stickerAuthor'),
-              soundSha256: audio.sha256,
-            });
-            await ctx.reply.sticker(sticker, {
-              audio: audio.data,
-              audioMimetype: audio.mimetype,
-              audioSeconds: audio.seconds,
-            });
-            step.note({
-              animated: true,
-              audio: true,
-              bytes: sticker.length,
-              audioBytes: audio.data.length,
-            });
+            const audio = await extractAudio(bytes, ctx.signal, animation.ms || undefined);
+            step.note({ animated: true, ...(await replySoundSticker(ctx, animation.webp, audio)) });
           },
           (err) => (err instanceof NoAudioError ? 'stickerNoAudio' : 'conversionError'),
         );
@@ -279,6 +294,71 @@ export const sticker: PluginDefinition = definePlugin({
     },
   },
 });
+
+/** Passo de conversa do `!sa` que junta uma figurinha pronta e um áudio. */
+const JOIN_STEP = 'sticker-audio-join';
+/** Prazo para mandar a outra metade; vencido, a próxima mensagem segue o fluxo normal. */
+const JOIN_TTL_MS = 2 * 60_000;
+
+/** A metade que já veio, em base64: o `data` da espera é JSON. */
+type JoinHalf = { readonly sticker: string } | { readonly audio: string };
+
+/** Mídia da mensagem, se ela for a metade que falta: figurinha, ou áudio/nota de voz. */
+function joinMedia(message: Message, want: 'sticker' | 'audio'): Media | null {
+  if (message.isViewOnce) return null;
+  if (want === 'sticker') return message.is('sticker') ? message.media : null;
+  if (message.is('audio') || message.is('voice')) return message.media;
+  return null;
+}
+
+/**
+ * Trata a outra metade do `!sa`. Mensagem que não é a esperada cancela, com aviso: a espera a
+ * consome, e ela não chegaria a mais ninguém.
+ */
+function joinStep(track: Track): StepHandler {
+  return async (c) => {
+    const half = c.data as JoinHalf;
+    const media = joinMedia(c.message, 'sticker' in half ? 'audio' : 'sticker');
+    if (!media) return c.reply(c.t('stickerAudioJoinCancelled'));
+    const error = await attempt(
+      c,
+      track,
+      'join',
+      async (step) => {
+        const bytes = await media.download();
+        const sticker = 'sticker' in half ? Buffer.from(half.sticker, 'base64') : bytes;
+        const sound = 'audio' in half ? Buffer.from(half.audio, 'base64') : bytes;
+        // A figurinha segue como veio (estática ou animada, em loop); o som vai até o teto.
+        const audio = await extractAudio(sound, c.signal);
+        step.note(await replySoundSticker(c, sticker, audio));
+      },
+      (err) => (err instanceof NoAudioError ? 'stickerNoAudio' : 'conversionError'),
+    );
+    if (error) await c.reply(error);
+  };
+}
+
+/**
+ * Grava o hash do som no EXIF (é por ele que o WhatsApp liga o som à figurinha) e envia a
+ * figurinha com o áudio anexado. Devolve os campos do log.
+ */
+async function replySoundSticker(
+  c: Pick<CommandContext, 'reply' | 't'>,
+  webp: Buffer,
+  audio: ExtractedAudio,
+): Promise<LogFields> {
+  const sticker = await withStickerExif(webp, {
+    name: c.t('stickerPack'),
+    author: c.t('stickerAuthor'),
+    soundSha256: audio.sha256,
+  });
+  await c.reply.sticker(sticker, {
+    audio: audio.data,
+    audioMimetype: audio.mimetype,
+    audioSeconds: audio.seconds,
+  });
+  return { audio: true, bytes: sticker.length, audioBytes: audio.data.length };
+}
 
 /** O GIF do WhatsApp chega como vídeo; o de outras plataformas, como `image/gif`. */
 function isAnimatedMime(mimetype: string): boolean {

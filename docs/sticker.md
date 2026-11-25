@@ -12,7 +12,7 @@ Código em `src/plugins/sticker/` (`sticker.ts`: comando e serviço; `convert.ts
 | Comando | Entrada | Saída |
 | --- | --- | --- |
 | `!sticker [texto]` / `!s` | Imagem, vídeo, GIF, figurinha ou link | Figurinha 512×512 |
-| `!stickeraudio` / `!sa` | Vídeo com som | Figurinha animada WebP com áudio nativo (OGG/Opus) de até 20 s |
+| `!stickeraudio` / `!sa` | Vídeo com som; ou figurinha + áudio | Figurinha WebP com áudio nativo (OGG/Opus) de até 20 s |
 
 A mídia vem da própria mensagem ou, na falta, da citada; mídia de visualização única é recusada.
 Com o `sticker-text` carregado, o texto depois do comando (sem o link) vira legenda na
@@ -37,6 +37,26 @@ Som e animação ficam em sincronia:
   silêncio) na duração real dela, ao milissegundo.
 
 A duração enviada ao WhatsApp, em segundos inteiros, sai da última página do OGG (sem `ffprobe`).
+Vídeo que não muda (uma foto com música, por exemplo) vira figurinha estática: o encoder junta os
+quadros iguais, não há animação para sincronizar, e o som vai inteiro até 20 s.
+
+#### Juntar figurinha e áudio
+
+O WhatsApp não deixa texto em figurinha nem em áudio, então o `!sa` recebe uma metade e pede a
+outra:
+
+1. `!sa` respondendo a uma **figurinha**: o bot responde `stickerAudioAskAudio` e espera o próximo
+   áudio ou nota de voz da pessoa.
+2. `!sa` respondendo a um **áudio** ou nota de voz: o bot responde `stickerAudioAskSticker` e espera
+   a próxima figurinha.
+
+A espera é a resposta esperada do kernel
+([conversas](https://github.com/murillous/usebridger/blob/develop/packages/core/docs/conversations.md)):
+vale 2 minutos, só para quem mandou o `!sa`, naquele chat, e fica em memória (um restart a perde).
+A figurinha segue como veio (estática ou animada, em loop), com o EXIF trocado pelo do pacote e o
+`sound-sha256`; o som vai até 20 s. Se a pessoa manda outra coisa, a espera acaba e o bot responde
+`stickerAudioJoinCancelled`; um comando digitado também a cancela, sem aviso. No log, essa
+figurinha conta com `kind: 'join'`.
 
 Enquanto converte, o bot reage ⏳ na mensagem e depois ✅ ou ❌; num transport sem `reactions`, a
 reação é ignorada. Erro de conversão vai para o log (`sticker.create.failed`) e o chat recebe
@@ -154,11 +174,18 @@ conversão.
 | Prazo do comando | 60 s | Conversão segura o chat; o padrão do bot é curto para um vídeo |
 | Figurinha de vídeo | 20 s, 15 fps, até 800 KB | Figurinha animada pesada chega, mas não baixa no WhatsApp |
 | Figurinha com áudio | 20 s, 4 a 15 fps, até 800 KB | O som toca inteiro: fps e qualidade se ajustam ao vídeo |
+| Espera da outra metade do `!sa` | 2 min | Tempo de achar o áudio ou a figurinha no celular |
 | Download do link | 5 MB, até 3 redirecionamentos | O link vem de qualquer pessoa no chat |
 
 O link do `!sticker` só é baixado se todos os endereços do host forem públicos: loopback, redes
 privadas, link-local (metadados de nuvem) e multicast são recusados, a cada redirecionamento.
 O tipo do arquivo sai dos bytes iniciais (GIF, MP4/MOV, WebM viram figurinha animada).
+
+A animação sai do encoder `libwebp_anim` do FFmpeg (o WebPAnimEncoder), que regrava só a parte do
+quadro que mudou e junta quadros iguais, depois de um `gblur` leve (sigma 0,8) que tira o detalhe
+fino que pesa e nem aparece no tamanho da figurinha. Num vídeo de meme de 15 s, os dois juntos
+deixam a figurinha 26% menor que o `libwebp` puro, o que vira mais fps e qualidade no mesmo limite.
+A transparência (GIF, WebM, MOV com alfa) é mantida; o `hqdn3d` ficou de fora porque a apaga.
 
 Vídeo nítido (como os do `!download`) passa fácil de 800 KB. A figurinha é refeita com qualidade,
 duração e fps menores até caber: 75/20 s/15 fps, 50/10 s/15 fps, 40/8 s/12 fps, 30/6 s/10 fps e
@@ -175,8 +202,8 @@ dinâmico, pelo peso de cada vídeo:
 3. Só se nem 4 fps cabem, encurta a figurinha (e o som) até caber a 4 fps.
 4. Se o resultado ainda passar do limite, replaneja com o peso medido nele (até 3 vezes).
 
-Um vídeo de celular de 15 s (720×1280) sai inteiro a 4 fps em uns 3 s de conversão; um vídeo leve
-sai a 15 fps na qualidade 50.
+Um vídeo de meme de 15 s (720×1280, granulado) sai inteiro a 5 fps em uns 8 s de conversão; um
+vídeo leve sai a 15 fps na qualidade 50.
 
 O `!sticker` roda fora da fila do chat (`background`): as outras mensagens do chat não esperam a
 conversão.

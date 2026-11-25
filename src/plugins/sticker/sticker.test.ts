@@ -503,16 +503,150 @@ describe('!sa', () => {
   }, 30_000);
 
   it('sem vídeo, explica o uso', async () => {
-    const expected = 'ℹ️ Responda a um vídeo com som com !sa.';
+    const expected = 'ℹ️ Responda a um vídeo com som, a uma figurinha ou a um áudio com !sa.';
     bot = await createTestBot({ plugins: [stickerPlugin] });
 
     await bot.receive({ text: '!sa' });
     expect(bot.sent).toHaveReplied(expected);
 
-    await bot.receive({ text: '!sa', quoted: { sticker: fixtures.sticker() } });
+    await bot.receive({ text: '!sa', quoted: { image: fixtures.image() } });
     expect(bot.sent).toHaveLength(2);
     expect(bot.sent.slice(1)).toHaveReplied(expected);
   });
+
+  it('vídeo parado vira figurinha estática com o som inteiro', async () => {
+    // Cor sólida: o encoder junta os quadros iguais num WebP estático, sem duração.
+    const video = await videoWithAudio(3, 'color');
+    bot = await createTestBot({ plugins: [stickerPlugin] });
+
+    await bot.receive({ text: '!sa', video: { data: video, mimetype: 'video/mp4' } });
+
+    const [sent] = bot.sentMedia('sticker');
+    expect(sent?.content.audioSeconds).toBe(3);
+    // Sem animação para medir, o som não é cortado na duração dela (que seria 0). O AAC do MP4
+    // fragmentado já chega uns 150 ms mais curto.
+    expect(oggMs(sent?.content.audio as Buffer)).toBeGreaterThan(2_700);
+  }, 30_000);
+});
+
+/** OGG/Opus com `seconds` de tom (`sine`), como uma nota de voz. */
+async function voiceNote(seconds: number): Promise<Buffer> {
+  const { stdout } = await promisify(execFile)(
+    'ffmpeg',
+    [
+      ...['-loglevel', 'error', '-f', 'lavfi', '-i', `sine=frequency=440:duration=${seconds}`],
+      ...['-c:a', 'libopus', '-f', 'ogg', 'pipe:1'],
+    ],
+    { encoding: 'buffer', maxBuffer: 5 * 1024 * 1024 },
+  );
+  return stdout;
+}
+
+describe('!sa juntando figurinha e áudio', () => {
+  /** Confere a figurinha com som enviada: o hash no EXIF é o do áudio anexado. */
+  async function expectSoundSticker(seconds: number) {
+    const [sent] = bot.sentMedia('sticker');
+    expect(sent?.content).toMatchObject({
+      audioMimetype: 'audio/ogg; codecs=opus',
+      audioSeconds: seconds,
+    });
+    const sha = createHash('sha256')
+      .update(sent?.content.audio as Buffer)
+      .digest('base64');
+    const meta = await sharp(sentBytes('sticker')).metadata();
+    expect(meta.exif?.toString()).toContain(`"sound-sha256":"${sha}"`);
+    return meta;
+  }
+
+  it('respondendo a uma figurinha, pede o áudio e junta o próximo', async () => {
+    bot = await createTestBot({ plugins: [stickerPlugin] });
+
+    await bot.receive({ text: '!sa', quoted: { sticker: fixtures.animatedSticker() } });
+    expect(bot.sent).toHaveReplied('🎙️ Agora manda o áudio dessa figurinha (toca até 20 s).');
+    expect(bot.sent).not.toContainSticker();
+
+    await bot.receive({ voice: { data: await voiceNote(3), mimetype: 'audio/ogg; codecs=opus' } });
+
+    const meta = await expectSoundSticker(3);
+    // A figurinha segue como veio: a animação de 2 quadros continua lá.
+    expect((await sharp(sentBytes('sticker'), { animated: true }).metadata()).pages).toBe(2);
+    expect(meta.exif?.toString()).toContain('"sticker-pack-name":"LumaBot Stickers"');
+  }, 30_000);
+
+  it('respondendo a um áudio, pede a figurinha e junta a próxima', async () => {
+    bot = await createTestBot({ plugins: [stickerPlugin] });
+
+    await bot.receive({ text: '!sa', quoted: { audio: fixtures.audio() } });
+    expect(bot.sent).toHaveReplied('🖼️ Agora manda a figurinha que vai tocar esse áudio.');
+
+    await bot.receive({ sticker: fixtures.sticker() });
+
+    await expectSoundSticker(1);
+  }, 30_000);
+
+  it('o som juntado é cortado em 20 s', async () => {
+    bot = await createTestBot({ plugins: [stickerPlugin] });
+
+    await bot.receive({ text: '!sa', quoted: { sticker: fixtures.sticker() } });
+    await bot.receive({ voice: { data: await voiceNote(25), mimetype: 'audio/ogg; codecs=opus' } });
+
+    await expectSoundSticker(20);
+  }, 30_000);
+
+  it('outra coisa no lugar da metade esperada cancela, com aviso', async () => {
+    bot = await createTestBot({ plugins: [stickerPlugin] });
+
+    await bot.receive({ text: '!sa', quoted: { sticker: fixtures.sticker() } });
+    await bot.receive({ text: 'kkkkk' });
+
+    expect(bot.sent.slice(1)).toHaveReplied(
+      'ℹ️ Não era o que eu esperava, então cancelei. Mande !sa de novo.',
+    );
+    expect(bot.sent).not.toContainSticker();
+
+    // A espera acabou: o áudio seguinte não vira figurinha.
+    await bot.receive({ voice: fixtures.voice() });
+    expect(bot.sent).not.toContainSticker();
+  });
+
+  it('a figurinha juntada conta no log como join', async () => {
+    const o = await observedBot([stickerPlugin]);
+    bot = o.bot;
+
+    await bot.receive({ text: '!sa', quoted: { voice: fixtures.voice() } });
+    await bot.receive({ sticker: fixtures.sticker() });
+
+    expect(o.event('sticker.create.done')).toMatchObject({ kind: 'join', audio: true });
+  }, 30_000);
+});
+
+describe('!s com transparência', () => {
+  it('a figurinha de vídeo com canal alfa continua transparente', async () => {
+    // Metade esquerda transparente; o `testsrc2` muda a cada quadro, então a animação não colapsa.
+    const dir = await mkdtemp(join(tmpdir(), 'lumabot-test-'));
+    try {
+      const input = join(dir, 'alpha.mov');
+      await promisify(execFile)('ffmpeg', [
+        ...['-loglevel', 'error', '-f', 'lavfi'],
+        ...['-i', 'testsrc2=size=64x64:rate=10:duration=1,format=rgba'],
+        ...['-vf', "geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='if(lt(X,32),0,255)'"],
+        ...['-c:v', 'qtrle', input],
+      ]);
+      bot = await createTestBot({ plugins: [stickerPlugin] });
+
+      await bot.receive({
+        text: '!s',
+        video: { data: await readFile(input), mimetype: 'video/quicktime' },
+      });
+
+      const pixels = await sharp(sentBytes('sticker')).ensureAlpha().raw().toBuffer();
+      const alphaAt = (x: number, y: number) => pixels[(y * 512 + x) * 4 + 3];
+      expect(alphaAt(10, 256)).toBe(0);
+      expect(alphaAt(500, 256)).toBe(255);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  }, 30_000);
 
   it('recusa vídeo de visualização única no modo áudio', async () => {
     bot = await createTestBot({ plugins: [stickerPlugin] });
