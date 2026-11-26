@@ -217,7 +217,7 @@ describe('!dsa', () => {
       audioMimetype: 'audio/ogg; codecs=opus',
       audioSeconds: 2,
     });
-    const meta = await sharp(sent?.bytes).metadata();
+    const meta = await sharp(sent?.bytes ?? Buffer.alloc(0)).metadata();
     expect(meta).toMatchObject({ format: 'webp', width: 512, height: 512 });
     expect(meta.exif?.toString()).toContain('"sound-sha256":');
     expect(bot.transport.reactions.map((r) => r.emoji)).toEqual(['⏳', '✅']);
