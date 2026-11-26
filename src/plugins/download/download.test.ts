@@ -1,5 +1,7 @@
+import { execFile } from 'node:child_process';
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { promisify } from 'node:util';
 import type { PluginDefinition } from '@usebridger/core';
 import { createTestBot, FakeTransport, fixtures, type TestBot } from '@usebridger/testing';
 import sharp from 'sharp';
@@ -186,6 +188,67 @@ it('sem o yt-dlp no PATH, o bot sobe e o comando responde indisponível', async 
 
   expect(bot.sent).toHaveReplied(/^ℹ️ Download indisponível/);
   expect(downloadVideo).not.toHaveBeenCalled();
+});
+
+describe('!dsa', () => {
+  /** Vídeo MP4 de 2 s com som, gerado pelo FFmpeg. */
+  async function videoWithAudio(): Promise<Buffer> {
+    const { stdout } = await promisify(execFile)(
+      'ffmpeg',
+      [
+        ...['-loglevel', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=64x64:rate=15:duration=2'],
+        ...['-f', 'lavfi', '-i', 'sine=frequency=440:duration=2'],
+        ...['-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac'],
+        ...['-movflags', 'frag_keyframe+empty_moov', '-f', 'mp4', 'pipe:1'],
+      ],
+      { encoding: 'buffer', maxBuffer: 20 * 1024 * 1024 },
+    );
+    return stdout;
+  }
+
+  it('manda o vídeo do link como figurinha com o áudio anexado', async () => {
+    ytDlpWrites(downloadVideo, await videoWithAudio(), 'mp4');
+    bot = await createTestBot({ plugins: [sticker, download()] });
+
+    await bot.receive({ text: `!dsa ${URL}` });
+
+    const [sent] = bot.sentMedia('sticker');
+    expect(sent?.content).toMatchObject({
+      audioMimetype: 'audio/ogg; codecs=opus',
+      audioSeconds: 2,
+    });
+    const meta = await sharp(sent?.bytes).metadata();
+    expect(meta).toMatchObject({ format: 'webp', width: 512, height: 512 });
+    expect(meta.exif?.toString()).toContain('"sound-sha256":');
+    expect(bot.transport.reactions.map((r) => r.emoji)).toEqual(['⏳', '✅']);
+  }, 60_000);
+
+  it('vídeo sem som responde noAudio', async () => {
+    ytDlpWrites(downloadVideo, fixtures.video().data, 'webm');
+    bot = await createTestBot({ plugins: [sticker, download()] });
+
+    await bot.receive({ text: `!dsa ${URL}` });
+
+    expect(bot.sent).toHaveReplied('❌ Esse link não tem vídeo com áudio.');
+    expect(bot.sent).not.toContainSticker();
+  }, 60_000);
+
+  it('sem link, explica o uso', async () => {
+    bot = await createTestBot({ plugins: [sticker, download()] });
+
+    await bot.receive({ text: '!dsa' });
+
+    expect(bot.sent).toHaveReplied(/^ℹ️ Cole o link do vídeo junto com o comando.\nEx: `!dsa/);
+  });
+
+  it('sem o plugin sticker, avisa e não baixa', async () => {
+    bot = await createTestBot({ plugins: [download()] });
+
+    await bot.receive({ text: `!dsa ${URL}` });
+
+    expect(bot.sent).toHaveReplied(/^ℹ️ Figurinha indisponível/);
+    expect(downloadVideo).not.toHaveBeenCalled();
+  });
 });
 
 describe('!downloadsticker', () => {

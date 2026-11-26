@@ -503,13 +503,15 @@ describe('!sa', () => {
   }, 30_000);
 
   it('sem vídeo, explica o uso', async () => {
-    const expected = 'ℹ️ Responda a um vídeo com som, a uma figurinha ou a um áudio com !sa.';
+    const expected =
+      'ℹ️ Responda a uma imagem, a um vídeo com som, a uma figurinha ou a um áudio com !sa.';
     bot = await createTestBot({ plugins: [stickerPlugin] });
 
     await bot.receive({ text: '!sa' });
     expect(bot.sent).toHaveReplied(expected);
 
-    await bot.receive({ text: '!sa', quoted: { image: fixtures.image() } });
+    // Imagem agora é aceita (vira figurinha e pede o áudio); documento segue de fora.
+    await bot.receive({ text: '!sa', quoted: { document: fixtures.document() } });
     expect(bot.sent).toHaveLength(2);
     expect(bot.sent.slice(1)).toHaveReplied(expected);
   });
@@ -571,6 +573,30 @@ describe('!sa juntando figurinha e áudio', () => {
     // A figurinha segue como veio: a animação de 2 quadros continua lá.
     expect((await sharp(sentBytes('sticker'), { animated: true }).metadata()).pages).toBe(2);
     expect(meta.exif?.toString()).toContain('"sticker-pack-name":"LumaBot Stickers"');
+  }, 30_000);
+
+  it('respondendo a uma imagem, faz a figurinha, pede o áudio e junta o próximo', async () => {
+    bot = await createTestBot({ plugins: [stickerPlugin] });
+
+    await bot.receive({ text: '!sa', quoted: { image: fixtures.image() } });
+    expect(bot.sent).toHaveReplied('🎙️ Agora manda o áudio dessa figurinha (toca até 20 s).');
+    expect(bot.sent).not.toContainSticker();
+
+    await bot.receive({ voice: { data: await voiceNote(2), mimetype: 'audio/ogg; codecs=opus' } });
+
+    const meta = await expectSoundSticker(2);
+    expect(meta).toMatchObject({ format: 'webp', width: 512, height: 512 });
+  }, 30_000);
+
+  it('imagem com !sa na legenda também vira figurinha com áudio', async () => {
+    bot = await createTestBot({ plugins: [stickerPlugin] });
+
+    await bot.receive({ text: '!sa', image: fixtures.image() });
+    expect(bot.sent).toHaveReplied('🎙️ Agora manda o áudio dessa figurinha (toca até 20 s).');
+
+    await bot.receive({ audio: fixtures.audio() });
+
+    await expectSoundSticker(1);
   }, 30_000);
 
   it('respondendo a um áudio, pede a figurinha e junta a próxima', async () => {

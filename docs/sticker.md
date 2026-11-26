@@ -12,7 +12,7 @@ Código em `src/plugins/sticker/` (`sticker.ts`: comando e serviço; `convert.ts
 | Comando | Entrada | Saída |
 | --- | --- | --- |
 | `!sticker [texto]` / `!s` | Imagem, vídeo, GIF, figurinha ou link | Figurinha 512×512 |
-| `!stickeraudio` / `!sa` | Vídeo com som; ou figurinha + áudio | Figurinha WebP com áudio nativo (OGG/Opus) de até 20 s |
+| `!stickeraudio` / `!sa` | Vídeo com som; ou imagem/figurinha + áudio | Figurinha WebP com áudio nativo (OGG/Opus) de até 20 s |
 
 A mídia vem da própria mensagem ou, na falta, da citada; mídia de visualização única é recusada.
 Com o `sticker-text` carregado, o texto depois do comando (sem o link) vira legenda na
@@ -47,7 +47,10 @@ outra:
 
 1. `!sa` respondendo a uma **figurinha**: o bot responde `stickerAudioAskAudio` e espera o próximo
    áudio ou nota de voz da pessoa.
-2. `!sa` respondendo a um **áudio** ou nota de voz: o bot responde `stickerAudioAskSticker` e espera
+2. `!sa` numa **imagem** (na legenda ou respondendo a ela): a imagem vira a figurinha estática do
+   `!s`, pelo serviço (com as etapas, como a legenda do `sticker-text`), e segue como no item 1.
+   A figurinha sem som não é enviada: sai só a final, com o áudio.
+3. `!sa` respondendo a um **áudio** ou nota de voz: o bot responde `stickerAudioAskSticker` e espera
    a próxima figurinha.
 
 A espera é a resposta esperada do kernel
@@ -79,6 +82,7 @@ Outros plugins usam a figurinha pelo `ctx.services.get('sticker')`, sem importar
 | Método | O que faz |
 | --- | --- |
 | `create(media, { animated, text, signal })` | Bytes → figurinha pronta (WebP com o pacote no EXIF). Estática passa pelas etapas; `animated` (vídeo, GIF) vai pelo FFmpeg, sem etapas |
+| `createWithAudio(video, signal)` | Vídeo com som → `{ sticker, audio }`: a figurinha do `!sa` (com `sound-sha256` no EXIF) e o OGG/Opus, enviados com `reply.sticker(sticker, audioOptions(audio))`. Sem som, lança `NoAudioError` |
 
 Dois jeitos de compor:
 
