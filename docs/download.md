@@ -12,6 +12,7 @@ O link vem depois do comando ou, na falta, da mensagem citada.
 | `!download <link>` / `!d` | Vídeo MP4 recodificado; post de foto (Instagram, X) sai como imagem |
 | `!audio <link>` / `!a` | MP3 com capa e tags, com o título como nome do arquivo |
 | `!downloadsticker <link> [texto]` / `!ds` | O vídeo ou a foto do link como figurinha, feita pelo plugin [`sticker`](sticker.md) |
+| `!downloadstickeraudio <link>` / `!dsa` | O vídeo do link como figurinha com áudio, a mesma do [`!sa`](sticker.md#figurinha-com-áudio-sa) |
 
 Enquanto baixa, o bot reage ⏳ e depois ✅ ou ❌; num transport sem `reactions`, a reação é
 ignorada. A falha vai
@@ -20,7 +21,8 @@ para o log (`download.media.failed`, com o stderr do yt-dlp) e o chat recebe `do
 [logs-e-metricas.md](logs-e-metricas.md#ações-medidas).
 
 Cada comando declara no `requires` a capability do que envia (`!download`: `send.video`;
-`!audio`: `send.audio`; `!downloadsticker`: `send.sticker`). Sem ela, o comando não é registrado. O `!download` não exige
+`!audio`: `send.audio`; `!downloadsticker`: `send.sticker`; `!dsa`: `send.sticker` e
+`send.sticker.audio`). Sem ela, o comando não é registrado. O `!download` não exige
 `send.image`: só depois de baixar se sabe se o link é vídeo ou foto, e exigir as duas tiraria o
 comando do transport que envia vídeo mas não imagem. Nele, o post de foto recebe
 `imageUnsupported` e ❌.
@@ -50,6 +52,10 @@ O `sticker` é opcional para o `download` (sem `dependsOn`): sem ele, o plugin c
 só o `!downloadsticker` responde `stickerUnavailable`, sem baixar nada. O comando consulta o
 serviço a cada uso, então pega o novo depois de um reload do `sticker`. Falha do yt-dlp
 responde `downloadError` (ou `tooLarge`); falha na conversão, depois de baixar, `stickerError`.
+
+O `!dsa` faz o mesmo com o `createWithAudio` do serviço: animação e som cortados juntos em 20 s.
+Vídeo sem som, ou post de foto, responde `noAudio` e conta como recusa `no-audio`. No log, `kind:
+'sound-sticker'`.
 
 ## Binários
 

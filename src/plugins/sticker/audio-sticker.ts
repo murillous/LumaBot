@@ -24,6 +24,11 @@ export interface ExtractedAudio {
   readonly mimetype: string;
 }
 
+/** Opções do `reply.sticker` que anexam o áudio à figurinha. */
+export function audioOptions(audio: ExtractedAudio) {
+  return { audio: audio.data, audioMimetype: audio.mimetype, audioSeconds: audio.seconds };
+}
+
 /**
  * Extrai a faixa de áudio de um vídeo (ou de um áudio) como OGG/Opus. Com `ms`, sai com
  * exatamente essa duração, na mesma linha do tempo da animação. Sem, vai até

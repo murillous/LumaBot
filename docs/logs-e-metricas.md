@@ -38,14 +38,14 @@ conta como recusa; os outros contam como falha e são relançados. Os comandos d
 
 | Plugin | `kind` | Eventos (`.done` / `.refused` / `.failed`) | Métricas | Recusas (`reason`) |
 | --- | --- | --- | --- | --- |
-| `download` | `media`, `audio`, `sticker` | `download.media.*` | `luma_download_*` | `too-large`, `image-unsupported` |
+| `download` | `media`, `audio`, `sticker`, `sound-sticker` (`!dsa`) | `download.media.*` | `luma_download_*` | `too-large`, `image-unsupported`, `no-audio` |
 | `sticker` | `media` (da mensagem), `url`, `audio` (`!sa` de vídeo), `join` (`!sa` que junta figurinha e áudio) | `sticker.create.*` | `luma_sticker_*` | `url-failed`, `no-audio` |
 | `sticker-convert` | `image`, `gif` | `sticker-convert.convert.*` | `luma_sticker_convert_*` | `not-animated` |
 | `pdf` | `image`, `add` (à fila do `!mergepdf`), `merge` | `pdf.convert.*` | `luma_pdf_*` | `too-large` |
 | `transcribe` | `audio` | `transcribe.audio.*` | `luma_transcribe_*` | `too-large`, `unavailable` |
 | `web-search` | `tavily`, `native` (um por backend tentado), `images` (`search_images`) | `web-search.search.*` | `luma_web_search_*` | `quota`, `unavailable` |
 
-Os comandos e as tools da IA registram igual. O `!downloadsticker` conta no `download`, não no
+Os comandos e as tools da IA registram igual. O `!downloadsticker` e o `!dsa` contam no `download`, não no
 `sticker`. A transcrição é medida no serviço `transcription`, então conta também quando a Luma
 transcreve para responder. No `web-search`, a falha do Tavily é registrada e a busca cai para a
 nativa.
