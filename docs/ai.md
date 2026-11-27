@@ -28,7 +28,8 @@ BRIDGER_AI_DEEPSEEK__KEY=...
 ```
 
 `temperature` e `maxOutputTokens` ficam no item da cadeia porque a escala muda entre providers: o
-Gemini aceita `temperature` até 2, e o Claude, até 1. Sem eles, vale o padrão do provider.
+Gemini aceita `temperature` até 2; o Claude não aceita `temperature` (o item ignora o valor).
+Sem eles, vale o padrão do provider.
 
 Sem `models`, o bot sobe, o log avisa e o `generate` recusa com `AiUnavailableError`. Item com
 formato errado (sem `provider:`) é config inválida e impede o boot.
