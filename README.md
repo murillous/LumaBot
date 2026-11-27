@@ -233,6 +233,7 @@ o app carrega o `metrics`.
 | [`transcribe`](docs/transcribe.md) | Transcrição de áudio: `!transcribe` (`!t`). Oferece o serviço `transcription` |
 | [`web-search`](docs/web-search.md) | Busca na internet (Tavily, com Google Grounding de reserva). Oferece o serviço `webSearch` |
 | [`help`](docs/help.md) | Menu de comandos gerado do kernel: `!help`, `!menu`, `!ajuda`. Oferece o serviço `help` e o ponto `help.sections` |
+| [`welcome`](docs/welcome.md) | Na primeira mensagem de cada pessoa no privado, a Luma se apresenta e manda o menu do `help` |
 | [`sticker`](docs/sticker.md) | Figurinha de imagem, vídeo ou link: `!sticker`. Oferece o serviço `sticker` |
 | [`sticker-text`](docs/sticker.md#legenda-sticker-text) | Texto do `!sticker` como legenda; estende o serviço `sticker` |
 | [`sticker-convert`](docs/sticker-convert.md) | Figurinha de volta a imagem ou vídeo: `!image`, `!gif` |

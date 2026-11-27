@@ -36,6 +36,7 @@ import { usage } from '#plugins/usage/usage.ts';
 import { userNames } from '#plugins/user-names/user-names.ts';
 import { utils } from '#plugins/utils/utils.ts';
 import { webSearch } from '#plugins/web-search/web-search.ts';
+import { welcome } from '#plugins/welcome/welcome.ts';
 
 const config = loadConfig();
 // O app cria o logger para registrar também a falha de boot; o mesmo SecretSet vai para o bot,
@@ -114,6 +115,7 @@ const bot = createBot({
     transcribe,
     webSearch(),
     help,
+    welcome,
     sticker,
     stickerText,
     stickerConvert,
