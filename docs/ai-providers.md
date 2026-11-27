@@ -34,7 +34,7 @@ O menor bot com IA tem só o `ai` e um provider:
 
 ```jsonc
 { "ai-deepseek": { "key": "..." },
-  "ai": { "models": [{ "model": "deepseek:deepseek-flash" }] } }
+  "ai": { "models": [{ "model": "deepseek:deepseek-chat" }] } }
 ```
 
 Um plugin **sem chave** sobe mesmo assim, registra `ai-<provider>.key.missing` (`info`) e entra

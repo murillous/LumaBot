@@ -26,6 +26,6 @@ export const assistente: PluginDefinition = definePlugin({
 /** A config do exemplo: a chave do provider, a cadeia do `ai` e o `ai-context` com os padrões. */
 export const exampleConfig = (key: string): PluginConfigFile => ({
   'ai-deepseek': { key },
-  ai: { models: [{ model: 'deepseek:deepseek-flash' }] },
+  ai: { models: [{ model: 'deepseek:deepseek-chat' }] },
   'ai-context': { name: 'Assistente' },
 });
