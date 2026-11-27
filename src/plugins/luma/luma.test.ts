@@ -599,7 +599,15 @@ describe('personas', () => {
     expect(bot.sent).toContainText(/limite de personas criadas \(1\)/);
   });
 
-  it('se a IA devolve lixo, avisa que não rolou e não grava nada', async () => {
+  it('se a IA devolve lixo e depois a persona, a segunda tentativa cria', async () => {
+    const b = await start(scripted('não sei fazer isso', generated));
+
+    await b.receive({ text: '!persona criar uma vovó italiana' });
+
+    expect(b.sent).toHaveReplied('Prontinho! Agora eu sou *Vovó Italiana*! 😎');
+  });
+
+  it('se a IA devolve lixo duas vezes, avisa que não rolou e não grava nada', async () => {
     const b = await start(scripted('não sei fazer isso'));
 
     await b.receive({ text: '!persona criar uma vovó' });
