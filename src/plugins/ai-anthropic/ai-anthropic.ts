@@ -9,8 +9,8 @@ export const aiAnthropic: PluginDefinition = keyProvider({
   provider: {
     name: 'anthropic',
     label: 'Anthropic',
-    // O Claude aceita `temperature` só até 1.
-    temperature: { min: 0, max: 1 },
+    // Os Claude 5.5 recusam `temperature` (400 sem retry, que derrubaria a cadeia).
+    temperature: null,
     models: [{ id: 'claude-haiku-5-5' }, { id: 'claude-sonnet-5-5' }, { id: 'claude-opus-5-5' }],
   },
   create: (apiKey) => {

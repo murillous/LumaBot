@@ -14,8 +14,11 @@ export interface ChainItem {
 /** Faixa de temperatura que vale quando o provedor não declara a dele (o schema vai a 2). */
 export const DEFAULT_TEMPERATURE = { min: 0, max: 2 } as const;
 
-/** Saídas máximas prontas; `undefined` é o padrão do provedor. */
-export const OUTPUT_PRESETS = [undefined, 512, 1024, 2048, 4096, 8192] as const;
+/**
+ * Saídas máximas prontas; `undefined` é o padrão do provedor. Sem 512/1024: modelos com pensamento
+ * sempre ligado (Claude 5.5) gastam parte do teto pensando e teriam a resposta cortada.
+ */
+export const OUTPUT_PRESETS = [undefined, 2048, 4096, 8192, 16384] as const;
 
 export const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);

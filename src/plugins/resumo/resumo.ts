@@ -46,7 +46,7 @@ const config = z
 const INSTRUCTIONS =
   'Você é a Luma. Abaixo está um trecho recente da conversa deste chat. ' +
   'Faça um resumo natural e descontraído do que foi discutido, como se estivesse contando pra alguém o que rolou no papo. ' +
-  'Seja breve (máximo 5 linhas), use seu jeito de falar e não quebre o personagem.';
+  'Conte só o que importa, no tamanho de uma mensagem de WhatsApp, do seu jeito e sem quebrar o personagem.';
 
 /**
  * Resumo da conversa do chat (`!resumo [n]`). Guarda em memória as últimas mensagens de texto de

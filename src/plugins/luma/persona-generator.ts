@@ -1,6 +1,7 @@
-// Criação de persona a partir de uma descrição livre. Puro: monta o pedido à IA e valida o JSON
-// que ela devolve; quem chama a IA é o plugin, pelo serviço `ai`.
+// Criação de persona a partir de uma descrição livre. Puro: monta o pedido à IA e valida o objeto
+// que ela devolve (saída estruturada); quem chama a IA é o plugin, pelo serviço `ai`.
 
+import { z } from 'zod';
 import { FORMAT_TRAIT, type Persona } from './personas.ts';
 
 /** Limites de cada campo: o excesso é cortado, menos nos traços, que podem recusar. */
@@ -8,7 +9,7 @@ const LIMITS = { name: 40, description: 120, context: 600, style: 300, trait: 20
 export const MIN_TRAITS = 3;
 export const MAX_TRAITS = 8;
 
-/** A IA não devolveu uma persona aproveitável (JSON ausente, campo faltando, poucos traços). */
+/** A IA não devolveu uma persona aproveitável (objeto ausente, campo vazio, poucos traços). */
 export class PersonaParseError extends Error {
   override readonly name = 'PersonaParseError';
 }
@@ -16,48 +17,41 @@ export class PersonaParseError extends Error {
 /** Persona sem a `key`, que o plugin deriva do nome com `slugify`. */
 export type GeneratedPersona = Omit<Persona, 'key'>;
 
+/** Schema da resposta da IA (saída estruturada); `parsePersona` corta e confere o conteúdo. */
+export const personaSchema = z.object({
+  name: z.string(),
+  description: z.string(),
+  context: z.string(),
+  style: z.string(),
+  traits: z.array(z.string()),
+});
+
 export function personaPrompt(description: string): string {
   return (
     'Você é um gerador de personalidades para uma assistente de WhatsApp chamada Luma.\n' +
-    'A partir da descrição livre abaixo, crie uma personalidade coerente e responda APENAS com um objeto JSON válido, sem texto extra e sem cercas de código.\n\n' +
-    'Formato exato do JSON:\n' +
-    '{\n' +
-    `  "name": "nome curto e marcante da persona (até ${LIMITS.name} caracteres)",\n` +
-    '  "description": "uma linha curta resumindo a vibe, pode começar com um emoji",\n' +
-    `  "context": "quem a persona é, em 2ª pessoa ('Você é...'), até ${LIMITS.context} caracteres",\n` +
-    `  "style": "como ela escreve: tom, gírias, uso de emojis, até ${LIMITS.style} caracteres",\n` +
-    `  "traits": ["entre ${MIN_TRAITS} e ${MAX_TRAITS} traços de comportamento, cada um até ${LIMITS.trait} caracteres"]\n` +
-    '}\n\n' +
+    'A partir da descrição livre abaixo, crie uma personalidade coerente.\n\n' +
+    `name: curto e marcante (até ${LIMITS.name} caracteres). ` +
+    'description: uma linha com a vibe, pode começar com emoji. ' +
+    `context: quem ela é, em 2ª pessoa ('Você é...'), até ${LIMITS.context} caracteres. ` +
+    `style: tom, gírias, emojis, até ${LIMITS.style} caracteres. ` +
+    `traits: ${MIN_TRAITS} a ${MAX_TRAITS} comportamentos, cada um até ${LIMITS.trait} caracteres.\n\n` +
     'Não inclua regras de formato/tamanho de mensagem nos traits — isso é adicionado automaticamente.\n\n' +
     `Descrição: ${description}`
   );
-}
-
-/** O objeto JSON do texto da IA, tolerando cerca de código e texto em volta. */
-function extractJson(text: string): Record<string, unknown> | null {
-  const start = text.indexOf('{');
-  const end = text.lastIndexOf('}');
-  if (start === -1 || end <= start) return null;
-  try {
-    const value: unknown = JSON.parse(text.slice(start, end + 1));
-    return value && typeof value === 'object' && !Array.isArray(value)
-      ? (value as Record<string, unknown>)
-      : null;
-  } catch {
-    return null;
-  }
 }
 
 const cut = (value: unknown, max: number): string =>
   typeof value === 'string' ? [...value.trim()].slice(0, max).join('').trim() : '';
 
 /**
- * Valida e normaliza a resposta da IA. Recusa JSON ausente, `name`/`context`/`style` vazios e
+ * Valida e normaliza o objeto da IA. Recusa objeto ausente, `name`/`context`/`style` vazios e
  * menos de {@link MIN_TRAITS} traços; o traço de formato é anexado aqui, nunca vem do modelo.
  */
-export function parsePersona(text: string): GeneratedPersona {
-  const raw = extractJson(text);
-  if (!raw) throw new PersonaParseError('a IA não devolveu um JSON de persona');
+export function parsePersona(output: unknown): GeneratedPersona {
+  if (!output || typeof output !== 'object' || Array.isArray(output)) {
+    throw new PersonaParseError('a IA não devolveu um objeto de persona');
+  }
+  const raw = output as Record<string, unknown>;
 
   const name = cut(raw['name'], LIMITS.name);
   const context = cut(raw['context'], LIMITS.context);

@@ -6,6 +6,7 @@ import {
   type PluginDefinition,
   type Reply,
 } from '@usebridger/core';
+import { NoObjectGeneratedError } from 'ai';
 import { z } from 'zod';
 import { AiUnavailableError, chainItem } from '#plugins/ai/ai.ts';
 import { personId } from '#plugins/ai/person-id.ts';
@@ -22,7 +23,13 @@ import {
   REPLY_FAILED,
   TYPING_FAILED,
 } from './log-events.ts';
-import { PersonaParseError, parsePersona, personaPrompt, slugify } from './persona-generator.ts';
+import {
+  PersonaParseError,
+  parsePersona,
+  personaPrompt,
+  personaSchema,
+  slugify,
+} from './persona-generator.ts';
 import { DEFAULT_PERSONA, PERSONAS, type Persona } from './personas.ts';
 import { buildPrompt, type QuotedInfo, quotedContext } from './prompt.ts';
 import { renderStats } from './stats.ts';
@@ -248,24 +255,23 @@ export const luma: PluginDefinition = definePlugin({
       create: async (chatId, description, signal, isGroup) => {
         const existing = await custom(chatId);
         if (existing.length >= cfg.maxCustomPersonas) throw new PersonaLimitError();
-        const request = {
-          purpose: 'persona',
-          messages: [{ role: 'user' as const, content: personaPrompt(description) }],
-          ...(cfg.models.length > 0 && { models: cfg.models }),
-          ...(signal && { signal }),
-        };
-        // O modelo às vezes responde fora do JSON: uma segunda tentativa resolve a maioria.
-        let parsed: ReturnType<typeof parsePersona> | undefined;
-        let lastError: unknown;
-        for (let attempt = 0; attempt < 2 && !parsed; attempt += 1) {
-          try {
-            parsed = parsePersona((await ai.generate(request)).text);
-          } catch (err) {
-            if (!(err instanceof PersonaParseError)) throw err;
-            lastError = err;
+        let output: unknown;
+        try {
+          ({ output } = await ai.generate({
+            purpose: 'persona',
+            messages: [{ role: 'user', content: personaPrompt(description) }],
+            output: personaSchema,
+            ...(cfg.models.length > 0 && { models: cfg.models }),
+            ...(signal && { signal }),
+          }));
+        } catch (err) {
+          // Objeto fora do schema: para o usuário é a mesma persona inválida.
+          if (NoObjectGeneratedError.isInstance(err)) {
+            throw new PersonaParseError('a IA não devolveu um objeto de persona', { cause: err });
           }
+          throw err;
         }
-        if (!parsed) throw lastError;
+        const parsed = parsePersona(output);
         const key = slugify(parsed.name, [...factory.keys(), ...existing.map((p) => p.key)]);
         const persona: Persona = { key, ...parsed };
         await docs.insert({ chatId, ...persona, traits: [...persona.traits] });
@@ -641,7 +647,7 @@ export const luma: PluginDefinition = definePlugin({
       aiTool({
         name: 'create_persona',
         description:
-          "Cria uma nova personalidade (persona) sua a partir de uma descrição livre e a ativa imediatamente neste chat. Use SEMPRE que o usuário pedir para você mudar de jeito de ser — 'virar', 'ser', 'se transformar em', 'fingir/finge que é', 'se passar por', 'incorporar', 'atuar/agir como', 'imitar', 'responder como', 'assumir a personalidade de' — qualquer personagem, figura ou personalidade (ex: 'vira uma vovó italiana carinhosa', 'seja um pirata mal-humorado', 'responde como se fosse o Sherlock'). Na dúvida entre só conversar e virar o personagem, prefira chamar esta ferramenta.",
+          'Cria uma nova personalidade (persona) a partir de uma descrição livre e a ativa neste chat, no lugar da atual, até alguém trocar de novo. Use quando o usuário pedir que você passe a ser, imitar ou responder como um personagem, figura ou tipo de pessoa (ex.: "vira uma vovó italiana", "responde como o Sherlock"). Não use para uma frase solta no tom de alguém dentro da conversa, nem quando o usuário só cita um personagem. Falha se o chat já tem o máximo de personas criadas.',
         args: z.object({
           description: z
             .string()
