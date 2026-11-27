@@ -9,11 +9,17 @@ const MESSAGES = {
     'Aqui no privado é só falar comigo normalmente que eu respondo. ' +
     'Também faço figurinha, baixo vídeo, transcrevo áudio e mais: é só usar um dos comandos abaixo. ' +
     'Se esquecer, manda *{prefix}menu* que eu mostro a lista de novo.',
+  groupIntro:
+    'Oi, gente! Eu sou a *Luma* ✨\n\n' +
+    'Pra falar comigo aqui no grupo, me chama pelo nome, me marca ou responde uma mensagem minha. ' +
+    'Também faço figurinha, baixo vídeo, transcrevo áudio e mais: é só usar um dos comandos abaixo. ' +
+    'Se esquecer, manda *{prefix}menu* que eu mostro a lista de novo.',
 };
 
 /**
- * Na primeira mensagem de cada pessoa no privado, a Luma se apresenta e manda o menu do `help`.
- * Só no privado: no grupo, uma apresentação por pessoa nova viraria spam.
+ * A Luma se apresenta e manda o menu do `help`: no privado, na primeira mensagem de cada pessoa;
+ * no grupo, quando é adicionada. No grupo não é por pessoa: uma apresentação a cada membro novo
+ * viraria spam.
  */
 export const welcome: PluginDefinition = definePlugin({
   name: 'welcome',
@@ -26,6 +32,18 @@ export const welcome: PluginDefinition = definePlugin({
     const help = ctx.services.get('help');
     // Pelo `personId`: no WhatsApp a mesma pessoa pode chegar como LID ou como número.
     const key = (sender: Parameters<typeof personId>[0]) => `welcomed:${personId(sender)}`;
+
+    // Sem marca no storage: sair e voltar ao grupo é ser adicionada de novo, e a apresentação
+    // também vale de novo.
+    ctx.events.on('group.joined', async (e) => {
+      const chat = e.payload.chat;
+      try {
+        const intro = ctx.plugin.messages.groupIntro.replaceAll('{prefix}', ctx.prefixes.get(chat));
+        await ctx.send.send(chat.id, `${intro}\n\n${help.render(chat)}`);
+      } catch (err) {
+        ctx.log.event(WELCOME_FAILED, { err });
+      }
+    });
 
     // Quem já começou por um comando sabe usar a Luma: marca sem apresentar. O comando não passa
     // pelo `message`, por isso o evento à parte.

@@ -1,5 +1,6 @@
+import { definePlugin } from '@usebridger/core';
 import { createTestBot, type TestBot } from '@usebridger/testing';
-import { afterEach, expect, it } from 'vitest';
+import { afterEach, expect, it, vi } from 'vitest';
 import { help } from '#plugins/help/help.ts';
 import { ping } from '#plugins/ping.ts';
 import { welcome } from './welcome.ts';
@@ -76,4 +77,37 @@ it('mensagem de outro bot não conta', async () => {
   await bot.receive({ text: 'oi' });
 
   expect(texts()).toHaveLength(1);
+});
+
+it('ao ser adicionada num grupo, se apresenta com o menu do grupo', async () => {
+  const admin = definePlugin({
+    name: 'admin',
+    version: '1.0.0',
+    engine: '<1.0.0',
+    commands: { kick: { description: 'remove', role: 'group-admin', run: () => 'x' } },
+  });
+  bot = await createTestBot({ plugins: [help, ping, admin, welcome] });
+  const group = { id: 'grupo@fake', isGroup: true };
+
+  bot.transport.emit('group.joined', { chat: group });
+  await vi.waitFor(() => expect(bot.sent).toHaveLength(1));
+
+  const [sent] = bot.sent;
+  expect(sent?.chatId).toBe('grupo@fake');
+  const [text] = texts();
+  expect(text).toContain('Oi, gente! Eu sou a *Luma*');
+  expect(text).toContain('*!menu*');
+  expect(text).toContain('*!ping*');
+  expect(text).toContain('*!kick*');
+});
+
+it('mensagens no grupo depois da entrada não repetem a apresentação', async () => {
+  bot = await createTestBot({ plugins: [help, welcome] });
+  const group = { id: 'grupo@fake', isGroup: true };
+
+  bot.transport.emit('group.joined', { chat: group });
+  await vi.waitFor(() => expect(bot.sent).toHaveLength(1));
+  await bot.receive({ text: 'oi', chat: group });
+
+  expect(bot.sent).toHaveLength(1);
 });
