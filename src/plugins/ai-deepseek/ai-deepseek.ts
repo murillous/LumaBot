@@ -10,7 +10,7 @@ export const aiDeepseek: PluginDefinition = keyProvider({
     name: 'deepseek',
     label: 'DeepSeek',
     temperature: { min: 0, max: 2 },
-    models: [{ id: 'deepseek-chat' }, { id: 'deepseek-reasoner' }],
+    models: [{ id: 'deepseek-flash' }, { id: 'deepseek-v4-pro' }],
   },
   create: (apiKey) => {
     const deepseek = createDeepSeek({ apiKey });

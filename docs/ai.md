@@ -22,7 +22,7 @@ histórico e a persona são da [`luma`](luma.md); `resumo`, `spontaneous`,
 Por ambiente:
 
 ```sh
-BRIDGER_AI__MODELS='[{"model":"google:gemini-2.5-flash","temperature":1.4},{"model":"deepseek:deepseek-chat"}]'
+BRIDGER_AI__MODELS='[{"model":"google:gemini-2.5-flash","temperature":1.4},{"model":"deepseek:deepseek-flash"}]'
 BRIDGER_AI_GOOGLE__KEY=...
 BRIDGER_AI_DEEPSEEK__KEY=...
 ```
@@ -177,7 +177,7 @@ plugins):
 ```jsonc
 { "models": [
   { "model": "google:gemini-2.5-flash", "state": "ready", "lastOutcome": "ok", "lastAt": "…" },
-  { "model": "deepseek:deepseek-chat", "state": "cooldown", "until": "…" },
+  { "model": "deepseek:deepseek-flash", "state": "cooldown", "until": "…" },
   { "model": "anthropic:claude-haiku-5-5", "state": "unregistered" }
 ] }
 ```

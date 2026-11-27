@@ -35,6 +35,6 @@ it('um bot só com o ai-deepseek sobe com o provider deepseek', async () => {
   const deepseek = await start('d-key');
 
   expect(listed.map((p) => p.name)).toEqual(['deepseek']);
-  expect(deepseek?.languageModel('deepseek-chat')).toMatchObject({ modelId: 'deepseek-chat' });
+  expect(deepseek?.languageModel('deepseek-flash')).toMatchObject({ modelId: 'deepseek-flash' });
   expect(deepseek?.imageModel).toBeUndefined();
 });

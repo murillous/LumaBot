@@ -255,23 +255,33 @@ export const luma: PluginDefinition = definePlugin({
       create: async (chatId, description, signal, isGroup) => {
         const existing = await custom(chatId);
         if (existing.length >= cfg.maxCustomPersonas) throw new PersonaLimitError();
-        let output: unknown;
-        try {
-          ({ output } = await ai.generate({
-            purpose: 'persona',
-            messages: [{ role: 'user', content: personaPrompt(description) }],
-            output: personaSchema,
-            ...(cfg.models.length > 0 && { models: cfg.models }),
-            ...(signal && { signal }),
-          }));
-        } catch (err) {
-          // Objeto fora do schema: para o usuário é a mesma persona inválida.
-          if (NoObjectGeneratedError.isInstance(err)) {
-            throw new PersonaParseError('a IA não devolveu um objeto de persona', { cause: err });
+        const request = {
+          purpose: 'persona',
+          messages: [{ role: 'user' as const, content: personaPrompt(description) }],
+          output: personaSchema,
+          ...(cfg.models.length > 0 && { models: cfg.models }),
+          ...(signal && { signal }),
+        };
+        const generatePersona = async () => {
+          try {
+            return parsePersona((await ai.generate(request)).output);
+          } catch (err) {
+            // Objeto fora do schema: para o usuário é a mesma persona inválida.
+            if (NoObjectGeneratedError.isInstance(err)) {
+              throw new PersonaParseError('a IA não devolveu um objeto de persona', { cause: err });
+            }
+            throw err;
           }
-          throw err;
+        };
+        // Nem todo provider garante o schema: o DeepSeek só tem `json_object`, e o schema vai como
+        // texto no sistema. Uma segunda tentativa resolve a maioria das respostas fora do formato.
+        let parsed: ReturnType<typeof parsePersona>;
+        try {
+          parsed = await generatePersona();
+        } catch (err) {
+          if (!(err instanceof PersonaParseError)) throw err;
+          parsed = await generatePersona();
         }
-        const parsed = parsePersona(output);
         const key = slugify(parsed.name, [...factory.keys(), ...existing.map((p) => p.key)]);
         const persona: Persona = { key, ...parsed };
         await docs.insert({ chatId, ...persona, traits: [...persona.traits] });

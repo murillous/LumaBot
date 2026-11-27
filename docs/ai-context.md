@@ -57,7 +57,7 @@ const bot = createBot({
   plugins: [ai, aiDeepseek, aiContext, assistente],
   pluginConfig: {
     'ai-deepseek': { key: '...' },
-    ai: { models: [{ model: 'deepseek:deepseek-chat' }] },
+    ai: { models: [{ model: 'deepseek:deepseek-flash' }] },
     'ai-context': { name: 'Assistente' },
   },
 });
