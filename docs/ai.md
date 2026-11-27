@@ -28,7 +28,8 @@ BRIDGER_AI_DEEPSEEK__KEY=...
 ```
 
 `temperature` e `maxOutputTokens` ficam no item da cadeia porque a escala muda entre providers: o
-Gemini aceita `temperature` até 2, e o Claude, até 1. Sem eles, vale o padrão do provider.
+Gemini aceita `temperature` até 2; o Claude não aceita `temperature` (o item ignora o valor).
+Sem eles, vale o padrão do provider.
 
 Sem `models`, o bot sobe, o log avisa e o `generate` recusa com `AiUnavailableError`. Item com
 formato errado (sem `provider:`) é config inválida e impede o boot.
@@ -61,6 +62,9 @@ const { text, model, usage } = await ctx.services.get('ai').generate({
   actor: { id: personId(sender), chatId },  // opcional: quem pediu
 });
 ```
+
+Com `nativeSearch: true`, `sources` traz as páginas que a busca nativa usou (`{ url, title? }`), na
+ordem e sem repetir URL. Fica vazio sem busca nativa ou quando o provider não as devolve.
 
 Com `actor`, cada tentativa leva quem pediu, e o `ai-metrics` grava a resposta no `usage` dessa
 pessoa, com o custo (veja [ai-metrics](ai-metrics.md#uso-por-pessoa)). Hoje só a `luma` informa.

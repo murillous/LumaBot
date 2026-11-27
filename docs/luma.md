@@ -33,6 +33,10 @@ o resumo das falas velhas e a memória longa em blocos. O que é só dela:
   guia de leitura e a seção de memória do `ai-context` no meio e no fim, com os textos e a config
   dele (`messages`, `memory.enabled`). Não muda entre os turnos do mesmo chat e persona, para o
   cache do provider valer.
+- Link só sai se veio de uma ferramenta (a busca, por exemplo), copiado como veio; a regra está
+  no prompt. Na resposta, `[texto](url)` em markdown vira `texto: url`, porque o WhatsApp colaria o
+  `)` na URL, e a divisão em balões nunca corta um link no meio (`cleanResponse` e
+  `splitIntoParts`, em `src/plugins/ai/response.ts`).
 - O resumo usa a cadeia da Luma (`models`), como a resposta.
 - A resposta dela entra na transcrição como foi ao chat, com o ID de cada balão: quem citar
   qualquer um deles cita a fala.
@@ -55,8 +59,8 @@ para a padrão.
 | `!persona criar <descrição>` | A IA gera a persona da descrição (`name`, `description`, `context`, `style`, 3 a 8 `traits`), o chat a ativa e a memória é limpa. JSON malformado tenta uma segunda vez |
 | `!persona deletar <n>` | Apaga uma persona **criada** no chat; as de fábrica são recusadas |
 
-Cada chat pode criar até `maxCustomPersonas` (10). O traço de formato dos balões (`mensagens
-curtas...`) é do sistema e entra em toda persona gerada; o modelo nunca o escreve.
+Cada chat pode criar até `maxCustomPersonas` (10). O traço de formato dos balões (`o mínimo de
+balões...`) é do sistema e entra em toda persona gerada; o modelo nunca o escreve.
 
 ## Auditoria
 
@@ -109,7 +113,7 @@ anterior não vazar para a nova.
 | `visionModels` | `[]` | Cadeia para mensagem com imagem. Vazio usa `models`. O `view_media` e o PDF escaneado usam o `visionModels` do [`ai-context`](ai-context.md#config-mínima) |
 | `defaultPersona` | `pensadora` | Persona de um chat que nunca escolheu |
 | `maxCustomPersonas` | `10` | Personas criadas por chat |
-| `maxPartLength` / `maxParts` | `300` / `2` | Tamanho de cada balão e quantos no máximo |
+| `maxPartLength` / `maxParts` | `1500` / `6` | Quantos balões mandar é decisão do modelo, instruído a usar o mínimo. `maxPartLength` só corta texto que veio sem `[PARTE]`; `maxParts` é a trava contra loop, e o que passa dele vai junto no último balão, nunca é descartado |
 | `thinkingDelayMs` | `{ min: 2000, max: 5000 }` | Espera "digitando" antes de gerar; `0` desliga |
 | `replyTimeoutMs` | `180000` | Prazo da resposta inteira |
 | `boredReplies`, `errorReplies` | frases do legacy | Variantes sorteadas (config, não `messages`, por serem listas) |

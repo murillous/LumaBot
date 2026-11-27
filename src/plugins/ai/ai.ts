@@ -9,6 +9,7 @@ import {
   type LanguageModel,
   type LanguageModelUsage,
   type ModelMessage,
+  Output,
   type ToolSet,
   tool,
 } from 'ai';
@@ -64,8 +65,11 @@ export interface AiProvider {
   readonly label?: string;
   /** Modelos conhecidos, só para o catálogo: um `provider:modelo` fora da lista continua valendo. */
   readonly models?: readonly AiModelInfo[];
-  /** Faixa de `temperature` do provider (varia: o Gemini vai a 2, o Claude a 1). */
-  readonly temperature?: { readonly min: number; readonly max: number };
+  /**
+   * Faixa de `temperature` do provider (o Gemini vai a 2). `null`: o provider recusa o parâmetro
+   * (os Claude 5.5 respondem 400), então o `temperature` do item não é enviado.
+   */
+  readonly temperature?: { readonly min: number; readonly max: number } | null;
   /**
    * A busca na internet que o próprio provider executa (o Google Grounding do Gemini), se ele
    * tiver. O `ai` a oferece quando a chamada pede `nativeSearch`.
@@ -163,6 +167,8 @@ export interface GenerateRequest {
   readonly toolContext?: AiToolContext;
   /** Quem pediu a resposta, repassado em cada `AiAttempt` para o custo entrar no uso dela. */
   readonly actor?: AiActor;
+  /** Schema da resposta: com ele, `generate` devolve `output` validado (saída estruturada). */
+  readonly output?: z.ZodType;
 }
 
 /** Uma tool que o modelo chamou, com o que ela devolveu a ele. */
@@ -172,6 +178,12 @@ export interface ToolCallRecord {
   readonly result: AiToolResult;
 }
 
+/** Página que a busca nativa do provider (Google Grounding) usou para responder. */
+export interface WebSource {
+  readonly url: string;
+  readonly title?: string;
+}
+
 export interface GenerateResult {
   readonly text: string;
   /** O item da cadeia que respondeu, como `google:gemini-2.5-flash`. */
@@ -179,6 +191,10 @@ export interface GenerateResult {
   readonly usage: LanguageModelUsage;
   /** As tools chamadas nesta resposta, na ordem; vazio sem `toolContext`. */
   readonly toolCalls: readonly ToolCallRecord[];
+  /** Fontes da busca nativa, sem repetir URL; vazio sem `nativeSearch` ou se o provider não as dá. */
+  readonly sources: readonly WebSource[];
+  /** O objeto validado pelo `output` do pedido; ausente sem ele. */
+  readonly output?: unknown;
 }
 
 export interface AiService {
@@ -193,6 +209,19 @@ export interface AiService {
    * segredo entre plugins (usebridger#345).
    */
   legacyKey(provider: string): string | undefined;
+}
+
+// O `ai` não exporta o tipo da fonte; ele sai do retorno do `generateText`.
+type Source = Awaited<ReturnType<typeof generateText>>['sources'][number];
+
+/** As fontes de URL, na ordem e sem repetir; as de documento não viram link. */
+function webSources(sources: readonly Source[]): WebSource[] {
+  const seen = new Map<string, WebSource>();
+  for (const s of sources) {
+    if (s.sourceType !== 'url' || seen.has(s.url)) continue;
+    seen.set(s.url, s.title ? { url: s.url, title: s.title } : { url: s.url });
+  }
+  return [...seen.values()];
 }
 
 /** Nenhum modelo da cadeia está disponível (o último erro transitório vai no `cause`). */
@@ -536,7 +565,10 @@ export const ai: PluginDefinition = definePlugin({
               ...(hasTools ? { tools, stopWhen: isStepCount(maxToolSteps) } : {}),
               ...(request.instructions === undefined ? {} : { instructions: request.instructions }),
               messages: [...request.messages],
-              ...(entry.temperature === undefined ? {} : { temperature: entry.temperature }),
+              ...(entry.temperature === undefined || provider.temperature === null
+                ? {}
+                : { temperature: entry.temperature }),
+              ...(request.output ? { output: Output.object({ schema: request.output }) } : {}),
               ...(entry.maxOutputTokens === undefined
                 ? {}
                 : { maxOutputTokens: entry.maxOutputTokens }),
@@ -563,7 +595,14 @@ export const ai: PluginDefinition = definePlugin({
                 .map((step) => step.text.trim())
                 .filter(Boolean)
                 .join('\n');
-            return { text, model: entry.model, usage, toolCalls: calls };
+            return {
+              text,
+              model: entry.model,
+              usage,
+              toolCalls: calls,
+              sources: webSources(result.steps.flatMap((step) => step.sources)),
+              ...(request.output ? { output: result.output } : {}),
+            };
           } catch (err) {
             const statusCode = APICallError.isInstance(err) ? err.statusCode : undefined;
             const extra = statusCode === undefined ? {} : { statusCode };

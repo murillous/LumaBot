@@ -9,7 +9,12 @@ export interface TavilyOptions {
 
 interface TavilyResponse {
   readonly answer?: string | null;
-  readonly results?: readonly { readonly title?: string; readonly content?: string }[];
+  readonly results?: readonly {
+    readonly title?: string;
+    readonly url?: string;
+    readonly content?: string;
+  }[];
+  readonly images?: readonly (string | { readonly url: string; readonly description?: string })[];
   readonly error?: string;
 }
 
@@ -34,33 +39,36 @@ const SNIPPET = 350;
 /** Prazo do Tavily: curto para um Tavily travado não consumir o signal inteiro do listener. */
 export const TAVILY_TIMEOUT_MS = 10_000;
 
-/** Resumo do Tavily e as `shown` primeiras fontes, no tamanho que cabe no contexto do modelo. */
+/** Resumo do Tavily e as `shown` primeiras fontes (título, URL e trecho), no tamanho que cabe no contexto do modelo. */
 export function formatTavily(data: TavilyResponse, shown: number): string {
   const lines: string[] = [];
   if (data.answer) lines.push(`Resumo: ${data.answer}`, '');
   (data.results ?? []).slice(0, shown).forEach((r, i) => {
     lines.push(`[${i + 1}] ${r.title ?? ''}`);
+    // A URL vai junto: sem ela, o modelo que precisa mandar um link inventa um.
+    if (r.url) lines.push(r.url);
     if (r.content) lines.push(r.content.slice(0, SNIPPET));
     lines.push('');
   });
   return lines.join('\n').trim() || 'Nenhum resultado encontrado.';
 }
 
-export async function searchTavily(
-  query: string,
-  { apiKey, maxResults, searchDepth, signal }: TavilyOptions,
+/** Imagem achada pelo Tavily: a URL e, quando ele dá, a descrição que o modelo lê para escolher. */
+export interface TavilyImage {
+  readonly url: string;
+  readonly description?: string;
+}
+
+/** Chama o Tavily com o prazo próprio; resposta de erro vira `TavilyError`. */
+async function postTavily(
+  body: Record<string, unknown>,
+  { apiKey, signal }: Pick<TavilyOptions, 'apiKey' | 'signal'>,
   fetchFn: typeof fetch,
-): Promise<string> {
+): Promise<TavilyResponse> {
   const response = await fetchFn('https://api.tavily.com/search', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      api_key: apiKey,
-      query,
-      search_depth: searchDepth,
-      max_results: maxResults,
-      include_answer: true,
-    }),
+    body: JSON.stringify({ api_key: apiKey, ...body }),
     // Estouro do prazo é falha comum (cai na busca nativa), não cota.
     signal: signal
       ? AbortSignal.any([signal, AbortSignal.timeout(TAVILY_TIMEOUT_MS)])
@@ -69,5 +77,41 @@ export async function searchTavily(
   if (!response.ok) throw new TavilyError(response.status, await response.text().catch(() => ''));
   const data = (await response.json()) as TavilyResponse;
   if (data.error) throw new TavilyError(response.status, data.error);
+  return data;
+}
+
+export async function searchTavily(
+  query: string,
+  { apiKey, maxResults, searchDepth, signal }: TavilyOptions,
+  fetchFn: typeof fetch,
+): Promise<string> {
+  const data = await postTavily(
+    { query, search_depth: searchDepth, max_results: maxResults, include_answer: true },
+    { apiKey, signal },
+    fetchFn,
+  );
   return formatTavily(data, maxResults);
+}
+
+/** Imagens que combinam com `query`, com a descrição de cada uma quando o Tavily a dá. */
+export async function searchTavilyImages(
+  query: string,
+  { apiKey, maxResults, signal }: Omit<TavilyOptions, 'searchDepth'>,
+  fetchFn: typeof fetch,
+): Promise<TavilyImage[]> {
+  const data = await postTavily(
+    { query, max_results: maxResults, include_images: true, include_image_descriptions: true },
+    { apiKey, signal },
+    fetchFn,
+  );
+  // Sem descrição, o Tavily devolve só a URL, em texto.
+  return (data.images ?? [])
+    .slice(0, maxResults)
+    .map((image) =>
+      typeof image === 'string'
+        ? { url: image }
+        : image.description
+          ? { url: image.url, description: image.description }
+          : { url: image.url },
+    );
 }

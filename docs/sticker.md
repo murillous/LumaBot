@@ -12,11 +12,54 @@ Código em `src/plugins/sticker/` (`sticker.ts`: comando e serviço; `convert.ts
 | Comando | Entrada | Saída |
 | --- | --- | --- |
 | `!sticker [texto]` / `!s` | Imagem, vídeo, GIF, figurinha ou link | Figurinha 512×512 |
+| `!stickeraudio` / `!sa` | Vídeo com som; ou imagem/figurinha + áudio | Figurinha WebP com áudio nativo (OGG/Opus) de até 20 s |
 
 A mídia vem da própria mensagem ou, na falta, da citada; mídia de visualização única é recusada.
 Com o `sticker-text` carregado, o texto depois do comando (sem o link) vira legenda na
 figurinha estática, até 90 caracteres, com emoji colorido (ver [Legenda](#legenda-sticker-text)).
 Sem ele, o texto é ignorado. Figurinha animada nunca leva legenda.
+
+### Figurinha com áudio (`!sa`)
+
+O `!sa` (ou `!stickeraudio`), na mensagem do vídeo ou respondendo a ele, gera uma figurinha animada em
+**WebP** com `"sound-sha256"` no chunk EXIF e envia o som do vídeo (OGG/Opus, até 20 s) no campo
+`audioMessage` (26) do `StickerMessage` via `@usebridger/transport-baileys`. Se o vídeo não tiver
+faixa de áudio, responde `stickerNoAudio` e registra `sticker.create.refused` com
+`reason: 'no-audio'`. Num transport sem a capability `send.sticker.audio`, o comando responde
+`stickerAudioUnavailable` antes de converter.
+
+Som e animação ficam em sincronia:
+
+- **Mesmo início.** Os dois saem da mesma linha do tempo do vídeo. Se a faixa de áudio começa
+  depois da de vídeo (comum em gravação de celular), o som ganha silêncio no começo; se é o vídeo
+  que começa depois, o primeiro quadro cobre o intervalo.
+- **Mesma duração.** A animação é convertida primeiro, e o áudio é cortado (ou completado com
+  silêncio) na duração real dela, ao milissegundo.
+
+A duração enviada ao WhatsApp, em segundos inteiros, sai da última página do OGG (sem `ffprobe`).
+Vídeo que não muda (uma foto com música, por exemplo) vira figurinha estática: o encoder junta os
+quadros iguais, não há animação para sincronizar, e o som vai inteiro até 20 s.
+
+#### Juntar figurinha e áudio
+
+O WhatsApp não deixa texto em figurinha nem em áudio, então o `!sa` recebe uma metade e pede a
+outra:
+
+1. `!sa` respondendo a uma **figurinha**: o bot responde `stickerAudioAskAudio` e espera o próximo
+   áudio ou nota de voz da pessoa.
+2. `!sa` numa **imagem** (na legenda ou respondendo a ela): a imagem vira a figurinha estática do
+   `!s`, pelo serviço (com as etapas, como a legenda do `sticker-text`), e segue como no item 1.
+   A figurinha sem som não é enviada: sai só a final, com o áudio.
+3. `!sa` respondendo a um **áudio** ou nota de voz: o bot responde `stickerAudioAskSticker` e espera
+   a próxima figurinha.
+
+A espera é a resposta esperada do kernel
+([conversas](https://github.com/murillous/usebridger/blob/develop/packages/core/docs/conversations.md)):
+vale 2 minutos, só para quem mandou o `!sa`, naquele chat, e fica em memória (um restart a perde).
+A figurinha segue como veio (estática ou animada, em loop), com o EXIF trocado pelo do pacote e o
+`sound-sha256`; o som vai até 20 s. Se a pessoa manda outra coisa, a espera acaba e o bot responde
+`stickerAudioJoinCancelled`; um comando digitado também a cancela, sem aviso. No log, essa
+figurinha conta com `kind: 'join'`.
 
 Enquanto converte, o bot reage ⏳ na mensagem e depois ✅ ou ❌; num transport sem `reactions`, a
 reação é ignorada. Erro de conversão vai para o log (`sticker.create.failed`) e o chat recebe
@@ -39,6 +82,7 @@ Outros plugins usam a figurinha pelo `ctx.services.get('sticker')`, sem importar
 | Método | O que faz |
 | --- | --- |
 | `create(media, { animated, text, signal })` | Bytes → figurinha pronta (WebP com o pacote no EXIF). Estática passa pelas etapas; `animated` (vídeo, GIF) vai pelo FFmpeg, sem etapas |
+| `createWithAudio(video, signal)` | Vídeo com som → `{ sticker, audio }`: a figurinha do `!sa` (com `sound-sha256` no EXIF) e o OGG/Opus, enviados com `reply.sticker(sticker, audioOptions(audio))`. Sem som, lança `NoAudioError` |
 
 Dois jeitos de compor:
 
@@ -121,8 +165,8 @@ estejam em `disabledPlugins`; então o `!downloadsticker` responde `stickerUnava
 
 ## FFmpeg
 
-Vídeo → figurinha roda o binário `ffmpeg`, que precisa estar no `PATH` (com `libwebp`, como nos
-builds do apt e do gyan.dev). Figurinha de imagem não depende dele: usa o Sharp. Por isso, sem o
+Vídeo → figurinha roda o binário `ffmpeg`, que precisa estar no `PATH` (com `libwebp` e `libopus`,
+como nos builds do apt e do gyan.dev). Figurinha de imagem não depende dele: usa o Sharp. Por isso, sem o
 FFmpeg, o plugin sobe mesmo assim: o `setup` só registra o aviso `sticker.ffmpeg.missing` no log. O
 FFmpeg trabalha em arquivos num diretório temporário (`os.tmpdir()`), apagado ao fim de cada
 conversão.
@@ -133,16 +177,37 @@ conversão.
 | --- | --- | --- |
 | Prazo do comando | 60 s | Conversão segura o chat; o padrão do bot é curto para um vídeo |
 | Figurinha de vídeo | 20 s, 15 fps, até 800 KB | Figurinha animada pesada chega, mas não baixa no WhatsApp |
+| Figurinha com áudio | 20 s, 4 a 15 fps, até 800 KB | O som toca inteiro: fps e qualidade se ajustam ao vídeo |
+| Espera da outra metade do `!sa` | 2 min | Tempo de achar o áudio ou a figurinha no celular |
 | Download do link | 5 MB, até 3 redirecionamentos | O link vem de qualquer pessoa no chat |
 
 O link do `!sticker` só é baixado se todos os endereços do host forem públicos: loopback, redes
 privadas, link-local (metadados de nuvem) e multicast são recusados, a cada redirecionamento.
 O tipo do arquivo sai dos bytes iniciais (GIF, MP4/MOV, WebM viram figurinha animada).
 
+A animação sai do encoder `libwebp_anim` do FFmpeg (o WebPAnimEncoder), que regrava só a parte do
+quadro que mudou e junta quadros iguais, depois de um `gblur` leve (sigma 0,8) que tira o detalhe
+fino que pesa e nem aparece no tamanho da figurinha. Num vídeo de meme de 15 s, os dois juntos
+deixam a figurinha 26% menor que o `libwebp` puro, o que vira mais fps e qualidade no mesmo limite.
+A transparência (GIF, WebM, MOV com alfa) é mantida; o `hqdn3d` ficou de fora porque a apaga.
+
 Vídeo nítido (como os do `!download`) passa fácil de 800 KB. A figurinha é refeita com qualidade,
 duração e fps menores até caber: 75/20 s/15 fps, 50/10 s/15 fps, 40/8 s/12 fps, 30/6 s/10 fps e
 20/4 s/10 fps. Se nem a última cabe, o comando responde erro de conversão em vez de mandar uma
 figurinha que não baixa.
+
+A figurinha com áudio (`!sa`) não encurta primeiro: o som precisa tocar inteiro. O plano é
+dinâmico, pelo peso de cada vídeo:
+
+1. Três amostras a 2 fps do vídeo inteiro (até 20 s), nas qualidades 50, 30 e 15, dão o peso médio
+   por quadro de cada uma. O peso cresce linear com o fps, então a amostra prevê o resultado.
+2. Com um orçamento de 92% dos 800 KB, escolhe a melhor qualidade que ainda dá 8 fps (até 15).
+   Se nenhuma dá, usa a qualidade 15 no maior fps que couber.
+3. Só se nem 4 fps cabem, encurta a figurinha (e o som) até caber a 4 fps.
+4. Se o resultado ainda passar do limite, replaneja com o peso medido nele (até 3 vezes).
+
+Um vídeo de meme de 15 s (720×1280, granulado) sai inteiro a 5 fps em uns 8 s de conversão; um
+vídeo leve sai a 15 fps na qualidade 50.
 
 O `!sticker` roda fora da fila do chat (`background`): as outras mensagens do chat não esperam a
 conversão.

@@ -68,7 +68,7 @@ const config = z.object({
 
 const PROMPT =
   'Transcreva exatamente o que foi dito neste áudio para texto.\n' +
-  'Retorne APENAS a transcrição literal, sem comentários, sem prefixos como "Transcrição:" ou aspas.\n' +
+  'Retorne só a transcrição literal, sem comentários, prefixos como "Transcrição:" ou aspas.\n' +
   `Se o áudio for ininteligível ou apenas ruído, retorne exatamente: ${UNINTELLIGIBLE}\n` +
   `Se o áudio estiver vazio ou silencioso, retorne exatamente: ${SILENT}`;
 

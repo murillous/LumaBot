@@ -10,7 +10,7 @@ plugin. O código fica em `src/plugins/ai-<provider>/`, e todos usam o `keyProvi
 | --- | --- | --- | --- | --- |
 | `ai-google` | `google` (Gemini) | sim, com áudio na entrada | sim | Google Grounding (`google_search`) |
 | `ai-openai` | `openai` | sim | sim | — |
-| `ai-anthropic` | `anthropic` (Claude) | sim; `temperature` só até 1 | — | — |
+| `ai-anthropic` | `anthropic` (Claude) | sim; sem `temperature` | — | — |
 | `ai-deepseek` | `deepseek` | sim, sem áudio | — | — |
 
 ## Config

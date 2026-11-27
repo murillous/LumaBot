@@ -31,10 +31,10 @@ async function start(key?: string) {
   return listed[0];
 }
 
-it('com chave: só texto, com temperature até 1', async () => {
+it('com chave: só texto, sem temperature (os Claude 5.5 a recusam)', async () => {
   const anthropic = await start('a-key');
 
-  expect(anthropic).toMatchObject({ name: 'anthropic', temperature: { min: 0, max: 1 } });
+  expect(anthropic).toMatchObject({ name: 'anthropic', temperature: null });
   expect(anthropic?.languageModel('claude-haiku-5-5')).toMatchObject({
     modelId: 'claude-haiku-5-5',
   });

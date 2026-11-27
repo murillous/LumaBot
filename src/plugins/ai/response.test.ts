@@ -16,6 +16,16 @@ describe('cleanResponse', () => {
     expect(cleanResponse('kkkkkkk')).toBe('kkkkkkk');
   });
 
+  it('link em markdown vira texto e URL soltos, que o WhatsApp abre', () => {
+    expect(cleanResponse('olha [esse vídeo](https://youtu.be/abc?t=3) kkk')).toBe(
+      'olha esse vídeo: https://youtu.be/abc?t=3 kkk',
+    );
+  });
+
+  it('link em markdown cujo texto é a própria URL fica só com a URL', () => {
+    expect(cleanResponse('[https://g1.com/x](https://g1.com/x)')).toBe('https://g1.com/x');
+  });
+
   it('texto vazio continua vazio', () => {
     expect(cleanResponse('<think>só pensando</think>')).toBe('');
   });
@@ -24,8 +34,16 @@ describe('cleanResponse', () => {
 describe('splitIntoParts', () => {
   const opts = { maxLength: 30, maxParts: 2 };
 
-  it('divide pelo marcador [PARTE] e descarta o excedente', () => {
-    expect(splitIntoParts('um[PARTE]dois[PARTE]três', opts)).toEqual(['um', 'dois']);
+  it('divide pelo marcador [PARTE]', () => {
+    expect(splitIntoParts('um[PARTE]dois', opts)).toEqual(['um', 'dois']);
+  });
+
+  it('acima do teto, o excedente marcado vai junto no último balão', () => {
+    expect(splitIntoParts('um[PARTE]dois[PARTE]três', opts)).toEqual(['um', 'dois\n\ntrês']);
+  });
+
+  it('com teto 1, tudo vai num balão só', () => {
+    expect(splitIntoParts('um[PARTE]dois', { ...opts, maxParts: 1 })).toEqual(['um\n\ndois']);
   });
 
   it('com um marcador só e texto curto, devolve o texto como veio', () => {
@@ -48,8 +66,21 @@ describe('splitIntoParts', () => {
     expect(splitIntoParts('a'.repeat(50), opts)).toEqual(['a'.repeat(30), 'a'.repeat(20)]);
   });
 
-  it('respeita maxParts mesmo com texto sobrando', () => {
-    expect(splitIntoParts('a'.repeat(200), opts)).toHaveLength(2);
+  it('não corta no meio de um link: ele vai inteiro para o balão seguinte', () => {
+    const url = 'https://youtu.be/abcdefg';
+    expect(splitIntoParts(`olha esse aqui mano ${url} kkk`, opts)).toEqual([
+      'olha esse aqui mano',
+      `${url} kkk`,
+    ]);
+  });
+
+  it('link maior que o balão vai inteiro, passando do limite', () => {
+    const url = `https://exemplo.com/${'a'.repeat(40)}`;
+    expect(splitIntoParts(`${url} fim`, opts)).toEqual([url, 'fim']);
+  });
+
+  it('respeita maxParts sem perder texto: o resto vai inteiro no último balão', () => {
+    expect(splitIntoParts('a'.repeat(200), opts)).toEqual(['a'.repeat(30), 'a'.repeat(170)]);
   });
 
   it('vazio não gera balão', () => {

@@ -22,6 +22,7 @@ import { luma } from '#plugins/luma/luma.ts';
 import { pairing } from '#plugins/pairing.ts';
 import { pdf } from '#plugins/pdf/pdf.ts';
 import { ping } from '#plugins/ping.ts';
+import { polls } from '#plugins/polls/polls.ts';
 import { rank } from '#plugins/rank/rank.ts';
 import { reminders } from '#plugins/reminders/reminders.ts';
 import { resumo } from '#plugins/resumo/resumo.ts';
@@ -35,6 +36,7 @@ import { usage } from '#plugins/usage/usage.ts';
 import { userNames } from '#plugins/user-names/user-names.ts';
 import { utils } from '#plugins/utils/utils.ts';
 import { webSearch } from '#plugins/web-search/web-search.ts';
+import { welcome } from '#plugins/welcome/welcome.ts';
 
 const config = loadConfig();
 // O app cria o logger para registrar também a falha de boot; o mesmo SecretSet vai para o bot,
@@ -113,12 +115,14 @@ const bot = createBot({
     transcribe,
     webSearch(),
     help,
+    welcome,
     sticker,
     stickerText,
     stickerConvert,
     stickerEdit,
     pdf(),
     reminders,
+    polls,
     download({ cookies: config.ytdlpCookies }),
     userNames,
     rank,

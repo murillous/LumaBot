@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { type ActionSpec, actionTracker, hostOf, trackerFor } from '#plugins/action-metrics.ts';
 import { type AiToolResult, aiTool, fail, ok } from '#plugins/ai/tools.ts';
 import { checkBinary } from '#plugins/binary.ts';
+import { audioOptions, NoAudioError } from '#plugins/sticker/audio-sticker.ts';
 import {
   BINARIES_MISSING,
   DOWNLOAD_DONE,
@@ -40,6 +41,9 @@ const MESSAGES = {
   unavailable: 'ℹ️ Download indisponível: faltam o `yt-dlp` ou o `ffmpeg` no servidor.',
   stickerUnavailable: 'ℹ️ Figurinha indisponível: o plugin `sticker` não está carregado.',
   stickerError: '❌ Baixei, mas não consegui fazer a figurinha.',
+  soundStickerUsage:
+    'ℹ️ Cole o link do vídeo junto com o comando.\nEx: `{prefix}dsa https://x.com/...`',
+  noAudio: '❌ Esse link não tem vídeo com áudio.',
 };
 
 /**
@@ -54,7 +58,7 @@ const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp']);
 
 /**
  * Cada download no log (`download.media.*`) e em `luma_download_*`. `kind`: `media` (vídeo ou
- * foto), `audio` ou `sticker`.
+ * foto), `audio`, `sticker` ou `sound-sticker` (`!dsa`).
  */
 const ACTION: ActionSpec = {
   metric: 'download',
@@ -62,7 +66,12 @@ const ACTION: ActionSpec = {
   // Até o prazo dos comandos (240 s): vídeo longo recodificado passa de um minuto.
   buckets: [1, 2, 5, 10, 20, 30, 60, 120, 240],
   events: { done: DOWNLOAD_DONE, refused: DOWNLOAD_REFUSED, failed: DOWNLOAD_FAILED },
-  refusal: (err) => (err instanceof TooLargeError ? 'too-large' : undefined),
+  refusal: (err) =>
+    err instanceof TooLargeError
+      ? 'too-large'
+      : err instanceof NoAudioError
+        ? 'no-audio'
+        : undefined,
 };
 
 export interface DownloadOptions {
@@ -71,8 +80,8 @@ export interface DownloadOptions {
 }
 
 /**
- * `!download` (vídeo ou foto de rede social), `!audio` (MP3 de um link) e `!downloadsticker`
- * (o vídeo ou a foto como figurinha), pelo yt-dlp.
+ * `!download` (vídeo ou foto de rede social), `!audio` (MP3 de um link), `!downloadsticker`
+ * (o vídeo ou a foto como figurinha) e `!dsa` (o vídeo como figurinha com áudio), pelo yt-dlp.
  */
 export function download(options: DownloadOptions = {}): PluginDefinition {
   // Refeitos a cada setup (inclusive no reload), por instância do plugin.
@@ -116,7 +125,7 @@ export function download(options: DownloadOptions = {}): PluginDefinition {
         aiTool({
           name: 'download_media',
           description:
-            'Baixa o vídeo ou a foto de um link (X, Instagram, TikTok, YouTube...) e envia no chat.',
+            'Baixa o vídeo ou a foto de um link (X, Instagram, TikTok, YouTube...) e envia no chat. Para mandar um vídeo ou meme que a pessoa só descreveu, ache o link com a busca na internet e passe-o aqui.',
           args: z.object({ url }),
           requires: ['send.video'],
           run: ({ url }, t) =>
@@ -295,6 +304,52 @@ export function download(options: DownloadOptions = {}): PluginDefinition {
             } catch (err) {
               // O `track` já registrou a falha.
               await ctx.react('❌');
+              if (downloaded) return ctx.t('stickerError');
+              return ctx.t(err instanceof TooLargeError ? 'tooLarge' : 'downloadError');
+            }
+            await ctx.react('✅');
+            return undefined;
+          });
+        },
+      },
+
+      downloadstickeraudio: {
+        aliases: ['dsa'],
+        description: 'Baixa o vídeo de um link e manda como figurinha com áudio',
+        requires: ['send.sticker', 'send.sticker.audio'],
+        timeoutMs: TIMEOUT_MS,
+        background: true,
+        concurrency: CONCURRENCY,
+        run: async (ctx, plugin) => {
+          if (binariesMissing) return ctx.t('unavailable');
+          const url = findUrl(ctx);
+          if (!url) return ctx.t('soundStickerUsage');
+          // Opcional e consultado a cada uso, como no `!downloadsticker`.
+          if (!plugin.services.has('sticker')) return ctx.t('stickerUnavailable');
+          const stickers = plugin.services.get('sticker');
+          return inTempDir(async (dir) => {
+            await ctx.react('⏳');
+            let downloaded = false;
+            try {
+              await track(
+                { log: ctx.log.child({ host: hostOf(url) }), message: ctx.message },
+                'sound-sticker',
+                async (step) => {
+                  const file = await downloadVideo(url, dir, { ...options, signal: ctx.signal });
+                  downloaded = true;
+                  // Post de foto não tem som: o `createWithAudio` recusa com `NoAudioError`.
+                  const { sticker, audio } = await stickers.createWithAudio(
+                    await readFile(file),
+                    ctx.signal,
+                  );
+                  await ctx.reply.sticker(sticker, audioOptions(audio));
+                  step.note({ bytes: sticker.length, audioBytes: audio.data.length });
+                },
+              );
+            } catch (err) {
+              // O `track` já registrou a falha.
+              await ctx.react('❌');
+              if (err instanceof NoAudioError) return ctx.t('noAudio');
               if (downloaded) return ctx.t('stickerError');
               return ctx.t(err instanceof TooLargeError ? 'tooLarge' : 'downloadError');
             }

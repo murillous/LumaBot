@@ -1,7 +1,7 @@
 import { createTestBot, type TestBot } from '@usebridger/testing';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ai } from '#plugins/ai/ai.ts';
-import { fakeProvider, scripted } from '#plugins/ai/testing.ts';
+import { fakeProvider, groundedAnswer, scripted } from '#plugins/ai/testing.ts';
 import { aiToolsProbe, toolResult } from '#plugins/ai/tools-probe.ts';
 import { observedBot } from '#plugins/observe-probe.ts';
 import { usage } from '#plugins/usage/usage.ts';
@@ -94,6 +94,31 @@ describe('Google Grounding como fallback', () => {
         }),
     };
   };
+
+  it('as fontes da busca nativa vão ao modelo com a URL, sem repetir', async () => {
+    const model = scripted(
+      groundedAnswer('O meme é de 2014.', [
+        { url: 'https://knowyourmeme.com/gato', title: 'Gato chorando' },
+        { url: 'https://knowyourmeme.com/gato', title: 'Gato chorando' },
+        { url: 'https://youtu.be/abc' },
+      ]),
+    );
+    bot = await createTestBot({
+      plugins: [
+        ai,
+        fakeProvider({ a: model }, { nativeSearch: true }),
+        webSearch({ fetch: vi.fn() as never }),
+        aiToolsProbe,
+      ],
+      pluginConfig: { ai: { models: [{ model: 'fake:a' }] } },
+    });
+
+    expect(await search(bot)).toEqual({
+      ok: true,
+      results:
+        'O meme é de 2014.\n\nFontes:\n[1] Gato chorando\nhttps://knowyourmeme.com/gato\n[2] https://youtu.be/abc',
+    });
+  });
 
   it('sem chave do Tavily, busca pelo provider com busca nativa', async () => {
     const g = grounding(vi.fn() as never);
@@ -228,6 +253,17 @@ describe('formatTavily', () => {
     expect(new TavilyError(403, 'usage limit exceeded').quota).toBe(true);
   });
 
+  it('leva a URL de cada fonte, para o modelo não inventar link', () => {
+    const results = [
+      { title: 'Gato chorando', url: 'https://youtu.be/abc?t=3', content: 'meme' },
+      { title: 'Sem link', content: 'só texto' },
+    ];
+
+    expect(formatTavily({ results }, 5)).toBe(
+      '[1] Gato chorando\nhttps://youtu.be/abc?t=3\nmeme\n\n[2] Sem link\nsó texto',
+    );
+  });
+
   it('sem nada, diz que não achou', () => {
     expect(formatTavily({}, 4)).toBe('Nenhum resultado encontrado.');
   });
@@ -316,4 +352,114 @@ it('a busca conta no usage de quem pediu à IA', async () => {
   expect(probe.entries).toEqual([
     expect.objectContaining({ action: 'web_search', kind: 'tavily', outcome: 'ok' }),
   ]);
+});
+
+describe('search_images', () => {
+  const images = {
+    images: [
+      { url: 'https://i.imgur.com/gato.jpg', description: 'gato chorando com legenda' },
+      'https://i.imgur.com/sem-descricao.png',
+    ],
+  };
+
+  it('busca imagens pela descrição e devolve as URLs ao modelo', async () => {
+    const fetchFn = vi.fn(async () => json(images));
+    bot = await createTestBot({
+      plugins: [webSearch({ fetch: fetchFn as never }), aiToolsProbe],
+      pluginConfig: { 'web-search': { tavily: { apiKey: 'tvly-secreta' } } },
+    });
+
+    await bot.receive({ text: '!tool search_images {"query":"meme gato chorando"}' });
+
+    expect(toolResult(bot)).toEqual({
+      ok: true,
+      images: [
+        { url: 'https://i.imgur.com/gato.jpg', description: 'gato chorando com legenda' },
+        { url: 'https://i.imgur.com/sem-descricao.png' },
+      ],
+    });
+    const [, init] = fetchFn.mock.calls[0] as unknown as [string, RequestInit];
+    expect(JSON.parse(String(init.body))).toMatchObject({
+      query: 'meme gato chorando',
+      include_images: true,
+      include_image_descriptions: true,
+    });
+  });
+
+  it('sem chave do Tavily, a busca de imagens fica indisponível', async () => {
+    bot = await createTestBot({
+      plugins: [webSearch({ fetch: vi.fn() as never }), aiToolsProbe],
+    });
+
+    await bot.receive({ text: '!tool search_images {"query":"meme"}' });
+
+    expect(toolResult(bot)).toEqual({ ok: false, error: 'unavailable' });
+  });
+
+  it('nenhuma imagem achada vira not-found', async () => {
+    bot = await createTestBot({
+      plugins: [
+        webSearch({ fetch: vi.fn(async () => json({ images: [] })) as never }),
+        aiToolsProbe,
+      ],
+      pluginConfig: { 'web-search': { tavily: { apiKey: 'tvly-secreta' } } },
+    });
+
+    await bot.receive({ text: '!tool search_images {"query":"meme"}' });
+
+    expect(toolResult(bot)).toEqual({ ok: false, error: 'not-found' });
+  });
+});
+
+describe('send_image', () => {
+  const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]);
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  async function start() {
+    bot = await createTestBot({ plugins: [webSearch({ fetch: vi.fn() as never }), aiToolsProbe] });
+    return bot;
+  }
+
+  it('baixa a imagem do link e envia no chat, com a legenda', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(PNG)),
+    );
+    const b = await start();
+
+    await b.receive({
+      text: '!tool send_image {"url":"https://93.184.216.34/gato.png","caption":"kkkk"}',
+    });
+
+    expect(toolResult(b)).toEqual({ ok: true });
+    const [sent] = b.sentMedia('image');
+    expect(sent?.content).toMatchObject({ caption: 'kkkk', mimetype: 'image/png' });
+  });
+
+  it('link que não é imagem vira not-image, sem enviar nada', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('<html>oi</html>')),
+    );
+    const b = await start();
+
+    await b.receive({ text: '!tool send_image {"url":"https://93.184.216.34/pagina"}' });
+
+    expect(toolResult(b)).toEqual({ ok: false, error: 'not-image' });
+    expect(b.sentMedia('image')).toHaveLength(0);
+  });
+
+  it('endereço interno não é baixado: url-failed', async () => {
+    const fetchFn = vi.fn();
+    vi.stubGlobal('fetch', fetchFn);
+    const b = await start();
+
+    await b.receive({ text: '!tool send_image {"url":"http://127.0.0.1:8080/admin"}' });
+
+    expect(toolResult(b)).toEqual({ ok: false, error: 'url-failed' });
+    expect(fetchFn).not.toHaveBeenCalled();
+  });
 });

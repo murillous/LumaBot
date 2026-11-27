@@ -109,6 +109,25 @@ describe('ai.generate', () => {
     ]);
   });
 
+  it('não manda temperature ao provider que a recusa (temperature: null)', async () => {
+    const a = model('olá');
+    const claude: AiProvider = { ...fake('fake', { a }), temperature: null };
+    const ai = await start([{ model: 'fake:a', temperature: 0.7 }], [claude]);
+
+    await ai.generate(hi);
+
+    expect(a.doGenerateCalls[0]?.temperature).toBeUndefined();
+  });
+
+  it('com output, devolve o objeto validado pelo schema', async () => {
+    const a = model('{"n":1}');
+    const ai = await start([{ model: 'fake:a' }], [fake('fake', { a })]);
+
+    const result = await ai.generate({ ...hi, output: z.object({ n: z.number() }) });
+
+    expect(result.output).toEqual({ n: 1 });
+  });
+
   it('cai para o próximo provider em erro transitório', async () => {
     const a = model(apiError(503));
     const b = model('de b');

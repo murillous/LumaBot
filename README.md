@@ -34,6 +34,8 @@ e o roadmap vivem no `usebridger`: bug ou feature do Bridger vai para lá.
 | --- | --- |
 | Conversa | Responde em PV e, nos grupos, quando citada, chamada ou mencionada. Troca de persona com `!persona` |
 | `!sticker` (`!s`) | Figurinha de imagem, vídeo, GIF ou link, com legenda opcional |
+| `!stickeraudio` (`!sa`) | Figurinha com som, até 20 s: de um vídeo, ou de imagem/figurinha + o áudio que vem depois |
+| `!downloadstickeraudio` (`!dsa`) | Vídeo de um link como figurinha com som |
 | `!image` / `!gif` | Figurinha de volta a imagem ou vídeo |
 | `!editar` (`!edit`) | Edita uma figurinha com IA (grátis, pelo Cloudflare) |
 | `!transcribe` (`!t`) | Transcreve o áudio |
@@ -54,7 +56,7 @@ Boa parte disso também está ao alcance da IA: pedir "faz uma figurinha disso" 
 | [Node](https://nodejs.org) 24+ (`.nvmrc`) | Roda o bot |
 | [pnpm](https://pnpm.io) (versão em `packageManager`) | Dependências. Com `corepack enable`, o `pnpm install` baixa a versão certa |
 | [FFmpeg](https://ffmpeg.org) com `libwebp`, no `PATH` | Figurinha de vídeo (`sticker`), `!gif` (`sticker-convert`) e `!download`. Sem ele, só esses recursos falham |
-| [yt-dlp](https://github.com/yt-dlp/yt-dlp), no `PATH` | `!download`, `!audio` e `!downloadsticker` ([download.md](docs/download.md#binários)) |
+| [yt-dlp](https://github.com/yt-dlp/yt-dlp), no `PATH` | `!download`, `!audio`, `!downloadsticker` e `!dsa` ([download.md](docs/download.md#binários)) |
 | Chave de um provedor de IA | Gemini, OpenAI, Anthropic ou DeepSeek, cada um no próprio plugin (`BRIDGER_AI_GOOGLE__KEY`...; [ai-providers.md](docs/ai-providers.md)). Sem uma cadeia `models`, a IA recusa responder; o resto funciona |
 
 No Debian/Ubuntu, de uma vez:
@@ -231,6 +233,7 @@ o app carrega o `metrics`.
 | [`transcribe`](docs/transcribe.md) | Transcrição de áudio: `!transcribe` (`!t`). Oferece o serviço `transcription` |
 | [`web-search`](docs/web-search.md) | Busca na internet (Tavily, com Google Grounding de reserva). Oferece o serviço `webSearch` |
 | [`help`](docs/help.md) | Menu de comandos gerado do kernel: `!help`, `!menu`, `!ajuda`. Oferece o serviço `help` e o ponto `help.sections` |
+| [`welcome`](docs/welcome.md) | A Luma se apresenta e manda o menu do `help`: no privado, na primeira mensagem de cada pessoa; no grupo, quando é adicionada |
 | [`sticker`](docs/sticker.md) | Figurinha de imagem, vídeo ou link: `!sticker`. Oferece o serviço `sticker` |
 | [`sticker-text`](docs/sticker.md#legenda-sticker-text) | Texto do `!sticker` como legenda; estende o serviço `sticker` |
 | [`sticker-convert`](docs/sticker-convert.md) | Figurinha de volta a imagem ou vídeo: `!image`, `!gif` |
@@ -238,8 +241,9 @@ o app carrega o `metrics`.
 | [`cloudflare-ai`](docs/cloudflare-ai.md) | Provider `cloudflare` no ponto `ai.providers`: os modelos de imagem grátis do Workers AI que o `sticker-edit` usa |
 | [`pdf`](docs/pdf.md) | Imagem → PDF e junção de PDFs: `!pdf`, `!mergepdf` |
 | [`reminders`](docs/reminders.md) | Lembretes agendados: `!lembrete`, `!lembretes`, `!cancelarlembrete`. Oferece o serviço `reminders` e o ponto `reminders.parsers` |
+| [`polls`](docs/polls.md) | Enquetes pela IA: abre e conta os votos (`create_poll`, `poll_results`). Exige a capability `polls` |
 | [`user-names`](docs/user-names.md) | Apelidos e nome de exibição: `!nick`, serviço `userNames` |
-| [`download`](docs/download.md) | Vídeo, foto, áudio e figurinha de links pelo yt-dlp: `!download`, `!audio`, `!downloadsticker` |
+| [`download`](docs/download.md) | Vídeo, foto, áudio e figurinha de links pelo yt-dlp: `!download`, `!audio`, `!downloadsticker`, `!dsa` |
 | [`rank`](docs/rank.md) | Ranking de quem mais usa a Luma, contado pelo `usage`: `!rank`, serviço `rank` |
 | [`usage`](docs/usage.md) | Uso por pessoa em todas as ações, por dia, só no storage. Oferece o serviço `usage` e o ponto `usage.observers` |
 | [`utils`](docs/utils.md) | `!meunumero`/`!meuid` (número e ID do chat) e `!prefixo` (prefixo por chat, só admin). Ponto de extensão `utils.info` |

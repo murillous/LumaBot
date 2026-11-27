@@ -24,7 +24,8 @@ export function mediaOf(ctx: CommandContext): Media {
  * `conversionError`, que todo plugin que usa o `attempt` declara.
  */
 export async function attempt(
-  ctx: CommandContext,
+  // Só o que o `attempt` usa: serve ao comando e ao passo de conversa (`StepContext`).
+  ctx: Pick<CommandContext, 'react' | 't' | 'log' | 'message'>,
   track: Track,
   kind: string,
   work: (step: ActionStep) => Promise<void>,
